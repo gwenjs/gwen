@@ -34,7 +34,6 @@ use std::sync::{Mutex, PoisonError};
 use rapier3d::control::{CharacterAutostep, CharacterLength, KinematicCharacterController};
 use rapier3d::dynamics::RigidBodyHandle;
 use rapier3d::geometry::{ColliderHandle, Group, InteractionGroups};
-use rapier3d::na::{Quaternion, Translation3, Unit, UnitQuaternion};
 use rapier3d::parry::query::ShapeCastOptions;
 use rapier3d::prelude::*;
 
@@ -233,6 +232,8 @@ impl EventHandler for EventCollector3D<'_> {
         _total_force_magnitude: f32,
     ) {
     }
+
+    fn handle_soft_body_tear_event(&self, _soft_bodies: &SoftBodySet, _event: &SoftBodyTearEvent) {}
 }
 
 // ─── World ────────────────────────────────────────────────────────────────────
@@ -245,7 +246,7 @@ impl EventHandler for EventCollector3D<'_> {
 /// It must only be accessed from the single WASM thread.
 pub struct PhysicsWorld3D {
     pipeline: PhysicsPipeline,
-    gravity: Vector<f32>,
+    gravity: Vector,
     integration_params: IntegrationParameters,
     island_manager: IslandManager,
     broad_phase: DefaultBroadPhase,
@@ -255,9 +256,7 @@ pub struct PhysicsWorld3D {
     impulse_joint_set: ImpulseJointSet,
     multibody_joint_set: MultibodyJointSet,
     ccd_solver: CCDSolver,
-    /// Spatial query acceleration structure (BVH over all colliders).
-    /// Updated after every [`step`] call.
-    query_pipeline: QueryPipeline,
+    soft_bodies: SoftBodySet,
     /// Mapping from ECS entity index → Rapier handle.
     entity_handles: HashMap<u32, RigidBodyHandle>,
     /// Mapping from `(entity_index, collider_id)` → [`ColliderHandle`].
@@ -316,30 +315,11 @@ const COMPOUND_SHAPE_CAPSULE: u32 = 2;
 
 /// Largest absolute value accepted for a collider coordinate, offset, height, scale or size.
 ///
-/// Measured with `tests/physics3d_magnitude_probe.rs` (parry3d-0.17.6):
+/// The bound is `1e9`. `f32` has a 24-bit mantissa: the gap between neighbouring values is `64`
+/// at `1e9` and `65536` at `1e12`, against `f32::EPSILON` (about `1.2e-7`) at `1.0`. At the bound
+/// a position resolves to 64 metres, which is coarse but finite.
 ///
-/// - A point projection onto a trimesh reaches `Option::unwrap` on `None` in
-///   `query/point/point_composite_shape.rs:152` once the triangles are wide enough that a
-///   squared triangle area overflows `f32`. With corners at `+-m` the first panic sits between
-///   `m = 2e9` and `2.5e9` for a diagonal triangle and between `2e9` and `3e9` for a floor patch;
-///   `1e9` is clean. So the bound sits only a factor of 2 to 3 below the measured edge for a
-///   single huge triangle, not orders of magnitude below it. A mesh with one far vertex
-///   (`1e15`, `1e19`, `1e20` against a 8 m floor patch) did not panic in the same two queries
-///   here; the earlier report of a first panic between `1e19` and `1e20` in
-///   `query/clip/clip_aabb_line.rs:141` was not reproduced by this probe.
-/// - `f32` has a 24-bit mantissa: the gap between neighbouring values is `64` at `1e9` and
-///   `65536` at `1e12`, against `f32::EPSILON` (about `1.2e-7`) at `1.0`. At the bound a
-///   position resolves to 64 metres, which is coarse but finite.
-/// - A fixed ground box with half extents `1e9`, centered at `y = -1e9` so its top is `y = 0`
-///   (inside ±[`MAX_WORLD_EXTENT`]), and a dynamic ball at `y = 3` (also inside that extent)
-///   keep a finite ball state after 120 steps, and the ball stays enabled. A ray from
-///   `(5, 256, 0)` along `-Y` hits that box at distance `256`
-///   (`bodies_and_queries_at_the_bound_stay_finite`). A mesh with corners at `+-1e9` can be
-///   stepped and queried through the exports without a panic. A raw rapier step with a `1e12`
-///   ground cuboid also gives finite positions and no panic. The step itself is not what sets
-///   the bound; the trimesh projection above is.
-///
-/// A tighter bound such as `1e8` would leave a factor of about 25 below the measured edge.
+/// `tests/physics3d_magnitude_probe.rs` records a point projection past this bound.
 pub const MAX_COLLIDER_MAGNITUDE: f32 = 1.0e9;
 
 /// Largest absolute coordinate a query accepts, and the position past which a dynamic body is disabled.
@@ -361,8 +341,7 @@ const REASON_VELOCITY: u32 = 2;
 /// Room for 16 `[slot, reason]` pairs. `step` does not grow this buffer when nothing is disabled.
 const DISABLED_SLOT_CAPACITY: usize = 32;
 
-/// Refuse a joint value that is NaN or infinite. Measured on rapier3d 0.22: a NaN or infinite
-/// anchor, axis, spring value or motor velocity makes body states NaN after a few steps.
+/// Refuse a joint value that is NaN or infinite.
 fn check_joint_values(values: &[f32]) -> Result<(), Physics3DError> {
     if values.iter().all(|v| v.is_finite()) {
         Ok(())
@@ -431,7 +410,7 @@ fn check_collider_density(value: f32) -> Result<(), Physics3DError> {
 /// Refuse a character controller skin width that parry asserts on: NaN or negative.
 ///
 /// `KinematicCharacterController::move_shape` loosens an AABB by the skin width, and
-/// `Aabb::loosened` asserts `amount >= 0.0` (`parry3d-0.17.6/src/bounding_volume/aabb.rs:584`).
+/// `Aabb::loosened` asserts `amount >= 0.0` (`parry3d-0.31.1` `src/bounding_volume/aabb.rs:1004`).
 /// Positive infinity and huge values do not panic (probe: `physics3d_cc_joint_probe.rs`) and
 /// stay accepted.
 fn check_cc_skin_width(value: f32) -> Result<(), Physics3DError> {
@@ -477,9 +456,9 @@ fn check_bulk_len(
 /// Build a heightfield collider after validating the grid, the heights and the scale.
 ///
 /// `rows * cols` is computed with `checked_mul` on `u32`, so an overflow is refused on wasm32
-/// and native alike. The two parry asserts are covered: `HeightField::with_flags` needs at least
-/// 2 rows and columns (parry3d-0.17.6 `shape/heightfield3.rs:92`) and `DMatrix::from_row_slice`
-/// needs exactly `rows * cols` samples (nalgebra-0.33.3 `base/construction.rs:107-110`).
+/// and native alike. parry3d 0.31.1 `shape/heightfield3.rs:91` asserts at least 2 rows and
+/// columns. The sample count is checked here before `Array2::from_fn` (column-major; the
+/// closure keeps the row-major order of the flat buffer).
 fn heightfield_builder(
     heights_flat: &[f32],
     rows: u32,
@@ -505,18 +484,20 @@ fn heightfield_builder(
     for &height in heights_flat {
         check_collider_coordinate(height)?;
     }
-    let matrix = rapier3d::na::DMatrix::from_row_slice(rows as usize, cols as usize, heights_flat);
+    let rows = rows as usize;
+    let cols = cols as usize;
+    let heights =
+        rapier3d::parry::utils::Array2::from_fn(rows, cols, |i, j| heights_flat[i * cols + j]);
     Ok(ColliderBuilder::heightfield(
-        matrix,
-        vector![scale[0], scale[1], scale[2]],
+        heights,
+        Vector::new(scale[0], scale[1], scale[2]),
     ))
 }
 
 /// Build a trimesh collider after validating the buffers, the vertices and every index.
 ///
-/// An index at or past the vertex count would be read by `TriMesh::rebuild_qbvh` (parry3d-0.17.6
-/// `shape/trimesh.rs:489-493`) and abort the instance; `TriMesh::new` also asserts that the
-/// index list is not empty (`shape/trimesh.rs:318`).
+/// An index at or past the vertex count is refused before `ColliderBuilder::trimesh`. parry3d
+/// 0.31.1 `shape/trimesh.rs:629` returns `Result`; a failure maps to `MeshEmpty`.
 fn trimesh_builder(
     vertices_flat: &[f32],
     indices_flat: &[u32],
@@ -551,12 +532,14 @@ fn trimesh_builder(
             }
         }
     }
-    let points: Vec<rapier3d::na::Point3<f32>> = vertex_chunks
+    let points: Vec<Vector> = vertex_chunks
         .iter()
-        .map(|c| rapier3d::na::Point3::new(c[0], c[1], c[2]))
+        .map(|c| Vector::new(c[0], c[1], c[2]))
         .collect();
     let triangles: Vec<[u32; 3]> = index_chunks.to_vec();
-    Ok(ColliderBuilder::trimesh(points, triangles))
+    ColliderBuilder::trimesh(points, triangles).map_err(|_| Physics3DError::InvalidShape {
+        reason: InvalidShapeReason::MeshEmpty,
+    })
 }
 
 /// Build a convex-hull collider with the fallible `try_convex_hull`.
@@ -571,9 +554,9 @@ fn convex_builder(vertices_flat: &[f32], density: f32) -> Result<ColliderBuilder
     for coordinate in chunks.iter().flatten() {
         check_collider_coordinate(*coordinate)?;
     }
-    let points: Vec<rapier3d::na::Point3<f32>> = chunks
+    let points: Vec<Vector> = chunks
         .iter()
-        .map(|c| rapier3d::na::Point3::new(c[0], c[1], c[2]))
+        .map(|c| Vector::new(c[0], c[1], c[2]))
         .collect();
     let degenerate = || Physics3DError::InvalidShape {
         reason: InvalidShapeReason::ConvexDegenerate,
@@ -614,8 +597,7 @@ fn bvh_builder(bvh_bytes: &[u8]) -> Result<ColliderBuilder, Physics3DError> {
     )))
 }
 
-/// Check what parry reads without checking: triangle indices (`shape/trimesh.rs:988-992`) and
-/// BVH leaf ids, plus non-empty and finite bounded vertices.
+/// Check triangle indices, BVH leaf ids, and non-empty finite vertices.
 fn decoded_mesh_is_valid(mesh: &rapier3d::geometry::TriMesh) -> bool {
     let vertices = mesh.vertices();
     let triangles = mesh.indices();
@@ -624,16 +606,16 @@ fn decoded_mesh_is_valid(mesh: &rapier3d::geometry::TriMesh) -> bool {
     }
     let coordinates_ok = vertices
         .iter()
-        .flat_map(|v| v.coords.iter())
-        .all(|c| check_collider_coordinate(*c).is_ok());
+        .flat_map(|v| v.to_array())
+        .all(|c| check_collider_coordinate(c).is_ok());
     let indices_ok = triangles
         .iter()
         .flatten()
         .all(|&i| usize::try_from(i).is_ok_and(|i| i < vertices.len()));
     let leaves_ok = mesh
-        .qbvh()
-        .iter_data()
-        .all(|(_, &leaf)| usize::try_from(leaf).is_ok_and(|i| i < triangles.len()));
+        .bvh()
+        .leaves(|_| true)
+        .all(|leaf| usize::try_from(leaf).is_ok_and(|i| i < triangles.len()));
     coordinates_ok && indices_ok && leaves_ok
 }
 
@@ -697,7 +679,7 @@ impl PhysicsWorld3D {
     pub fn new(gravity_x: f32, gravity_y: f32, gravity_z: f32) -> Self {
         let mut world = PhysicsWorld3D {
             pipeline: PhysicsPipeline::new(),
-            gravity: vector![gravity_x, gravity_y, gravity_z],
+            gravity: Vector::new(gravity_x, gravity_y, gravity_z),
             integration_params: IntegrationParameters::default(),
             island_manager: IslandManager::new(),
             broad_phase: DefaultBroadPhase::new(),
@@ -707,7 +689,7 @@ impl PhysicsWorld3D {
             impulse_joint_set: ImpulseJointSet::new(),
             multibody_joint_set: MultibodyJointSet::new(),
             ccd_solver: CCDSolver::new(),
-            query_pipeline: QueryPipeline::new(),
+            soft_bodies: SoftBodySet::new(),
             entity_handles: HashMap::new(),
             collider_handles: HashMap::new(),
             sensor_states: HashMap::new(),
@@ -736,7 +718,9 @@ impl PhysicsWorld3D {
     /// Apply a [`QualitySolverConfig3D`] directly to the integration parameters.
     fn apply_quality_config(&mut self, cfg: QualitySolverConfig3D) {
         self.integration_params.num_solver_iterations =
-            NonZeroUsize::new(cfg.num_solver_iterations).unwrap_or(NonZeroUsize::MIN);
+            NonZeroUsize::new(cfg.num_solver_iterations)
+                .unwrap_or(NonZeroUsize::MIN)
+                .get();
         self.integration_params
             .num_internal_stabilization_iterations = cfg.num_internal_stabilization_iterations;
         self.integration_params.max_ccd_substeps = cfg.max_ccd_substeps;
@@ -843,11 +827,10 @@ impl PhysicsWorld3D {
     ///
     /// `px` is checked before `py`, then `pz`. The world is not touched.
     ///
-    /// This is an input guard on the query point. It is not what keeps parry from
-    /// unwrapping. `trimesh_builder` runs `check_collider_coordinate` on every vertex
-    /// (`world.rs:545-547`, cap `1e9`). `decoded_mesh_is_valid` applies that cap on the
-    /// `load_bvh_collider` path (`world.rs:624-627`). parry3d-0.17.6
-    /// `query/point/point_composite_shape.rs:152` unwraps a missing projection.
+    /// This is an input guard on the query point. `trimesh_builder` runs
+    /// `check_collider_coordinate` on every vertex (`world.rs:522-524`, cap `1e9`).
+    /// `decoded_mesh_is_valid` applies that cap on the `load_bvh_collider` path
+    /// (`world.rs:607-610`).
     /// Probe cases `mesh pose fixed 1e19 1m`, `mesh pose fixed 1e19 cap`,
     /// `mesh pose fixed 1e30 1m`, `mesh pose fixed 1e30 cap`, `mesh pose fixed max 1m`,
     /// `mesh pose fixed max cap`, `mesh pose kinematic 1e19 1m` and
@@ -918,7 +901,7 @@ impl PhysicsWorld3D {
                 buf: Mutex::new(&mut self.collision_events),
             };
             self.pipeline.step(
-                &self.gravity,
+                self.gravity,
                 &self.integration_params,
                 &mut self.island_manager,
                 &mut self.broad_phase,
@@ -927,8 +910,8 @@ impl PhysicsWorld3D {
                 &mut self.collider_set,
                 &mut self.impulse_joint_set,
                 &mut self.multibody_joint_set,
+                &mut self.soft_bodies,
                 &mut self.ccd_solver,
-                None,
                 &(),
                 &collector,
             );
@@ -938,10 +921,6 @@ impl PhysicsWorld3D {
         // populated by EventCollector3D.  We read back the ring buffer here so
         // we don't need a second event channel.
         self.update_sensor_states_from_events();
-
-        // Rebuild the spatial query BVH so castRay / castShape / overlapShape
-        // / projectPoint reflect the new collider positions this frame.
-        self.query_pipeline.update(&self.collider_set);
         Ok(())
     }
 
@@ -1001,7 +980,7 @@ impl PhysicsWorld3D {
                 vy = scaled.1;
                 vz = scaled.2;
                 if let Some(body) = rigid_body_set.get_mut(handle) {
-                    body.set_linvel(vector![vx, vy, vz], true);
+                    body.set_linvel(Vector::new(vx, vy, vz), true);
                 }
             }
             let next_x = tx + vx * delta;
@@ -1187,7 +1166,7 @@ impl PhysicsWorld3D {
         let body_type = kind_to_body_type(kind);
 
         let mut builder = RigidBodyBuilder::new(body_type)
-            .translation(vector![x, y, z])
+            .translation(Vector::new(x, y, z))
             .linear_damping(linear_damping)
             .angular_damping(angular_damping);
 
@@ -1230,7 +1209,7 @@ impl PhysicsWorld3D {
             // need to clean the local map.
             self.joint_handles.retain(|_, &mut jh| {
                 if let Some(joint) = self.impulse_joint_set.get(jh) {
-                    joint.body1 != handle && joint.body2 != handle
+                    joint.body1() != handle && joint.body2() != handle
                 } else {
                     false
                 }
@@ -1242,6 +1221,7 @@ impl PhysicsWorld3D {
                 &mut self.collider_set,
                 &mut self.impulse_joint_set,
                 &mut self.multibody_joint_set,
+                &mut self.soft_bodies,
                 // remove_attached_colliders = true
                 true,
             );
@@ -1271,6 +1251,7 @@ impl PhysicsWorld3D {
         InteractionGroups::new(
             Group::from_bits_truncate(layer_bits),
             Group::from_bits_truncate(mask_bits),
+            InteractionTestMode::And,
         )
     }
 
@@ -1295,7 +1276,11 @@ impl PhysicsWorld3D {
 
         let groups = Self::make_interaction_groups(params.layer_bits, params.mask_bits);
         let collider = builder
-            .translation(vector![params.offset_x, params.offset_y, params.offset_z])
+            .translation(Vector::new(
+                params.offset_x,
+                params.offset_y,
+                params.offset_z,
+            ))
             .sensor(params.is_sensor)
             .friction(params.friction)
             .restitution(params.restitution)
@@ -1600,6 +1585,7 @@ impl PhysicsWorld3D {
                 ch,
                 &mut self.island_manager,
                 &mut self.rigid_body_set,
+                &mut self.soft_bodies,
                 false,
             );
             self.collider_handles.remove(&(entity_index, collider_id));
@@ -1709,6 +1695,7 @@ impl PhysicsWorld3D {
                 ch,
                 &mut self.island_manager,
                 &mut self.rigid_body_set,
+                &mut self.soft_bodies,
                 // wake_up = true: re-activate the parent body after geometry change.
                 true,
             );
@@ -1722,9 +1709,7 @@ impl PhysicsWorld3D {
     ///
     /// `vertices_flat` must hold at least 4 points (`[x0,y0,z0, x1,y1,z1, ...]`); a trailing
     /// partial point is dropped. The hull is computed with parry's fallible
-    /// `try_convex_hull`, because `ColliderBuilder::convex_hull` calls the unwrapping
-    /// `convex_hull` (parry3d-0.17.6 `shape/convex_polyhedron.rs:120`,
-    /// `transformation/convex_hull3/convex_hull.rs:10-12`) and panics on degenerate input.
+    /// `try_convex_hull`, which returns a typed `ConvexDegenerate` error on degenerate input.
     ///
     /// # Errors
     /// Returns [`Physics3DError::BodyNotFound`] when the entity has no body,
@@ -1927,7 +1912,7 @@ impl PhysicsWorld3D {
             let entity_index = entity_indices[i];
 
             let rb = RigidBodyBuilder::fixed()
-                .translation(vector![px, py, pz])
+                .translation(Vector::new(px, py, pz))
                 .build();
             let handle = self.rigid_body_set.insert(rb);
             self.entity_handles.insert(entity_index, handle);
@@ -2042,6 +2027,7 @@ impl PhysicsWorld3D {
             ch,
             &mut self.island_manager,
             &mut self.rigid_body_set,
+            &mut self.soft_bodies,
             // wake_up = true so the parent body re-enters the active island.
             true,
         );
@@ -2081,8 +2067,8 @@ impl PhysicsWorld3D {
         let Some(body) = self.rigid_body_set.get_mut(handle) else {
             return false;
         };
-        let rotation = UnitQuaternion::new_normalize(Quaternion::new(qw, qx, qy, qz));
-        let iso = Isometry::from_parts(Translation3::new(px, py, pz), rotation);
+        let rotation = Rotation::from_xyzw(qx, qy, qz, qw).normalize();
+        let iso = Pose::from_parts(Vector::new(px, py, pz), rotation);
         body.set_next_kinematic_position(iso);
         true
     }
@@ -2127,12 +2113,14 @@ impl PhysicsWorld3D {
                 continue;
             };
             let pos = *body.position();
-            let t = Translation3::new(
-                pos.translation.x + vx[i] * dt,
-                pos.translation.y + vy[i] * dt,
-                pos.translation.z + vz[i] * dt,
+            let iso = Pose::from_parts(
+                Vector::new(
+                    pos.translation.x + vx[i] * dt,
+                    pos.translation.y + vy[i] * dt,
+                    pos.translation.z + vz[i] * dt,
+                ),
+                pos.rotation,
             );
-            let iso = Isometry::from_parts(t, pos.rotation);
             body.set_next_kinematic_position(iso);
             updated += 1;
         }
@@ -2179,18 +2167,14 @@ impl PhysicsWorld3D {
                 continue;
             };
             let pos = *body.position();
-            let q = pos.rotation.quaternion();
+            let q = pos.rotation;
             let hdt = 0.5 * dt;
-            let nqx =
-                q.coords.x + hdt * (wx[i] * q.coords.w + wy[i] * q.coords.z - wz[i] * q.coords.y);
-            let nqy =
-                q.coords.y + hdt * (-wx[i] * q.coords.z + wy[i] * q.coords.w + wz[i] * q.coords.x);
-            let nqz =
-                q.coords.z + hdt * (wx[i] * q.coords.y - wy[i] * q.coords.x + wz[i] * q.coords.w);
-            let nqw =
-                q.coords.w + hdt * (-wx[i] * q.coords.x - wy[i] * q.coords.y - wz[i] * q.coords.z);
-            let rotation = UnitQuaternion::new_normalize(Quaternion::new(nqw, nqx, nqy, nqz));
-            let iso = Isometry::from_parts(pos.translation, rotation);
+            let nqx = q.x + hdt * (wx[i] * q.w + wy[i] * q.z - wz[i] * q.y);
+            let nqy = q.y + hdt * (-wx[i] * q.z + wy[i] * q.w + wz[i] * q.x);
+            let nqz = q.z + hdt * (wx[i] * q.y - wy[i] * q.x + wz[i] * q.w);
+            let nqw = q.w + hdt * (-wx[i] * q.x - wy[i] * q.y - wz[i] * q.z);
+            let rotation = Rotation::from_xyzw(nqx, nqy, nqz, nqw).normalize();
+            let iso = Pose::from_parts(pos.translation, rotation);
             body.set_next_kinematic_position(iso);
             updated += 1;
         }
@@ -2222,8 +2206,8 @@ impl PhysicsWorld3D {
         };
 
         let iso = body.position();
-        let t = iso.translation.vector;
-        let q = iso.rotation.quaternion().coords; // [x, y, z, w] from nalgebra
+        let t = iso.translation;
+        let q = iso.rotation;
         let lv = body.linvel();
         let av = body.angvel();
 
@@ -2282,11 +2266,11 @@ impl PhysicsWorld3D {
             return false;
         };
 
-        let rotation = UnitQuaternion::new_normalize(Quaternion::new(qw, qx, qy, qz));
-        let iso = Isometry::from_parts(Translation3::new(px, py, pz), rotation);
+        let rotation = Rotation::from_xyzw(qx, qy, qz, qw).normalize();
+        let iso = Pose::from_parts(Vector::new(px, py, pz), rotation);
         body.set_position(iso, true);
-        body.set_linvel(vector![vx, vy, vz], true);
-        body.set_angvel(vector![ax, ay, az], true);
+        body.set_linvel(Vector::new(vx, vy, vz), true);
+        body.set_angvel(Vector::new(ax, ay, az), true);
         true
     }
 
@@ -2335,7 +2319,7 @@ impl PhysicsWorld3D {
             );
             return false;
         };
-        body.set_linvel(vector![vx, vy, vz], true);
+        body.set_linvel(Vector::new(vx, vy, vz), true);
         true
     }
 
@@ -2384,7 +2368,7 @@ impl PhysicsWorld3D {
             );
             return false;
         };
-        body.set_angvel(vector![ax, ay, az], true);
+        body.set_angvel(Vector::new(ax, ay, az), true);
         true
     }
 
@@ -2413,7 +2397,7 @@ impl PhysicsWorld3D {
             );
             return false;
         };
-        body.apply_impulse(vector![ix, iy, iz], true);
+        body.apply_impulse(Vector::new(ix, iy, iz), true);
         true
     }
 
@@ -2443,7 +2427,7 @@ impl PhysicsWorld3D {
             );
             return false;
         };
-        body.apply_torque_impulse(vector![ax, ay, az], true);
+        body.apply_torque_impulse(Vector::new(ax, ay, az), true);
         true
     }
 
@@ -2476,7 +2460,7 @@ impl PhysicsWorld3D {
             );
             return false;
         };
-        body.add_force(vector![fx, fy, fz], true);
+        body.add_force(Vector::new(fx, fy, fz), true);
         true
     }
 
@@ -2507,7 +2491,7 @@ impl PhysicsWorld3D {
             );
             return false;
         };
-        body.add_torque(vector![tx, ty, tz], true);
+        body.add_torque(Vector::new(tx, ty, tz), true);
         true
     }
 
@@ -2553,7 +2537,7 @@ impl PhysicsWorld3D {
             );
             return false;
         };
-        body.add_force_at_point(vector![fx, fy, fz], point![px, py, pz], true);
+        body.add_force_at_point(Vector::new(fx, fy, fz), Vector::new(px, py, pz), true);
         true
     }
 
@@ -2815,7 +2799,17 @@ impl PhysicsWorld3D {
         QueryFilter::new().groups(InteractionGroups::new(
             Group::from_bits_truncate(layers),
             Group::from_bits_truncate(mask),
+            InteractionTestMode::And,
         ))
+    }
+
+    fn query_pipeline<'a>(&'a self, filter: QueryFilter<'a>) -> QueryPipeline<'a> {
+        self.broad_phase.as_query_pipeline(
+            self.narrow_phase.query_dispatcher(),
+            &self.rigid_body_set,
+            &self.collider_set,
+            filter,
+        )
     }
 
     /// Cast a ray and return the first hit.
@@ -2845,16 +2839,11 @@ impl PhysicsWorld3D {
         mask: u32,
         solid: bool,
     ) -> Vec<f32> {
-        let ray = Ray::new(point![ox, oy, oz], vector![dx, dy, dz]);
+        let ray = Ray::new(Vector::new(ox, oy, oz), Vector::new(dx, dy, dz));
         let filter = Self::make_query_filter(layers, mask);
-        let Some((ch, intersection)) = self.query_pipeline.cast_ray_and_get_normal(
-            &self.rigid_body_set,
-            &self.collider_set,
-            &ray,
-            max_dist,
-            solid,
-            filter,
-        ) else {
+        let pipeline = self.query_pipeline(filter);
+        let Some((ch, intersection)) = pipeline.cast_ray_and_get_normal(&ray, max_dist, solid)
+        else {
             return vec![0.0];
         };
         let entity_index = self
@@ -2913,26 +2902,19 @@ impl PhysicsWorld3D {
         mask: u32,
     ) -> Vec<f32> {
         let shape = Self::decode_shape(shape_type, p0, p1, p2);
-        let iso = Isometry::from_parts(
-            Translation3::new(pos_x, pos_y, pos_z),
-            UnitQuaternion::from_quaternion(Quaternion::new(rot_w, rot_x, rot_y, rot_z)),
+        let iso = Pose::from_parts(
+            Vector::new(pos_x, pos_y, pos_z),
+            Rotation::from_xyzw(rot_x, rot_y, rot_z, rot_w).normalize(),
         );
-        let dir = vector![dir_x, dir_y, dir_z];
+        let dir = Vector::new(dir_x, dir_y, dir_z);
         let filter = Self::make_query_filter(layers, mask);
         let opts = ShapeCastOptions {
             max_time_of_impact: max_dist,
             stop_at_penetration: true,
             ..ShapeCastOptions::default()
         };
-        let Some((ch, hit)) = self.query_pipeline.cast_shape(
-            &self.rigid_body_set,
-            &self.collider_set,
-            &iso,
-            &dir,
-            shape.as_ref(),
-            opts,
-            filter,
-        ) else {
+        let pipeline = self.query_pipeline(filter);
+        let Some((ch, hit)) = pipeline.cast_shape(&iso, dir, shape.as_ref(), opts) else {
             return vec![0.0];
         };
         let entity_index = self
@@ -2989,46 +2971,28 @@ impl PhysicsWorld3D {
         out: &mut [u32],
     ) -> u32 {
         let shape = Self::decode_shape(shape_type, p0, p1, p2);
-        let iso = Isometry::from_parts(
-            Translation3::new(pos_x, pos_y, pos_z),
-            UnitQuaternion::from_quaternion(Quaternion::new(rot_w, rot_x, rot_y, rot_z)),
+        let iso = Pose::from_parts(
+            Vector::new(pos_x, pos_y, pos_z),
+            Rotation::from_xyzw(rot_x, rot_y, rot_z, rot_w).normalize(),
         );
         let filter = Self::make_query_filter(layers, mask);
         let mut count: u32 = 0;
-        self.query_pipeline.intersections_with_shape(
-            &self.rigid_body_set,
-            &self.collider_set,
-            &iso,
-            shape.as_ref(),
-            filter,
-            |ch| {
-                let Some(slot) = out.get_mut(count as usize) else {
-                    return false;
-                };
-                *slot = self
-                    .collider_set
-                    .get(ch)
-                    .map(|c| unpack_user_data(c.user_data).0)
-                    .unwrap_or(u32::MAX);
-                count += 1;
-                true
-            },
-        );
+        let pipeline = self.query_pipeline(filter);
+        for (_, collider) in pipeline.intersect_shape(iso, shape.as_ref()) {
+            let Some(slot) = out.get_mut(count as usize) else {
+                break;
+            };
+            *slot = unpack_user_data(collider.user_data).0;
+            count += 1;
+        }
         count
     }
 
     /// Project a world-space point onto the nearest collider.
     ///
-    /// Query points outside [`MAX_WORLD_EXTENT`] are refused. That guard does not
-    /// prevent the parry unwrap. `trimesh_builder` refuses each vertex above `1e9`
-    /// (`world.rs:545-547`, `check_collider_coordinate`). `decoded_mesh_is_valid` applies
-    /// that cap on the `load_bvh_collider` path (`world.rs:624-627`). parry3d-0.17.6
-    /// `query/point/point_composite_shape.rs:152` unwraps a missing projection.
-    /// Probe cases `mesh pose fixed 1e19 1m`, `mesh pose fixed 1e19 cap`,
-    /// `mesh pose fixed 1e30 1m`, `mesh pose fixed 1e30 cap`, `mesh pose fixed max 1m`,
-    /// `mesh pose fixed max cap`, `mesh pose kinematic 1e19 1m` and
-    /// `mesh pose kinematic 1e19 cap` (`tests/physics3d_float_probe.rs`) use a pose up to
-    /// `f32::MAX` and do not panic.
+    /// Query points outside [`MAX_WORLD_EXTENT`] are refused. `trimesh_builder` refuses each
+    /// vertex above `1e9`. `decoded_mesh_is_valid` applies that cap on the `load_bvh_collider`
+    /// path. The query passes `f32::MAX` so the nearest collider is returned at any distance.
     ///
     /// # Arguments
     /// * `px/py/pz`        — Point to project.
@@ -3048,13 +3012,9 @@ impl PhysicsWorld3D {
         solid: bool,
     ) -> Vec<f32> {
         let filter = Self::make_query_filter(layers, mask);
-        let Some((ch, proj)) = self.query_pipeline.project_point(
-            &self.rigid_body_set,
-            &self.collider_set,
-            &point![px, py, pz],
-            solid,
-            filter,
-        ) else {
+        let pipeline = self.query_pipeline(filter);
+        let Some((ch, proj)) = pipeline.project_point(Vector::new(px, py, pz), f32::MAX, solid)
+        else {
             return vec![0.0];
         };
         let entity_index = self
@@ -3134,8 +3094,8 @@ impl PhysicsWorld3D {
         let (ha, hb) = self.joint_bodies(entity_a, entity_b)?;
         check_joint_values(&[ax, ay, az, bx, by, bz])?;
         let joint = FixedJointBuilder::new()
-            .local_anchor1(point![ax, ay, az])
-            .local_anchor2(point![bx, by, bz])
+            .local_anchor1(Vector::new(ax, ay, az))
+            .local_anchor2(Vector::new(bx, by, bz))
             .build();
         let handle = self.impulse_joint_set.insert(ha, hb, joint, true);
         Ok(self.register_joint(handle))
@@ -3179,11 +3139,15 @@ impl PhysicsWorld3D {
         let (ha, hb) = self.joint_bodies(entity_a, entity_b)?;
         check_joint_values(&[ax, ay, az, bx, by, bz, axis_x, axis_y, axis_z])?;
         check_joint_limits(use_limits, [limit_min, limit_max])?;
-        let axis = Unit::try_new(vector![axis_x, axis_y, axis_z], 1e-6)
-            .unwrap_or_else(|| Unit::new_normalize(vector![0.0, 1.0, 0.0]));
+        let raw = Vector::new(axis_x, axis_y, axis_z);
+        let axis = if raw.length() > 1e-6 {
+            raw.normalize()
+        } else {
+            Vector::Y
+        };
         let mut builder = RevoluteJointBuilder::new(axis)
-            .local_anchor1(point![ax, ay, az])
-            .local_anchor2(point![bx, by, bz]);
+            .local_anchor1(Vector::new(ax, ay, az))
+            .local_anchor2(Vector::new(bx, by, bz));
         if use_limits {
             builder = builder.limits([limit_min, limit_max]);
         }
@@ -3229,11 +3193,15 @@ impl PhysicsWorld3D {
         let (ha, hb) = self.joint_bodies(entity_a, entity_b)?;
         check_joint_values(&[ax, ay, az, bx, by, bz, axis_x, axis_y, axis_z])?;
         check_joint_limits(use_limits, [limit_min, limit_max])?;
-        let axis = Unit::try_new(vector![axis_x, axis_y, axis_z], 1e-6)
-            .unwrap_or_else(|| Unit::new_normalize(vector![1.0, 0.0, 0.0]));
+        let raw = Vector::new(axis_x, axis_y, axis_z);
+        let axis = if raw.length() > 1e-6 {
+            raw.normalize()
+        } else {
+            Vector::X
+        };
         let mut builder = PrismaticJointBuilder::new(axis)
-            .local_anchor1(point![ax, ay, az])
-            .local_anchor2(point![bx, by, bz]);
+            .local_anchor1(Vector::new(ax, ay, az))
+            .local_anchor2(Vector::new(bx, by, bz));
         if use_limits {
             builder = builder.limits([limit_min, limit_max]);
         }
@@ -3270,8 +3238,8 @@ impl PhysicsWorld3D {
         let (ha, hb) = self.joint_bodies(entity_a, entity_b)?;
         check_joint_values(&[ax, ay, az, bx, by, bz])?;
         let joint = SphericalJointBuilder::new()
-            .local_anchor1(point![ax, ay, az])
-            .local_anchor2(point![bx, by, bz])
+            .local_anchor1(Vector::new(ax, ay, az))
+            .local_anchor2(Vector::new(bx, by, bz))
             .build();
         let handle = self.impulse_joint_set.insert(ha, hb, joint, true);
         Ok(self.register_joint(handle))
@@ -3312,8 +3280,8 @@ impl PhysicsWorld3D {
         let (ha, hb) = self.joint_bodies(entity_a, entity_b)?;
         check_joint_values(&[ax, ay, az, bx, by, bz, rest_length, stiffness, damping])?;
         let joint = SpringJointBuilder::new(rest_length, stiffness, damping)
-            .local_anchor1(point![ax, ay, az])
-            .local_anchor2(point![bx, by, bz])
+            .local_anchor1(Vector::new(ax, ay, az))
+            .local_anchor2(Vector::new(bx, by, bz))
             .build();
         let handle = self.impulse_joint_set.insert(ha, hb, joint, true);
         Ok(self.register_joint(handle))
@@ -3357,7 +3325,7 @@ impl PhysicsWorld3D {
         check_joint_values(&[velocity, max_force])?;
         let joint = self
             .impulse_joint_set
-            .get_mut(handle)
+            .get_mut(handle, true)
             .ok_or(Physics3DError::JointNotFound { joint_id: id })?;
         joint
             .data
@@ -3388,7 +3356,7 @@ impl PhysicsWorld3D {
         check_joint_values(&[target, stiffness, damping])?;
         let joint = self
             .impulse_joint_set
-            .get_mut(handle)
+            .get_mut(handle, true)
             .ok_or(Physics3DError::JointNotFound { joint_id: id })?;
         joint
             .data
@@ -3408,7 +3376,7 @@ impl PhysicsWorld3D {
         let handle = self.require_joint(id)?;
         let joint = self
             .impulse_joint_set
-            .get_mut(handle)
+            .get_mut(handle, true)
             .ok_or(Physics3DError::JointNotFound { joint_id: id })?;
         joint.data.set_enabled(enabled);
         Ok(())
@@ -3478,7 +3446,7 @@ impl PhysicsWorld3D {
     /// * `slope_limit` — Maximum climbable slope angle in **degrees**. Slopes steeper than this are treated as walls.
     /// * `skin_width` — Separation (metres) kept between the character shape and surfaces (`cc.offset`).
     ///   NaN and negative values are refused: parry asserts `amount >= 0.0` in `Aabb::loosened`
-    ///   (`parry3d-0.17.6/src/bounding_volume/aabb.rs:584`) when the controller moves.
+    ///   (`parry3d-0.31.1` `src/bounding_volume/aabb.rs:1004`) when the controller moves.
     /// * `snap_to_ground` — Distance (metres) to snap the character to the ground. Pass `0.0` to disable snapping.
     /// * `slide_on_steep_slopes` — When `true` the character slides along steep surfaces instead of stopping.
     /// * `apply_impulses_to_dynamic` — When `true` the controller pushes dynamic bodies it collides with.
@@ -3511,7 +3479,6 @@ impl PhysicsWorld3D {
         };
         // Impulse application to dynamic bodies is handled via
         // `solve_character_collision_impulses` in `character_controller_move`.
-        // That field does not exist in rapier3d 0.22.0.
         let cc = KinematicCharacterController {
             offset: CharacterLength::Absolute(skin_width),
             slide: slide_on_steep_slopes,
@@ -3575,7 +3542,7 @@ impl PhysicsWorld3D {
 
     /// Writes one grounded contact into a controller slot.
     /// `base` is `slot * CC_STATE_STRIDE`. The index is bounds-checked.
-    fn write_cc_hit(&mut self, base: usize, normal: Unit<Vector<f32>>, ground_bits: u32) {
+    fn write_cc_hit(&mut self, base: usize, normal: Vector, ground_bits: u32) {
         self.cc_state[base] = 1.0;
         self.cc_state[base + 1] = normal.x;
         self.cc_state[base + 2] = normal.y;
@@ -3592,9 +3559,7 @@ impl PhysicsWorld3D {
     /// update; the call is a no-op for other body types (Rapier ignores
     /// `set_next_kinematic_position` on dynamic bodies).
     ///
-    /// The [`QueryPipeline`] must have been updated at least once (i.e.
-    /// [`step`] must have been called) before this method produces useful
-    /// collision results.
+    /// [`step`] fills the broad phase. A move before the first step sees no colliders.
     ///
     /// # Arguments
     /// * `entity_index` — ECS entity slot index.
@@ -3621,14 +3586,14 @@ impl PhysicsWorld3D {
         let Some((cc, apply_impulses)) = self.cc_controllers.get(&entity_index) else {
             return Err(Physics3DError::CharacterControllerNotFound { slot: entity_index });
         };
+        let cc = *cc;
         let apply_impulses = *apply_impulses;
+        let desired = Vector::new(vx * dt, vy * dt, vz * dt);
         let Some(body) = self.rigid_body_set.get(handle) else {
             self.write_cc_no_hit(base);
             return Ok(());
         };
         let position = *body.position();
-        let desired = Vector::new(vx * dt, vy * dt, vz * dt);
-
         // Use the first collider attached to the body to determine the shape.
         let Some(collider_handle) = body.colliders().first().copied() else {
             debug_warn!(
@@ -3642,7 +3607,8 @@ impl PhysicsWorld3D {
             self.write_cc_no_hit(base);
             return Ok(());
         };
-        let shape = collider.shape();
+        // The mutable query pipeline borrows the collider set, so the shape is cloned (Arc).
+        let shape = collider.shared_shape().clone();
 
         // Exclude the character's own body from collision queries so the
         // controller does not collide with itself.
@@ -3650,30 +3616,33 @@ impl PhysicsWorld3D {
 
         // Collect collisions for optional impulse application and ground detection.
         let mut collisions: Vec<rapier3d::control::CharacterCollision> = Vec::new();
-        let movement = cc.move_shape(
-            dt,
-            &self.rigid_body_set,
-            &self.collider_set,
-            &self.query_pipeline,
-            shape,
-            &position,
-            desired,
-            filter,
-            |c| collisions.push(c),
-        );
+        let movement = {
+            let queries = self.broad_phase.as_query_pipeline(
+                self.narrow_phase.query_dispatcher(),
+                &self.rigid_body_set,
+                &self.collider_set,
+                filter,
+            );
+            cc.move_shape(dt, &queries, shape.as_ref(), &position, desired, |c| {
+                collisions.push(c);
+            })
+        };
 
         // Apply impulses to dynamic bodies if requested.
         if apply_impulses && !collisions.is_empty() {
             // character_mass: use 1.0 as a sensible default (mass not stored per-CC).
+            let mut queries = self.broad_phase.as_query_pipeline_mut(
+                self.narrow_phase.query_dispatcher(),
+                &mut self.rigid_body_set,
+                &mut self.collider_set,
+                filter,
+            );
             cc.solve_character_collision_impulses(
                 dt,
-                &mut self.rigid_body_set,
-                &self.collider_set,
-                &self.query_pipeline,
-                shape,
+                &mut queries,
+                shape.as_ref(),
                 1.0,
                 &collisions,
-                filter,
             );
         }
 
@@ -3683,7 +3652,7 @@ impl PhysicsWorld3D {
             return Ok(());
         };
         let mut new_pos = *body_mut.position();
-        new_pos.translation.vector += movement.translation;
+        new_pos.translation += movement.translation;
         body_mut.set_next_kinematic_position(new_pos);
 
         // ── Determine ground contact info and write to CC_STATE_BUFFER ────────
@@ -3920,6 +3889,7 @@ mod tests {
         clippy::unreachable,
         clippy::todo,
         clippy::unimplemented,
+        clippy::bool_assert_comparison,
         reason = "test-only code"
     )]
     use super::*;
@@ -4425,8 +4395,7 @@ mod tests {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         world.set_quality(0); // Low
         assert_eq!(
-            world.integration_params.num_solver_iterations.get(),
-            2,
+            world.integration_params.num_solver_iterations, 2,
             "Low preset should set 2 solver iterations"
         );
         assert_eq!(
@@ -4442,7 +4411,7 @@ mod tests {
     fn test_physics3d_quality_preset_medium() {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         world.set_quality(1); // Medium
-        assert_eq!(world.integration_params.num_solver_iterations.get(), 4);
+        assert_eq!(world.integration_params.num_solver_iterations, 4);
         assert_eq!(
             world
                 .integration_params
@@ -4455,7 +4424,7 @@ mod tests {
     fn test_physics3d_quality_preset_high() {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         world.set_quality(2); // High
-        assert_eq!(world.integration_params.num_solver_iterations.get(), 8);
+        assert_eq!(world.integration_params.num_solver_iterations, 8);
         assert_eq!(
             world
                 .integration_params
@@ -4469,7 +4438,7 @@ mod tests {
     fn test_physics3d_quality_preset_esport() {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         world.set_quality(3); // Esport
-        assert_eq!(world.integration_params.num_solver_iterations.get(), 10);
+        assert_eq!(world.integration_params.num_solver_iterations, 10);
         assert_eq!(
             world
                 .integration_params
@@ -4483,7 +4452,7 @@ mod tests {
     fn test_physics3d_quality_unknown_preset_falls_back_to_medium() {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         world.set_quality(200); // Unknown
-        assert_eq!(world.integration_params.num_solver_iterations.get(), 4);
+        assert_eq!(world.integration_params.num_solver_iterations, 4);
     }
 
     // ── Event coalescing flag ─────────────────────────────────────────────────
@@ -5422,36 +5391,37 @@ mod tests {
     // ─── load_bvh_collider ────────────────────────────────────────────────────
 
     /// Helper: build a minimal valid GBVH buffer (2-triangle quad mesh).
-    fn make_simple_trimesh_bytes() -> Vec<u8> {
+    fn make_simple_trimesh_bytes() -> Result<Vec<u8>, String> {
         use rapier3d::geometry::TriMesh;
-        use rapier3d::na::Point3;
         let verts = vec![
-            Point3::new(0.0f32, 0.0, 0.0),
-            Point3::new(1.0, 0.0, 0.0),
-            Point3::new(0.0, 1.0, 0.0),
-            Point3::new(1.0, 1.0, 0.0),
+            Vector::new(0.0f32, 0.0, 0.0),
+            Vector::new(1.0, 0.0, 0.0),
+            Vector::new(0.0, 1.0, 0.0),
+            Vector::new(1.0, 1.0, 0.0),
         ];
         let idxs = vec![[0u32, 1, 2], [1, 3, 2]];
-        let trimesh = TriMesh::new(verts, idxs);
+        let trimesh =
+            TriMesh::new(verts, idxs).map_err(|err| format!("TriMesh build failed: {err}"))?;
         let bvh = bincode::serde::encode_to_vec(&trimesh, bincode::config::standard()).unwrap();
         let (major, minor) = crate::physics3d::RAPIER_VERSION;
         let mut out = b"GBVH".to_vec();
         out.extend_from_slice(&major.to_le_bytes());
         out.extend_from_slice(&minor.to_le_bytes());
         out.extend_from_slice(&bvh);
-        out
+        Ok(out)
     }
 
     #[test]
-    fn test_load_bvh_collider_success() {
+    fn test_load_bvh_collider_success() -> Result<(), String> {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         world.add_body(0, 0.0, 0.0, 0.0, 0, 1.0, 0.1, 0.1);
-        let bytes = make_simple_trimesh_bytes();
+        let bytes = make_simple_trimesh_bytes()?;
         assert_eq!(
             world.load_bvh_collider(0, &bytes, 0.0, 0.0, 0.0, false, 0.5, 0.0, 0xFFFF, 0xFFFF, 1),
             Ok(())
         );
         assert!(world.collider_handles.contains_key(&(0, 1)));
+        Ok(())
     }
 
     #[test]
@@ -5470,10 +5440,10 @@ mod tests {
     }
 
     #[test]
-    fn test_load_bvh_collider_version_mismatch_is_refused() {
+    fn test_load_bvh_collider_version_mismatch_is_refused() -> Result<(), String> {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         world.add_body(0, 0.0, 0.0, 0.0, 0, 1.0, 0.1, 0.1);
-        let mut bytes = make_simple_trimesh_bytes();
+        let mut bytes = make_simple_trimesh_bytes()?;
         let minor = crate::physics3d::RAPIER_VERSION.1.wrapping_add(1);
         bytes[6..8].copy_from_slice(&minor.to_le_bytes());
         let ok =
@@ -5484,6 +5454,7 @@ mod tests {
                 reason: BvhLoadReason::VersionMismatch
             })
         );
+        Ok(())
     }
 
     #[test]
@@ -5502,13 +5473,14 @@ mod tests {
     }
 
     #[test]
-    fn test_load_bvh_collider_no_body_returns_body_not_found() {
+    fn test_load_bvh_collider_no_body_returns_body_not_found() -> Result<(), String> {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
-        let bytes = make_simple_trimesh_bytes();
+        let bytes = make_simple_trimesh_bytes()?;
         let ok = world.load_bvh_collider(
             99, &bytes, 0.0, 0.0, 0.0, false, 0.5, 0.0, 0xFFFF, 0xFFFF, 1,
         );
         assert_eq!(ok, Err(Physics3DError::BodyNotFound { slot: 99 }));
+        Ok(())
     }
 
     // ── T2: bulk kinematic integration ──────────────────────────────────────────
@@ -6070,6 +6042,82 @@ mod tests {
         Ok(())
     }
 
+    /// `(0,0,0,2)` is the same rotation as `(0,0,0,1)` after `normalize`.
+    /// The cuboid cast from `y = 2` and the cuboid beside the ball both change
+    /// when that call is absent.
+    #[test]
+    fn a_non_unit_query_rotation_matches_the_unit_rotation() -> Result<(), Physics3DError> {
+        let world = world_with_box_at_origin()?;
+        let cast = |rot_w: f32| {
+            world.cast_shape(
+                0.0,
+                2.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                rot_w,
+                0.0,
+                -1.0,
+                0.0,
+                0,
+                0.2,
+                0.2,
+                0.2,
+                10.0,
+                0xFFFF_FFFF,
+                0xFFFF_FFFF,
+            )
+        };
+        let unit_cast = cast(1.0);
+        assert_eq!(unit_cast.first().copied(), Some(1.0));
+        assert_eq!(cast(2.0), unit_cast);
+
+        let mut ball_world = PhysicsWorld3D::new(0.0, 0.0, 0.0);
+        assert_eq!(
+            ball_world.add_body(0, 0.0, 0.0, 0.0, 0, 1.0, 0.0, 0.0),
+            true
+        );
+        ball_world.add_sphere_collider(
+            0,
+            0.5,
+            0.0,
+            0.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            0xFFFF_FFFF,
+            0xFFFF_FFFF,
+            1,
+        )?;
+        ball_world.step(1.0 / 60.0)?;
+        let overlap = |rot_w: f32| {
+            let mut hits = [u32::MAX; 4];
+            let count = ball_world.overlap_shape(
+                0.6,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                rot_w,
+                0,
+                0.2,
+                0.2,
+                0.2,
+                0xFFFF_FFFF,
+                0xFFFF_FFFF,
+                &mut hits,
+            );
+            (count, hits)
+        };
+        let unit_overlap = overlap(1.0);
+        assert_eq!(unit_overlap.0, 1);
+        assert_eq!(overlap(2.0), unit_overlap);
+        Ok(())
+    }
+
     #[test]
     fn test_rfc07_cast_shape_misses_empty_world() {
         let world = PhysicsWorld3D::new(0.0, 0.0, 0.0);
@@ -6306,7 +6354,7 @@ mod tests {
 
         // Add a static floor at y ≈ 0 so the character can land.
         let floor = rapier3d::prelude::ColliderBuilder::cuboid(5.0, 0.1, 5.0)
-            .translation(rapier3d::na::Vector3::new(0.0, -0.1, 0.0))
+            .translation(Vector::new(0.0, -0.1, 0.0))
             .build();
         world.collider_set.insert(floor);
 
@@ -6448,6 +6496,7 @@ mod tests {
             stale,
             &mut IslandManager::new(),
             &mut RigidBodySet::new(),
+            &mut SoftBodySet::new(),
             false,
         );
         assert_eq!(u8::from(removed.is_some()), 1);

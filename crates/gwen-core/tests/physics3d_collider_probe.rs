@@ -586,25 +586,26 @@ fn outcome(f: impl FnOnce()) -> &'static str {
 
 /// Control: a 1x1 heightfield reaches parry `HeightField::with_flags` its row and column count assert.
 fn raw_one_by_one_heightfield() {
-    use rapier3d::na::{DMatrix, Vector3};
-    let matrix = DMatrix::from_row_slice(1, 1, &[0.0f32]);
-    let _ = rapier3d::geometry::ColliderBuilder::heightfield(matrix, Vector3::new(1.0, 1.0, 1.0));
+    use rapier3d::math::Vector;
+    use rapier3d::parry::utils::Array2;
+    let heights = Array2::from_fn(1, 1, |_, _| 0.0f32);
+    let _ = rapier3d::geometry::ColliderBuilder::heightfield(heights, Vector::new(1.0, 1.0, 1.0));
 }
 
-/// Control: a triangle index past the vertex list reaches parry `rebuild_qbvh` indexing.
+/// Control: a triangle index past the vertex list still panics on parry 0.31.1.
 fn raw_out_of_range_trimesh() {
-    use rapier3d::na::Point3;
-    let verts: Vec<Point3<f32>> = QUAD
+    use rapier3d::math::Vector;
+    let verts: Vec<Vector> = QUAD
         .chunks(3)
-        .map(|c| Point3::new(c[0], c[1], c[2]))
+        .map(|c| Vector::new(c[0], c[1], c[2]))
         .collect();
     let _ = rapier3d::geometry::ColliderBuilder::trimesh(verts, vec![[0, 1, 9]]);
 }
 
-/// Control: duplicate points reach the unwrapping `convex_hull` inside `from_convex_hull`.
+/// Control: duplicate points reach `ColliderBuilder::convex_hull`.
 fn raw_duplicate_convex_hull() {
-    use rapier3d::na::Point3;
-    let verts: Vec<Point3<f32>> = (0..4).map(|_| Point3::new(1.0, 1.0, 1.0)).collect();
+    use rapier3d::math::Vector;
+    let verts: Vec<Vector> = (0..4).map(|_| Vector::new(1.0, 1.0, 1.0)).collect();
     let _ = rapier3d::geometry::ColliderBuilder::convex_hull(&verts);
 }
 

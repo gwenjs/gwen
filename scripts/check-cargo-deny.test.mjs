@@ -97,6 +97,19 @@ function below(version, floor) {
   return false;
 }
 
+/** Present crossbeam-epoch must be at least this. An absent package passes. */
+const CROSSBEAM_EPOCH_FLOOR = "0.9.20";
+
+/**
+ * @param {string} lock Cargo.lock text
+ * @returns {boolean}
+ */
+function crossbeamEpochMeetsFloor(lock) {
+  const match = lock.match(/\[\[package\]\]\nname = "crossbeam-epoch"\nversion = "([^"]+)"/);
+  if (match === null) return true;
+  return below(match[1], CROSSBEAM_EPOCH_FLOOR) === false;
+}
+
 /** @typedef {{ id: string, reason: string | null }} IgnoreEntry */
 /** @typedef {string | Array<string | IgnoreEntry>} DenyValue */
 /** @typedef {{ ok: true, tables: Record<string, Record<string, DenyValue>> }} DenyOk */
@@ -372,8 +385,18 @@ test("ignored advisories cite an issue and a date", () => {
 
 test("crossbeam-epoch is at least 0.9.20", () => {
   const lock = readOrEmpty(join(root, "Cargo.lock"));
-  const match = lock.match(/\[\[package\]\]\nname = "crossbeam-epoch"\nversion = "([^"]+)"/);
-  assert.equal(below(match?.[1] ?? "0.0.0", "0.9.20"), false);
+  assert.notEqual(lock, "");
+  assert.equal(crossbeamEpochMeetsFloor(lock), true);
+});
+
+test("crossbeam-epoch 0.9.19 fails the floor", () => {
+  const lock = '[[package]]\nname = "crossbeam-epoch"\nversion = "0.9.19"\n';
+  assert.equal(crossbeamEpochMeetsFloor(lock), false);
+});
+
+test("a lock without crossbeam-epoch passes the floor", () => {
+  const lock = '[[package]]\nname = "serde"\nversion = "1.0.0"\n';
+  assert.equal(crossbeamEpochMeetsFloor(lock), true);
 });
 
 test("sources are crates.io only and duplicate versions warn", () => {

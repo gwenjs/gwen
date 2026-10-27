@@ -27,10 +27,12 @@ const UP_STEPS: u32 = 40;
 const GRAVITY_Y: f32 = -9.81;
 /// Centre above the platform. Drop to the resting centre is 3 m.
 const DROP_Y: f32 = 4.0;
-/// One second of contact settling after the free-fall time. Rapier's allowed linear
-/// error is 0.001 m (`rapier2d-0.22.0` `dynamics/integration_parameters.rs:291`).
+/// One second of contact settling after the free-fall time. Rapier's default
+/// `normalized_allowed_linear_error` is 0.005 (`rapier2d-0.36.1`
+/// `dynamics/integration_parameters.rs:417`) and `length_unit` is 1 (`:430`), so
+/// `allowed_linear_error` (`:364-365`) is 0.005 m.
 const SETTLE_STEPS: u32 = 60;
-/// Ten times that allowed error.
+/// Twice that allowed error.
 const REST_TOL: f32 = 0.01;
 /// Centre after `UP_STEPS` of free motion: `LAUNCH_Y + UP_STEPS * UP_VY * DT`.
 fn free_flight_y() -> f32 {

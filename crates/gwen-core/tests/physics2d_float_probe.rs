@@ -233,9 +233,9 @@ fn failed(f: impl FnOnce() -> Result<(), Physics2DError>) -> bool {
 
 /// One height. parry asserts `heights.len() > 1` before it builds the shape.
 fn one_sample_heightfield() -> Result<(), Physics2DError> {
-    use rapier2d::na::{DVector, Vector2};
-    let heights = DVector::from_element(1, 0.0);
-    let _ = rapier2d::geometry::ColliderBuilder::heightfield(heights, Vector2::new(1.0, 1.0));
+    use rapier2d::math::Vector;
+    // parry2d 0.31.1 `shape/heightfield2.rs:40` asserts `heights.len() > 1`.
+    let _ = rapier2d::geometry::ColliderBuilder::heightfield(vec![0.0], Vector::new(1.0, 1.0));
     Ok(())
 }
 

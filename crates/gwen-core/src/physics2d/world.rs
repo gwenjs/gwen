@@ -11,7 +11,6 @@ use crate::physics2d::events::{
 };
 use rapier2d::prelude::*;
 use std::collections::{HashMap, HashSet};
-use std::num::NonZeroUsize;
 use std::sync::{Mutex, PoisonError};
 
 const COLLIDER_ID_ABSENT: u32 = u32::MAX;
@@ -157,6 +156,8 @@ impl EventHandler for EventCollector<'_> {
         _total_force_magnitude: f32,
     ) {
     }
+
+    fn handle_soft_body_tear_event(&self, _soft_bodies: &SoftBodySet, _event: &SoftBodyTearEvent) {}
 }
 
 // ─── PhysicsWorld ─────────────────────────────────────────────────────────────
@@ -164,7 +165,7 @@ impl EventHandler for EventCollector<'_> {
 /// Manages the 2D physics simulation and its integration with the ECS.
 pub struct PhysicsWorld {
     pipeline: PhysicsPipeline,
-    gravity: Vector<f32>,
+    gravity: Vector,
     integration_params: IntegrationParameters,
     island_manager: IslandManager,
     broad_phase: DefaultBroadPhase,
@@ -174,7 +175,7 @@ pub struct PhysicsWorld {
     impulse_joint_set: ImpulseJointSet,
     multibody_joint_set: MultibodyJointSet,
     ccd_solver: CCDSolver,
-    query_pipeline: QueryPipeline,
+    soft_bodies: SoftBodySet,
 
     pub entity_to_body: HashMap<u32, RigidBodyHandle>,
     pub body_to_entity: HashMap<RigidBodyHandle, u32>,
@@ -206,8 +207,8 @@ impl PhysicsHooks for OneWayHooks<'_> {
         }
         // Platform is c1 → allowed_local_n1 = +Y (normal points up from platform toward character)
         // Platform is c2 → allowed_local_n1 = -Y (local_n1 is from c1/character perspective, points down)
-        let allowed = if is_c1 { Vector::y() } else { -Vector::y() };
-        context.update_as_oneway_platform(&allowed, std::f32::consts::FRAC_PI_4);
+        let allowed = if is_c1 { Vector::Y } else { -Vector::Y };
+        context.update_as_oneway_platform(allowed, std::f32::consts::FRAC_PI_4);
     }
 }
 
@@ -216,7 +217,7 @@ impl PhysicsWorld {
     pub fn new(gravity_x: f32, gravity_y: f32) -> Self {
         let mut world = PhysicsWorld {
             pipeline: PhysicsPipeline::new(),
-            gravity: vector![gravity_x, gravity_y],
+            gravity: Vector::new(gravity_x, gravity_y),
             integration_params: IntegrationParameters::default(),
             island_manager: IslandManager::new(),
             broad_phase: DefaultBroadPhase::new(),
@@ -226,7 +227,7 @@ impl PhysicsWorld {
             impulse_joint_set: ImpulseJointSet::new(),
             multibody_joint_set: MultibodyJointSet::new(),
             ccd_solver: CCDSolver::new(),
-            query_pipeline: QueryPipeline::new(),
+            soft_bodies: SoftBodySet::new(),
             entity_to_body: HashMap::new(),
             body_to_entity: HashMap::new(),
             handle_by_raw: HashMap::new(),
@@ -247,8 +248,7 @@ impl PhysicsWorld {
     pub fn set_quality_preset(&mut self, preset: PhysicsQualityPreset) {
         self.quality_preset = preset;
         let cfg = quality_solver_config(preset);
-        self.integration_params.num_solver_iterations =
-            NonZeroUsize::new(cfg.num_solver_iterations).unwrap_or(NonZeroUsize::MIN);
+        self.integration_params.num_solver_iterations = cfg.num_solver_iterations;
         self.integration_params
             .num_internal_stabilization_iterations = cfg.num_internal_stabilization_iterations;
         self.integration_params.max_ccd_substeps = cfg.max_ccd_substeps;
@@ -278,7 +278,7 @@ impl PhysicsWorld {
         };
 
         builder = builder
-            .translation(vector![x, y])
+            .translation(Vector::new(x, y))
             .gravity_scale(opts.gravity_scale)
             .linear_damping(opts.linear_damping)
             .angular_damping(opts.angular_damping);
@@ -294,7 +294,7 @@ impl PhysicsWorld {
         if body_type == BodyType::Dynamic {
             let (vx, vy) = opts.initial_velocity;
             if vx != 0.0 || vy != 0.0 {
-                rb.set_linvel(vector![vx, vy], true);
+                rb.set_linvel(Vector::new(vx, vy), true);
             }
         }
 
@@ -329,12 +329,16 @@ impl PhysicsWorld {
         let groups = rapier2d::geometry::Group::from_bits_truncate(opts.groups.membership);
         let filter = rapier2d::geometry::Group::from_bits_truncate(opts.groups.filter);
         let builder = ColliderBuilder::cuboid(hw, hh)
-            .translation(vector![opts.offset_x, opts.offset_y])
+            .translation(Vector::new(opts.offset_x, opts.offset_y))
             .restitution(opts.material.restitution)
             .friction(opts.material.friction)
             .density(opts.density)
             .sensor(opts.is_sensor)
-            .collision_groups(rapier2d::geometry::InteractionGroups::new(groups, filter))
+            .collision_groups(rapier2d::geometry::InteractionGroups::new(
+                groups,
+                filter,
+                InteractionTestMode::And,
+            ))
             .user_data(pack_collider_user_data(entity_index, opts.collider_id))
             .active_events(ActiveEvents::COLLISION_EVENTS)
             .active_hooks(if opts.is_one_way {
@@ -364,6 +368,7 @@ impl PhysicsWorld {
                 &mut self.collider_set,
                 &mut self.impulse_joint_set,
                 &mut self.multibody_joint_set,
+                &mut self.soft_bodies,
                 true,
             );
         }
@@ -413,12 +418,16 @@ impl PhysicsWorld {
         let groups = rapier2d::geometry::Group::from_bits_truncate(opts.groups.membership);
         let filter = rapier2d::geometry::Group::from_bits_truncate(opts.groups.filter);
         let builder = ColliderBuilder::ball(radius)
-            .translation(vector![opts.offset_x, opts.offset_y])
+            .translation(Vector::new(opts.offset_x, opts.offset_y))
             .restitution(opts.material.restitution)
             .friction(opts.material.friction)
             .density(opts.density)
             .sensor(opts.is_sensor)
-            .collision_groups(rapier2d::geometry::InteractionGroups::new(groups, filter))
+            .collision_groups(rapier2d::geometry::InteractionGroups::new(
+                groups,
+                filter,
+                InteractionTestMode::And,
+            ))
             .user_data(pack_collider_user_data(entity_index, opts.collider_id))
             .active_events(ActiveEvents::COLLISION_EVENTS)
             .active_hooks(if opts.is_one_way {
@@ -477,7 +486,7 @@ impl PhysicsWorld {
         let Some(body) = self.rigid_body_set.get_mut(handle) else {
             return false;
         };
-        body.set_linvel(vector![vx, vy], true);
+        body.set_linvel(Vector::new(vx, vy), true);
         true
     }
 
@@ -500,7 +509,7 @@ impl PhysicsWorld {
         let Some(body) = self.rigid_body_set.get_mut(handle) else {
             return false;
         };
-        body.apply_impulse(vector![ix, iy], true);
+        body.apply_impulse(Vector::new(ix, iy), true);
         true
     }
 
@@ -529,8 +538,8 @@ impl PhysicsWorld {
         let Some(body) = self.rigid_body_set.get_mut(handle) else {
             return false;
         };
-        let iso = Isometry::new(vector![x, y], angle);
-        body.set_next_kinematic_position(iso);
+        let pose = Pose::new(Vector::new(x, y), angle);
+        body.set_next_kinematic_position(pose);
         true
     }
 
@@ -581,8 +590,8 @@ impl PhysicsWorld {
             let pos = *body.position();
             let new_x = pos.translation.x + vx[i] * dt;
             let new_y = pos.translation.y + vy[i] * dt;
-            let iso = Isometry::new(vector![new_x, new_y], pos.rotation.angle());
-            body.set_next_kinematic_position(iso);
+            let pose = Pose::new(Vector::new(new_x, new_y), pos.rotation.angle());
+            body.set_next_kinematic_position(pose);
             updated += 1;
         }
         Ok(updated)
@@ -661,7 +670,7 @@ impl PhysicsWorld {
     ) -> Vec<u32> {
         self.intersect_shape(
             &Ball::new(radius),
-            Isometry::translation(x, y),
+            Pose::translation(x, y),
             membership,
             filter,
         )
@@ -677,50 +686,44 @@ impl PhysicsWorld {
         filter: u32,
     ) -> Vec<u32> {
         self.intersect_shape(
-            &Cuboid::new(vector![hw, hh]),
-            Isometry::translation(x, y),
+            &Cuboid::new(Vector::new(hw, hh)),
+            Pose::translation(x, y),
             membership,
             filter,
         )
     }
 
     pub fn point_query(&self, x: f32, y: f32, membership: u32, filter: u32) -> Vec<u32> {
-        let qf = Self::make_query_filter(membership, filter);
         let mut results = Vec::new();
-        self.query_pipeline.intersections_with_point(
-            &self.rigid_body_set,
-            &self.collider_set,
-            &Point::new(x, y),
-            qf,
-            |handle| {
-                self.collect_entity(handle, &mut results);
-                true
-            },
-        );
+        let pipeline = self.query_pipeline(Self::make_query_filter(membership, filter));
+        for (_, collider) in pipeline.intersect_point(Vector::new(x, y)) {
+            Self::push_entity(collider, &mut results);
+        }
         results
     }
 
     fn intersect_shape(
         &self,
         shape: &dyn Shape,
-        pos: Isometry<f32>,
+        pos: Pose,
         membership: u32,
         filter: u32,
     ) -> Vec<u32> {
-        let qf = Self::make_query_filter(membership, filter);
         let mut results = Vec::new();
-        self.query_pipeline.intersections_with_shape(
+        let pipeline = self.query_pipeline(Self::make_query_filter(membership, filter));
+        for (_, collider) in pipeline.intersect_shape(pos, shape) {
+            Self::push_entity(collider, &mut results);
+        }
+        results
+    }
+
+    fn query_pipeline<'a>(&'a self, filter: QueryFilter<'a>) -> QueryPipeline<'a> {
+        self.broad_phase.as_query_pipeline(
+            self.narrow_phase.query_dispatcher(),
             &self.rigid_body_set,
             &self.collider_set,
-            &pos,
-            shape,
-            qf,
-            |handle| {
-                self.collect_entity(handle, &mut results);
-                true
-            },
-        );
-        results
+            filter,
+        )
     }
 
     #[inline]
@@ -728,16 +731,15 @@ impl PhysicsWorld {
         QueryFilter::new().groups(InteractionGroups::new(
             Group::from_bits_truncate(membership),
             Group::from_bits_truncate(filter),
+            InteractionTestMode::And,
         ))
     }
 
     #[inline]
-    fn collect_entity(&self, handle: ColliderHandle, results: &mut Vec<u32>) {
-        if let Some(c) = self.collider_set.get(handle) {
-            let (idx, _) = unpack_collider_user_data(c.user_data);
-            if idx != u32::MAX {
-                results.push(idx);
-            }
+    fn push_entity(collider: &Collider, results: &mut Vec<u32>) {
+        let (idx, _) = unpack_collider_user_data(collider.user_data);
+        if idx != u32::MAX {
+            results.push(idx);
         }
     }
 
@@ -853,7 +855,7 @@ impl PhysicsWorld {
         };
 
         self.pipeline.step(
-            &self.gravity,
+            self.gravity,
             &self.integration_params,
             &mut self.island_manager,
             &mut self.broad_phase,
@@ -862,8 +864,8 @@ impl PhysicsWorld {
             &mut self.collider_set,
             &mut self.impulse_joint_set,
             &mut self.multibody_joint_set,
+            &mut self.soft_bodies,
             &mut self.ccd_solver,
-            Some(&mut self.query_pipeline),
             &OneWayHooks {
                 set: &self.one_way_colliders,
             },
@@ -925,7 +927,7 @@ impl PhysicsWorld {
                 vx = scaled.0;
                 vy = scaled.1;
                 if let Some(body) = rigid_body_set.get_mut(handle) {
-                    body.set_linvel(vector![vx, vy], true);
+                    body.set_linvel(Vector::new(vx, vy), true);
                 }
             }
             let next_x = tx + vx * delta;
@@ -1418,6 +1420,7 @@ mod tests {
             stale,
             &mut IslandManager::new(),
             &mut RigidBodySet::new(),
+            &mut SoftBodySet::new(),
             false,
         );
         assert_eq!(u8::from(removed.is_some()), 1);
@@ -1602,7 +1605,7 @@ mod fixed_rotation {
         let handle = *world.entity_to_body.get(&slot).ok_or(missing)?;
         {
             let body = world.rigid_body_set.get_mut(handle).ok_or(missing)?;
-            body.apply_impulse_at_point(vector![0.0, 25.0], point![1.0, 0.2], true);
+            body.apply_impulse_at_point(Vector::new(0.0, 25.0), Vector::new(1.0, 0.2), true);
         }
         for _ in 0..30 {
             let handle = *world.entity_to_body.get(&slot).ok_or(missing)?;

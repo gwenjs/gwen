@@ -15,12 +15,14 @@ web-sys = { version = "0.3.94", features = ["Window", "Document", "console"] }
 bytemuck = { version = "1", features = ["derive"] }
 
 # Physics — 2D (Rapier2D)
-rapier2d = { version = "0.22", default-features = false, features = [
+rapier2d = { version = "0.36.1", default-features = false, features = [
+  "std",
   "f32",
   "dim2",
 ], optional = true }
 # Physics — 3D (Rapier3D)
-rapier3d = { version = "0.22", default-features = false, features = [
+rapier3d = { version = "0.36.1", default-features = false, features = [
+  "std",
   "f32",
   "dim3",
 ], optional = true }

@@ -35,7 +35,7 @@ const COLLIDER_ID = 1;
 const RAY_ORIGIN_Y = 5;
 const RAY_DIRECTION_Y = -1;
 const RAY_MAX_DISTANCE = 20;
-/** One step fills the query pipeline (crates/gwen-core/src/physics3d/world.rs:787). */
+/** One step fills the query pipeline (`pipeline.step` at crates/gwen-core/src/physics3d/world.rs:903). */
 const STEP_DELTA = 1 / 60;
 
 const OUT_OF_RANGE_INDEX = 4;

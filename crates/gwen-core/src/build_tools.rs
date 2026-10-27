@@ -18,7 +18,8 @@
 //! This buffer can be passed directly to `physics3d_load_bvh_collider` at browser
 //! runtime, avoiding the ~50 ms QBVH construction cost on large meshes.
 
-use rapier3d::{geometry::TriMesh, na::Point3};
+use rapier3d::geometry::TriMesh;
+use rapier3d::math::Vector;
 
 /// Build a pre-baked BVH buffer from flat vertex and triangle index arrays.
 ///
@@ -59,11 +60,11 @@ pub fn build_bvh_buffer(vertices_flat: &[f32], indices_flat: &[u32]) -> Result<V
         }
     }
 
-    let verts: Vec<Point3<f32>> = vertices_flat
+    let verts: Vec<Vector> = vertices_flat
         .as_chunks::<3>()
         .0
         .iter()
-        .map(|c| Point3::new(c[0], c[1], c[2]))
+        .map(|c| Vector::new(c[0], c[1], c[2]))
         .collect();
     let idxs: Vec<[u32; 3]> = indices_flat
         .as_chunks::<3>()
@@ -72,7 +73,8 @@ pub fn build_bvh_buffer(vertices_flat: &[f32], indices_flat: &[u32]) -> Result<V
         .map(|c| [c[0], c[1], c[2]])
         .collect();
 
-    let trimesh = TriMesh::new(verts, idxs);
+    let trimesh =
+        TriMesh::new(verts, idxs).map_err(|err| format!("TriMesh build failed: {err}"))?;
     let bvh_bytes = bincode::serde::encode_to_vec(&trimesh, bincode::config::standard())
         .map_err(|err| format!("TriMesh serialisation failed: {err}"))?;
 
