@@ -2,12 +2,7 @@ import { GwenError, type GwenErrorPayload, type GwenErrorTarget } from "@gwenjs/
 import { buildTransformImports } from "../hooks/wasm/transform-imports.js";
 import { SharedMemoryManager, TRANSFORM_STRIDE } from "../hooks/wasm/shared-memory.js";
 import { DisposableRegistry, createDisposable } from "../disposable.js";
-import {
-  CoreErrorCodes,
-  GwenWasmAbiError,
-  GwenWasmError,
-  GwenWasmPanicError,
-} from "./engine-errors.js";
+import { CoreErrorCodes, GwenWasmError, GwenWasmPanicError, toSentence } from "./engine-errors.js";
 import type { EngineMemory, MemoryView } from "./engine-memory.js";
 import { checkPluginApiVersion } from "./engine-types.js";
 import type { GwenWasmModules, WasmModuleHandle, WasmModuleOptions } from "./engine-types.js";
@@ -54,6 +49,29 @@ interface WasmModuleEntry {
   transformCopy: WasmModuleTransformCopy | null;
 }
 
+function wasmLoadError(
+  name: string,
+  url: URL | string,
+  stage: "load" | "instantiate",
+  cause: unknown,
+): GwenError {
+  const shown = String(url);
+  const detail = cause instanceof Error ? cause.message : String(cause);
+  const lead =
+    stage === "load"
+      ? `Failed to load WASM module "${name}" from "${shown}": ${detail}`
+      : `Failed to instantiate WASM module "${name}" from "${shown}": ${detail}`;
+  const what = toSentence(lead);
+  return new GwenError(CoreErrorCodes.WASM_LOAD_ERROR, what, {
+    composable: "engine.loadWasmModule",
+    cause,
+  });
+}
+
+function transformRegionWhat(moduleName: string, regionName: string, detail: string): string {
+  return `Transform region "${regionName}" of module "${moduleName}" ${detail}`;
+}
+
 /**
  * Community WASM modules for one engine: load, step, and the transform copy.
  * @internal
@@ -97,7 +115,8 @@ export class WasmModuleRunner {
       if (!response.ok) {
         throw new GwenError(
           CoreErrorCodes.WASM_LOAD_ERROR,
-          `[GWEN] loadWasmModule("${options.name}"): fetch failed with status ${response.status} ${response.statusText}.`,
+          `Fetch of WASM module "${options.name}" from "${String(options.url)}" failed with status ${response.status} ${response.statusText}.`,
+          { composable: "engine.loadWasmModule" },
         );
       }
       const buffer = await response.arrayBuffer();
@@ -117,23 +136,15 @@ export class WasmModuleRunner {
         }
       }
     } catch (err) {
-      if (err instanceof GwenWasmAbiError) throw err;
-      throw new GwenError(
-        CoreErrorCodes.WASM_LOAD_ERROR,
-        `[GWEN] loadWasmModule("${options.name}"): failed to load WASM module from "${options.url}". ` +
-          `Cause: ${err instanceof Error ? err.message : String(err)}`,
-      );
+      if (err instanceof GwenError) throw err;
+      throw wasmLoadError(options.name, options.url, "load", err);
     }
 
     let instance: WebAssembly.Instance;
     try {
       instance = await WebAssembly.instantiate(wasmModule, { gwen: gwenImports });
     } catch (err) {
-      throw new GwenError(
-        CoreErrorCodes.WASM_LOAD_ERROR,
-        `[GWEN] loadWasmModule("${options.name}"): failed to load WASM module from "${options.url}". ` +
-          `Cause: ${err instanceof Error ? err.message : String(err)}`,
-      );
+      throw wasmLoadError(options.name, options.url, "instantiate", err);
     }
 
     // Plugin ABI version before any resolved-region check. Outside both
@@ -169,9 +180,13 @@ export class WasmModuleRunner {
         if (!memory) {
           throw new GwenError(
             CoreErrorCodes.WASM_MODULE_NO_MEMORY,
-            `[GWEN] loadWasmModule("${options.name}"): channel '${channel.name}' declared but ` +
-              `the WASM binary does not export "memory". ` +
-              `Add "(export \\"memory\\" (memory ...))" to your WASM module.`,
+            `Channel "${channel.name}" was declared but module "${options.name}" does not export memory.`,
+            {
+              composable: "engine.loadWasmModule",
+              hint: __GWEN_DEV__
+                ? 'Add (export "memory" (memory ...)) to the WASM module.'
+                : undefined,
+            },
           );
         }
         return [channel.name, new WasmRingBuffer(memory, channel, instance.exports)];
@@ -187,14 +202,18 @@ export class WasmModuleRunner {
         if (!def) {
           throw new GwenError(
             CoreErrorCodes.WASM_REGION_NOT_FOUND,
-            `[GWEN] WASM region '${regionName}' not found in module '${options.name}'. ` +
-              `Declare it in WasmModuleOptions.memory.regions.`,
+            `WASM region "${regionName}" is not in module "${options.name}".`,
+            {
+              composable: "WasmModuleHandle.region",
+              hint: __GWEN_DEV__ ? "Declare it in WasmModuleOptions.memory.regions." : undefined,
+            },
           );
         }
         if (!memory) {
           throw new GwenError(
             CoreErrorCodes.WASM_MODULE_NO_MEMORY,
-            `[GWEN] WASM module '${options.name}' does not export memory — cannot create region view.`,
+            `WASM module "${options.name}" does not export memory.`,
+            { composable: "WasmModuleHandle.region" },
           );
         }
         return new WasmRegionView(memory, def);
@@ -204,8 +223,11 @@ export class WasmModuleRunner {
         if (!channel) {
           throw new GwenError(
             CoreErrorCodes.WASM_CHANNEL_NOT_FOUND,
-            `[GWEN] WASM channel '${channelName}' not found in module '${options.name}'. ` +
-              `Declare it in WasmModuleOptions.channels.`,
+            `WASM channel "${channelName}" is not in module "${options.name}".`,
+            {
+              composable: "WasmModuleHandle.channel",
+              hint: __GWEN_DEV__ ? "Declare it in WasmModuleOptions.channels." : undefined,
+            },
           );
         }
         return channel;
@@ -231,8 +253,13 @@ export class WasmModuleRunner {
     if (!entry) {
       throw new GwenError(
         CoreErrorCodes.WASM_MODULE_NOT_FOUND,
-        `[GWEN] getWasmModule("${String(name)}"): no WASM module loaded under that name. ` +
-          `Call engine.loadWasmModule({ name: "${String(name)}", url: ... }) first.`,
+        `No WASM module "${String(name)}" is loaded.`,
+        {
+          composable: "engine.getWasmModule",
+          hint: __GWEN_DEV__
+            ? `Call engine.loadWasmModule({ name: "${String(name)}", url: ... }) first.`
+            : undefined,
+        },
       );
     }
     return entry.handle as WasmModuleHandle<GwenWasmModules[K]>;
@@ -318,7 +345,12 @@ export class WasmModuleRunner {
     if (found.byteLength < required) {
       throw new GwenError(
         CoreErrorCodes.WASM_MODULE_REGION_TOO_SMALL,
-        `[GWEN] loadWasmModule("${options.name}"): transform region "${regionName}" is ${found.byteLength} bytes; ${required} bytes are required.`,
+        transformRegionWhat(
+          options.name,
+          regionName,
+          `is ${found.byteLength} bytes; ${required} bytes are required.`,
+        ),
+        { composable: "engine.loadWasmModule" },
       );
     }
     if (found.byteOffset !== 0 && (found.byteOffset % 4 !== 0 || found.byteOffset < 0)) {
@@ -334,7 +366,8 @@ export class WasmModuleRunner {
   private _regionInvalid(moduleName: string, regionName: string, reason: string): GwenError {
     return new GwenError(
       CoreErrorCodes.WASM_MODULE_REGION_INVALID,
-      `[GWEN] loadWasmModule("${moduleName}"): transform region "${regionName}" is invalid: ${reason}.`,
+      transformRegionWhat(moduleName, regionName, `is invalid: ${reason}.`),
+      { composable: "engine.loadWasmModule" },
     );
   }
 
@@ -419,8 +452,13 @@ export class WasmModuleRunner {
     if (!bridge.isActive()) {
       throw new GwenError(
         CoreErrorCodes.WASM_NOT_INITIALIZED,
-        "[GWEN] loadWasmModule() was called before WASM bridge initialisation. " +
-          "Await bridge.init() (or setupGwen()) before loading community WASM modules.",
+        "loadWasmModule() was called before WASM bridge initialisation.",
+        {
+          composable: "engine.loadWasmModule",
+          hint: __GWEN_DEV__
+            ? "Await bridge.init() or setupGwen() before loading a community WASM module."
+            : undefined,
+        },
       );
     }
     if (!this._sharedMemory) {

@@ -175,6 +175,15 @@ export function isCoreWasmErrorCode(code: unknown): code is CoreWasmErrorCode {
 }
 
 /**
+ * Adds a period unless the text already ends with `.`, `?`, or `!`.
+ * @internal Shared by the WASM load wrap. Not re-exported from the package index.
+ */
+export function toSentence(text: string): string {
+  if (text.endsWith(".") || text.endsWith("?") || text.endsWith("!")) return text;
+  return `${text}.`;
+}
+
+/**
  * Recoverable failure of one core WASM export.
  *
  * The type parameter defaults to `` `CORE:${string}` `` so other packages can
@@ -186,7 +195,7 @@ export class GwenWasmError<C extends string = `CORE:${string}`> extends GwenErro
   readonly cause: unknown;
 
   constructor(code: C, message: string, exportName: string, cause: unknown) {
-    super(code, message);
+    super(code, toSentence(message), { cause });
     this.name = "GwenWasmError";
     this.code = code;
     this.exportName = exportName;
@@ -242,7 +251,7 @@ export class GwenWasmPanicError extends GwenError {
   readonly cause: WebAssembly.RuntimeError;
 
   constructor(exportName: string | undefined, cause: WebAssembly.RuntimeError) {
-    super(CoreErrorCodes.WASM_PANIC, cause.message);
+    super(CoreErrorCodes.WASM_PANIC, toSentence(cause.message), { cause });
     this.name = "GwenWasmPanicError";
     this.code = CoreErrorCodes.WASM_PANIC;
     this.exportName = exportName;

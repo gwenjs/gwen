@@ -67,7 +67,11 @@ const ELEMENT_ALIGN: Record<MemoryViewType, number> = {
 };
 
 function invalid(name: string, reason: string): GwenError {
-  return new GwenError(CoreErrorCodes.MEMORY_VIEW_INVALID, `[${name}] ${reason}`);
+  return new GwenError(
+    CoreErrorCodes.MEMORY_VIEW_INVALID,
+    `Memory view "${name}" is invalid: ${reason}.`,
+    {},
+  );
 }
 
 function buildArray<T extends MemoryViewType>(

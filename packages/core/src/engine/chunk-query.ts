@@ -96,7 +96,15 @@ interface ChunkLoop {
   leave(): void;
 }
 
-const INVALID = "Query is invalid";
+const INVALID = "Query is invalid.";
+
+function queryInvalid(composable?: string): GwenError {
+  return new GwenError(
+    CoreErrorCodes.QUERY_INVALID,
+    INVALID,
+    composable === undefined ? {} : { composable },
+  );
+}
 
 const releases = new WeakMap<object, () => void>();
 
@@ -144,7 +152,8 @@ function partsFor(type: SchemaType["type"]): readonly string[] | null {
       const unexpected: never = type;
       throw new GwenError(
         CoreErrorCodes.COMPONENT_LAYOUT_INVALID,
-        `Component layout invalid: ${String(unexpected)}`,
+        `Component layout invalid: ${String(unexpected)}.`,
+        {},
       );
     }
   }
@@ -181,7 +190,8 @@ function kindFor(type: SchemaType["type"]): ViewableLaneKind | null {
       const unexpected: never = type;
       throw new GwenError(
         CoreErrorCodes.COMPONENT_LAYOUT_INVALID,
-        `Component layout invalid: ${String(unexpected)}`,
+        `Component layout invalid: ${String(unexpected)}.`,
+        {},
       );
     }
   }
@@ -204,7 +214,8 @@ function planQuery(components: readonly ComponentDef[]): {
       if (!field) {
         throw new GwenError(
           CoreErrorCodes.COMPONENT_LAYOUT_INVALID,
-          `Component layout invalid: ${key}`,
+          `Component layout invalid: ${key}.`,
+          {},
         );
       }
       const parts = partsFor(field.type);
@@ -256,7 +267,7 @@ class ChunkCursor<C extends readonly ComponentDef[]> {
     this.guard();
     const defIndex = this.components.indexOf(def);
     const plan = defIndex < 0 ? undefined : this.plans[defIndex];
-    if (plan === undefined) throw new GwenError(CoreErrorCodes.QUERY_INVALID, INVALID);
+    if (plan === undefined) throw queryInvalid("QueryChunk.get");
     const view = this.owner.viewAt(this.viewIndex);
     const lanes = view.lanes;
     const cached = this.columnLanes[defIndex];
@@ -277,7 +288,7 @@ class ChunkCursor<C extends readonly ComponentDef[]> {
 
   private guard(): void {
     if (this.stale || this.owner.released) {
-      throw new GwenError(CoreErrorCodes.QUERY_INVALID, INVALID);
+      throw queryInvalid("QueryChunk.get");
     }
   }
 }
@@ -308,18 +319,18 @@ class ChunkStep<C extends readonly ComponentDef[]> implements QueryChunk<C> {
   }
 
   get<D extends C[number]>(def: D): ChunkColumns<D> {
-    this.guard();
+    this.guard("QueryChunk.get");
     return this.cursor.get(def);
   }
 
   readonly entityId = (row: number): EntityId => {
-    this.guard();
-    if (row < 0 || row >= this.rowCount) throw new GwenError(CoreErrorCodes.QUERY_INVALID, INVALID);
+    this.guard("QueryChunk.entityId");
+    if (row < 0 || row >= this.rowCount) throw queryInvalid("QueryChunk.entityId");
     this.ensureLive();
     const indexes = this.indexes;
     const generations = this.generations;
     if (indexes === null || generations === null) {
-      throw new GwenError(CoreErrorCodes.QUERY_INVALID, INVALID);
+      throw queryInvalid("QueryChunk.entityId");
     }
     const index = indexes[row] ?? 0;
     const generation = generations[row] ?? 0;
@@ -343,9 +354,8 @@ class ChunkStep<C extends readonly ComponentDef[]> implements QueryChunk<C> {
     return id;
   };
 
-  private guard(): void {
-    if (!this.cursor.accepts(this.epoch))
-      throw new GwenError(CoreErrorCodes.QUERY_INVALID, INVALID);
+  private guard(composable: string): void {
+    if (!this.cursor.accepts(this.epoch)) throw queryInvalid(composable);
   }
 
   private ensureLive(): void {
@@ -472,7 +482,7 @@ class ChunkIter<C extends readonly ComponentDef[]> implements Iterator<QueryChun
   }
 
   next(): IteratorResult<QueryChunk<C>, undefined> {
-    if (this.owner.released) throw new GwenError(CoreErrorCodes.QUERY_INVALID, INVALID);
+    if (this.owner.released) throw queryInvalid("useQuery");
     if (this.position < 0) {
       this.load();
       this.position = 0;
@@ -615,7 +625,7 @@ class ChunkQuery<C extends readonly ComponentDef[]> implements Query<C> {
   }
 
   get count(): number {
-    if (this.released) throw new GwenError(CoreErrorCodes.QUERY_INVALID, INVALID);
+    if (this.released) throw queryInvalid("Query.count");
     if (this.handle === null) return 0;
     const ptr = this.readTable();
     const header = new Uint32Array(this.buffer(), ptr, 4);
@@ -631,13 +641,13 @@ class ChunkQuery<C extends readonly ComponentDef[]> implements Query<C> {
   }
 
   readonly each = (): LiveQuery<EntityAccessor<C>> => {
-    if (this.released) throw new GwenError(CoreErrorCodes.QUERY_INVALID, INVALID);
+    if (this.released) throw queryInvalid("Query.each");
     warnPerEntityPath(this.engine, "Query.each");
     return this.readEach();
   };
 
   [Symbol.iterator](): Iterator<QueryChunk<C>> {
-    if (this.released) throw new GwenError(CoreErrorCodes.QUERY_INVALID, INVALID);
+    if (this.released) throw queryInvalid("useQuery");
     if (this.primary.isRunning) {
       const nested = new ChunkIter(this, new ChunkCursor(this, this.plans, this.components));
       nested.reset();
@@ -656,10 +666,10 @@ class ChunkQuery<C extends readonly ComponentDef[]> implements Query<C> {
   }
 
   readTable(): number {
-    if (this.released) throw new GwenError(CoreErrorCodes.QUERY_INVALID, INVALID);
+    if (this.released) throw queryInvalid();
     if (this.handle === null) return 0;
     const ptr = this.bridge.queryChunks(this.handle);
-    if (ptr <= 0) throw new GwenError(CoreErrorCodes.QUERY_INVALID, INVALID);
+    if (ptr <= 0) throw queryInvalid();
     this.tablePtr = ptr;
     return ptr;
   }
@@ -667,13 +677,13 @@ class ChunkQuery<C extends readonly ComponentDef[]> implements Query<C> {
   viewAt(index: number): { readonly lanes: readonly LaneArray[] } {
     const views = chunkLaneViews(this.engine, this.tablePtr, this.kinds);
     const view = views[index];
-    if (view === undefined) throw new GwenError(CoreErrorCodes.QUERY_INVALID, INVALID);
+    if (view === undefined) throw queryInvalid();
     return view;
   }
 
   buffer(): ArrayBufferLike {
     const memory = this.engine.memory.linearMemory();
-    if (memory === null) throw new GwenError(CoreErrorCodes.QUERY_INVALID, INVALID);
+    if (memory === null) throw queryInvalid();
     return memory.buffer;
   }
 }
