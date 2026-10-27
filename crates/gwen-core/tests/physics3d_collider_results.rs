@@ -152,13 +152,15 @@ fn part(shape: f32, p: [f32; 3], id: f32) -> [f32; 12] {
 /// Header plus bincode payload for a valid baked mesh.
 fn bvh_bytes(vertices: &[f32], indices: &[u32]) -> Vec<u8> {
     use rapier3d::geometry::TriMesh;
-    use rapier3d::na::Point3;
-    let points: Vec<Point3<f32>> = vertices
+    use rapier3d::math::Vector;
+    let points: Vec<Vector> = vertices
         .chunks(3)
-        .map(|c| Point3::new(c[0], c[1], c[2]))
+        .map(|c| Vector::new(c[0], c[1], c[2]))
         .collect();
     let triangles: Vec<[u32; 3]> = indices.chunks(3).map(|c| [c[0], c[1], c[2]]).collect();
-    let mesh = TriMesh::new(points, triangles);
+    let Ok(mesh) = TriMesh::new(points, triangles) else {
+        return Vec::new();
+    };
     let payload =
         bincode::serde::encode_to_vec(&mesh, bincode::config::standard()).unwrap_or_default();
     let mut out = b"GBVH".to_vec();
@@ -728,8 +730,10 @@ fn heightfield_two_by_two_is_accepted() -> Outcome {
 
 /// Local (x, z) of sample (row, col).
 ///
-/// `x_at` / `z_at` in parry3d-0.17.6 `shape/heightfield3.rs:225-231`:
-/// `(-0.5 + j / (cols-1)) * scale_x`, `(-0.5 + i / (rows-1)) * scale_z`.
+/// `x_at` / `z_at` in parry3d-0.31.1 `shape/heightfield3.rs:223-229`:
+/// `(-0.5 + unit_cell_width * j) * scale.x`, `(-0.5 + unit_cell_height * i) * scale.z`.
+/// `unit_cell_width` is `1 / (ncols - 1)` (`:576-578`). `unit_cell_height` is `1 / (nrows - 1)`
+/// (`:581-583`).
 fn heightfield_sample_xz(
     row: u32,
     col: u32,
@@ -783,7 +787,7 @@ fn heightfield_row_major_cell_is_where_the_ray_hits() -> Outcome {
     e.physics3d_add_heightfield_collider(
         5, &heights, ROWS, COLS, SCALE_X, SCALE_Y, SCALE_Z, 0.5, 0.0, ALL, ALL, 7,
     )?;
-    // The query pipeline updates inside `step` (`physics3d/world.rs:939`).
+    // The query pipeline updates inside `step` (`pipeline.step` at physics3d/world.rs:903).
     e.physics3d_step(1.0 / 60.0)?;
 
     let cell_x = SCALE_X / (COLS as f32 - 1.0);

@@ -34,6 +34,10 @@ fn separated_pair(
 
 #[cfg(feature = "physics2d")]
 #[test]
+#[cfg_attr(
+    all(miri, not(target_arch = "x86_64")),
+    ignore = "aarch64 Miri: llvm.aarch64.neon.fmaxnm.v4f32 (wide 1.7.1 src/f32x4_.rs:668 vmaxnmq_f32) and inline assembly prfm pldl1keep in rapier2d-0.36.1 and rapier3d-0.36.1 src/utils/prefetch.rs:24 (inline assembly is not supported)"
+)]
 fn step_records_a_collision_2d() -> Result<(), gwen_core::physics2d::Physics2DError> {
     use gwen_core::physics2d::PhysicsCollisionEvent;
 
@@ -51,6 +55,10 @@ fn step_records_a_collision_2d() -> Result<(), gwen_core::physics2d::Physics2DEr
 
 #[cfg(feature = "physics2d")]
 #[test]
+#[cfg_attr(
+    all(miri, not(target_arch = "x86_64")),
+    ignore = "aarch64 Miri: llvm.aarch64.neon.fmaxnm.v4f32 (wide 1.7.1 src/f32x4_.rs:668 vmaxnmq_f32) and inline assembly prfm pldl1keep in rapier2d-0.36.1 and rapier3d-0.36.1 src/utils/prefetch.rs:24 (inline assembly is not supported)"
+)]
 fn two_worlds_do_not_share_events_2d() -> Result<(), gwen_core::physics2d::Physics2DError> {
     let mut crowded = overlapping_pair()?;
     let mut quiet = separated_pair()?;
@@ -121,6 +129,10 @@ fn first_pair_3d(world: &gwen_core::physics3d::PhysicsWorld3D) -> [u32; 2] {
 
 #[cfg(feature = "physics3d")]
 #[test]
+#[cfg_attr(
+    all(miri, not(target_arch = "x86_64")),
+    ignore = "aarch64 Miri: llvm.aarch64.neon.fmaxnm.v4f32 (wide 1.7.1 src/f32x4_.rs:668 vmaxnmq_f32) and inline assembly prfm pldl1keep in rapier2d-0.36.1 and rapier3d-0.36.1 src/utils/prefetch.rs:24 (inline assembly is not supported)"
+)]
 fn step_records_a_collision_3d() -> Result<(), gwen_core::physics3d::Physics3DError> {
     let mut world = overlapping_pair_3d();
     world.step(1.0 / 60.0)?;
@@ -135,6 +147,10 @@ fn step_records_a_collision_3d() -> Result<(), gwen_core::physics3d::Physics3DEr
 
 #[cfg(feature = "physics3d")]
 #[test]
+#[cfg_attr(
+    all(miri, not(target_arch = "x86_64")),
+    ignore = "aarch64 Miri: llvm.aarch64.neon.fmaxnm.v4f32 (wide 1.7.1 src/f32x4_.rs:668 vmaxnmq_f32) and inline assembly prfm pldl1keep in rapier2d-0.36.1 and rapier3d-0.36.1 src/utils/prefetch.rs:24 (inline assembly is not supported)"
+)]
 fn two_worlds_do_not_share_events_3d() -> Result<(), gwen_core::physics3d::Physics3DError> {
     let mut crowded = overlapping_pair_3d();
     let mut quiet = separated_pair_3d();
@@ -154,6 +170,10 @@ fn two_worlds_do_not_share_events_3d() -> Result<(), gwen_core::physics3d::Physi
 
 #[cfg(feature = "physics3d")]
 #[test]
+#[cfg_attr(
+    all(miri, not(target_arch = "x86_64")),
+    ignore = "aarch64 Miri: llvm.aarch64.neon.fmaxnm.v4f32 (wide 1.7.1 src/f32x4_.rs:668 vmaxnmq_f32) and inline assembly prfm pldl1keep in rapier2d-0.36.1 and rapier3d-0.36.1 src/utils/prefetch.rs:24 (inline assembly is not supported)"
+)]
 fn overlap_after_step_writes_the_entity() -> Result<(), gwen_core::physics3d::Physics3DError> {
     use gwen_core::physics3d::PhysicsWorld3D;
 
@@ -206,6 +226,10 @@ fn no_hit_bits() -> [u32; 5] {
 
 #[cfg(feature = "physics3d")]
 #[test]
+#[cfg_attr(
+    all(miri, not(target_arch = "x86_64")),
+    ignore = "aarch64 Miri: llvm.aarch64.neon.fmaxnm.v4f32 (wide 1.7.1 src/f32x4_.rs:668 vmaxnmq_f32) and inline assembly prfm pldl1keep in rapier2d-0.36.1 and rapier3d-0.36.1 src/utils/prefetch.rs:24 (inline assembly is not supported)"
+)]
 fn grounded_move_writes_contact() -> Result<(), gwen_core::physics3d::Physics3DError> {
     use gwen_core::physics3d::PhysicsWorld3D;
 
@@ -276,6 +300,10 @@ fn grounded_move_writes_contact() -> Result<(), gwen_core::physics3d::Physics3DE
 
 #[cfg(feature = "physics3d")]
 #[test]
+#[cfg_attr(
+    all(miri, not(target_arch = "x86_64")),
+    ignore = "aarch64 Miri: llvm.aarch64.neon.fmaxnm.v4f32 (wide 1.7.1 src/f32x4_.rs:668 vmaxnmq_f32) and inline assembly prfm pldl1keep in rapier2d-0.36.1 and rapier3d-0.36.1 src/utils/prefetch.rs:24 (inline assembly is not supported)"
+)]
 fn air_move_writes_no_hit() -> Result<(), gwen_core::physics3d::Physics3DError> {
     use gwen_core::physics3d::PhysicsWorld3D;
 

@@ -590,9 +590,9 @@ export interface Physics3DWasmBridge {
    * `result[0] === 0` means no hit.
    * Throws `PHYSICS3D:INVALID_QUERY` when the point is not finite or sits outside ±1e7.
    * That query-point cap is a separate input guard. `trimesh_builder` refuses a vertex
-   * above 1e9 (`world.rs:545-547`). `decoded_mesh_is_valid` applies that cap on
-   * `load_bvh_collider` (`world.rs:624-627`). parry3d-0.17.6
-   * `query/point/point_composite_shape.rs:152` unwraps a missing projection.
+   * above 1e9 (`world.rs:522-524`). `decoded_mesh_is_valid` applies that cap on
+   * `load_bvh_collider` (`world.rs:607-610`). parry3d-0.31.1
+   * `query/point/point_composite_shape.rs:199-202` returns a point when the projection is missing (`point_projection_on_a_large_mesh_does_not_panic`).
    * Probe cases `mesh pose fixed 1e19 1m`, `mesh pose fixed 1e19 cap`,
    * `mesh pose fixed 1e30 1m`, `mesh pose fixed 1e30 cap`, `mesh pose fixed max 1m`,
    * `mesh pose fixed max cap`, `mesh pose kinematic 1e19 1m` and

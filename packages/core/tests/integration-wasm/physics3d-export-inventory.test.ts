@@ -12,9 +12,9 @@ import { describe, expect, it } from "vitest";
  * `physics3d_step` and the three queries to `result` (`PHYSICS3D:INVALID_QUERY`,
  * `PHYSICS3D:INVALID_STEP_DELTA`).
  * `trimesh_builder` refuses each vertex above `1e9` (`check_collider_coordinate`,
- * `world.rs:545-547`). `decoded_mesh_is_valid` applies that cap on `load_bvh_collider`
- * (`world.rs:624-627`). parry3d-0.17.6 `query/point/point_composite_shape.rs:152`
- * unwraps a missing projection. Probe cases `mesh pose fixed 1e19 1m`,
+ * `world.rs:522-524`). `decoded_mesh_is_valid` applies that cap on `load_bvh_collider`
+ * (`world.rs:607-610`). parry3d-0.31.1 `query/point/point_composite_shape.rs:199-202`
+ * returns a point when the projection is missing (`point_projection_on_a_large_mesh_does_not_panic`). Probe cases `mesh pose fixed 1e19 1m`,
  * `mesh pose fixed 1e19 cap`, `mesh pose fixed 1e30 1m`, `mesh pose fixed 1e30 cap`,
  * `mesh pose fixed max 1m`, `mesh pose fixed max cap`, `mesh pose kinematic 1e19 1m`
  * and `mesh pose kinematic 1e19 cap` (`physics3d_float_probe.rs`) use a pose up to
@@ -105,7 +105,7 @@ const PHYSICS3D: Record<string, ExportRow> = {
   physics3d_lock_rotations: result(),
   physics3d_lock_translations: result(),
   physics3d_overlap_shape: result(),
-  // Vertex cap 1e9 at world.rs:545-547. decoded_mesh_is_valid applies it at world.rs:624-627.
+  // Vertex cap 1e9 at world.rs:522-524. decoded_mesh_is_valid applies it at world.rs:607-610.
   // Probe cases mesh pose fixed 1e19 1m, mesh pose fixed 1e19 cap, mesh pose fixed 1e30 1m,
   // mesh pose fixed 1e30 cap, mesh pose fixed max 1m, mesh pose fixed max cap,
   // mesh pose kinematic 1e19 1m and mesh pose kinematic 1e19 cap: pose up to f32::MAX, no panic.

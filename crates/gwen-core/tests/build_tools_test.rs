@@ -40,6 +40,11 @@ mod build_tools_tests {
     }
 
     #[test]
+    fn rapier_version_is_0_36() {
+        assert_eq!(RAPIER_VERSION, (0, 36));
+    }
+
+    #[test]
     fn a_baked_buffer_is_accepted_by_the_physics3d_loader() {
         use gwen_core::bindings::Engine;
 

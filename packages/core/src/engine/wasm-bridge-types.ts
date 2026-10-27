@@ -1032,7 +1032,7 @@ export interface WasmEnginePhysics3D extends WasmEngineBase {
     outPtr: number,
     maxResults: number,
   ): number;
-  /** `[1, entity, px, py, pz, isInside]` on a hit, `[0]` on a miss. Throws `PHYSICS3D:INVALID_QUERY` when the point is not finite or sits outside ±1e7. That cap is a separate input guard. Vertex cap 1e9 at `world.rs:545-547`. `decoded_mesh_is_valid` applies it at `world.rs:624-627`. Probe cases `mesh pose fixed 1e19 1m`, `mesh pose fixed 1e19 cap`, `mesh pose fixed 1e30 1m`, `mesh pose fixed 1e30 cap`, `mesh pose fixed max 1m`, `mesh pose fixed max cap`, `mesh pose kinematic 1e19 1m` and `mesh pose kinematic 1e19 cap` use a pose up to `f32::MAX` and do not panic. parry3d-0.17.6 `point_composite_shape.rs:152` still unwraps a missing projection. */
+  /** `[1, entity, px, py, pz, isInside]` on a hit, `[0]` on a miss. Throws `PHYSICS3D:INVALID_QUERY` when the point is not finite or sits outside ±1e7. That cap is a separate input guard. Vertex cap 1e9 at `world.rs:522-524`. `decoded_mesh_is_valid` applies it at `world.rs:607-610`. Probe cases `mesh pose fixed 1e19 1m`, `mesh pose fixed 1e19 cap`, `mesh pose fixed 1e30 1m`, `mesh pose fixed 1e30 cap`, `mesh pose fixed max 1m`, `mesh pose fixed max cap`, `mesh pose kinematic 1e19 1m` and `mesh pose kinematic 1e19 cap` use a pose up to `f32::MAX` and do not panic. parry3d-0.31.1 `point_composite_shape.rs:199-202` returns a point when the projection is missing (`point_projection_on_a_large_mesh_does_not_panic`). */
   physics3d_project_point?(
     px: number,
     py: number,

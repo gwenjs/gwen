@@ -4,6 +4,10 @@
 //! unmoved. A dynamic body past the world extent is disabled and the step
 //! continues.
 #![cfg(feature = "physics2d")]
+#![allow(
+    clippy::bool_assert_comparison,
+    reason = "test-only code: boolean conditions are compared with assert_eq! so the failure message names the value"
+)]
 
 use gwen_core::bindings::Engine;
 use gwen_core::physics2d::Physics2DError;
@@ -206,32 +210,76 @@ fn velocity_above_the_clamp_is_clamped() -> Result<(), Physics2DError> {
     Ok(())
 }
 
+/// Restitution `1.0e9` disabled this body on rapier 0.22: the bounce left
+/// `MAX_WORLD_EXTENT` and the #217 guard recorded `out-of-bounds`.
+/// rapier 0.36.1 caps linear speed after each solver substep
+/// (`normalized_max_linear_velocity`, `rapier2d-0.36.1`
+/// `dynamics/integration_parameters.rs:282`, default `400.0` at `:423`,
+/// `length_unit` 1 at `:430`). Over 200 steps the offender stays enabled,
+/// `|y|` peaks at 1103.57666 and each `|Δy|` stays within `400 * dt`
+/// (measured 6.66496515). The disable list stays empty. P-RAP-7 re-measures
+/// the #217 limits.
 #[test]
-fn step_after_restitution_blowup_disables_the_body_and_keeps_stepping() -> Result<(), Physics2DError>
-{
+fn step_after_restitution_1e9_stays_bounded_and_keeps_stepping() -> Result<(), Physics2DError> {
+    const STEPS: u32 = 200;
     let mut engine = engine(-9.81)?;
     add_box(&mut engine, GROUND, 0.0, 0.0, 0, (20.0, 0.5), 1.0e9)?;
     add_box(&mut engine, OFFENDER, 0.0, 2.0, 1, (0.5, 0.5), 1.0e9)?;
     add_box(&mut engine, OTHER, 40.0, 8.0, 1, (0.5, 0.5), 0.0)?;
     let before = position_y(&engine, OTHER)?;
 
-    let mut disabled = false;
-    for _ in 0..200 {
+    let mut offender_enabled = true;
+    let mut max_abs_y = 0.0f32;
+    let mut max_dy = 0.0f32;
+    let mut prev_y = 2.0f32;
+    let mut offender_finite = true;
+    for _ in 0..STEPS {
         engine.physics_step(DT)?;
         if !engine.is_body_enabled(OFFENDER) {
-            disabled = true;
-            break;
+            offender_enabled = false;
         }
+        let pose = engine.physics_get_position(OFFENDER)?;
+        let velocity = engine.physics_get_linear_velocity(OFFENDER)?;
+        if !pose.iter().copied().all(f32::is_finite)
+            || !velocity.iter().copied().all(f32::is_finite)
+        {
+            offender_finite = false;
+        }
+        let y = pose[1];
+        max_dy = max_dy.max((y - prev_y).abs());
+        prev_y = y;
+        max_abs_y = max_abs_y.max(y.abs());
     }
 
-    let state = if disabled { "disabled" } else { "enabled" };
-    assert_eq!(state, "disabled", "offender is_enabled() stayed true");
+    let position_ceiling = 2.0 + MAX_LINEAR_VELOCITY * (STEPS as f32) * DT;
+    assert_eq!(offender_enabled, true, "offender was disabled");
     assert_eq!(
-        drained_reasons(&engine.physics_take_disabled_slots()),
-        vec![(OFFENDER, "out-of-bounds")]
+        offender_finite, true,
+        "offender pose or velocity is not finite"
+    );
+    assert_eq!(
+        max_abs_y <= position_ceiling,
+        true,
+        "offender |y| {max_abs_y} exceeds the cap budget {position_ceiling}"
+    );
+    assert_eq!(
+        max_dy <= MAX_LINEAR_VELOCITY * DT,
+        true,
+        "offender step |dy| {max_dy} exceeds the 400 m/s cap"
+    );
+    assert_eq!(
+        engine.physics_take_disabled_slots(),
+        Vec::<u32>::new(),
+        "restitution 1e9 disabled a body"
     );
     let after = position_y(&engine, OTHER)?;
+    let other_velocity = engine.physics_get_linear_velocity(OTHER)?;
     assert_ne!(after, before, "the other body's y did not change");
+    assert_eq!(
+        after.is_finite() && other_velocity.iter().copied().all(f32::is_finite),
+        true,
+        "the other body is not finite: y={after} vel={other_velocity:?}"
+    );
     engine.physics_step(DT)?;
     assert_ne!(position_y(&engine, OTHER)?, after);
     Ok(())

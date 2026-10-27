@@ -10,9 +10,9 @@
 use gwen_core::bindings::Engine;
 use gwen_core::physics3d::world::{PhysicsWorld3D, MAX_COLLIDER_MAGNITUDE};
 use gwen_core::physics3d::Physics3DError;
-use rapier3d::na::{Point3, Vector3};
+use rapier3d::math::Vector;
 use rapier3d::parry::query::{PointQuery, Ray, RayCast};
-use rapier3d::parry::shape::TriMesh;
+use rapier3d::parry::shape::{TriMesh, TriMeshBuilderError};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Mutex;
 
@@ -44,38 +44,44 @@ fn panicked(f: impl FnOnce()) -> bool {
 
 /// One large triangle with corners at `(-m,-m,-m)`, `(m,-m,-m)` and `(-m,m,m)`, the widest
 /// triangle a coordinate bound of `m` allows along these axes.
-fn diagonal_mesh(m: f32) -> TriMesh {
+fn diagonal_mesh(m: f32) -> Result<TriMesh, TriMeshBuilderError> {
     let points = vec![
-        Point3::new(-m, -m, -m),
-        Point3::new(m, -m, -m),
-        Point3::new(-m, m, m),
+        Vector::new(-m, -m, -m),
+        Vector::new(m, -m, -m),
+        Vector::new(-m, m, m),
     ];
     TriMesh::new(points, vec![[0, 1, 2]])
 }
 
 /// A floor patch of half size `m` at y = 0, made of two triangles.
-fn floor_mesh(m: f32) -> TriMesh {
+fn floor_mesh(m: f32) -> Result<TriMesh, TriMeshBuilderError> {
     let points = vec![
-        Point3::new(-m, 0.0, -m),
-        Point3::new(m, 0.0, -m),
-        Point3::new(-m, 0.0, m),
-        Point3::new(m, 0.0, m),
+        Vector::new(-m, 0.0, -m),
+        Vector::new(m, 0.0, -m),
+        Vector::new(-m, 0.0, m),
+        Vector::new(m, 0.0, m),
     ];
     TriMesh::new(points, vec![[0, 2, 1], [1, 2, 3]])
 }
 
 /// True when projecting a point near the origin onto `mesh` panics.
-fn projection_panics(mesh: impl FnOnce() -> TriMesh) -> bool {
+fn projection_panics(mesh: impl FnOnce() -> Result<TriMesh, TriMeshBuilderError>) -> bool {
     panicked(|| {
-        let _ = mesh().project_local_point(&Point3::new(0.0, 5.0, 0.0), true);
+        let Ok(mesh) = mesh() else {
+            return;
+        };
+        let _ = mesh.project_local_point(Vector::new(0.0, 5.0, 0.0), true);
     })
 }
 
 /// True when a downward ray cast onto `mesh` panics.
-fn ray_cast_panics(mesh: impl FnOnce() -> TriMesh) -> bool {
+fn ray_cast_panics(mesh: impl FnOnce() -> Result<TriMesh, TriMeshBuilderError>) -> bool {
     panicked(|| {
-        let ray = Ray::new(Point3::new(0.0, 5.0, 0.0), Vector3::new(0.0, -1.0, 0.0));
-        let _ = mesh().cast_local_ray(&ray, 100.0, true);
+        let Ok(mesh) = mesh() else {
+            return;
+        };
+        let ray = Ray::new(Vector::new(0.0, 5.0, 0.0), Vector::new(0.0, -1.0, 0.0));
+        let _ = mesh.cast_local_ray(&ray, 100.0, true);
     })
 }
 
@@ -264,7 +270,7 @@ fn raw_step(m: f32) -> [f32; 3] {
     );
     let ball = bodies.insert(
         RigidBodyBuilder::dynamic()
-            .translation(vector![0.0, m + 3.0, 0.0])
+            .translation(Vector::new(0.0, m + 3.0, 0.0))
             .build(),
     );
     colliders.insert_with_parent(ColliderBuilder::ball(0.5).build(), ball, &mut bodies);
@@ -277,8 +283,9 @@ fn raw_step(m: f32) -> [f32; 3] {
     let mut ccd = CCDSolver::new();
     let params = IntegrationParameters::default();
     for _ in 0..120 {
+        let mut soft_bodies = SoftBodySet::new();
         pipeline.step(
-            &vector![0.0, -9.81, 0.0],
+            Vector::new(0.0, -9.81, 0.0),
             &params,
             &mut islands,
             &mut broad_phase,
@@ -287,8 +294,8 @@ fn raw_step(m: f32) -> [f32; 3] {
             &mut colliders,
             &mut impulse_joints,
             &mut multibody_joints,
+            &mut soft_bodies,
             &mut ccd,
-            None,
             &(),
             &(),
         );
@@ -336,7 +343,7 @@ fn raw_step_at(m: f32) {
     );
     let box_body = bodies.insert(
         RigidBodyBuilder::dynamic()
-            .translation(vector![0.0, m, 0.0])
+            .translation(Vector::new(0.0, m, 0.0))
             .build(),
     );
     colliders.insert_with_parent(
@@ -352,8 +359,9 @@ fn raw_step_at(m: f32) {
     let mut multibody_joints = MultibodyJointSet::new();
     let mut ccd = CCDSolver::new();
     let params = IntegrationParameters::default();
+    let mut soft_bodies = SoftBodySet::new();
     pipeline.step(
-        &vector![0.0, -9.81, 0.0],
+        Vector::new(0.0, -9.81, 0.0),
         &params,
         &mut islands,
         &mut broad_phase,
@@ -362,8 +370,8 @@ fn raw_step_at(m: f32) {
         &mut colliders,
         &mut impulse_joints,
         &mut multibody_joints,
+        &mut soft_bodies,
         &mut ccd,
-        None,
         &(),
         &(),
     );

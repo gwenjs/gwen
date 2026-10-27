@@ -464,7 +464,7 @@ fn removing_a_body_evicts_its_joints() -> Outcome {
 }
 
 /// Both ends on one entity, with anchors that disagree: the solver gets an inconsistent
-/// constraint. rapier3d-0.22.0 accepts it without a panic and keeps every state finite.
+/// constraint. The test checks that every body state stays finite.
 #[test]
 fn a_joint_with_both_ends_on_one_entity_keeps_body_states_finite() -> Outcome {
     for kind in 0..5 {

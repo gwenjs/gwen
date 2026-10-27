@@ -707,10 +707,10 @@ fn panic_report(f: impl FnOnce()) -> Option<String> {
 /// Builds a heightfield straight through rapier. The export refuses a grid below 2x2, so the
 /// control reaches parry's own assert without it.
 fn heightfield(rows: usize, cols: usize) {
-    use rapier3d::na::{DMatrix, Vector3};
-    let heights = vec![0.0f32; rows * cols];
-    let matrix = DMatrix::from_row_slice(rows, cols, &heights);
-    let _ = rapier3d::geometry::ColliderBuilder::heightfield(matrix, Vector3::new(1.0, 1.0, 1.0));
+    use rapier3d::math::Vector;
+    use rapier3d::parry::utils::Array2;
+    let heights = Array2::from_fn(rows, cols, |_, _| 0.0f32);
+    let _ = rapier3d::geometry::ColliderBuilder::heightfield(heights, Vector::new(1.0, 1.0, 1.0));
 }
 
 #[test]
@@ -740,15 +740,14 @@ fn control_one_by_one_heightfield_panics() {
     );
 }
 
-/// An index past the vertex list is read by `TriMesh::rebuild_qbvh`
-/// (parry3d-0.17.6 `shape/trimesh.rs:489-493`).
+/// An index past the vertex list still panics inside parry 0.31.1 `TriMesh::new`.
 fn out_of_range_trimesh_index() {
-    use rapier3d::na::Point3;
+    use rapier3d::math::Vector;
     use rapier3d::parry::shape::TriMesh;
     let vertices = vec![
-        Point3::new(0.0, 0.0, 0.0),
-        Point3::new(1.0, 0.0, 0.0),
-        Point3::new(0.0, 1.0, 0.0),
+        Vector::new(0.0, 0.0, 0.0),
+        Vector::new(1.0, 0.0, 0.0),
+        Vector::new(0.0, 1.0, 0.0),
     ];
     let _ = TriMesh::new(vertices, vec![[0, 1, 99]]);
 }

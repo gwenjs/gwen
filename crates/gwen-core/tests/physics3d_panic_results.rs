@@ -4,8 +4,10 @@
 //! `PhysicsPipeline::step` with no input check (`world.rs` step). `cast_ray`
 //! forwards the ray to Rapier (`world.rs` `cast_ray`).
 #![cfg(feature = "physics3d")]
-
-use std::panic::{catch_unwind, AssertUnwindSafe};
+#![allow(
+    clippy::bool_assert_comparison,
+    reason = "test-only code: boolean conditions are compared with assert_eq! so the failure message names the value"
+)]
 
 use gwen_core::bindings::Engine;
 use gwen_core::physics3d::world::MAX_COLLIDER_MAGNITUDE;
@@ -613,8 +615,18 @@ fn set_max_linear_velocity_rejects_non_positive_and_non_finite() -> Result<(), P
     Ok(())
 }
 
+/// Restitution `1.0e9` disabled this body on rapier 0.22: the bounce left
+/// `MAX_WORLD_EXTENT` and the #217 guard recorded `out-of-bounds`.
+/// rapier 0.36.1 caps linear speed after each solver substep
+/// (`normalized_max_linear_velocity`, `rapier3d-0.36.1`
+/// `dynamics/integration_parameters.rs:282`, default `400.0` at `:423`,
+/// `length_unit` 1 at `:430`). Over 200 steps the offender stays enabled,
+/// `|y|` peaks at 1103.37708 and each `|Δy|` stays within `400 * dt`
+/// (measured 6.66496468). The disable list stays empty. P-RAP-7 re-measures
+/// the #217 limits.
 #[test]
-fn step_after_restitution_1e9_disables_the_body_and_keeps_stepping() -> Result<(), Physics3DError> {
+fn step_after_restitution_1e9_stays_bounded_and_keeps_stepping() -> Result<(), Physics3DError> {
+    const STEPS: u32 = 200;
     let mut engine = engine(-9.81)?;
     add_box(
         &mut engine,
@@ -642,25 +654,58 @@ fn step_after_restitution_1e9_disables_the_body_and_keeps_stepping() -> Result<(
     )?;
     let before = position_y(&engine, OTHER)?;
 
-    let caught = catch_unwind(AssertUnwindSafe(|| {
-        for _ in 0..200 {
-            if engine.physics3d_step(DT).is_err() {
-                return "step-error";
-            }
-            if !engine.physics3d_is_body_enabled(OFFENDER) {
-                return "disabled";
-            }
+    let mut offender_enabled = true;
+    let mut max_abs_y = 0.0f32;
+    let mut max_dy = 0.0f32;
+    let mut prev_y = 2.0f32;
+    let mut offender_finite = true;
+    for _ in 0..STEPS {
+        engine.physics3d_step(DT)?;
+        if !engine.physics3d_is_body_enabled(OFFENDER) {
+            offender_enabled = false;
         }
-        "enabled"
-    }));
-    let state = caught.unwrap_or("panicked");
-    assert_eq!(state, "disabled", "offender is_enabled() stayed true");
+        let state = body_state(&engine, OFFENDER)?;
+        let velocity = engine.physics3d_get_linear_velocity(OFFENDER)?;
+        if !state.iter().copied().all(f32::is_finite)
+            || !velocity.iter().copied().all(f32::is_finite)
+        {
+            offender_finite = false;
+        }
+        let y = state[1];
+        max_dy = max_dy.max((y - prev_y).abs());
+        prev_y = y;
+        max_abs_y = max_abs_y.max(y.abs());
+    }
+
+    let position_ceiling = 2.0 + MAX_LINEAR_VELOCITY * (STEPS as f32) * DT;
+    assert_eq!(offender_enabled, true, "offender was disabled");
     assert_eq!(
-        drained_reasons(&engine.physics3d_take_disabled_slots()),
-        vec![(OFFENDER, "out-of-bounds")]
+        offender_finite, true,
+        "offender pose or velocity is not finite"
+    );
+    assert_eq!(
+        max_abs_y <= position_ceiling,
+        true,
+        "offender |y| {max_abs_y} exceeds the cap budget {position_ceiling}"
+    );
+    assert_eq!(
+        max_dy <= MAX_LINEAR_VELOCITY * DT,
+        true,
+        "offender step |dy| {max_dy} exceeds the 400 m/s cap"
+    );
+    assert_eq!(
+        engine.physics3d_take_disabled_slots(),
+        Vec::<u32>::new(),
+        "restitution 1e9 disabled a body"
     );
     let after = position_y(&engine, OTHER)?;
+    let other_velocity = engine.physics3d_get_linear_velocity(OTHER)?;
     assert_ne!(after, before, "the other body's y did not change");
+    assert_eq!(
+        after.is_finite() && other_velocity.iter().copied().all(f32::is_finite),
+        true,
+        "the other body is not finite: y={after} vel={other_velocity:?}"
+    );
     engine.physics3d_step(DT)?;
     assert_ne!(position_y(&engine, OTHER)?, after);
     Ok(())
@@ -829,46 +874,46 @@ fn disabled_slots_in_one_step_drain_in_ascending_slot_order() -> Result<(), Phys
     Ok(())
 }
 
+/// Two engines stay apart when one disables a body.
+///
+/// Restitution `1.0e9` no longer disables a body on rapier 0.36.1 (see
+/// `step_after_restitution_1e9_stays_bounded_and_keeps_stepping`). This test
+/// spawns a dynamic body past `MAX_WORLD_EXTENT` and steps once. Measured:
+/// the body is disabled and `physics3d_take_disabled_slots` is `[0, 1]`
+/// (`out-of-bounds`). The other engine's body falls and stays enabled.
 #[test]
 fn two_engines_do_not_share_a_disabled_body() -> Result<(), Physics3DError> {
-    let mut blown = engine(-9.81)?;
+    let mut blown = engine(0.0)?;
     let mut other = engine(-9.81)?;
-    add_box(
-        &mut blown,
-        GROUND,
-        [0.0, 0.0, 0.0],
-        0,
-        (20.0, 0.5, 20.0),
-        1.0e9,
-    )?;
-    add_box(
-        &mut blown,
-        OFFENDER,
-        [0.0, 2.0, 0.0],
-        1,
-        (0.5, 0.5, 0.5),
-        1.0e9,
-    )?;
+    let above = MAX_WORLD_EXTENT.next_up();
+    add_box(&mut blown, 0, [above, 0.0, 0.0], 1, (0.5, 0.5, 0.5), 0.0)?;
     add_box(&mut other, 0, [0.0, 8.0, 0.0], 1, (0.5, 0.5, 0.5), 0.0)?;
     let before = position_y(&other, 0)?;
-    let caught = catch_unwind(AssertUnwindSafe(|| {
-        for _ in 0..200 {
-            if blown.physics3d_step(DT).is_err() {
-                return "step-error";
-            }
-            if !blown.physics3d_is_body_enabled(OFFENDER) {
-                return "disabled";
-            }
-        }
-        "enabled"
-    }));
-    let state = caught.unwrap_or("panicked");
-    assert_eq!(state, "disabled", "offender is_enabled() stayed true");
+    blown.physics3d_step(DT)?;
+    assert_eq!(
+        enabled_label(&blown, 0),
+        "disabled",
+        "body past the extent stayed enabled"
+    );
+    assert_eq!(
+        drained_reasons(&blown.physics3d_take_disabled_slots()),
+        vec![(0, "out-of-bounds")]
+    );
     other.physics3d_step(DT)?;
     assert_ne!(
         position_y(&other, 0)?,
         before,
         "the other engine did not step"
+    );
+    assert_eq!(
+        position_y(&other, 0)?.is_finite(),
+        true,
+        "the other engine's y is not finite"
+    );
+    assert_eq!(
+        enabled_label(&other, 0),
+        "enabled",
+        "the other engine's body was disabled"
     );
     assert_eq!(other.physics3d_take_disabled_slots(), Vec::<u32>::new());
     Ok(())
