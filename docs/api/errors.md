@@ -130,6 +130,8 @@ Cause. The call is outside `defineActor()`, `plugin setup()`, or `withCleanup()`
 - `CORE:STORAGE_INCONSISTENT` {#core-storage-inconsistent}
 - `CORE:INVALID_CONFIG` {#core-invalid-config}
 - `CORE:PLUGIN_NOT_FOUND` {#core-plugin-not-found}
+- `CORE:PLUGIN_DEPENDENCY_MISSING` {#core-plugin-dependency-missing} `engine.use` rejected because a required plugin or service is not installed.
+- `CORE:PLUGIN_IN_USE` {#core-plugin-in-use} Reserved: `engine.unuse` will reject with it once dependents are tracked.
 - `CORE:TWEEN_POOL_EXHAUSTED` {#core-tween-pool-exhausted}
 - `CORE:WASM_GLUE_MISMATCH` {#core-wasm-glue-mismatch} Thrown by the WASM glue loader (#260).
 - `CORE:ENGINE_DISPOSED` {#core-engine-disposed} Thrown by engine dispose (#261).
