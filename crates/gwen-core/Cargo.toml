@@ -19,6 +19,7 @@ rapier2d = { version = "0.36.1", default-features = false, features = [
   "std",
   "f32",
   "dim2",
+  "block-solver",
 ], optional = true }
 # Physics — 3D (Rapier3D)
 rapier3d = { version = "0.36.1", default-features = false, features = [
