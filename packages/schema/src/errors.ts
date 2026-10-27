@@ -81,7 +81,7 @@ export function renderGwenMessage(
  *   engine.inject('missingService')
  * } catch (e) {
  *   if (e instanceof GwenError) {
- *     console.error(`[${e.code}] ${e.message}`)
+ *     console.error(e.message)
  *   }
  * }
  * ```
@@ -93,8 +93,8 @@ export function renderGwenMessage(
  * export class AudioPluginError extends GwenError {
  *   static readonly docsBase = "https://gwenjs.github.io/audio"
  *   constructor(message: string) {
- *     // A third argument turns on the grammar.
- *     super('AUDIO:ERROR', message, {})
+ *     // Two arguments render the grammar too. where is GWEN.
+ *     super('AUDIO:ERROR', message)
  *     this.name = 'AudioPluginError'
  *   }
  * }
@@ -117,13 +117,13 @@ export class GwenError extends Error {
   public readonly docsUrl: string;
 
   /**
-   * A third argument, including `{}`, renders `[where] what`, an optional `Fix:` line,
-   * and a `See` line. Two arguments keep `what` as the message. `docsUrl` is always set.
+   * Renders `[where] what`, an optional `Fix:` line, and a `See` line.
+   * Two arguments use `GWEN` as where. `docsUrl` is always set.
    */
   constructor(code: string, what: string, options?: GwenErrorOptions) {
     const docsBase = docsBaseOf(new.target as DocsBaseConstructor);
     super(
-      options === undefined ? what : renderGwenMessage(code, what, options, docsBase),
+      renderGwenMessage(code, what, options ?? {}, docsBase),
       options?.cause !== undefined ? { cause: options.cause } : undefined,
     );
     this.name = "GwenError";

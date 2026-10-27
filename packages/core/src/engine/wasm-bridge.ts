@@ -842,7 +842,6 @@ export class WasmBridgeImpl implements WasmBridge {
       throw new GwenError(
         CoreErrorCodes.SHARED_BUFFER_ALLOC_FAILED,
         "Query buffers were not allocated.",
-        {},
       );
     }
 
@@ -861,7 +860,6 @@ export class WasmBridgeImpl implements WasmBridge {
         throw new GwenError(
           CoreErrorCodes.QUERY_CAPACITY_EXCEEDED,
           "The query exceeded the buffer capacity.",
-          {},
         );
       }
     }

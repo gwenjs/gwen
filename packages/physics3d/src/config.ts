@@ -107,7 +107,6 @@ export function resolveLayerBits(
         throw new GwenError(
           Physics3DErrorCodes.UNKNOWN_LAYER,
           `Unknown layer "${name}". Declared layers: [${declared.join(", ")}].`,
-          {},
         );
       }
       mask |= bit;

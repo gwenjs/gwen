@@ -750,7 +750,6 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
         throw new GwenError(
           Physics2DErrorCodes.WASM_VARIANT_MISMATCH,
           "Core WASM variant does not include physics.",
-          {},
         );
       }
 
@@ -817,7 +816,6 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
             throw new GwenError(
               Physics2DErrorCodes.INVALID_PREFAB_EXTENSION,
               "Prefab extension must declare extensions.physics.colliders in v2.",
-              {},
             );
           }
 

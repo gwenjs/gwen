@@ -35,7 +35,6 @@ export function normalizeComponentType(input: unknown, strict = true): string {
       throw new GwenError(
         CoreErrorCodes.INVALID_COMPONENT_TYPE,
         "Component type must not be an empty string.",
-        {},
       );
     }
     return "";
@@ -48,7 +47,6 @@ export function normalizeComponentType(input: unknown, strict = true): string {
       throw new GwenError(
         CoreErrorCodes.INVALID_COMPONENT_TYPE,
         "ComponentDefinition.name must not be empty.",
-        {},
       );
     }
     return "";
@@ -58,7 +56,6 @@ export function normalizeComponentType(input: unknown, strict = true): string {
     throw new GwenError(
       CoreErrorCodes.INVALID_COMPONENT_TYPE,
       "Invalid component type. Expected string or ComponentDefinition.",
-      {},
     );
   }
 

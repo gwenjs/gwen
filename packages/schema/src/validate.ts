@@ -71,7 +71,6 @@ export function assertModuleFirstInput(input: GwenConfigInput): void {
   throw new GwenError(
     SchemaErrorCodes.MODULES_REQUIRED,
     "Module-first configuration required: declare at least one entry in `modules` and migrate legacy `plugins`/`tsPlugins`/`wasmPlugins` usage.",
-    {},
   );
 }
 
@@ -88,7 +87,6 @@ export function validateResolvedConfig(config: GwenOptions): GwenOptions {
     throw new GwenError(
       SchemaErrorCodes.INVALID_CONFIG,
       "maxEntities must be between 100 and 1000000.",
-      {},
     );
   }
 
@@ -103,7 +101,6 @@ export function validateResolvedConfig(config: GwenOptions): GwenOptions {
     throw new GwenError(
       SchemaErrorCodes.INVALID_CONFIG,
       "engine.loop must be 'internal' or 'external'.",
-      {},
     );
   }
 
@@ -112,21 +109,16 @@ export function validateResolvedConfig(config: GwenOptions): GwenOptions {
     throw new GwenError(
       SchemaErrorCodes.INVALID_CONFIG,
       "engine.maxDeltaSeconds must be > 0 and <= 1.",
-      {},
     );
   }
 
   const hexColorRegex = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
   if (!hexColorRegex.test(config.html.background)) {
-    throw new GwenError(
-      SchemaErrorCodes.INVALID_CONFIG,
-      "background must be a valid hex color.",
-      {},
-    );
+    throw new GwenError(SchemaErrorCodes.INVALID_CONFIG, "background must be a valid hex color.");
   }
 
   if (!Array.isArray(config.modules)) {
-    throw new GwenError(SchemaErrorCodes.INVALID_CONFIG, "modules must be an array.", {});
+    throw new GwenError(SchemaErrorCodes.INVALID_CONFIG, "modules must be an array.");
   }
 
   for (let index = 0; index < config.modules.length; index += 1) {
@@ -134,13 +126,12 @@ export function validateResolvedConfig(config: GwenOptions): GwenOptions {
       throw new GwenError(
         SchemaErrorCodes.INVALID_CONFIG,
         `modules[${index}] must be a string or a [name, options] tuple with object options.`,
-        {},
       );
     }
   }
 
   if (!Array.isArray(config.plugins)) {
-    throw new GwenError(SchemaErrorCodes.INVALID_CONFIG, "plugins must be an array.", {});
+    throw new GwenError(SchemaErrorCodes.INVALID_CONFIG, "plugins must be an array.");
   }
 
   return config;

@@ -29,7 +29,6 @@ const registries = createEngineLocal((engine: GwenEngine) => {
     throw new GwenError(
       CoreErrorCodes.WASM_NOT_INITIALIZED,
       "Component registry requires the engine wasm:bridge service.",
-      {},
     );
   }
   return new EngineComponentRegistry(bridge);
@@ -92,7 +91,6 @@ function laneParts(type: SchemaType["type"]): readonly number[] {
       throw new GwenError(
         CoreErrorCodes.COMPONENT_LAYOUT_INVALID,
         `Component layout invalid: ${String(unexpected)}.`,
-        {},
       );
     }
   }
@@ -108,7 +106,6 @@ function lanesFromSchema(schema: ComponentSchema): Uint8Array {
       throw new GwenError(
         CoreErrorCodes.COMPONENT_LAYOUT_INVALID,
         `Component layout invalid: ${key}.`,
-        {},
       );
     }
     const parts = laneParts(field.type);
@@ -166,7 +163,6 @@ export class EngineComponentRegistry {
         throw new GwenError(
           CoreErrorCodes.COMPONENT_LAYOUT_INVALID,
           `Component layout invalid: ${name}.`,
-          {},
         );
       }
       return existing;
@@ -175,7 +171,6 @@ export class EngineComponentRegistry {
       throw new GwenError(
         CoreErrorCodes.COMPONENT_TYPE_LIMIT_REACHED,
         `Component type limit reached: ${MAX_COMPONENT_TYPES} user types fit.`,
-        {},
       );
     }
     // Same name, including an HMR swap, keeps this id. A second call does not

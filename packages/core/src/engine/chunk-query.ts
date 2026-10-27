@@ -153,7 +153,6 @@ function partsFor(type: SchemaType["type"]): readonly string[] | null {
       throw new GwenError(
         CoreErrorCodes.COMPONENT_LAYOUT_INVALID,
         `Component layout invalid: ${String(unexpected)}.`,
-        {},
       );
     }
   }
@@ -191,7 +190,6 @@ function kindFor(type: SchemaType["type"]): ViewableLaneKind | null {
       throw new GwenError(
         CoreErrorCodes.COMPONENT_LAYOUT_INVALID,
         `Component layout invalid: ${String(unexpected)}.`,
-        {},
       );
     }
   }
@@ -215,7 +213,6 @@ function planQuery(components: readonly ComponentDef[]): {
         throw new GwenError(
           CoreErrorCodes.COMPONENT_LAYOUT_INVALID,
           `Component layout invalid: ${key}.`,
-          {},
         );
       }
       const parts = partsFor(field.type);
