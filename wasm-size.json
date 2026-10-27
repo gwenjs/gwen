@@ -30,15 +30,15 @@
     },
     "physics2d": {
       "path": "packages/core/wasm/physics2d/gwen_core_bg.wasm",
-      "raw": 469784,
-      "gzip": { "baseline": 197988, "budget": 207888 },
-      "brotli": { "baseline": 159454, "budget": 167427 }
+      "raw": 994611,
+      "gzip": { "baseline": 427612, "budget": 448993 },
+      "brotli": { "baseline": 339179, "budget": 356138 }
     },
     "physics3d": {
       "path": "packages/core/wasm/physics3d/gwen_core_bg.wasm",
-      "raw": 691061,
-      "gzip": { "baseline": 292045, "budget": 306648 },
-      "brotli": { "baseline": 228488, "budget": 239913 }
+      "raw": 1317219,
+      "gzip": { "baseline": 568084, "budget": 596489 },
+      "brotli": { "baseline": 439634, "budget": 461616 }
     },
     "light-factory": {
       "path": "packages/core/wasm/light/gwen_core_factory.js",
@@ -60,9 +60,9 @@
     },
     "physics3d-bvh": {
       "path": "packages/physics3d/wasm/bvh/gwen_core_bg.wasm",
-      "raw": 948573,
-      "gzip": { "baseline": 394871, "budget": 414615 },
-      "brotli": { "baseline": 304560, "budget": 319788 }
+      "raw": 1575381,
+      "gzip": { "baseline": 673104, "budget": 706760 },
+      "brotli": { "baseline": 516185, "budget": 541995 }
     },
     "physics3d-fracture": {
       "path": "packages/physics3d-fracture/wasm/gwen_physics3d_fracture_bg.wasm",
