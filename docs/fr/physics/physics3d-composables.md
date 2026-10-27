@@ -41,7 +41,17 @@ Le plugin fait automatiquement :
 - Gère les raycasts, les shape casts et les chevauchements par image
 - Nettoie quand l'acteur disparaît
 
-`maxLinearVelocity` (défaut `400` m/s) ramène un corps dynamique plus rapide à ce plafond. Le corps reste actif. Après un pas qui désactive un corps dynamique, le plugin émet `physics3d:body-disabled` avec `{ entity, reason }`. `reason` vaut `non-finite`, `out-of-bounds` ou `velocity`. Un delta de pas au-dessus de 1 s est refusé avec `PHYSICS3D:INVALID_STEP_DELTA`. Une coordonnée de requête hors de ±1e7 est refusée avec `PHYSICS3D:INVALID_QUERY`.
+`maxLinearVelocity` (défaut `400` m/s) règle le plafond de GWEN et le plafond Rapier après chaque sous-pas. Un corps dynamique plus rapide est ramené à ce plafond et reste actif. Après un pas qui désactive un corps dynamique, le plugin émet `physics3d:body-disabled` avec `{ entity, reason }`. `reason` vaut `non-finite`, `out-of-bounds` ou `velocity`. Un delta de pas au-dessus de 1 s est refusé avec `PHYSICS3D:INVALID_STEP_DELTA`. Une coordonnée de requête hors de ±1e7 est refusée avec `PHYSICS3D:INVALID_QUERY`.
+
+## Comportement Rapier 0.36
+
+Rapier limite la vitesse linéaire après chaque sous-pas du solveur. Le plafond par défaut est 400 m/s. `maxLinearVelocity` règle le plafond de GWEN et ce plafond Rapier (`crates/gwen-core/src/physics2d/world.rs:787-793`, `crates/gwen-core/src/physics3d/world.rs:799-805`). Un nouveau monde part de 400 (`crates/gwen-core/src/physics2d/world.rs:244`, `crates/gwen-core/src/physics3d/world.rs:715`). Une valeur non finie, nulle ou négative est refusée et les deux plafonds restent.
+
+Un corps s'endort après une demi-seconde sous le seuil de sommeil (`rapier3d-0.36.1/src/dynamics/rigid_body_components.rs:1375`, `crates/gwen-core/tests/physics3d_rapier_036.rs:333`). Une île s'endort une fois que chaque corps qui la compose est éligible (`crates/gwen-core/tests/physics3d_rapier_036.rs:356`).
+
+Avec un sous-pas de CCD, une boîte dynamique rapide ne traverse pas un mur fixe mince, même si son propre drapeau CCD est éteint (`crates/gwen-core/tests/physics2d_rapier_036.rs:241`). Le préréglage Low garde ce sous-pas (`crates/gwen-core/src/physics2d/world.rs:60-63`, `crates/gwen-core/src/physics3d/components.rs:101-104`). Zéro sous-pas coupe cette CCD, et la même boîte traverse le mur (`crates/gwen-core/src/physics2d/world.rs:1728`).
+
+Des itérations de solveur en plus ajoutent des sous-pas pour toute l'île qui contient le corps. En 2D, `additionalSolverIterations` est stocké à 16 au plus (`packages/physics2d/src/types/api.ts:71`, `crates/gwen-core/src/physics2d/world.rs:17`, `crates/gwen-core/src/physics2d/world.rs:292`). En 3D, `set_body_solver_iterations` utilise le même plafond 0–16 (`crates/gwen-core/src/physics3d/world.rs:338`, `crates/gwen-core/src/physics3d/world.rs:2776-2778`). 0 n'ajoute aucun sous-pas. 17 et au-dessus sont stockés comme 16. Le plugin physics3d invoque `physics3d_set_body_solver_iterations` seulement quand le nombre choisi est supérieur à 0 (`packages/physics3d/src/plugin/body-management.ts:276-279`).
 
 ## Corps
 
