@@ -1,12 +1,8 @@
 {
   "R2": {},
   "R3": {},
-  "R4": {
-    "packages/core/src/engine/wasm-bridge.ts": 9
-  },
+  "R4": {},
   "R5": {},
-  "R6": {
-    "packages/core/src/engine/wasm-bridge.ts": 12
-  },
+  "R6": {},
   "R8": {}
 }
