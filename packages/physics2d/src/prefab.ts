@@ -64,7 +64,6 @@ export function addPrefabCollider(
       throw new GwenError(
         Physics2DErrorCodes.INVALID_COLLIDER,
         `Invalid collider config: shape="ball" requires \`radius\` (collider id: ${collider.id ?? "<unnamed>"}).`,
-        {},
       );
     }
     service.addBallCollider(bodyHandle, collider.radius / PIXELS_PER_METER, colliderOpts);
@@ -76,7 +75,6 @@ export function addPrefabCollider(
       throw new GwenError(
         Physics2DErrorCodes.INVALID_COLLIDER,
         `Invalid collider config: shape="box" requires both \`hw\` and \`hh\` (collider id: ${collider.id ?? "<unnamed>"}).`,
-        {},
       );
     }
     service.addBoxCollider(
@@ -91,6 +89,5 @@ export function addPrefabCollider(
   throw new GwenError(
     Physics2DErrorCodes.INVALID_COLLIDER,
     `Invalid collider shape \`${String(collider.shape)}\` (collider id: ${collider.id ?? "<unnamed>"}).`,
-    {},
   );
 }

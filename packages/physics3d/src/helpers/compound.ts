@@ -39,7 +39,6 @@ export function encodeCompoundShapes(
     throw new GwenError(
       Physics3DErrorCodes.INVALID_COMPOUND,
       `shapes.length (${shapes.length}) must equal colliderIds.length (${colliderIds.length}).`,
-      {},
     );
   }
 

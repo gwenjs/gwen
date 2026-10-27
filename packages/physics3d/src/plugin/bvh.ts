@@ -29,7 +29,6 @@ export function _fetchBvhBuffer(url: string): Promise<ArrayBuffer> {
       throw new GwenError(
         Physics3DErrorCodes.BVH_LOAD_FAILED,
         `BVH fetch failed: ${r.status} ${url}.`,
-        {},
       );
     return r.arrayBuffer();
   });
@@ -100,7 +99,7 @@ export function getBvhWorker(): Worker {
         const detail = data.error ?? "BVH worker returned an empty result";
         const ended = detail.endsWith(".") || detail.endsWith("?") || detail.endsWith("!");
         cb.reject(
-          new GwenError(Physics3DErrorCodes.BVH_LOAD_FAILED, ended ? detail : `${detail}.`, {}),
+          new GwenError(Physics3DErrorCodes.BVH_LOAD_FAILED, ended ? detail : `${detail}.`),
         );
       } else {
         cb.resolve(data.bvhBytes);
@@ -137,7 +136,6 @@ export function registerBvhCallback(
       new GwenError(
         Physics3DErrorCodes.BVH_WORKER_TIMEOUT,
         `BVH worker did not respond within ${timeoutMs}ms.`,
-        {},
       ),
     );
   }, timeoutMs);
@@ -153,7 +151,6 @@ export function queueBvhJob(vertices: Float32Array, indices: Uint32Array): Promi
         new GwenError(
           Physics3DErrorCodes.BVH_WORKER_TIMEOUT,
           "BVH worker did not respond within 30s.",
-          {},
         ),
       );
     }, 30_000);

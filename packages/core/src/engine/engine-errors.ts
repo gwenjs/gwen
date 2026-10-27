@@ -290,7 +290,7 @@ export const ActorErrorCodes = {
 
 /**
  * Thrown when an actor operation fails.
- * Pass `options` through so the grammar renders `what`.
+ * Renders the GWEN grammar; `options` adds composable, hint and cause.
  *
  * @example
  * ```ts

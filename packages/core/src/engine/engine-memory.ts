@@ -70,7 +70,6 @@ function invalid(name: string, reason: string): GwenError {
   return new GwenError(
     CoreErrorCodes.MEMORY_VIEW_INVALID,
     `Memory view "${name}" is invalid: ${reason}.`,
-    {},
   );
 }
 

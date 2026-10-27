@@ -214,7 +214,6 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
         throw new GwenError(
           Physics3DErrorCodes.NOT_INITIALIZED,
           "step() called before plugin initialization.",
-          {},
         );
       }
       ctx.stepFn(deltaSeconds);
@@ -345,7 +344,6 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
         throw new GwenError(
           Physics3DErrorCodes.WASM_VARIANT_MISMATCH,
           "physics3d_init() is not available in the current WASM exports.",
-          {},
         );
       }
 
