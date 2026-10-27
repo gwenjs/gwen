@@ -181,7 +181,7 @@ function useCapsuleCollider(options: CapsuleColliderOptions): void
 
 ### physics2d:body-disabled
 
-The plugin emits this hook after a step that disabled a dynamic body. The payload is `{ entity, reason }`. `reason` is `non-finite`, `out-of-bounds`, or `velocity`. The body stays registered. A query or `getPosition` still answers.
+The plugin emits this hook after a step that disabled a body. The payload is `{ entity, reason }`. `reason` is `non-finite`, `out-of-bounds`, or `velocity`. The body stays registered. A query or `getPosition` still answers. A dynamic body and a body Rapier quarantines are both included (`crates/gwen-core/src/physics2d/world.rs:972`).
 
 ```ts
 engine.hooks.hook("physics2d:body-disabled", ({ entity, reason }) => {
@@ -191,7 +191,7 @@ engine.hooks.hook("physics2d:body-disabled", ({ entity, reason }) => {
 });
 ```
 
-`non-finite` means the translation or the linear velocity is not finite. `out-of-bounds` means the position sits outside ±1e7. `velocity` means the position after the clamp would pass ±1e7.
+`non-finite` means a dynamic translation or linear velocity is not finite, or Rapier quarantined the body, including a kinematic target that is not finite. `out-of-bounds` means a dynamic position sits outside ±1e7. `velocity` means a dynamic position after the clamp would pass ±1e7.
 
 The default cap of 400 m/s slows a faster dynamic body. A step delta above 1 s is refused with `PHYSICS2D:INVALID_STEP_DELTA`.
 

@@ -41,7 +41,7 @@ The plugin automatically:
 - Manages raycasts, shape casts, and overlaps per-frame
 - Cleans up when the actor is despawned
 
-`maxLinearVelocity` (default `400` m/s) sets GWEN's scale cap and Rapier's per-substep cap. A faster dynamic body is scaled and stays enabled. After a step that disables a dynamic body, the plugin emits `physics3d:body-disabled` with `{ entity, reason }`. `reason` is `non-finite`, `out-of-bounds`, or `velocity`. A step delta above 1 s is refused with `PHYSICS3D:INVALID_STEP_DELTA`. A query coordinate outside ±1e7 is refused with `PHYSICS3D:INVALID_QUERY`.
+`maxLinearVelocity` (default `400` m/s) sets GWEN's scale cap and Rapier's per-substep cap. A faster dynamic body is scaled and stays enabled. After a step that disables a body, the plugin emits `physics3d:body-disabled` with `{ entity, reason }`. That includes a dynamic body past the world and a body Rapier quarantines (`crates/gwen-core/src/physics3d/world.rs:1019`). `reason` is `non-finite`, `out-of-bounds`, or `velocity`. A step delta above 1 s is refused with `PHYSICS3D:INVALID_STEP_DELTA`. A query coordinate outside ±1e7 is refused with `PHYSICS3D:INVALID_QUERY`.
 
 ## Rapier 0.36
 

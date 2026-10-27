@@ -8,7 +8,7 @@ import type { CollisionContact, SensorState, CollisionEventsBatch } from "./even
 
 /**
  * `physics2d:body-disabled` payload.
- * The plugin emits this after a step that disabled a dynamic body.
+ * The plugin emits this after a step that disabled a body, including one Rapier quarantined.
  */
 export interface Physics2DBodyDisabled {
   readonly entity: EntityId;
