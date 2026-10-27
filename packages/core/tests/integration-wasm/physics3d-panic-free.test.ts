@@ -13,6 +13,12 @@ import { createRealEngine, type RealEngineHandle } from "./harness.js";
 
 const DT = 1 / 60;
 const BLOWUP_STEPS = 200;
+const MAX_LINEAR_VELOCITY = 400;
+/** Next f32 above 1e7. Integers below 2^24 are exact, so this is `next_up`. */
+const PAST_WORLD_EXTENT = 1e7 + 1;
+/** Measured peak |y| for restitution 1e9 is 1103.37708. A fall from y = 2 stays near 2. */
+const MEASURED_PEAK_FLOOR = 1100;
+const RESTITUTION_BLOWUP = 1e9;
 const BOX = { type: "box" as const, halfX: 0.5, halfY: 0.5, halfZ: 0.5 };
 
 type DisabledReason = "non-finite" | "out-of-bounds" | "velocity";
@@ -84,16 +90,18 @@ describe("physics3d panic-free", () => {
       physics.createBody(ground, { kind: "fixed", initialPosition: { x: 0, y: 0, z: 0 } });
       physics.addCollider(ground, {
         shape: { type: "box", halfX: 20, halfY: 0.5, halfZ: 20 },
-        restitution: 1e9,
+        restitution: 0,
         friction: 0,
       });
       const offender = engine.createEntity();
+      // Restitution 1e9 no longer leaves ±1e7: Rapier 0.36.1 caps speed at 400 m/s.
+      // The next f32 past 1e7 is disabled on the first step (out-of-bounds).
       physics.createBody(offender, {
         kind: "dynamic",
         mass: 1,
-        initialPosition: { x: 0, y: 2, z: 0 },
+        initialPosition: { x: PAST_WORLD_EXTENT, y: 2, z: 0 },
       });
-      physics.addCollider(offender, { shape: BOX, restitution: 1e9, friction: 0 });
+      physics.addCollider(offender, { shape: BOX, restitution: 0, friction: 0 });
       const other = engine.createEntity();
       physics.createBody(other, {
         kind: "dynamic",
@@ -121,6 +129,98 @@ describe("physics3d panic-free", () => {
       await handle.advance(1, DT);
       expect(seen).toEqual([{ entity: offender, reason: "out-of-bounds" }]);
       expect(physics.getBodyState(other)?.position.y).not.toBe(atDisable);
+      expect(handle.bridge.countEntities()).toBe(3);
+    } finally {
+      unhook();
+      await handle.dispose();
+    }
+  });
+
+  it("restitution 1e9 stays enabled and bounded, the hook stays silent and the instance keeps stepping", async () => {
+    const handle = await createRealEngine({ variant: "physics3d", maxEntities: 32 });
+    const seen: Array<{ entity: EntityId; reason: DisabledReason }> = [];
+    const unhook = handle.engine.hooks.hook("physics3d:body-disabled", (payload) => {
+      seen.push({ entity: payload.entity, reason: payload.reason });
+    });
+    try {
+      const physics = await startPhysics(handle);
+      const { engine } = handle;
+      const ground = engine.createEntity();
+      physics.createBody(ground, { kind: "fixed", initialPosition: { x: 0, y: 0, z: 0 } });
+      physics.addCollider(ground, {
+        shape: { type: "box", halfX: 20, halfY: 0.5, halfZ: 20 },
+        restitution: RESTITUTION_BLOWUP,
+        friction: 0,
+      });
+      const offender = engine.createEntity();
+      physics.createBody(offender, {
+        kind: "dynamic",
+        mass: 1,
+        initialPosition: { x: 0, y: 2, z: 0 },
+      });
+      physics.addCollider(offender, { shape: BOX, restitution: RESTITUTION_BLOWUP, friction: 0 });
+      const other = engine.createEntity();
+      physics.createBody(other, {
+        kind: "dynamic",
+        mass: 1,
+        initialPosition: { x: 40, y: 8, z: 0 },
+      });
+      physics.addCollider(other, { shape: BOX, restitution: 0, friction: 0 });
+      const before = physics.getBodyState(other)?.position.y;
+      if (before === undefined) {
+        throw new Error("expected the other body");
+      }
+      let maxAbsY = 0;
+      let maxDy = 0;
+      let prevY = 2;
+      let offenderFinite = true;
+      let advanceError: unknown;
+      try {
+        for (let step = 0; step < BLOWUP_STEPS; step += 1) {
+          await handle.advance(1, DT);
+          const pose = physics.getBodyState(offender);
+          const velocity = physics.getLinearVelocity(offender);
+          const y = pose?.position.y;
+          if (
+            pose === undefined ||
+            y === undefined ||
+            !Number.isFinite(pose.position.x) ||
+            !Number.isFinite(y) ||
+            !Number.isFinite(pose.position.z) ||
+            velocity === undefined ||
+            !Number.isFinite(velocity.x) ||
+            !Number.isFinite(velocity.y) ||
+            !Number.isFinite(velocity.z)
+          ) {
+            offenderFinite = false;
+            continue;
+          }
+          maxDy = Math.max(maxDy, Math.abs(y - prevY));
+          prevY = y;
+          maxAbsY = Math.max(maxAbsY, Math.abs(y));
+        }
+      } catch (err: unknown) {
+        advanceError = err;
+      }
+      const positionCeiling = 2 + MAX_LINEAR_VELOCITY * BLOWUP_STEPS * DT;
+      const endVelocity = physics.getLinearVelocity(offender);
+      const endSpeed =
+        endVelocity === undefined
+          ? undefined
+          : Math.hypot(endVelocity.x, endVelocity.y, endVelocity.z);
+      const after = physics.getBodyState(other)?.position.y;
+      expect(seen).toEqual([]);
+      expect(advanceError).toBeUndefined();
+      expect(offenderFinite).toBe(true);
+      expect(maxAbsY).toBeGreaterThan(MEASURED_PEAK_FLOOR);
+      expect(maxAbsY).toBeLessThanOrEqual(positionCeiling);
+      expect(maxDy).toBeLessThanOrEqual(MAX_LINEAR_VELOCITY * DT);
+      expect(endSpeed).toBeLessThanOrEqual(MAX_LINEAR_VELOCITY);
+      expect(after).not.toBe(before);
+      expect(after !== undefined && Number.isFinite(after)).toBe(true);
+      await handle.advance(1, DT);
+      expect(seen).toEqual([]);
+      expect(physics.getBodyState(other)?.position.y).not.toBe(after);
       expect(handle.bridge.countEntities()).toBe(3);
     } finally {
       unhook();
