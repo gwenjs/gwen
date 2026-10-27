@@ -991,3 +991,9 @@ const engineContext: EngineSlot<GwenEngine>
 ```
 
 **Description.** Slot du moteur courant. Généralement pas nécessaire; utilisez [`useEngine()`](#useengine) à la place.
+
+## GwenWasmMismatchError
+
+`GwenWasmMismatchError` est l'erreur publique d'un écart entre la glue et le binaire (`CORE:WASM_GLUE_MISMATCH`). `reason` vaut `build`, `fingerprint`, `exports` ou `imports`. `expected` et `actual` nomment les deux côtés. `checkGwenModule` (internal, non exporté depuis `@gwenjs/core` ; `packages/core/src/engine/wasm-contract.ts:3`) la lève sur le module compilé, avant toute instance. Le moteur n'appelle pas encore ce contrôle (#263).
+
+En développement, l'indice est `Load the binary with the factory of the same build (pnpm build:wasm rebuilds both).` Une build de production omet l'indice.
