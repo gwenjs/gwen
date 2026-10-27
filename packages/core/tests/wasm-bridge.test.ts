@@ -14,7 +14,7 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
-import { GwenError } from "@gwenjs/schema";
+import { errorDocsUrl, GwenError } from "@gwenjs/schema";
 import { toGwenWasmError, WasmBridgeImpl } from "../src/engine/wasm-bridge";
 import { CoreErrorCodes, GwenWasmError, GwenWasmPanicError } from "../src/engine/engine-errors";
 import { createMockWasmEngine } from "./helpers/mock-wasm-engine";
@@ -593,10 +593,12 @@ describe("WasmBridge — dynamic _typeIdBuffer", () => {
 
 describe("WasmBridge — storage inconsistent exports", () => {
   const message = "Storage inconsistent: site 1";
+  let cause: Error | undefined;
 
   function storageCause(): Error {
     const error = new Error(message);
     (error as Error & { code: string }).code = CoreErrorCodes.STORAGE_INCONSISTENT;
+    cause = error;
     return error;
   }
 
@@ -604,9 +606,10 @@ describe("WasmBridge — storage inconsistent exports", () => {
     expect(thrown).toBeInstanceOf(GwenWasmError);
     expect(thrown).toMatchObject({
       code: CoreErrorCodes.STORAGE_INCONSISTENT,
-      message,
+      message: `[GWEN] ${message}.\nSee ${errorDocsUrl(CoreErrorCodes.STORAGE_INCONSISTENT)} (${CoreErrorCodes.STORAGE_INCONSISTENT})`,
       exportName,
     });
+    if (thrown instanceof GwenWasmError) expect(thrown.cause).toBe(cause);
   }
 
   function throwingBridge(

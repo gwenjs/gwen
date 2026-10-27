@@ -5,7 +5,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { GwenError } from "@gwenjs/schema";
+import { errorDocsUrl, GwenError } from "@gwenjs/schema";
 
 import { defineActor } from "../../src/actor/runtime/define-actor.js";
 import { definePrefab } from "../../src/actor/runtime/define-prefab.js";
@@ -35,6 +35,11 @@ async function useLight(
     await handle.dispose();
   }
   return handle;
+}
+
+function mismatch(text: string): string {
+  const code = CoreErrorCodes.BUFFER_LENGTH_MISMATCH;
+  return `[GWEN] ${text}.\nSee ${errorDocsUrl(code)} (${code})`;
 }
 
 function lightUrls(): { jsUrl: string; wasmUrl: string } {
@@ -387,7 +392,9 @@ describe("WASM coded errors", () => {
       }
       expect(spawnCaught.code).toBe(CoreErrorCodes.BUFFER_LENGTH_MISMATCH);
       expect(spawnCaught.exportName).toBe("bulk_spawn_with_transforms");
-      expect(spawnCaught.message).toBe("buffer positions length mismatch: expected 6, actual 5");
+      expect(spawnCaught.message).toBe(
+        mismatch("buffer positions length mismatch: expected 6, actual 5"),
+      );
       expect(bridge.countEntities()).toBe(1);
       expect(bridge.isAlive(entity.index, entity.generation)).toBe(true);
       expect(other.bridge.countEntities()).toBe(0);
@@ -433,7 +440,7 @@ describe("WASM coded errors", () => {
       if (!(caught instanceof GwenWasmError)) {
         throw new Error("expected GwenWasmError");
       }
-      expect(caught.message).toBe("buffer gens length mismatch: expected 2, actual 1");
+      expect(caught.message).toBe(mismatch("buffer gens length mismatch: expected 2, actual 1"));
       expect(Array.from(out)).toEqual([9, 9, 9, 9, 9, 9, 9, 9]);
       expect(Array.from(bridge.getComponentRaw(entity.index, entity.generation, typeId))).toEqual([
         1, 2, 3, 4,
@@ -481,7 +488,7 @@ describe("WASM coded errors", () => {
       if (!(caught instanceof GwenWasmError)) {
         throw new Error("expected GwenWasmError");
       }
-      expect(caught.message).toBe("buffer gens length mismatch: expected 2, actual 1");
+      expect(caught.message).toBe(mismatch("buffer gens length mismatch: expected 2, actual 1"));
       expect(Array.from(outSlots)).toEqual([7, 7]);
       expect(Array.from(outGens)).toEqual([7]);
       expect(Array.from(out)).toEqual([9, 9, 9, 9, 9, 9, 9, 9]);
@@ -532,7 +539,7 @@ describe("WASM coded errors", () => {
       if (!(caught instanceof GwenWasmError)) {
         throw new Error("expected GwenWasmError");
       }
-      expect(caught.message).toBe("buffer gens length mismatch: expected 1, actual 2");
+      expect(caught.message).toBe(mismatch("buffer gens length mismatch: expected 1, actual 2"));
       expect(Array.from(out)).toEqual([9, 9, 9, 9, 9, 9, 9, 9]);
       expect(Array.from(bridge.getComponentRaw(entity.index, entity.generation, typeId))).toEqual([
         1, 2, 3, 4,
@@ -580,7 +587,7 @@ describe("WASM coded errors", () => {
       if (!(caught instanceof GwenWasmError)) {
         throw new Error("expected GwenWasmError");
       }
-      expect(caught.message).toBe("buffer gens length mismatch: expected 1, actual 2");
+      expect(caught.message).toBe(mismatch("buffer gens length mismatch: expected 1, actual 2"));
       expect(Array.from(outSlots)).toEqual([7]);
       expect(Array.from(outGens)).toEqual([7, 7]);
       expect(Array.from(out)).toEqual([9, 9, 9, 9, 9, 9, 9, 9]);

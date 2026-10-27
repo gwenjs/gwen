@@ -6,7 +6,7 @@
 import { createServer, type Server } from "node:http";
 import { once } from "node:events";
 import { describe, expect, it } from "vitest";
-import { GwenError } from "@gwenjs/schema";
+import { errorDocsUrl, GwenError } from "@gwenjs/schema";
 import { createEngine } from "../../src/index";
 import { CoreErrorCodes } from "../../src/engine/engine-errors";
 import { createErrorBus } from "../../src/engine/error-bus";
@@ -15,6 +15,32 @@ import { WasmBridgeImpl } from "../../src/engine/wasm-bridge";
 import { DisposableRegistry } from "../../src/disposable";
 import { TRANSFORM_STRIDE } from "../../src/hooks/wasm/shared-memory";
 import { WasmModuleRunner, type WasmModuleRunnerDeps } from "../../src/engine/wasm-module-runner";
+
+function moduleMessage(code: string, what: string, composable: string, hint?: string): string {
+  const fix = hint !== undefined ? `\nFix: ${hint}` : "";
+  return `[${composable}()] ${what}${fix}\nSee ${errorDocsUrl(code)} (${code})`;
+}
+
+function expectRunnerError(
+  run: () => void,
+  code: string,
+  what: string,
+  composable: string,
+  hint?: string,
+): void {
+  let caught: unknown;
+  try {
+    run();
+  } catch (error) {
+    caught = error;
+  }
+  expect(caught).toBeInstanceOf(GwenError);
+  if (!(caught instanceof GwenError)) throw caught;
+  expect(caught.code).toBe(code);
+  expect(caught.composable).toBe(composable);
+  expect(caught.hint).toBe(hint);
+  expect(caught.message).toBe(moduleMessage(code, what, composable, hint));
+}
 
 declare module "../../src/engine/engine-types.js" {
   interface GwenWasmModules {
@@ -168,8 +194,14 @@ describe("WasmModuleRunner", () => {
     if (!(caught instanceof GwenError)) throw caught;
     expect(caught.code).toBe(CoreErrorCodes.WASM_MODULE_NOT_FOUND);
     expect(caught.message).toBe(
-      `[GWEN] getWasmModule("absent"): no WASM module loaded under that name. ` +
-        `Call engine.loadWasmModule({ name: "absent", url: ... }) first.`,
+      moduleMessage(
+        CoreErrorCodes.WASM_MODULE_NOT_FOUND,
+        'No WASM module "absent" is loaded.',
+        "engine.getWasmModule",
+        __GWEN_DEV__
+          ? 'Call engine.loadWasmModule({ name: "absent", url: ... }) first.'
+          : undefined,
+      ),
     );
     expect(calls).toEqual([]);
   });
@@ -428,7 +460,11 @@ describe("WasmModuleRunner", () => {
       if (!(caught instanceof GwenError)) throw caught;
       expect(caught.code).toBe(CoreErrorCodes.WASM_MODULE_REGION_TOO_SMALL);
       expect(caught.message).toBe(
-        `[GWEN] loadWasmModule("mod"): transform region "poses" is 1 bytes; ${required} bytes are required.`,
+        moduleMessage(
+          CoreErrorCodes.WASM_MODULE_REGION_TOO_SMALL,
+          `Transform region "poses" of module "mod" is 1 bytes; ${required} bytes are required.`,
+          "engine.loadWasmModule",
+        ),
       );
       expect(served.hits()).toBe(0);
     } finally {
@@ -454,7 +490,11 @@ describe("WasmModuleRunner", () => {
     if (!(caught instanceof GwenError)) throw caught;
     expect(caught.code).toBe(CoreErrorCodes.WASM_MODULE_REGION_INVALID);
     expect(caught.message).toBe(
-      `[GWEN] loadWasmModule("mod"): transform region "poses" is invalid: unknown region name.`,
+      moduleMessage(
+        CoreErrorCodes.WASM_MODULE_REGION_INVALID,
+        'Transform region "poses" of module "mod" is invalid: unknown region name.',
+        "engine.loadWasmModule",
+      ),
     );
   });
 
@@ -477,9 +517,12 @@ describe("WasmModuleRunner", () => {
       if (!(caught instanceof GwenError)) throw caught;
       expect(caught.code).toBe(CoreErrorCodes.WASM_MODULE_NO_MEMORY);
       expect(caught.message).toBe(
-        `[GWEN] loadWasmModule("mod"): channel 'commands' declared but ` +
-          `the WASM binary does not export "memory". ` +
-          `Add "(export \\"memory\\" (memory ...))" to your WASM module.`,
+        moduleMessage(
+          CoreErrorCodes.WASM_MODULE_NO_MEMORY,
+          'Channel "commands" was declared but module "mod" does not export memory.',
+          "engine.loadWasmModule",
+          __GWEN_DEV__ ? 'Add (export "memory" (memory ...)) to the WASM module.' : undefined,
+        ),
       );
     } finally {
       await served.close();
@@ -500,8 +543,14 @@ describe("WasmModuleRunner", () => {
       expect(caught).toBeInstanceOf(GwenError);
       if (!(caught instanceof GwenError)) throw caught;
       expect(caught.code).toBe(CoreErrorCodes.WASM_LOAD_ERROR);
-      expect(caught.message).toContain("status 404");
       expect(caught.message).toContain(served.url);
+      expect(caught.message).toBe(
+        moduleMessage(
+          CoreErrorCodes.WASM_LOAD_ERROR,
+          `Fetch of WASM module "mod" from "${served.url}" failed with status 404 Not Found.`,
+          "engine.loadWasmModule",
+        ),
+      );
     } finally {
       await served.close();
     }
@@ -523,8 +572,30 @@ describe("WasmModuleRunner", () => {
       if (!(caught instanceof GwenError)) throw caught;
       expect(caught.code).toBe(CoreErrorCodes.WASM_REGION_NOT_FOUND);
       expect(caught.message).toBe(
-        `[GWEN] WASM region 'poses' not found in module 'mod'. ` +
-          `Declare it in WasmModuleOptions.memory.regions.`,
+        moduleMessage(
+          CoreErrorCodes.WASM_REGION_NOT_FOUND,
+          'WASM region "poses" is not in module "mod".',
+          "WasmModuleHandle.region",
+          __GWEN_DEV__ ? "Declare it in WasmModuleOptions.memory.regions." : undefined,
+        ),
+      );
+      const declared = await runner.load({
+        name: "declared",
+        url: served.url,
+        memory: { regions: [{ name: "poses", byteOffset: 0, byteLength: 4, type: "u8" }] },
+      });
+      expectRunnerError(
+        () => handle.channel("commands"),
+        CoreErrorCodes.WASM_CHANNEL_NOT_FOUND,
+        'WASM channel "commands" is not in module "mod".',
+        "WasmModuleHandle.channel",
+        __GWEN_DEV__ ? "Declare it in WasmModuleOptions.channels." : undefined,
+      );
+      expectRunnerError(
+        () => declared.region("poses"),
+        CoreErrorCodes.WASM_MODULE_NO_MEMORY,
+        'WASM module "declared" does not export memory.',
+        "WasmModuleHandle.region",
       );
     } finally {
       await served.close();

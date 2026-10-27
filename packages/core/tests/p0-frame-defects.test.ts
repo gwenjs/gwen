@@ -98,7 +98,8 @@ describe("P0 frame defects", () => {
       expect(seen).toContainEqual({
         level: "fatal",
         code: CoreErrorCodes.STORAGE_INCONSISTENT,
-        message: "Storage inconsistent: site 1",
+        message:
+          "[GWEN] Storage inconsistent: site 1.\nSee https://gwenjs.github.io/gwen/api/errors#core-storage-inconsistent (CORE:STORAGE_INCONSISTENT)",
       });
     } finally {
       await engine.stop();

@@ -82,7 +82,9 @@ describe("defineComponent same name, different schema", () => {
         throw new Error("expected GwenError");
       }
       expect(caught.code).toBe(CoreErrorCodes.COMPONENT_LAYOUT_INVALID);
-      expect(caught.message).toBe("Component layout invalid: Hp");
+      expect(caught.message).toBe(
+        "[GWEN] Component layout invalid: Hp.\nSee https://gwenjs.github.io/gwen/api/errors#core-component-layout-invalid (CORE:COMPONENT_LAYOUT_INVALID)",
+      );
       expect(engine.getComponent(entity, hp)?.v).toBe(3);
       expect(engine.registeredComponentTypes().get(hp.name)).toBe(hpId);
       expect(engine.registeredComponentTypes().get(next.name)).toBe(hpId + 1);
@@ -148,7 +150,9 @@ describe("defineComponent same name, different schema", () => {
         throw new Error("expected GwenError");
       }
       expect(extraCaught.code).toBe(CoreErrorCodes.COMPONENT_LAYOUT_INVALID);
-      expect(extraCaught.message).toBe("Component layout invalid: Pos");
+      expect(extraCaught.message).toBe(
+        "[GWEN] Component layout invalid: Pos.\nSee https://gwenjs.github.io/gwen/api/errors#core-component-layout-invalid (CORE:COMPONENT_LAYOUT_INVALID)",
+      );
     } finally {
       await engine.stop();
     }
