@@ -49,7 +49,30 @@ describe("callPhysics3DExport and mapPhysics3DError", () => {
     );
     const wasmError = requireWasmError(err, "PHYSICS3D:BODY_NOT_FOUND", "physics3d_remove_body");
     expect(wasmError.cause).toBe(original);
-    expect(wasmError.message).toBe("no body registered for slot 5");
+    expect(wasmError.message.split("\n")[0]).toBe("no body registered for slot 5.");
+  });
+
+  it("a Rust text ending in ? or ! gets no second period", () => {
+    const line = (message: string): string => {
+      const mapped = mapPhysics3DError(
+        ctx,
+        codedError("PHYSICS3D:BODY_NOT_FOUND", message),
+        "physics3d_remove_body",
+      );
+      expect(mapped).toBeInstanceOf(GwenWasmError);
+      if (!(mapped instanceof GwenWasmError)) return "";
+      return mapped.message.split("\n")[0] ?? "";
+    };
+    expect(line("really?")).toBe("really?");
+    expect(line("stop!")).toBe("stop!");
+    expect(line("no body registered for slot 5")).toBe("no body registered for slot 5.");
+  });
+
+  it("returns an already mapped GwenWasmError unchanged", () => {
+    const original = codedError("PHYSICS3D:BODY_NOT_FOUND", "no body registered for slot 5");
+    const once = mapPhysics3DError(ctx, original, "physics3d_remove_body");
+    expect(once).toBeInstanceOf(GwenWasmError);
+    expect(mapPhysics3DError(ctx, once, "physics3d_remove_body")).toBe(once);
   });
 
   it("maps CORE:INVALID_SHARED_BUFFER from the overlap export", () => {

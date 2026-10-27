@@ -174,7 +174,7 @@ describe("bulkSpawnStaticBoxes — local mode (no bulk WASM call)", () => {
       });
     };
     expect(spawn).toThrow(GwenError);
-    expect(spawn).toThrow("[GWEN:Physics3D] positions.length must be a multiple of 3");
+    expect(spawn).toThrow("[GWEN] positions.length must be a multiple of 3, got 5.");
   });
 });
 

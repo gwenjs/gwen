@@ -263,7 +263,8 @@ describe("Physics2DPlugin", () => {
     Object.assign(mockEngine, { logger });
     const plugin = Physics2DPlugin({ maxLinearVelocity: 50 });
     await initPlugin(plugin, mockBridge, mockEngine);
-    expect(warnings).toContain("[Physics2D] maxLinearVelocity was refused; the previous cap stays");
+    expect(warnings).toContain("maxLinearVelocity was refused; the previous cap stays");
+    expect(warnings.some((line) => line.includes("[Physics2D]"))).toBe(false);
   });
 
   it("setup respects explicit ccdEnabled override", async () => {

@@ -144,13 +144,13 @@ describe("resolveLayerBits", () => {
 
   it("throws on unknown layer names with a helpful message", () => {
     expect(() => resolveLayerBits(["unknown"], registry)).toThrow(
-      '[GWEN:Physics3D] Unknown layer "unknown". Declared layers: [default, player, enemy, ground]',
+      '[GWEN] Unknown layer "unknown". Declared layers: [default, player, enemy, ground].',
     );
   });
 
   it("throws on first unknown in a mixed valid/invalid list", () => {
     expect(() => resolveLayerBits(["player", "typo"], registry)).toThrow(
-      '[GWEN:Physics3D] Unknown layer "typo"',
+      '[GWEN] Unknown layer "typo".',
     );
   });
 

@@ -1,28 +1,11 @@
 {
-  "R2": {
-    "packages/physics3d/src/plugin/body-management.ts": 1
-  },
-  "R3": {
-    "packages/physics2d/src/errors.ts": 18,
-    "packages/physics3d/src/errors/codes.ts": 30
-  },
+  "R2": {},
+  "R3": {},
   "R4": {
     "packages/core/src/engine/engine-component-registry.ts": 1,
     "packages/core/src/engine/engine-memory.ts": 1,
     "packages/core/src/engine/wasm-bridge.ts": 9,
-    "packages/core/src/engine/wasm-module-runner.ts": 4,
-    "packages/physics2d/src/config.ts": 2,
-    "packages/physics2d/src/errors.ts": 4,
-    "packages/physics2d/src/plugin/index.ts": 2,
-    "packages/physics2d/src/plugin/prefab.ts": 3,
-    "packages/physics2d/src/prefab.ts": 3,
-    "packages/physics2d/src/systems.ts": 1,
-    "packages/physics3d/src/config.ts": 2,
-    "packages/physics3d/src/helpers/compound.ts": 1,
-    "packages/physics3d/src/plugin/bvh.ts": 5,
-    "packages/physics3d/src/plugin/collider-management.ts": 5,
-    "packages/physics3d/src/plugin/entity-owner.ts": 2,
-    "packages/physics3d/src/plugin/index.ts": 2
+    "packages/core/src/engine/wasm-module-runner.ts": 4
   },
   "R5": {},
   "R6": {
@@ -31,21 +14,7 @@
     "packages/core/src/engine/engine-errors.ts": 2,
     "packages/core/src/engine/engine-memory.ts": 1,
     "packages/core/src/engine/wasm-bridge.ts": 12,
-    "packages/core/src/engine/wasm-module-runner.ts": 11,
-    "packages/physics2d/src/config.ts": 3,
-    "packages/physics2d/src/errors.ts": 2,
-    "packages/physics2d/src/plugin/index.ts": 2,
-    "packages/physics2d/src/plugin/prefab.ts": 3,
-    "packages/physics2d/src/prefab.ts": 3,
-    "packages/physics2d/src/systems.ts": 1,
-    "packages/physics3d/src/composables/use-compound-collider.ts": 1,
-    "packages/physics3d/src/composables/use-mesh-collider.ts": 1,
-    "packages/physics3d/src/config.ts": 1,
-    "packages/physics3d/src/helpers/compound.ts": 1,
-    "packages/physics3d/src/plugin/bvh.ts": 4,
-    "packages/physics3d/src/plugin/collider-management.ts": 3,
-    "packages/physics3d/src/plugin/entity-owner.ts": 1,
-    "packages/physics3d/src/plugin/index.ts": 3
+    "packages/core/src/engine/wasm-module-runner.ts": 11
   },
   "R8": {}
 }
