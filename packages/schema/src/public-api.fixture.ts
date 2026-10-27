@@ -29,6 +29,8 @@ type _0 = [
   Root.GwenModuleEntry,
   Root.GwenOptions,
   Root.GwenPlugin,
+  Root.GwenPluginRequirement,
+  Root.GwenPluginRequires,
   Root.GwenPrefabExtensions,
   Root.GwenRuntimeHooks,
   Root.GwenSceneExtensions,
