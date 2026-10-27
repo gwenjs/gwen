@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import { defineComponent, Types, type EntityId } from "../../src/index.js";
-import { GwenError } from "@gwenjs/schema";
 import { createRealEngine } from "./harness.js";
 import "../../../physics3d/src/augment";
 import { Physics3DPlugin } from "../../../physics3d/src/plugin/index";
@@ -397,27 +396,61 @@ describe("P0 physics loop", () => {
     }
   });
 
-  it("3D kinematic sync before Physics3DPlugin rejects use", async () => {
+  it("2D sync system before Physics2DPlugin rejects CORE:PLUGIN_DEPENDENCY_MISSING", async () => {
+    const handle = await createRealEngine({
+      variant: "physics2d",
+      maxEntities: 64,
+    });
+    try {
+      const sync = createKinematicSync2D({ positionComponent: Position2D });
+      await expect(handle.engine.use(sync)).rejects.toMatchObject({
+        code: "CORE:PLUGIN_DEPENDENCY_MISSING",
+        missing: [{ kind: "service", name: "physics2d" }],
+      });
+    } finally {
+      await handle.dispose();
+    }
+  });
+
+  it("3D sync system before Physics3DPlugin rejects CORE:PLUGIN_DEPENDENCY_MISSING", async () => {
     const handle = await createRealEngine({
       variant: "physics3d",
       maxEntities: 64,
     });
     try {
       const sync = createKinematicSync3D({ positionComponent: Transform3D })();
-      let thrown: unknown;
-      try {
-        await handle.engine.use(sync);
-      } catch (error) {
-        thrown = error;
-      }
-      expect(thrown).toBeInstanceOf(GwenError);
-      if (!(thrown instanceof GwenError)) return;
-      expect(thrown.code).toBe("KIT:PLUGIN_SETUP_FAILED");
-      expect(thrown.composable).toBe("definePlugin");
-      expect(thrown.cause).toBeInstanceOf(GwenError);
-      if (!(thrown.cause instanceof GwenError)) return;
-      expect(thrown.cause.code).toBe("CORE:PLUGIN_NOT_FOUND");
-      expect(thrown.cause.message).toContain('No plugin provides service "physics3d".');
+      await expect(handle.engine.use(sync)).rejects.toMatchObject({
+        code: "CORE:PLUGIN_DEPENDENCY_MISSING",
+        missing: [{ kind: "service", name: "physics3d" }],
+      });
+    } finally {
+      await handle.dispose();
+    }
+  });
+
+  it("unuse of Physics2DPlugin with the sync system installed rejects CORE:PLUGIN_IN_USE and the body still steps", async () => {
+    const handle = await createRealEngine({
+      variant: "physics2d",
+      maxEntities: 64,
+    });
+    try {
+      const { engine, advance } = handle;
+      const physicsPlugin = Physics2DPlugin();
+      const sync = createKinematicSync2D({ positionComponent: Position2D });
+      await engine.use(physicsPlugin);
+      await engine.use(sync);
+      await expect(engine.unuse(physicsPlugin.name)).rejects.toMatchObject({
+        code: "CORE:PLUGIN_IN_USE",
+        dependents: [sync.name],
+      });
+      const physics = engine.inject("physics2d");
+      const entity = engine.createEntity();
+      physics.addRigidBody(entity, "dynamic", 0, 5);
+      await advance(10, 1 / 60);
+      const position = physics.getPosition(entity);
+      expect(position).not.toBeNull();
+      if (position === null) return;
+      expect(position.y).not.toBe(5);
     } finally {
       await handle.dispose();
     }
