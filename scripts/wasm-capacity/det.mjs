@@ -93,6 +93,8 @@ for (const [v, mk, gl, orig] of [
   const A = mk(gl()),
     B = mk(gl());
   r.before_moved = sha(A.state());
+  // keep A and B call histories identical: mem_A === mem_B is part of all_equal
+  sha(B.state());
   for (let k = 0; k < STEPS; k++) A.step(k);
   for (let k = 0; k < STEPS; k++) B.step(k);
   r.A_alone = sha(A.state());
@@ -121,6 +123,8 @@ for (const [v, mk, gl, orig] of [
   r.shared_two_e1 = sha(e1.state());
   r.shared_two_e2 = sha(e2.state());
   const sample = A.state();
+  // same paired read as before_moved
+  B.state();
   r.sample_first_body_y = new Float32Array(sample.buffer, sample.byteOffset, 4)[1];
   r.all_equal =
     new Set([
