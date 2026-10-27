@@ -23,6 +23,9 @@ declare const __GWEN_DEV__: boolean;
 
 const repoRoot = fileURLToPath(new URL("../../..", import.meta.url));
 
+/** Joined so this file does not hold the core hint as one literal. */
+const requirementHint = ["before the plugin that ", "requires it"].join("");
+
 /**
  * Real hint phrases. Each occurs once under package src and is reached
  * only from a __GWEN_DEV__ branch (the context sentence via contextHint).
@@ -35,16 +38,15 @@ const REAL_HINTS = [
   "pool.stats().peakActive",
   "recompile the plugin against the current gwen-wasm-utils",
   '}" plugin via engine.use() or in gwen.config.ts.',
+  requirementHint,
 ];
 
 /**
  * Named stand-ins. These classes are not in this tree, or their hint text is
- * not a single gated phrase: GwenPluginDependencyError, GwenPluginShapeError,
- * GwenModuleDefinitionError, GwenEngineStateError, GwenWasmError,
- * GwenConfigError, GwenConfigLoadError.
+ * not a single gated phrase: GwenPluginShapeError, GwenModuleDefinitionError,
+ * GwenEngineStateError, GwenWasmError, GwenConfigError, GwenConfigLoadError.
  */
 const STAND_IN_CLASSES = [
-  "GwenPluginDependencyError",
   "GwenPluginShapeError",
   "GwenModuleDefinitionError",
   "GwenEngineStateError",
@@ -149,7 +151,7 @@ function gwenAlias(mode: "src" | "dist"): Plugin {
   GwenWasmAbiError,
   useEngine,
 } from ${JSON.stringify(dist)};
-export { GwenPluginNotFoundError } from ${JSON.stringify(errors)};
+export { GwenPluginNotFoundError, GwenPluginDependencyError } from ${JSON.stringify(errors)};
 `;
     },
   };
@@ -160,7 +162,7 @@ function writeFixture(dir: string): void {
   const hintText = `${STAND_IN_TEXTS.join(" ")} __GWEN_DEV__ import.meta.env`;
   writeFileSync(
     join(dir, "src", "main.ts"),
-    `import { createEngine, GwenActorError, GwenContextError, GwenPluginNotFoundError, GwenWasmAbiError, useEngine } from "@gwenjs/core";
+    `import { createEngine, GwenActorError, GwenContextError, GwenPluginDependencyError, GwenPluginNotFoundError, GwenWasmAbiError, useEngine } from "@gwenjs/core";
 import { defineActor, PoolExhaustedError, useChildren } from "@gwenjs/core/actor";
 import { Physics3DPlugin } from "@gwenjs/physics3d";
 import "./layouts/level.ts";
@@ -175,6 +177,7 @@ try {
 }
 
 console.log(new GwenPluginNotFoundError({ pluginName: "demo" }).message);
+console.log(new GwenPluginDependencyError({ code: "CORE:PLUGIN_DEPENDENCY_MISSING", plugin: "demo", missing: [{ kind: "plugin", name: "other" }] }).message);
 
 export function devHints(): string | undefined {
   return __GWEN_DEV__ ? ${JSON.stringify(hintText)} : undefined;
