@@ -346,6 +346,20 @@ dispose()  // releases the resource
 Scene lifecycle (`onEnter` / `onExit`) does not currently establish a cleanup context, so `onCleanup` is a no-op when called from `onEnter`. A future update to `@gwenjs/core` will wrap `onEnter` in `withCleanup` and dispose on `onExit`, making all composables work transparently in scenes. **Use `onCleanup` now** so your plugin is forward-compatible without any changes.
 :::
 
+### `tryUseEngine()`
+
+`tryUseEngine()` returns the engine `useEngine()` returns, or `undefined` where `useEngine()` throws `CORE:OUTSIDE_ENGINE_CONTEXT`. It never throws. Use it when a plugin must work with or without an engine.
+
+```ts
+import { tryUseEngine } from '@gwenjs/kit'
+
+export function logIfRunning(message: string): void {
+  const engine = tryUseEngine()
+  if (engine === undefined) return
+  engine.logger.info(message)
+}
+```
+
 ## Error Handling
 
 Handle errors that occur in your plugin:

@@ -987,7 +987,7 @@ enum CoreErrorCodes {
 
 **Signature:**
 ```ts
-const engineContext: AsyncLocalStorage<GwenEngine>
+const engineContext: EngineSlot<GwenEngine>
 ```
 
-**Description.** Stockage de contexte asynchrone brut pour le moteur courant. Généralement pas nécessaire; utilisez [`useEngine()`](#useengine) à la place.
+**Description.** Slot du moteur courant. Généralement pas nécessaire; utilisez [`useEngine()`](#useengine) à la place.

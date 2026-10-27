@@ -1,13 +1,12 @@
 /**
  * @file RFC-005 — Composable context system for @gwenjs/core
  *
- * Provides `engineContext` (backed by unctx) and the `useEngine()` composable.
+ * Provides `engineContext` (the kit engine slot) and the `useEngine()` composable.
  * The engine wraps its entire frame loop and plugin setup calls in this context,
  * making composables available without explicit parameter passing.
  */
 
-import { createContext } from "unctx";
-import { GwenContextError, GwenContextErrorCodes } from "@gwenjs/kit";
+import { _engineSlot, GwenContextError, GwenContextErrorCodes, type EngineSlot } from "@gwenjs/kit";
 import type { GwenEngine } from "./engine-types";
 import { GwenScope } from "../context/scope.js";
 
@@ -17,9 +16,13 @@ export type { GwenContextErrorCode } from "@gwenjs/kit";
 // ─── Context ─────────────────────────────────────────────────────────────────
 
 /**
- * The global engine context backed by unctx.
+ * The kit engine slot, narrowed to {@link GwenEngine}.
  *
- * Uses a simple synchronous (non-async) context for browser compatibility.
+ * Kit types the slot as `GwenEngineBase` (`packages/schema/src/plugin.ts:106`).
+ * Core narrows it to `GwenEngine` (`packages/core/src/engine/engine-types.ts:480`)
+ * because only code typed against core writes the slot: core, and physics
+ * through `@gwenjs/core/internal`. Those writers all pass a `GwenEngine`.
+ *
  * Active during:
  * - `engine.run(fn)` — explicit context scoping
  * - `engine.activate()` / `engine.deactivate()` — manual lifecycle
@@ -28,9 +31,7 @@ export type { GwenContextErrorCode } from "@gwenjs/kit";
  *
  * @internal — import `useEngine()` instead for public usage
  */
-export const engineContext = createContext<GwenEngine>({
-  asyncContext: false,
-});
+export const engineContext = _engineSlot as EngineSlot<GwenEngine>;
 
 // ─── Async context helpers ────────────────────────────────────────────────────
 

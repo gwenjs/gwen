@@ -184,7 +184,7 @@ engine.run(() => {
 | `defineScene()` factory | ✅ Yes (sync) | Engine context active |
 | `defineActor()` factory | ✅ Yes (sync) | Engine context active |
 | `onUpdate` / `onRender` | ✅ Yes (sync) | Frame loop context |
-| `onEnter` / `onExit` | ✅ Yes (async) | Vite transform + `callAsync` |
+| `onEnter` / `onExit` | ✅ Yes (async) | Vite transform + `executeAsync` |
 | `onStart` async after `await` | ⚠️ Opt-in | `withAsyncContext()` or capture pattern |
 | Module top-level | ❌ Never | Use `engine.run()` |
 

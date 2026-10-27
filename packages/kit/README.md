@@ -92,9 +92,11 @@ const PlayerActor = defineActor(PlayerPrefab, () => {
 
 ### `.`
 
-Values: `GWEN_CONTEXT_BOUNDARIES`, `GwenContextError`, `GwenContextErrorCodes`, `KitErrorCodes`, `_setCurrentScope`, `getCurrentScope`, `useCurrentScope`, `useErrorReporter`, `useLogger`, `usePerfMark`
+Values: `GWEN_CONTEXT_BOUNDARIES`, `GwenContextError`, `GwenContextErrorCodes`, `KitErrorCodes`, `_engineSlot`, `_setCurrentScope`, `getCurrentScope`, `tryUseEngine`, `useCurrentScope`, `useErrorReporter`, `useLogger`, `usePerfMark`
 
-Types: `AutoImport`, `DeepPartial`, `GwenConfig`, `GwenContextBoundary`, `GwenContextErrorCode`, `MergePluginsPrefabExtensions`, `MergePluginsSceneExtensions`, `MergePluginsUIExtensions`, `VitePlugin`, `ViteUserConfig`
+`tryUseEngine` returns the engine `useEngine()` returns, or `undefined` where `useEngine()` would throw `CORE:OUTSIDE_ENGINE_CONTEXT`, and never throws.
+
+Types: `AutoImport`, `DeepPartial`, `EngineSlot`, `GwenConfig`, `GwenContextBoundary`, `GwenContextErrorCode`, `MergePluginsPrefabExtensions`, `MergePluginsSceneExtensions`, `MergePluginsUIExtensions`, `VitePlugin`, `ViteUserConfig`
 
 ### `./plugin`
 

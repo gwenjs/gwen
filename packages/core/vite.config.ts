@@ -41,7 +41,7 @@ export default defineConfig({
       output: {
         entryFileNames: "[name].js",
         chunkFileNames: "chunks/[name].js",
-        // One shared chunk so every entry uses the same engineContext instance.
+        // The slot lives in @gwenjs/kit. This chunk stays for useEngine / executeAsync.
         manualChunks(id) {
           const norm = id.replaceAll("\\", "/");
           if (norm.endsWith("/engine/context.ts")) return "engine-context";

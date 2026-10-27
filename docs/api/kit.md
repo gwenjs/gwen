@@ -11,9 +11,9 @@ description: "API reference for @gwenjs/kit."
 
 Types shared between plugin and module authors.
 
-**Exports:** `AutoImport`, `DeepPartial`, `getCurrentScope`, `GwenContextError`, `KitErrorCodes`, `GwenContextErrorCodes`, `GWEN_CONTEXT_BOUNDARIES`, `GwenContextBoundary`
+**Exports:** `AutoImport`, `DeepPartial`, `EngineSlot`, `getCurrentScope`, `tryUseEngine`, `GwenContextError`, `KitErrorCodes`, `GwenContextErrorCodes`, `GWEN_CONTEXT_BOUNDARIES`, `GwenContextBoundary`
 
-`GwenContextError(code, composable, options?)` names the composable and `validContexts`. `GWEN_CONTEXT_BOUNDARIES` maps each code to those callsites.
+`GwenContextError(code, composable, options?)` names the composable and `validContexts`. `GWEN_CONTEXT_BOUNDARIES` maps each code to those callsites. `tryUseEngine()` returns the engine `useEngine()` returns, or `undefined` where that call throws `CORE:OUTSIDE_ENGINE_CONTEXT`. It never throws.
 
 **Usage:**
 ```ts
