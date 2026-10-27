@@ -218,11 +218,14 @@ export const MyPlugin = definePlugin(() => ({
   },
 
   teardown() {
-    // Alternative cleanup method
-    // Called at same time as onDestroy()
+    // Called by engine.unuse() and engine.stop(), after this plugin's services are removed.
   },
 }))
 ```
+
+## Teardown
+
+`engine.unuse(name)` and `engine.stop()` call `teardown()`. `stop()` calls it after the `engine:stop` hook, in reverse install order. A teardown must be idempotent with work the plugin already did on `engine:stop`. Services provided through the `engine` argument of `setup()` are removed before `teardown()` runs. A `provide` on a captured engine, or `useEngine().provide(...)` inside `setup`, is not removed. Replacing an engine-owned key (`wasm:bridge`, `logger`, `errors`, `memory`) does not make `stop()` or `unuse()` remove that key.
 
 ## Requirements
 
@@ -515,14 +518,13 @@ The engine API available in `setup()`:
 |--------|---------|
 | `provide(key, service)` | Register a service for systems to access |
 | `onStart(callback)` | Hook called after WASM loads |
-| `onDestroy(callback)` | Hook called before shutdown |
 | `use(plugin)` | Register another plugin (for composing plugins) |
 
 ### Error Context
 
 ```ts
 interface ErrorContext {
-  phase: 'setup' \| 'onStart' \| 'onRender' \| 'onUpdate' \| 'onDestroy'
+  phase: 'setup' \| 'teardown' \| 'onBeforeUpdate' \| 'onUpdate' \| 'onAfterUpdate' \| 'onRender' \| 'hook'
   recover(): void
 }
 ```
