@@ -213,7 +213,8 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
       if (!ctx.stepFn) {
         throw new GwenError(
           Physics3DErrorCodes.NOT_INITIALIZED,
-          "[GWEN:Physics3D] step() called before plugin initialization.",
+          "step() called before plugin initialization.",
+          {},
         );
       }
       ctx.stepFn(deltaSeconds);
@@ -319,7 +320,7 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
     name: "@gwenjs/physics3d",
 
     setup(engine: GwenEngine): void {
-      ctx._engine = useEngine();
+      ctx._engine = useEngine("Physics3DPlugin.setup");
       ctx.log = engine.logger?.child("@gwenjs/physics3d") ?? ctx.log;
       // boundary: WASM bridge runtime is wider than the public GwenWasmModules handle.
       const bridge = getWasmBridge() as unknown as Physics3DBridgeRuntime;
@@ -329,8 +330,12 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
       if (ctx._variant !== "physics3d") {
         throw new GwenError(
           Physics3DErrorCodes.WASM_VARIANT_MISMATCH,
-          `[GWEN:Physics3D] Active core variant is "${ctx._variant}". ` +
-            'Pass variant: "physics3d" when initialising WasmBridgeImpl.',
+          `Active core variant is "${ctx._variant}".`,
+          {
+            hint: __GWEN_DEV__
+              ? 'Pass variant: "physics3d" when initialising WasmBridgeImpl.'
+              : undefined,
+          },
         );
       }
 
@@ -339,7 +344,8 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
       if (typeof pb.physics3d_init !== "function") {
         throw new GwenError(
           Physics3DErrorCodes.WASM_VARIANT_MISMATCH,
-          "[GWEN:Physics3D] physics3d_init() is not available in current WASM exports.",
+          "physics3d_init() is not available in the current WASM exports.",
+          {},
         );
       }
 
@@ -541,7 +547,7 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
         }
       });
 
-      engine.provide("physics3d", bindToEngine(useEngine(), service));
+      engine.provide("physics3d", bindToEngine(useEngine("Physics3DPlugin.setup"), service));
 
       if (ctx.cfg.debug) {
         ctx.log.debug(`Initialized. Backend=${ctx.backendMode} quality=${ctx.cfg.qualityPreset}`);
@@ -567,7 +573,7 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
       }
       ctx.ready = false;
       _clearContactCallbacks();
-      clearEngineSensors(useEngine());
+      clearEngineSensors(useEngine("Physics3DPlugin.teardown"));
       ctx.stepFn = null;
       ctx.backendMode = "local";
       ctx.wasmBridge = null;

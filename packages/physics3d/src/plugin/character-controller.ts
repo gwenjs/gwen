@@ -60,7 +60,7 @@ export function createCharacterControllerMethods(
         applyImpulsesToDynamic = true,
       } = opts;
 
-      const engine = useEngine();
+      const engine = useEngine("addCharacterController");
       const withThisEngine = <A extends unknown[], R>(fn: (...args: A) => R) => {
         return (...args: A): R => {
           const previous = engineContext.tryUse() ?? undefined;

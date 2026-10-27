@@ -26,7 +26,7 @@ import "./augment";
  * ```
  */
 export function usePhysics3D(): Physics3DAPI {
-  const engine = useEngine();
+  const engine = useEngine("usePhysics3D");
   const service = engine.tryInject("physics3d");
   if (service) return service;
   throw new GwenPluginNotFoundError({
