@@ -37,10 +37,6 @@ function isRejectionOf(err: unknown, exportName: string): err is GwenError {
   return name === exportName;
 }
 
-function rebuildFailedMessage(err: GwenError): string {
-  return `physics3d_rebuild_mesh_collider failed (${err.code}): ${err.message}.`;
-}
-
 /**
  * Attach a trimesh collider to the current entity.
  *
@@ -173,9 +169,11 @@ export function useMeshCollider(
         // MESH_REBUILD_FAILED and keep the typed error as `cause`. Other errors (a dead entity)
         // pass through unchanged.
         if (isRejectionOf(err, "physics3d_rebuild_mesh_collider")) {
-          throw new GwenError(Physics3DErrorCodes.MESH_REBUILD_FAILED, rebuildFailedMessage(err), {
-            cause: err,
-          });
+          throw new GwenError(
+            Physics3DErrorCodes.MESH_REBUILD_FAILED,
+            "Mesh collider rebuild failed.",
+            { composable: "useMeshCollider", cause: err },
+          );
         }
         throw err;
       }
@@ -183,7 +181,8 @@ export function useMeshCollider(
         _status = "error";
         throw new GwenError(
           Physics3DErrorCodes.MESH_REBUILD_FAILED,
-          `physics3d_rebuild_mesh_collider failed for entity ${String(entityId)}, colliderId ${colliderId}`,
+          `Mesh collider rebuild failed for entity ${String(entityId)}, collider ${colliderId}.`,
+          { composable: "useMeshCollider" },
         );
       }
       _status = "active";

@@ -12,6 +12,7 @@ import type {
 } from "../types";
 import type { Physics3DColliderOptions } from "../types";
 import type { PluginContext } from "./plugin-context";
+import { Physics3DErrorCodes } from "../errors/codes";
 import { callPhysics3DExport, hasPhysics3DCode } from "./wasm-errors";
 import { entitySlot, guardAlive, guardOwned, noteOwnerChange, ownedSlot } from "./entity-owner";
 import { vec3, quat, kindToU8, kindFromU8, parseBodyState, cloneState } from "./physics3d-utils";
@@ -292,7 +293,7 @@ function releaseCharacterControllerWasm(ctx: PluginContext, slot: number): void 
       ctx.wasmBridge?.physics3d_remove_character_controller?.(slot),
     );
   } catch (err: unknown) {
-    if (!hasPhysics3DCode(err, "PHYSICS3D:CHARACTER_CONTROLLER_NOT_FOUND")) throw err;
+    if (!hasPhysics3DCode(err, Physics3DErrorCodes.CHARACTER_CONTROLLER_NOT_FOUND)) throw err;
   }
   ctx.ccRegistrations.delete(slot);
 }

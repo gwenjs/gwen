@@ -107,7 +107,8 @@ function trackLocalCollider(
 function bvhExportMissing(): GwenError {
   return new GwenError(
     Physics3DErrorCodes.BVH_LOAD_FAILED,
-    "[GWEN:Physics3D] physics3d_load_bvh_collider is not exported by this WASM build",
+    "This WASM build does not export physics3d_load_bvh_collider.",
+    {},
   );
 }
 
@@ -515,7 +516,8 @@ export function createBulkSpawnStaticBoxes(
     if (options.positions.length % 3 !== 0) {
       throw new GwenError(
         Physics3DErrorCodes.INVALID_MESH_BUFFER,
-        `[GWEN:Physics3D] positions.length must be a multiple of 3, got ${options.positions.length}`,
+        `positions.length must be a multiple of 3, got ${options.positions.length}.`,
+        {},
       );
     }
     const n = options.positions.length / 3;
@@ -629,7 +631,8 @@ export function createAddCompoundCollider(ctx: PluginContext): Physics3DAPI["add
       if (count !== shapes.length) {
         throw new GwenError(
           Physics3DErrorCodes.INVALID_COMPOUND,
-          `[GWEN:Physics3D] physics3d_add_compound_collider inserted ${count} of ${shapes.length} shapes`,
+          `physics3d_add_compound_collider inserted ${count} of ${shapes.length} shapes.`,
+          {},
         );
       }
 

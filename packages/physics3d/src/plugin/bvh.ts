@@ -28,7 +28,8 @@ export function _fetchBvhBuffer(url: string): Promise<ArrayBuffer> {
     if (!r.ok)
       throw new GwenError(
         Physics3DErrorCodes.BVH_LOAD_FAILED,
-        `[GWEN:Physics3D] BVH fetch failed: ${r.status} ${url}`,
+        `BVH fetch failed: ${r.status} ${url}.`,
+        {},
       );
     return r.arrayBuffer();
   });
@@ -96,11 +97,10 @@ export function getBvhWorker(): Worker {
       clearTimeout(cb.timeoutId);
       _bvhWorkerCallbacks.delete(data.id);
       if (data.error || !data.bvhBytes) {
+        const detail = data.error ?? "BVH worker returned an empty result";
+        const ended = detail.endsWith(".") || detail.endsWith("?") || detail.endsWith("!");
         cb.reject(
-          new GwenError(
-            Physics3DErrorCodes.BVH_LOAD_FAILED,
-            data.error ?? "[GWEN:Physics3D] BVH worker returned empty result",
-          ),
+          new GwenError(Physics3DErrorCodes.BVH_LOAD_FAILED, ended ? detail : `${detail}.`, {}),
         );
       } else {
         cb.resolve(data.bvhBytes);
@@ -136,7 +136,8 @@ export function registerBvhCallback(
     reject(
       new GwenError(
         Physics3DErrorCodes.BVH_WORKER_TIMEOUT,
-        `[${Physics3DErrorCodes.BVH_WORKER_TIMEOUT}] BVH worker did not respond within ${timeoutMs}ms`,
+        `BVH worker did not respond within ${timeoutMs}ms.`,
+        {},
       ),
     );
   }, timeoutMs);
@@ -151,7 +152,8 @@ export function queueBvhJob(vertices: Float32Array, indices: Uint32Array): Promi
       reject(
         new GwenError(
           Physics3DErrorCodes.BVH_WORKER_TIMEOUT,
-          `[${Physics3DErrorCodes.BVH_WORKER_TIMEOUT}] BVH worker did not respond within 30s`,
+          "BVH worker did not respond within 30s.",
+          {},
         ),
       );
     }, 30_000);
@@ -213,7 +215,7 @@ export interface PreloadedBvhHandle {
  * @since 2.0.0
  */
 export function preloadMeshCollider(url: string): PreloadedBvhHandle {
-  useEngine();
+  useEngine("preloadMeshCollider");
   const handle: PreloadedBvhHandle = {
     status: "loading",
     url,

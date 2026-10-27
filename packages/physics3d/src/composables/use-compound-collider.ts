@@ -85,11 +85,12 @@ export function useCompoundCollider(options: CompoundColliderOptions3D): Compoun
 
   const handle = physics.addCompoundCollider(entityId, options);
   if (!handle) {
-    throw new GwenError(
-      Physics3DErrorCodes.NO_RIGID_BODY,
-      "[GWEN:useCompoundCollider] No rigid body found for this entity. " +
-        "Call useDynamicBody() or useStaticBody() before useCompoundCollider().",
-    );
+    throw new GwenError(Physics3DErrorCodes.NO_RIGID_BODY, "No rigid body found for this entity.", {
+      composable: "useCompoundCollider",
+      hint: __GWEN_DEV__
+        ? "Call useDynamicBody() or useStaticBody() before useCompoundCollider()."
+        : undefined,
+    });
   }
 
   return handle;

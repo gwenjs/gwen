@@ -11,10 +11,7 @@ export class Physics3DStaleEntityError extends GwenError {
   readonly operation: string;
 
   constructor(entityId: EntityId, operation: string) {
-    super(
-      Physics3DErrorCodes.STALE_ENTITY,
-      `[${Physics3DErrorCodes.STALE_ENTITY}] ${operation} rejected a stale entity`,
-    );
+    super(Physics3DErrorCodes.STALE_ENTITY, `${operation} rejected a stale entity.`, {});
     this.name = "Physics3DStaleEntityError";
     this.entityId = entityId;
     this.operation = operation;
