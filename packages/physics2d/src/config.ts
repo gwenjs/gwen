@@ -38,7 +38,10 @@ export function normalizeConfig(config: Physics2DConfig): NormalizedPhysics2DCon
       if (bit < 0 || bit >= MAX_LAYERS || !Number.isInteger(bit)) {
         throw new GwenError(
           Physics2DErrorCodes.INVALID_LAYERS,
-          `[Physics2D] Layer "${name}" has invalid bit index ${bit}. Must be an integer in [0, ${MAX_LAYERS - 1}].`,
+          `Layer "${name}" has invalid bit index ${bit}.`,
+          {
+            hint: __GWEN_DEV__ ? `Use an integer in [0, ${MAX_LAYERS - 1}].` : undefined,
+          },
         );
       }
       layers[name] = bit;
@@ -82,10 +85,12 @@ export class LayerRegistry {
   private readonly bits: Record<string, number>;
 
   constructor(layers: Record<string, number>) {
-    if (Object.keys(layers).length > MAX_LAYERS) {
+    const count = Object.keys(layers).length;
+    if (count > MAX_LAYERS) {
       throw new GwenError(
         Physics2DErrorCodes.INVALID_LAYERS,
-        `[Physics2D] Too many layers declared: ${Object.keys(layers).length}. Maximum is ${MAX_LAYERS}.`,
+        `Too many layers declared: ${count}.`,
+        { hint: __GWEN_DEV__ ? `Declare at most ${MAX_LAYERS} layers.` : undefined },
       );
     }
     this.bits = layers;
@@ -108,8 +113,10 @@ export class LayerRegistry {
         const known = Object.keys(this.bits).join(", ");
         throw new GwenError(
           Physics2DErrorCodes.UNKNOWN_LAYER,
-          `[Physics2D] Unknown layer "${name}" in ${role}. Declared layers: [${known}]. ` +
-            `Add it to Physics2DConfig.layers or fix the typo.`,
+          `Unknown layer "${name}" in ${role}. Declared layers: [${known}].`,
+          {
+            hint: __GWEN_DEV__ ? "Add it to Physics2DConfig.layers or fix the typo." : undefined,
+          },
         );
       }
       mask |= 1 << bit;

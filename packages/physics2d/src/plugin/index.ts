@@ -749,16 +749,17 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
       if (!st.bridge.hasPhysics()) {
         throw new GwenError(
           Physics2DErrorCodes.WASM_VARIANT_MISMATCH,
-          "[Physics2D] Core WASM variant does not include physics.",
+          "Core WASM variant does not include physics.",
+          {},
         );
       }
 
-      st.currentEngine = useEngine();
+      st.currentEngine = useEngine("Physics2DPlugin.setup");
       const pb = st.bridge.getPhysicsBridge() as WasmEnginePhysics2D;
       pb.physics_init(cfg.gravityX, cfg.gravity, cfg.maxEntities);
       const accepted = pb.physics_set_max_linear_velocity(cfg.maxLinearVelocity);
       if (accepted === 0) {
-        st.log.warn("[Physics2D] maxLinearVelocity was refused; the previous cap stays", {
+        st.log.warn("maxLinearVelocity was refused; the previous cap stays", {
           maxLinearVelocity: cfg.maxLinearVelocity,
         });
       }
@@ -768,7 +769,7 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
       pb.physics_set_event_coalescing(cfg.coalesceEvents ? 1 : 0);
       pb.physics_set_global_ccd_enabled(resolveGlobalCcdEnabled(cfg) ? 1 : 0);
 
-      const api = bindToEngine(useEngine(), createAPI());
+      const api = bindToEngine(useEngine("Physics2DPlugin.setup"), createAPI());
       st.physicsService = api;
       engine.provide("physics2d", api);
 
@@ -815,7 +816,8 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
           } else {
             throw new GwenError(
               Physics2DErrorCodes.INVALID_PREFAB_EXTENSION,
-              "[Physics2D] Prefab extension must declare `extensions.physics.colliders[]` in v2.",
+              "Prefab extension must declare extensions.physics.colliders in v2.",
+              {},
             );
           }
 
@@ -933,7 +935,7 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
     },
 
     teardown(): void {
-      const engine = useEngine();
+      const engine = useEngine("Physics2DPlugin.teardown");
       clearEngineContacts(engine);
       clearEngineSensors(engine);
       for (const off of st.unhooks) off();

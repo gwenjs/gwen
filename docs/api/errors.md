@@ -186,7 +186,199 @@ Cause. `colorFromHex` received a string that is not `#RGB`, `#RGBA`, `#RRGGBB`, 
 
 ## @gwenjs/physics2d
 
+### PHYSICS2D:STALE_ENTITY {#physics2d-stale-entity}
+
+Cause. The entity is not alive. Fix. Create it again before the call.
+
+### PHYSICS2D:STALE_BODY_HANDLE {#physics2d-stale-body-handle}
+
+Cause. The body handle has no owner. Fix. Add the body before the collider.
+
+### PHYSICS2D:INVALID_LAYERS {#physics2d-invalid-layers}
+
+Cause. A layer bit is invalid or more than 32 layers are set. Fix. Use bits 0 to 31.
+
+### PHYSICS2D:UNKNOWN_LAYER {#physics2d-unknown-layer}
+
+Cause. The layer name is not declared. Fix. Add it to Physics2DConfig.layers.
+
+### PHYSICS2D:INVALID_COLLIDER {#physics2d-invalid-collider}
+
+Cause. A prefab collider lacks radius, size, or a known shape. Fix. Pass those fields.
+
+### PHYSICS2D:WASM_VARIANT_MISMATCH {#physics2d-wasm-variant-mismatch}
+
+Cause. The core WASM build has no physics. Fix. Load a variant that includes it.
+
+### PHYSICS2D:INVALID_PREFAB_EXTENSION {#physics2d-invalid-prefab-extension}
+
+Cause. The prefab extension has no colliders array. Fix. Set extensions.physics.colliders.
+
+### PHYSICS2D:POSITION_COMPONENT_REQUIRED {#physics2d-position-component-required}
+
+Cause. positionComponent was omitted. Fix. Pass it to createPhysicsKinematicSyncSystem.
+
+### PHYSICS2D:NOT_INITIALIZED {#physics2d-not-initialized}
+
+Cause. An export ran before physics_init. Fix. Set up the physics2d plugin first.
+
+### PHYSICS2D:BODY_NOT_FOUND {#physics2d-body-not-found}
+
+Cause. No rigid body is registered for the slot. Fix. Add a body before the call.
+
+### PHYSICS2D:BODY_ALREADY_EXISTS {#physics2d-body-already-exists}
+
+Cause. The slot already has a rigid body. Fix. Remove it before adding another.
+
+### PHYSICS2D:INVALID_BODY_KIND {#physics2d-invalid-body-kind}
+
+Cause. Body kind is not 0, 1, or 2. Fix. Use fixed, dynamic, or kinematic.
+
+### PHYSICS2D:BUFFER_LENGTH_MISMATCH {#physics2d-buffer-length-mismatch}
+
+Cause. Parallel bulk slices differ in length. Fix. Pass equal-length buffers.
+
+### PHYSICS2D:TILEMAP_CHUNK_ALREADY_LOADED {#physics2d-tilemap-chunk-already-loaded}
+
+Cause. That tilemap chunk id is already loaded. Fix. Unload it before loading again.
+
+### PHYSICS2D:TILEMAP_CHUNK_NOT_LOADED {#physics2d-tilemap-chunk-not-loaded}
+
+Cause. That tilemap chunk id is not loaded. Fix. Load it before unloading.
+
+### PHYSICS2D:INVALID_PATH_REQUEST {#physics2d-invalid-path-request}
+
+Cause. A path coordinate or distance is out of bounds. Fix. Send a finite in-range request.
+
+### PHYSICS2D:INVALID_QUERY {#physics2d-invalid-query}
+
+Cause. A query coordinate or radius is not accepted. Fix. Use a finite in-range value.
+
+### PHYSICS2D:INVALID_STEP_DELTA {#physics2d-invalid-step-delta}
+
+Cause. A step delta is not finite or is outside 0 to 1. Fix. Pass a delta in that range.
+
 ## @gwenjs/physics3d
+
+### PHYSICS3D:BVH_WORKER_TIMEOUT {#physics3d-bvh-worker-timeout}
+
+Cause. The BVH worker did not respond in time. Fix. Retry or use a smaller mesh.
+
+### PHYSICS3D:BVH_CALLBACK_HANG {#physics3d-bvh-callback-hang}
+
+Cause. The code is declared and this package does not throw it. Fix. A late worker uses BVH_WORKER_TIMEOUT.
+
+### PHYSICS3D:MESH_FALLBACK {#physics3d-mesh-fallback}
+
+Cause. The warning is logged without this code: a local mesh falls back to a box. Fix. Use a WASM build.
+
+### PHYSICS3D:CONVEX_FALLBACK {#physics3d-convex-fallback}
+
+Cause. The warning is logged without this code: a local convex hull falls back to a box. Fix. Use WASM.
+
+### PHYSICS3D:STALE_ENTITY {#physics3d-stale-entity}
+
+Cause. The entity is not alive. Fix. Create it again before the call.
+
+### PHYSICS3D:UNKNOWN_LAYER {#physics3d-unknown-layer}
+
+Cause. The layer name is not in the registry. Fix. Declare it before resolving bits.
+
+### PHYSICS3D:INVALID_COMPOUND {#physics3d-invalid-compound}
+
+Cause. Shape ids differ in length, a shape was not inserted, the Rust buffer length is not a multiple of 12, or a part has an unknown shape type. Fix. Match the lengths.
+
+### PHYSICS3D:BVH_LOAD_FAILED {#physics3d-bvh-load-failed}
+
+Cause. The BVH fetch, worker, or export failed. Rust also rejects a short buffer, a magic other than GBVH, another Rapier version, or a payload that is not a valid mesh. Fix. Check the URL, worker, and WASM build.
+
+### PHYSICS3D:NOT_INITIALIZED {#physics3d-not-initialized}
+
+Cause. step() ran before the plugin initialized. Fix. Call setup before step.
+
+### PHYSICS3D:WASM_VARIANT_MISMATCH {#physics3d-wasm-variant-mismatch}
+
+Cause. The active variant is not physics3d, or init is missing. Fix. Pass variant physics3d.
+
+### PHYSICS3D:INVALID_MESH_BUFFER {#physics3d-invalid-mesh-buffer}
+
+Cause. A mesh positions or indices length is not a multiple of 3. Fix. Pass triples.
+
+### PHYSICS3D:NO_RIGID_BODY {#physics3d-no-rigid-body}
+
+Cause. The entity has no rigid body yet. Fix. Call useDynamicBody or useStaticBody first.
+
+### PHYSICS3D:MESH_REBUILD_FAILED {#physics3d-mesh-rebuild-failed}
+
+Cause. Rebuilding the mesh collider failed. Fix. Check the vertices, indices, and body.
+
+### PHYSICS3D:BODY_NOT_FOUND {#physics3d-body-not-found}
+
+Cause. A WASM export found no rigid body for the slot. Fix. Add the body first.
+
+### PHYSICS3D:BODY_ALREADY_EXISTS {#physics3d-body-already-exists}
+
+Cause. The slot already has a rigid body. Fix. Remove it before adding another.
+
+### PHYSICS3D:INVALID_BODY_KIND {#physics3d-invalid-body-kind}
+
+Cause. Body kind is not 0, 1, or 2. Fix. Use fixed, dynamic, or kinematic.
+
+### PHYSICS3D:BUFFER_LENGTH_MISMATCH {#physics3d-buffer-length-mismatch}
+
+Cause. Parallel slices of a bulk call differ in length. Fix. Pass equal-length buffers.
+
+### PHYSICS3D:COLLIDER_NOT_FOUND {#physics3d-collider-not-found}
+
+Cause. No collider is registered for that slot and id. Fix. Add it before the call.
+
+### PHYSICS3D:COLLIDER_ALREADY_EXISTS {#physics3d-collider-already-exists}
+
+Cause. That collider id is already registered on the slot. Fix. Use a new id.
+
+### PHYSICS3D:INVALID_SHAPE {#physics3d-invalid-shape}
+
+Cause. Shape data cannot build a collider. Fix. Check the heightfield, mesh, or points.
+
+### PHYSICS3D:JOINT_NOT_FOUND {#physics3d-joint-not-found}
+
+Cause. No joint is registered for that id. Fix. Create the joint before using it.
+
+### PHYSICS3D:CHARACTER_CONTROLLER_NOT_FOUND {#physics3d-character-controller-not-found}
+
+Cause. No character controller is registered for the slot. Fix. Add one first.
+
+### PHYSICS3D:CHARACTER_CONTROLLER_LIMIT_REACHED {#physics3d-character-controller-limit-reached}
+
+Cause. The character controller pool is full. Fix. Remove one or raise the limit.
+
+### PHYSICS3D:NAVGRID_NOT_INITIALIZED {#physics3d-navgrid-not-initialized}
+
+Cause. A path query ran before the navigation grid was uploaded. Fix. Upload the grid first.
+
+### PHYSICS3D:INVALID_NAVGRID {#physics3d-invalid-navgrid}
+
+Cause. Grid dimensions are zero, overflow, or pass the cell limit. Fix. Use a smaller grid.
+
+### PHYSICS3D:INVALID_PATH_REQUEST {#physics3d-invalid-path-request}
+
+Cause. A path coordinate is not finite or is past the cell bound. Fix. Use an in-range cell.
+
+### PHYSICS3D:INVALID_COLLIDER {#physics3d-invalid-collider}
+
+Cause. A collider size, radius, or skin width was refused. Fix. Pass a finite accepted value.
+
+### PHYSICS3D:INVALID_JOINT {#physics3d-invalid-joint}
+
+Cause. A joint anchor, axis, spring, motor, or limit is not finite. Fix. Pass finite numbers.
+
+### PHYSICS3D:INVALID_QUERY {#physics3d-invalid-query}
+
+Cause. A query coordinate, direction, or distance was refused. Fix. Pass finite values.
+
+### PHYSICS3D:INVALID_STEP_DELTA {#physics3d-invalid-step-delta}
+
+Cause. A step delta is not finite or is outside 0 to 1. Fix. Pass a delta in that range.
 
 ## @gwenjs/renderer-core
 

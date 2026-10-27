@@ -40,7 +40,7 @@ export interface ShapeOptions {
  * @since 1.0.0
  */
 export function useShape(options: ShapeOptions): void {
-  const engine = useEngine();
+  const engine = useEngine("useShape");
   const entityId = _getActorEntityId("useShape");
   engine.addComponent(entityId, ShapeComponent, {
     w: options.w ?? 0,

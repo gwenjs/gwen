@@ -21,7 +21,7 @@ const contacts = createEngineLocal<ContactRegistry>(() => ({
  * @internal Called by the physics2d plugin per-frame to dispatch contact events.
  */
 export function _dispatchContactEvent(entityId: bigint, event: ContactEvent): void {
-  const cbs = contacts.peek(useEngine())?.byEntity.get(String(entityId));
+  const cbs = contacts.peek(useEngine("Physics2DPlugin"))?.byEntity.get(String(entityId));
   if (!cbs) return;
   for (const cb of cbs) cb(event);
 }
@@ -37,7 +37,7 @@ export function _dispatchContactEvent(entityId: bigint, event: ContactEvent): vo
  * @throws {GwenContextError} `CORE:OUTSIDE_ACTOR_CONTEXT` when neither an actor nor `entityId` is set.
  */
 export function onContact(callback: (contact: ContactEvent) => void, entityId?: bigint): void {
-  const engine = useEngine();
+  const engine = useEngine("onContact");
   const registry = contacts.get(engine);
   const id = entityId ?? _getActorContext()?.entityId ?? registry.setupEntityId;
   if (id === null) {
@@ -55,7 +55,7 @@ export function onContact(callback: (contact: ContactEvent) => void, entityId?: 
 
 /** @internal Remove this engine's contact callbacks for one entity. */
 export function _clearContactCallbacks(entityId: bigint): void {
-  contacts.peek(useEngine())?.byEntity.delete(String(entityId));
+  contacts.peek(useEngine("Physics2DPlugin"))?.byEntity.delete(String(entityId));
 }
 
 /** @internal Drop every contact callback owned by `engine`. */
