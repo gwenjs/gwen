@@ -14,6 +14,8 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import picomatch from "picomatch";
+
 import { evaluateCiStatus } from "./check-ci-status-needs.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -1730,7 +1732,7 @@ test("stack-pack runs only when the change can impact the packed output", () => 
   const modeAt = changes.indexOf("name: Resolve mode");
   assert.equal(modeAt >= 0, true);
   const mode = changes.slice(modeAt);
-  assert.match(mode, /STACK: \$\{\{ steps\.filter\.outputs\.stack \}\}/);
+  assert.match(mode, /STACK: \$\{\{ steps\.filter_every\.outputs\.stack \}\}/);
   const nonPr = mode.indexOf('if [ "$EVENT" != "pull_request" ]; then');
   const stackTrue = mode.indexOf('echo "stack=true" >> "$GITHUB_OUTPUT"');
   const elseAt = mode.indexOf("\n          else\n");
@@ -1912,4 +1914,171 @@ test("browser-wasm guard fits inside the job timeout", () => {
     attemptsN * (timeoutS + graceAllowanceS) <= timeoutMinutes * 60 - 120,
     `${attemptsN}*(${timeoutS}+${graceAllowanceS})s exceeds ${timeoutMinutes} min minus 120s`,
   );
+});
+
+const PATHS_FILTER_USES = "dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad";
+
+const CODE_PATTERNS = ["**", "!**/*.md", "!docs/**", "!notes/**", "!internals-docs/**"];
+const STACK_PATTERNS =
+  "{packages/**,crates/**,scripts/stack/**,scripts/fix-dts-extensions.mjs,scripts/build-wasm.sh,pnpm-lock.yaml,pnpm-workspace.yaml,package.json,.github/workflows/ci.yml,.github/actions/**}|!**/*.md|!docs/**".split(
+    "|",
+  );
+const RUST_PATTERNS =
+  "crates/**|Cargo.toml|Cargo.lock|deny.toml|wasm-size.json|scripts/**|.github/workflows/ci.yml".split(
+    "|",
+  );
+const ROOT_PATTERNS =
+  "pnpm-lock.yaml|pnpm-workspace.yaml|package.json|tsconfig*.json|oxlint.json|.oxfmtrc.json|scripts/**|.github/**".split(
+    "|",
+  );
+
+/**
+ * @typedef {{ id: string, quantifier: string, uses: string, filters: Record<string, string[]> }} FilterStep
+ */
+
+/** @param {string} changes @returns {FilterStep[]} */
+function changesFilterSteps(changes) {
+  const lines = changes.split("\n");
+  /** @type {FilterStep[]} */
+  const steps = [];
+  for (let start = 0; start < lines.length; start++) {
+    if (!(lines[start] ?? "").startsWith("      - ")) continue;
+    let end = start + 1;
+    while (end < lines.length && !(lines[end] ?? "").startsWith("      - ")) end++;
+    const block = lines.slice(start, end);
+    const usesLine = block.find((line) => /^\s*(?:-\s+)?uses:/.test(line));
+    if (!usesLine || !usesLine.includes("dorny/paths-filter@")) continue;
+    const idLine = block.find((line) => /^\s+id:/.test(line));
+    const quantLine = block.find((line) => /^\s+predicate-quantifier:/.test(line));
+    /** @type {Record<string, string[]>} */
+    const filters = {};
+    const filtersAt = block.findIndex((line) => line.trim() === "filters: |");
+    let name = "";
+    for (let i = filtersAt + 1; filtersAt !== -1 && i < block.length; i++) {
+      const line = block[i] ?? "";
+      const named = /^ {12}([A-Za-z0-9_-]+):\s*$/.exec(line);
+      if (named) {
+        name = named[1] ?? "";
+        filters[name] = [];
+        continue;
+      }
+      if (name && line.startsWith("              - '") && line.endsWith("'")) {
+        filters[name].push(line.slice("              - '".length, -1));
+        continue;
+      }
+      if (line.trim() === "") continue;
+      break;
+    }
+    steps.push({
+      id: idLine ? idLine.trim().replace(/^id:\s*/, "") : "",
+      quantifier: quantLine ? quantLine.trim().replace(/^predicate-quantifier:\s*/, "") : "",
+      uses: usesLine
+        .trim()
+        .replace(/^(?:-\s+)?uses:\s*/, "")
+        .replace(/\s+#.*$/, ""),
+      filters,
+    });
+    start = end - 1;
+  }
+  return steps;
+}
+
+/** @param {string} changes @param {string} filterName @returns {FilterStep} */
+function filterOwner(changes, filterName) {
+  const owners = changesFilterSteps(changes).filter((step) =>
+    Object.hasOwn(step.filters, filterName),
+  );
+  assert.equal(owners.length, 1, filterName);
+  const step = owners[0];
+  assert.ok(step, filterName);
+  return step;
+}
+
+/** One picomatch per pattern (`{dot: true}`), then the quantifier. Empty files match nothing.
+ * @param {readonly string[]} patterns
+ * @param {readonly string[]} files
+ * @param {string} quantifier
+ * @returns {boolean}
+ */
+function filesMatch(patterns, files, quantifier) {
+  return files.some((file) => {
+    const hit = (pattern) => picomatch(pattern, { dot: true })(file);
+    if (quantifier === "every") return patterns.every(hit);
+    if (quantifier === "some") return patterns.some(hit);
+    assert.fail(quantifier);
+  });
+}
+
+/** @param {string} filterName @param {readonly string[]} files @returns {boolean} */
+function matches(filterName, files) {
+  const step = filterOwner(jobBlock(readCi(), "changes"), filterName);
+  const patterns = step.filters[filterName] ?? [];
+  return filesMatch(patterns, files, step.quantifier);
+}
+
+test("changes job evaluates the code and stack filters with every", () => {
+  const steps = changesFilterSteps(jobBlock(readCi(), "changes"));
+  const owners = steps.filter((step) => step.filters.code && step.filters.stack);
+  assert.equal(owners.length, 1);
+  const step = owners[0];
+  assert.ok(step);
+  assert.equal(step.quantifier, "every");
+  assert.equal(step.uses, PATHS_FILTER_USES);
+  assert.deepEqual(Object.keys(step.filters), ["code", "stack"]);
+  assert.deepEqual(step.filters.code, CODE_PATTERNS);
+  assert.deepEqual(step.filters.stack, STACK_PATTERNS);
+  assert.equal(matches("code", ["README.md"]), false);
+  assert.equal(matches("code", ["crates/gwen-core/src/lib.rs"]), true);
+  assert.equal(matches("code", ["packages/core/src/index.ts"]), true);
+  assert.equal(matches("code", ["docs/index.md"]), false);
+  assert.equal(matches("stack", ["packages/core/src/index.ts"]), true);
+  assert.equal(matches("stack", ["packages/core/README.md"]), false);
+  assert.equal(matches("stack", ["docs/index.md"]), false);
+});
+
+test("changes job evaluates the rust and root filters with some", () => {
+  const steps = changesFilterSteps(jobBlock(readCi(), "changes"));
+  const owners = steps.filter((step) => step.filters.rust && step.filters.root);
+  assert.equal(owners.length, 1);
+  const step = owners[0];
+  assert.ok(step);
+  assert.equal(step.quantifier, "some");
+  assert.equal(step.uses, PATHS_FILTER_USES);
+  assert.deepEqual(Object.keys(step.filters), ["rust", "root"]);
+  assert.deepEqual(step.filters.rust, RUST_PATTERNS);
+  assert.deepEqual(step.filters.root, ROOT_PATTERNS);
+});
+
+test("Resolve mode reads each filter output from the step that owns it", () => {
+  const yaml = readCi();
+  const changes = jobBlock(yaml, "changes");
+  const codeId = filterOwner(changes, "code").id;
+  const stackId = filterOwner(changes, "stack").id;
+  const rustId = filterOwner(changes, "rust").id;
+  const rootId = filterOwner(changes, "root").id;
+  assert.equal(codeId, stackId);
+  assert.equal(rustId, rootId);
+  assert.notEqual(codeId, rustId);
+  const env = resolveModeEnv(yaml);
+  assert.ok(env.includes(`          CODE: \${{ steps.${codeId}.outputs.code }}`));
+  assert.ok(env.includes(`          STACK: \${{ steps.${stackId}.outputs.stack }}`));
+  assert.ok(env.includes(`          RUST: \${{ steps.${rustId}.outputs.rust }}`));
+  assert.ok(env.includes(`          ROOT: \${{ steps.${rootId}.outputs.root }}`));
+});
+
+test("rust and root filters match a Rust or workflow file alone and not a doc, with the ci.yml quantifier", () => {
+  assert.equal(matches("rust", ["crates/gwen-core/src/lib.rs"]), true);
+  assert.equal(matches("rust", ["docs/index.md"]), false);
+  assert.equal(matches("root", ["docs/index.md"]), false);
+  assert.equal(matches("rust", [".github/workflows/ci.yml"]), true);
+  assert.equal(matches("root", [".github/workflows/ci.yml"]), true);
+  assert.equal(matches("rust", []), false);
+  assert.equal(matches("root", []), false);
+  assert.equal(matches("rust", ["docs/index.md", "crates/gwen-core/src/lib.rs"]), true);
+  assert.equal(matches("root", ["pnpm-lock.yaml"]), true);
+  assert.equal(matches("rust", ["pnpm-lock.yaml"]), false);
+  const rust = filterOwner(jobBlock(readCi(), "changes"), "rust").filters.rust ?? [];
+  const file = "crates/gwen-core/src/lib.rs";
+  assert.equal(filesMatch(rust, [file], "every"), false);
+  assert.equal(filesMatch(rust, [file], "some"), true);
 });
