@@ -1634,17 +1634,18 @@ test("rust-miri timeout is twice the cold wall in whole minutes", () => {
 
 const MIRI_CARGO = "cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-core";
 
-test("rust-miri-step runs the step tests on arm64 under Tree Borrows", () => {
+test("rust-miri-step runs the step tests on x86_64 under Stacked Borrows", () => {
   const ci = readCi();
   const job = jobBlock(ci, "rust-miri-step");
   assert.notEqual(job, "", "rust-miri-step job is missing");
-  assert.match(job, /^ {4}runs-on: ubuntu-24\.04-arm$/m);
+  assert.match(job, /^ {4}runs-on: ubuntu-latest$/m);
+  for (const line of job.split("\n")) {
+    if (!/^ {4}runs-on:/.test(line)) continue;
+    assert.doesNotMatch(line, /aarch64|ubuntu-24\.04-arm/);
+  }
   assert.match(job, /^ {4}needs: \[changes\]$/m);
   assert.match(job, /^ {4}if: needs\.changes\.outputs\.rust == 'true'$/m);
-  assert.deepEqual(
-    [...job.matchAll(/^\s+MIRIFLAGS:\s*(.+)$/gm)].map((m) => m[1]),
-    ["-Zmiri-tree-borrows"],
-  );
+  assert.equal(job.includes("MIRIFLAGS"), false);
   for (const command of [
     `${MIRI_CARGO} --features physics2d --test physics_step_miri`,
     `${MIRI_CARGO} --features physics3d --test physics_step_miri`,
@@ -1652,11 +1653,7 @@ test("rust-miri-step runs the step tests on arm64 under Tree Borrows", () => {
   ]) {
     assert.ok(job.includes(`run: ${command}\n`), command);
   }
-  assert.equal(
-    ci.split("-Zmiri-tree-borrows").length - 1,
-    1,
-    "Tree Borrows is only in rust-miri-step",
-  );
+  assert.equal(ci.split("-Zmiri-tree-borrows").length - 1, 0, "no -Zmiri-tree-borrows in ci.yml");
   assert.equal(ci.includes("-Zmiri-disable"), false, "no -Zmiri-disable flag");
   assert.doesNotMatch(jobBlock(ci, "rust-miri"), /MIRIFLAGS/);
   const status = jobBlock(ci, "ci-status");
