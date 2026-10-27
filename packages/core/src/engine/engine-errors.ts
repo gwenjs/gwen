@@ -5,7 +5,7 @@
  * engine dependencies. Safe to import without pulling in the full engine module.
  */
 
-import { GwenError, type GwenErrorOptions } from "@gwenjs/schema";
+import { GwenError, type GwenErrorOptions, type GwenPluginRequirement } from "@gwenjs/schema";
 import { GwenContextErrorCodes } from "@gwenjs/kit";
 import type { GwenEngineState } from "./engine-types.js";
 
@@ -49,6 +49,50 @@ export class GwenPluginNotFoundError extends GwenError {
     });
     this.name = "GwenPluginNotFoundError";
     this.pluginName = pluginName;
+  }
+}
+
+/**
+ * A plugin requirement is missing at `engine.use`. Reserved: `engine.unuse`
+ * will reject with it once dependents are tracked. `missing` and `dependents` are frozen.
+ */
+export class GwenPluginDependencyError extends GwenError {
+  override readonly code:
+    | typeof CoreErrorCodes.PLUGIN_DEPENDENCY_MISSING
+    | typeof CoreErrorCodes.PLUGIN_IN_USE;
+  readonly plugin: string;
+  readonly missing: readonly GwenPluginRequirement[];
+  readonly dependents: readonly string[];
+
+  constructor(init: {
+    code: typeof CoreErrorCodes.PLUGIN_DEPENDENCY_MISSING | typeof CoreErrorCodes.PLUGIN_IN_USE;
+    plugin: string;
+    missing?: readonly GwenPluginRequirement[];
+    dependents?: readonly string[];
+  }) {
+    const plugin = init.plugin;
+    const missing = Object.freeze([...(init.missing ?? [])]);
+    const dependents = Object.freeze([...(init.dependents ?? [])]);
+    const missingNow = init.code === CoreErrorCodes.PLUGIN_DEPENDENCY_MISSING;
+    const listed = missingNow
+      ? missing.map((item) => `${item.kind} "${item.name}"`).join(", ")
+      : dependents.map((name) => `"${name}"`).join(", ");
+    const what = missingNow
+      ? `Plugin "${plugin}" requires ${listed}, which is not installed.`
+      : `Cannot unuse "${plugin}": required by ${listed}.`;
+    super(init.code, what, {
+      composable: missingNow ? "engine.use" : "engine.unuse",
+      hint: __GWEN_DEV__
+        ? missingNow
+          ? "Call engine.use() for each missing requirement before the plugin that requires it."
+          : "Unuse the dependent plugins first, last installed first."
+        : undefined,
+    });
+    this.name = "GwenPluginDependencyError";
+    this.code = init.code;
+    this.plugin = plugin;
+    this.missing = missing;
+    this.dependents = dependents;
   }
 }
 
@@ -126,6 +170,10 @@ export const CoreErrorCodes = {
   INVALID_CONFIG: "CORE:INVALID_CONFIG",
   /** Thrown by `GwenPluginNotFoundError`. */
   PLUGIN_NOT_FOUND: "CORE:PLUGIN_NOT_FOUND",
+  /** `engine.use` rejected because a required plugin or service is not installed. */
+  PLUGIN_DEPENDENCY_MISSING: "CORE:PLUGIN_DEPENDENCY_MISSING",
+  /** Reserved: `engine.unuse` will reject with it once dependents are tracked. */
+  PLUGIN_IN_USE: "CORE:PLUGIN_IN_USE",
   /** Thrown by `TweenPool.claim`. */
   TWEEN_POOL_EXHAUSTED: "CORE:TWEEN_POOL_EXHAUSTED",
   /** Thrown by the WASM glue loader (#260). */

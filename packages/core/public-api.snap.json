@@ -10,6 +10,7 @@
       "GwenContextError",
       "GwenEngineStateError",
       "GwenLogger",
+      "GwenPluginDependencyError",
       "GwenPluginNotFoundError",
       "GwenWasmAbiError",
       "GwenWasmError",

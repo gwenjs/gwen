@@ -35,6 +35,7 @@ type _0 = [
   Root.GwenEngineOptions,
   Root.GwenHookable<never>,
   Root.GwenPlugin,
+  Root.GwenPluginDependencyError,
   Root.GwenPluginNotFoundErrorOptions,
   Root.GwenProvides,
   Root.GwenRuntimeHooks,

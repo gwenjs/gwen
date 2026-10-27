@@ -482,7 +482,9 @@ export interface GwenEngine extends GwenEngineBase {
   readonly state: GwenEngineState;
   // ─── Plugin runner ──────────────────────────────────────────────────────
   /**
-   * Register and initialise a plugin. Deduplicates by `plugin.name`.
+   * Register and initialise a plugin. Installs once per name; a duplicate call
+   * resolves and warns in debug. Rejects `CORE:PLUGIN_DEPENDENCY_MISSING` before
+   * `setup()` when `plugin.requires` is unmet.
    * Allowed in `idle` and `running` only; rejects with `GwenEngineStateError` in
    * `starting`, `stopping`, `stopped` and `faulted`.
    */
