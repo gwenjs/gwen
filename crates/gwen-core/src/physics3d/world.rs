@@ -335,6 +335,8 @@ pub const MAX_WORLD_EXTENT: f32 = 1.0e7;
 /// Default linear-speed cap, in metres per second.
 pub const DEFAULT_MAX_LINEAR_VELOCITY: f32 = 400.0;
 
+const MAX_BODY_ADDITIONAL_SOLVER_ITERATIONS: usize = 16;
+
 const REASON_NON_FINITE: u32 = 0;
 const REASON_OUT_OF_BOUNDS: u32 = 1;
 const REASON_VELOCITY: u32 = 2;
@@ -710,6 +712,7 @@ impl PhysicsWorld3D {
         };
         // Apply the default quality preset so solver parameters are consistent.
         world.apply_quality_config(quality_solver_config_3d(PhysicsQualityPreset3D::Medium));
+        world.integration_params.normalized_max_linear_velocity = DEFAULT_MAX_LINEAR_VELOCITY;
         world
     }
 
@@ -791,12 +794,14 @@ impl PhysicsWorld3D {
 
     /// Stores `value` when it is finite and greater than zero.
     ///
-    /// Returns `false` and keeps the previous cap otherwise.
+    /// Also stores it as the simulation's per-substep linear cap.
+    /// Returns `false` and keeps both caps otherwise.
     pub fn set_max_linear_velocity(&mut self, value: f32) -> bool {
         if !value.is_finite() || value <= 0.0 {
             return false;
         }
         self.max_linear_velocity = value;
+        self.integration_params.normalized_max_linear_velocity = value;
         true
     }
 
@@ -2753,7 +2758,7 @@ impl PhysicsWorld3D {
     ///
     /// # Arguments
     /// * `entity_index` — ECS entity slot index.
-    /// * `iterations`   — Number of additional solver iterations (0–255).
+    /// * `iterations`   — Additional solver iterations stored for this body (0–16). A larger value is stored as 16.
     ///
     /// # Returns
     /// `true` on success, `false` if the entity has no registered body.
@@ -2768,7 +2773,9 @@ impl PhysicsWorld3D {
         let Some(body) = self.rigid_body_set.get_mut(handle) else {
             return false;
         };
-        body.set_additional_solver_iterations(iterations as usize);
+        body.set_additional_solver_iterations(
+            (iterations as usize).min(MAX_BODY_ADDITIONAL_SOLVER_ITERATIONS),
+        );
         true
     }
 
@@ -6639,6 +6646,25 @@ mod tests {
         assert_eq!(ev.entity_a, 1);
         assert_eq!(ev.entity_b, 2);
         assert_eq!(ev.flags, 1);
+    }
+
+    /// `0` and `16` are stored. `17` and `255` are stored as `16`.
+    #[test]
+    fn set_body_solver_iterations_caps_at_16() -> Result<(), Physics3DError> {
+        let mut world = PhysicsWorld3D::new(0.0, 0.0, 0.0);
+        assert_eq!(world.add_body(0, 0.0, 0.0, 0.0, 1, 1.0, 0.0, 0.0), true);
+        let cases = [(0u32, 0usize), (16, 16), (17, 16), (255, 16)];
+        for (input, expected) in cases {
+            assert_eq!(world.set_body_solver_iterations(0, input), true);
+            let handle = world.entity_handles[&0];
+            let stored = world
+                .rigid_body_set
+                .get(handle)
+                .ok_or(Physics3DError::BodyNotFound { slot: 0 })?
+                .additional_solver_iterations();
+            assert_eq!(stored, expected, "input {input}");
+        }
+        Ok(())
     }
 }
 

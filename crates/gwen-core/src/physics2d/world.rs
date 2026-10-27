@@ -241,6 +241,7 @@ impl PhysicsWorld {
             disabled_slots: Vec::with_capacity(DISABLED_SLOT_CAPACITY),
         };
         world.set_quality_preset(PhysicsQualityPreset::Medium);
+        world.integration_params.normalized_max_linear_velocity = DEFAULT_MAX_LINEAR_VELOCITY;
         world
     }
 
@@ -781,12 +782,14 @@ impl PhysicsWorld {
 
     /// Stores `value` when it is finite and greater than zero.
     ///
-    /// Returns `false` and keeps the previous cap otherwise.
+    /// Also stores it as the simulation's per-substep linear cap.
+    /// Returns `false` and keeps both caps otherwise.
     pub fn set_max_linear_velocity(&mut self, value: f32) -> bool {
         if !value.is_finite() || value <= 0.0 {
             return false;
         }
         self.max_linear_velocity = value;
+        self.integration_params.normalized_max_linear_velocity = value;
         true
     }
 
@@ -1678,6 +1681,72 @@ mod fixed_rotation {
             .2;
         assert_eq!(locked_angle.abs() < 1.0e-4, true);
         assert_eq!(free_angle.abs() > 0.05, true);
+        Ok(())
+    }
+
+    /// GWEN clamp at physics2d/world.rs:291, already present before this PR.
+    ///
+    /// `0` and `16` are stored. `17` and `255` are stored as `16`.
+    #[test]
+    fn additional_solver_iterations_cap_at_16() -> Result<(), Physics2DError> {
+        let mut world = PhysicsWorld::new(0.0, 0.0);
+        let cases = [
+            (0u32, 0usize, 0usize),
+            (1, 16, 16),
+            (2, 17, 16),
+            (3, 255, 16),
+        ];
+        for (slot, input, expected) in cases {
+            world.add_rigid_body(
+                slot,
+                slot as f32,
+                0.0,
+                BodyType::Dynamic,
+                BodyOptions {
+                    additional_solver_iterations: Some(input),
+                    ..BodyOptions::default()
+                },
+            )?;
+            let handle = world.entity_to_body[&slot];
+            let stored = world
+                .rigid_body_set
+                .get(handle)
+                .ok_or(Physics2DError::BodyNotFound { slot })?
+                .additional_solver_iterations();
+            assert_eq!(stored, expected, "input {input}");
+        }
+        Ok(())
+    }
+
+    /// Characterisation test of a Rapier 0.36.1 default already true after P-RAP-3a.
+    ///
+    /// With `max_ccd_substeps` at 0, a fast box with per-body CCD off passes the wall.
+    #[test]
+    fn ccd_off_with_zero_substeps_tunnels() -> Result<(), Physics2DError> {
+        let mut world = PhysicsWorld::new(0.0, 0.0);
+        world.set_quality_preset(PhysicsQualityPreset::Low);
+        world.integration_params.max_ccd_substeps = 0;
+        let wall = world.add_rigid_body(2, 0.0, 0.0, BodyType::Fixed, BodyOptions::default())?;
+        world.add_box_collider(wall, 0.05, 2.0, ColliderOptions::default())?;
+        let box_handle = world.add_rigid_body(
+            3,
+            -6.0,
+            0.0,
+            BodyType::Dynamic,
+            BodyOptions {
+                initial_velocity: (120.0, 0.0),
+                ccd_enabled: Some(false),
+                ..BodyOptions::default()
+            },
+        )?;
+        world.add_box_collider(box_handle, 0.08, 0.08, ColliderOptions::default())?;
+        for _ in 0..24 {
+            world.step(1.0 / 120.0)?;
+        }
+        let (x, _, _) = world
+            .get_position(3)
+            .ok_or(Physics2DError::BodyNotFound { slot: 3 })?;
+        assert_eq!(x > 0.30, true, "x={x}");
         Ok(())
     }
 }
