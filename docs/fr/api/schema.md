@@ -183,6 +183,6 @@ assertModuleFirstInput(input);
 
 Champs de `GwenError` : `code`, `composable`, `hint`, `docsUrl`.
 
-Un troisième argument produit `[where] what`, une ligne `Fix:` facultative et une ligne `See`. Deux arguments gardent le message brut. `docsUrl` est toujours défini à partir du code et du `docsBase` de la classe qui construit l'erreur.
+Tout appel produit `[where] what`, une ligne `Fix:` facultative et une ligne `See`. Deux arguments utilisent `GWEN` comme `where`. `docsUrl` est toujours défini à partir du code et du `docsBase` de la classe qui construit l'erreur.
 
 Valeurs : `GWEN_DOCS_BASE`, `errorDocsAnchor`, `errorDocsUrl`.

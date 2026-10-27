@@ -7,6 +7,8 @@ description: Signalement d'erreurs structuré et non fatal dans tout le moteur.
 
 Le bus d'erreurs de GWEN fournit un moyen structuré pour le moteur, les plugins et le code du jeu d'émettre et de gérer les erreurs avec élégance. Au lieu de lancer des exceptions (qui arrêtent le jeu), les erreurs sont émises comme des événements que votre code peut écouter et sur lesquels il peut agir—gardant le jeu en cours d'exécution même en cas de problème.
 
+Un `GwenError` lancé suit une seule grammaire : `[where] what`, puis `Fix:` quand un hint de dev est posé, puis `See <docsUrl> (<code>)`. `where` est le nom du composable, ou `GWEN`. Comparez `code`, pas la phrase.
+
 Un appel physics2d que vous faites vous-même lève un `GwenWasmError`. `code` est `PHYSICS2D:*` et `exportName` est l'export WASM. Attrapez cet appel.
 
 Un appel physics3d que vous faites vous-même fait de même : il lève un `GwenWasmError` avec un `code` `PHYSICS3D:*`. Voir [Erreurs](/fr/api/physics3d#erreurs).

@@ -96,7 +96,7 @@ active. The context is active inside:
 - `definePlugin({ setup(engine) { ... } })` — plugin setup
 - `engine.run(() => { ... })` — explicit context block
 
-Outside these boundaries, composables throw `GwenContextError` from `@gwenjs/core` (re-export) or `@gwenjs/kit`. The Vite plugin propagates
+Outside these boundaries, composables throw `GwenContextError` from `@gwenjs/core` (re-export) or `@gwenjs/kit`. The message is `[where] what`, then `Fix:` when a dev hint is set, then `See <docsUrl> (<code>)`. `where` is the composable, or `GWEN`. Branch on `e.code`. The Vite plugin propagates
 context across `await` boundaries automatically for `onEnter`/`onExit`. For other async
 contexts, the **capture pattern** is required:
 
