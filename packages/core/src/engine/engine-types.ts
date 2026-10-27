@@ -491,6 +491,8 @@ export interface GwenEngine extends GwenEngineBase {
   use(plugin: GwenPlugin): Promise<void>;
   /**
    * Tear down and unregister a plugin by name. Safe to call with unknown names.
+   * Rejects `GwenPluginDependencyError` `CORE:PLUGIN_IN_USE` when an installed
+   * plugin requires it or one of its services, and then removes nothing.
    * Allowed in `idle` and `running` only; rejects with `GwenEngineStateError` in
    * `starting`, `stopping`, `stopped` and `faulted`.
    */

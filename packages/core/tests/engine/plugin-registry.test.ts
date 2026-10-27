@@ -90,6 +90,9 @@ function rig(over: Partial<PluginRegistryDeps> = {}) {
     hasService() {
       return false;
     },
+    deleteService() {
+      return false;
+    },
     ...over,
   };
   return {

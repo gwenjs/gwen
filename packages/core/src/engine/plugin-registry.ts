@@ -32,6 +32,11 @@ export interface PluginRegistryDeps {
   dropIsolation: (name: string) => void;
   /** True when the service map already holds `key`. Engine-owned keys count. */
   hasService: (key: string) => boolean;
+  /**
+   * Remove `key` only while the map still holds `expected`.
+   * Engine-owned keys stay. This must not check engine state.
+   */
+  deleteService: (key: string, expected: unknown) => boolean;
 }
 
 type PluginRegistryReceiver = Pick<GwenEngine, "hooks">;
@@ -49,8 +54,12 @@ export class PluginRegistry {
   private readonly _pluginNames = new Set<string>();
   /** In-flight `use()` calls. A name here is not installed yet. */
   private readonly _pending = new Map<string, Promise<void>>();
+  /** In-flight removals. A second `_remove` for that name awaits this promise. */
+  private readonly _removing = new Map<string, Promise<void>>();
   /** Dispose functions collected by withCleanup() during plugin setup — keyed by plugin name. */
   private readonly _pluginCleanups = new Map<string, () => void>();
+  /** Plugin name → service key → value that plugin's setup proxy provided. */
+  private readonly _owned = new Map<string, Map<string, unknown>>();
 
   constructor(private readonly deps: PluginRegistryDeps) {}
 
@@ -130,7 +139,7 @@ export class PluginRegistry {
 
   private async _runInstall(plugin: GwenPlugin, receiver: PluginRegistryReceiver): Promise<void> {
     const scopedHooks = this._createScopedHooks(plugin.name, receiver);
-    const engineWithScopedHooks = this._withScopedHooks(scopedHooks, receiver);
+    const engineWithScopedHooks = this._withScopedHooks(plugin.name, scopedHooks, receiver);
 
     try {
       // Run the synchronous part of setup with this engine current, then restore
@@ -153,8 +162,9 @@ export class PluginRegistry {
       }
       if (setupResult instanceof Promise) await setupResult;
     } catch (err) {
-      // Roll back any onCleanup() callbacks and scoped hooks registered during
-      // the synchronous phase of setup — they must not leak on rejection.
+      // Roll back owned services, onCleanup callbacks, and scoped hooks.
+      // A provide before the throw must not stay in the container or in `_owned`.
+      this._dropOwned(plugin.name);
       this._pluginCleanups.get(plugin.name)?.();
       this._pluginCleanups.delete(plugin.name);
       this.deps.tracker.removeAll(plugin.name, receiver.hooks);
@@ -172,25 +182,110 @@ export class PluginRegistry {
 
   async unuse(name: string, receiver: PluginRegistryReceiver): Promise<void> {
     this.deps.assertState("unuse");
-    const idx = this._plugins.findIndex((plugin) => plugin.name === name);
-    if (idx === -1) return;
+    const plugin = this._plugins.find((item) => item.name === name);
+    if (plugin === undefined) return;
+    const dependents = this._dependentsOf(name);
+    if (dependents.length > 0) {
+      throw new GwenPluginDependencyError({
+        code: CoreErrorCodes.PLUGIN_IN_USE,
+        plugin: name,
+        dependents,
+      });
+    }
+    await this._remove(plugin, receiver);
+  }
 
-    const plugin = this._plugins[idx]!;
-    this._pluginCleanups.get(name)?.();
+  /** Last installed first. No state check and no dependency check: `stop()` calls this. */
+  async teardownAll(receiver: PluginRegistryReceiver): Promise<void> {
+    for (const plugin of [...this._plugins].reverse()) {
+      await this._remove(plugin, receiver);
+    }
+  }
+
+  /** Installed plugins, in install order, that still require `name` or one of its services. */
+  private _dependentsOf(name: string): string[] {
+    const owned = this._owned.get(name);
+    const dependents: string[] = [];
+    for (const plugin of this._plugins) {
+      const requires = plugin.requires;
+      const needsPlugin = (requires?.plugins ?? []).includes(name);
+      const needsService =
+        owned !== undefined && (requires?.services ?? []).some((key) => owned.has(key));
+      if (needsPlugin || needsService) dependents.push(plugin.name);
+    }
+    return dependents;
+  }
+
+  /**
+   * One removal path for `unuse` and `stop`.
+   * A second call for the same name awaits the in-flight promise.
+   * The promise is stored before the body runs, so `stop()` waits for an in-flight `unuse`.
+   * A `teardown` that awaits `unuse` of its own name waits on this same promise.
+   */
+  private _remove(plugin: GwenPlugin, receiver: PluginRegistryReceiver): Promise<void> {
+    const name = plugin.name;
+    const inFlight = this._removing.get(name);
+    if (inFlight !== undefined) return inFlight;
+
+    let resolveRun: () => void = () => {};
+    let rejectRun: (error: unknown) => void = () => {};
+    const run = new Promise<void>((resolve, reject) => {
+      resolveRun = resolve;
+      rejectRun = reject;
+    });
+    this._removing.set(name, run);
+    void this._finishRemove(plugin, receiver).then(
+      () => {
+        this._removing.delete(name);
+        resolveRun();
+      },
+      (error: unknown) => {
+        this._removing.delete(name);
+        rejectRun(error);
+      },
+    );
+    return run;
+  }
+
+  /**
+   * Services go first, then the setup disposer, then `teardown`.
+   * The disposer is inside the `try`: a throwing `onCleanup` is reported and
+   * `teardown` still runs. Hook removal stays in `finally`.
+   */
+  private async _finishRemove(plugin: GwenPlugin, receiver: PluginRegistryReceiver): Promise<void> {
+    const name = plugin.name;
+    this._dropOwned(name);
+    const dispose = this._pluginCleanups.get(name);
     this._pluginCleanups.delete(name);
     const previousEngine = pushEngine(receiverEngine(receiver));
     try {
-      const pending = plugin.teardown?.();
-      if (pending instanceof Promise) await pending;
+      try {
+        dispose?.();
+      } catch (cleanupError: unknown) {
+        this.deps.reportTeardown(plugin, cleanupError);
+      }
+      await plugin.teardown?.();
     } catch (err) {
       this.deps.reportTeardown(plugin, err);
     } finally {
       popEngine(receiverEngine(receiver), previousEngine);
+      this.deps.tracker.removeAll(name, receiver.hooks);
+      this.deps.dropIsolation(name);
+      const idx = this._plugins.indexOf(plugin);
+      if (idx !== -1) this._plugins.splice(idx, 1);
+      this._pluginNames.delete(name);
     }
-    this._plugins.splice(idx, 1);
-    this._pluginNames.delete(name);
-    this.deps.tracker.removeAll(name, receiver.hooks);
-    this.deps.dropIsolation(name);
+  }
+
+  /** Reverse provide order. Shared by a failed `setup` and removal step (0). */
+  private _dropOwned(name: string): void {
+    const owned = this._owned.get(name);
+    if (owned !== undefined) {
+      for (const key of [...owned.keys()].reverse()) {
+        this.deps.deleteService(key, owned.get(key));
+      }
+    }
+    this._owned.delete(name);
   }
 
   //
@@ -255,13 +350,32 @@ export class PluginRegistry {
     });
   }
 
+  private _ownedFor(name: string): Map<string, unknown> {
+    const existing = this._owned.get(name);
+    if (existing !== undefined) return existing;
+    const owned = new Map<string, unknown>();
+    this._owned.set(name, owned);
+    return owned;
+  }
+
   private _withScopedHooks(
+    pluginName: string,
     scopedHooks: Hookable<GwenRuntimeHooks>,
     receiver: PluginRegistryReceiver,
   ): PluginRegistryReceiver {
+    const owned = this._ownedFor(pluginName);
     const proxy = new Proxy(receiver, {
       get(target, prop) {
         if (prop === "hooks") return scopedHooks;
+        // A provide through this proxy is owned. A provide on the real engine is not.
+        if (prop === "provide") {
+          return (key: string, value: unknown): void => {
+            const provide: unknown = Reflect.get(target, "provide");
+            if (typeof provide !== "function") return;
+            Reflect.apply(provide, target, [key, value]);
+            owned.set(key, value);
+          };
+        }
         return Reflect.get(target, prop);
       },
     });

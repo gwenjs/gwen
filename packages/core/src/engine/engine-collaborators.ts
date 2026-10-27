@@ -159,6 +159,8 @@ export abstract class EngineCollaborators {
       reportTeardown: (plugin, error) => this._policy.reportTeardown(plugin, error),
       dropIsolation: (name) => this._policy.dropIsolation(name),
       hasService: (key) => this._serviceContainer.has(key as keyof GwenProvides),
+      deleteService: (key, expected) =>
+        this._serviceContainer.delete(key as keyof GwenProvides, expected),
     });
     bindFailureReporter(this, (error, target, hook) => {
       this._policy.reportCaught(error, hook, { target });
