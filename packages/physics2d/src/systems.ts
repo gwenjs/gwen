@@ -60,6 +60,9 @@ export interface PhysicsKinematicSyncSystemOptions {
  * Body and collider lifecycle is managed separately by the prefab
  * `extensions.physics` block inside the `Physics2DPlugin`.
  *
+ * `Physics2DPlugin` must be installed first, else `engine.use` rejects
+ * `CORE:PLUGIN_DEPENDENCY_MISSING`.
+ *
  * @param options - Pixel-to-meter ratio and the position component definition.
  * @returns A plugin object ready to register with `engine.use()`.
  *
@@ -92,6 +95,7 @@ export function createPhysicsKinematicSyncSystem(options: PhysicsKinematicSyncSy
   return {
     /** Unique plugin identifier consumed by the engine registry. */
     name: "PhysicsKinematicSyncSystem",
+    requires: { services: ["physics2d"] },
 
     /**
      * Initialises the plugin: resolves the Physics2D service and registers a

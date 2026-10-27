@@ -356,6 +356,8 @@ function createPhysicsKinematicSyncSystem(opts?: {
 
 **Description.** Crée un système qui synchronise les positions/rotations des corps cinématiques basées sur les composants Transform.
 
+Physics2DPlugin doit être installé en premier, sinon `engine.use` rejette `CORE:PLUGIN_DEPENDENCY_MISSING`.
+
 **Retourne:** `SystemDef`
 
 **Exemple:**
