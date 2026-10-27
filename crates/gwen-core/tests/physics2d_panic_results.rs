@@ -584,3 +584,50 @@ fn query_rect_half_extent_one_ulp_above_is_refused() -> Result<(), Physics2DErro
     assert_eq!(code_of(&result), "PHYSICS2D:INVALID_QUERY", "{result:?}");
     Ok(())
 }
+
+/// A kinematic NaN target is quarantined by Rapier and reported once as non-finite.
+#[test]
+fn a_rapier_quarantined_body_is_reported_once() -> Result<(), Physics2DError> {
+    const SLOT: u32 = 4;
+    const WITNESS: u32 = 5;
+    let mut engine = engine(-9.81)?;
+    add_box(&mut engine, SLOT, 0.0, 0.0, 2, (0.5, 0.5), 0.0)?;
+    add_box(&mut engine, WITNESS, 4.0, 8.0, 1, (0.5, 0.5), 0.0)?;
+    engine.physics_set_kinematic_position(SLOT, f32::NAN, 0.0, 0.0)?;
+    let before = position_y(&engine, WITNESS)?;
+    engine.physics_step(DT)?;
+    assert_eq!(engine.physics_take_disabled_slots(), vec![SLOT, 0]);
+    assert_eq!(enabled_label(&engine, SLOT), "disabled");
+    let pose = engine.physics_get_position(SLOT)?;
+    assert_eq!(
+        pose.iter().copied().all(f32::is_finite),
+        true,
+        "quarantined pose {pose:?}"
+    );
+    let after = position_y(&engine, WITNESS)?;
+    assert_ne!(after, before, "witness did not move");
+    assert_eq!(after.is_finite(), true, "witness y {after}");
+    engine.physics_step(DT)?;
+    assert_eq!(engine.physics_take_disabled_slots(), Vec::<u32>::new());
+    Ok(())
+}
+
+/// Guard pair and quarantine pair from one step share one slot order.
+#[test]
+fn guard_and_quarantine_reports_share_one_slot_order() -> Result<(), Physics2DError> {
+    let mut engine = engine(0.0)?;
+    add_box(&mut engine, 0, 0.0, 0.0, 2, (0.5, 0.5), 0.0)?;
+    add_box(
+        &mut engine,
+        7,
+        MAX_WORLD_EXTENT.next_up(),
+        0.0,
+        1,
+        (0.5, 0.5),
+        0.0,
+    )?;
+    engine.physics_set_kinematic_position(0, f32::NAN, 0.0, 0.0)?;
+    engine.physics_step(DT)?;
+    assert_eq!(engine.physics_take_disabled_slots(), vec![0, 0, 7, 1]);
+    Ok(())
+}

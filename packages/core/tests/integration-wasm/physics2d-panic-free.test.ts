@@ -232,6 +232,39 @@ describe("physics2d panic-free", () => {
     }
   });
 
+  it("a Rapier-quarantined body is reported once", async () => {
+    const handle = await createRealEngine({ variant: "physics2d", maxEntities: 32 });
+    const seen: Array<{ entity: EntityId; reason: string }> = [];
+    const unhook = handle.engine.hooks.hook("physics2d:body-disabled", (payload) => {
+      seen.push({ entity: payload.entity, reason: payload.reason });
+    });
+    try {
+      const physics = await startPhysics(handle, -9.81);
+      const { engine } = handle;
+      const kinematic = engine.createEntity();
+      const kinematicBody = physics.addRigidBody(kinematic, "kinematic", 0, 0);
+      physics.addBoxCollider(kinematicBody, 0.5, 0.5);
+      const other = engine.createEntity();
+      const otherBody = physics.addRigidBody(other, "dynamic", 4, 8, { mass: 1 });
+      physics.addBoxCollider(otherBody, 0.5, 0.5);
+      const before = physics.getPosition(other)?.y;
+      if (before === undefined) {
+        throw new Error("expected the other body");
+      }
+      physics.setKinematicPosition(kinematic, Number.NaN, 0);
+      await handle.advance(1, DT);
+      expect(seen).toEqual([{ entity: kinematic, reason: "non-finite" }]);
+      const after = physics.getPosition(other)?.y;
+      expect(after).not.toBe(before);
+      await handle.advance(1, DT);
+      expect(seen).toEqual([{ entity: kinematic, reason: "non-finite" }]);
+      expect(physics.getPosition(other)?.y).not.toBe(after);
+    } finally {
+      unhook();
+      await handle.dispose();
+    }
+  });
+
   it("a velocity that would leave the world disables the body with reason velocity", async () => {
     const handle = await createRealEngine({ variant: "physics2d", maxEntities: 32 });
     const seen: Array<{ entity: EntityId; reason: string }> = [];

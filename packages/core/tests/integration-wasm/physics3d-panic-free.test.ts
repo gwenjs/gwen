@@ -276,6 +276,50 @@ describe("physics3d panic-free", () => {
     }
   });
 
+  it("a Rapier-quarantined body is reported once", async () => {
+    const handle = await createRealEngine({ variant: "physics3d", maxEntities: 32 });
+    const seen: Array<{ entity: EntityId; reason: string }> = [];
+    const unhook = handle.engine.hooks.hook("physics3d:body-disabled", (payload) => {
+      seen.push({ entity: payload.entity, reason: payload.reason });
+    });
+    try {
+      const physics = await startPhysics(handle, -9.81);
+      const { engine } = handle;
+      const kinematic = engine.createEntity();
+      physics.createBody(kinematic, {
+        kind: "kinematic",
+        initialPosition: { x: 0, y: 0, z: 0 },
+      });
+      physics.addCollider(kinematic, { shape: BOX });
+      const other = engine.createEntity();
+      physics.createBody(other, {
+        kind: "dynamic",
+        mass: 1,
+        initialPosition: { x: 4, y: 8, z: 0 },
+      });
+      physics.addCollider(other, { shape: BOX });
+      const before = physics.getBodyState(other)?.position.y;
+      if (before === undefined) {
+        throw new Error("expected the other body");
+      }
+      physics.setKinematicPosition(
+        kinematic,
+        { x: Number.NaN, y: 0, z: 0 },
+        { x: 0, y: 0, z: 0, w: 1 },
+      );
+      await handle.advance(1, DT);
+      expect(seen).toEqual([{ entity: kinematic, reason: "non-finite" }]);
+      const after = physics.getBodyState(other)?.position.y;
+      expect(after).not.toBe(before);
+      await handle.advance(1, DT);
+      expect(seen).toEqual([{ entity: kinematic, reason: "non-finite" }]);
+      expect(physics.getBodyState(other)?.position.y).not.toBe(after);
+    } finally {
+      unhook();
+      await handle.dispose();
+    }
+  });
+
   it("a velocity that would leave the world disables the body with reason velocity", async () => {
     const handle = await createRealEngine({ variant: "physics3d", maxEntities: 32 });
     const seen: Array<{ entity: EntityId; reason: string }> = [];
