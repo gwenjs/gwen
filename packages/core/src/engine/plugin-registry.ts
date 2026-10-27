@@ -1,7 +1,7 @@
 import type { Hookable } from "hookable";
-import type { IGwenLogger } from "@gwenjs/schema";
+import type { GwenPluginRequirement, IGwenLogger } from "@gwenjs/schema";
 import { withCleanup } from "../cleanup-context.js";
-import { CoreErrorCodes } from "./engine-errors.js";
+import { CoreErrorCodes, GwenPluginDependencyError } from "./engine-errors.js";
 import { popEngine, pushEngine } from "./engine-local.js";
 import type { EngineErrorBus, GwenEngine, GwenPlugin } from "./engine-types.js";
 import {
@@ -30,6 +30,8 @@ export interface PluginRegistryDeps {
   reportSetup: (plugin: GwenPlugin, error: unknown) => void;
   reportTeardown: (plugin: GwenPlugin, error: unknown) => void;
   dropIsolation: (name: string) => void;
+  /** True when the service map already holds `key`. Engine-owned keys count. */
+  hasService: (key: string) => boolean;
 }
 
 type PluginRegistryReceiver = Pick<GwenEngine, "hooks">;
@@ -45,6 +47,8 @@ function receiverEngine(receiver: PluginRegistryReceiver): GwenEngine {
 export class PluginRegistry {
   private readonly _plugins: GwenPlugin[] = [];
   private readonly _pluginNames = new Set<string>();
+  /** In-flight `use()` calls. A name here is not installed yet. */
+  private readonly _pending = new Map<string, Promise<void>>();
   /** Dispose functions collected by withCleanup() during plugin setup — keyed by plugin name. */
   private readonly _pluginCleanups = new Map<string, () => void>();
 
@@ -58,10 +62,73 @@ export class PluginRegistry {
     this.deps.tracker.clearAll(this.deps.hooks);
   }
 
-  async use(plugin: GwenPlugin, receiver: PluginRegistryReceiver): Promise<void> {
-    this.deps.assertState("use");
-    if (this._pluginNames.has(plugin.name)) return;
+  // Not `async`: callers must receive `_install`'s promise unchanged.
+  use(plugin: GwenPlugin, receiver: PluginRegistryReceiver): Promise<void> {
+    try {
+      this.deps.assertState("use");
+      if (this._pluginNames.has(plugin.name)) {
+        this._warnDuplicate(plugin.name);
+        return Promise.resolve();
+      }
+      const inFlight = this._pending.get(plugin.name);
+      if (inFlight !== undefined) {
+        this._warnDuplicate(plugin.name);
+        return inFlight;
+      }
 
+      const missing = this._missingRequirements(plugin);
+      if (missing.length > 0) {
+        return Promise.reject(
+          new GwenPluginDependencyError({
+            code: CoreErrorCodes.PLUGIN_DEPENDENCY_MISSING,
+            plugin: plugin.name,
+            missing,
+          }),
+        );
+      }
+
+      const run = this._install(plugin, receiver);
+      this._pending.set(plugin.name, run);
+      return run;
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+
+  private _missingRequirements(plugin: GwenPlugin): GwenPluginRequirement[] {
+    const requires = plugin.requires;
+    const plugins = requires?.plugins ?? [];
+    const services = requires?.services ?? [];
+    return [
+      ...plugins
+        .filter((name) => !this._pluginNames.has(name))
+        .map((name) => ({ kind: "plugin" as const, name })),
+      ...services
+        .filter((name) => !this.deps.hasService(name))
+        .map((name) => ({ kind: "service" as const, name })),
+    ];
+  }
+
+  private _warnDuplicate(name: string): void {
+    if (__GWEN_DEV__ && this.deps.debug) {
+      this.deps.logger.warn(
+        `[GWEN] plugin "${name}" is already installed; duplicate use() ignored.`,
+      );
+    }
+  }
+
+  private _install(plugin: GwenPlugin, receiver: PluginRegistryReceiver): Promise<void> {
+    const run = this._runInstall(plugin, receiver);
+    const drop = (): void => {
+      this._pending.delete(plugin.name);
+    };
+    // A use() queued earlier in this tick still sees the settled run for one microtask.
+    // Side reaction only. Wrapping `run` would settle one microtask later.
+    void run.then(drop, drop);
+    return run;
+  }
+
+  private async _runInstall(plugin: GwenPlugin, receiver: PluginRegistryReceiver): Promise<void> {
     const scopedHooks = this._createScopedHooks(plugin.name, receiver);
     const engineWithScopedHooks = this._withScopedHooks(scopedHooks, receiver);
 

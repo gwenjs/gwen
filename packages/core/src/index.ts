@@ -36,6 +36,7 @@ export { emit } from "./hooks";
 export { createEngine, setupGwen } from "./engine/engine-factory";
 export {
   GwenPluginNotFoundError,
+  GwenPluginDependencyError,
   CoreErrorCodes,
   GwenWasmError,
   GwenWasmAbiError,

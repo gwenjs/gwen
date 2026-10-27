@@ -87,6 +87,9 @@ function rig(over: Partial<PluginRegistryDeps> = {}) {
     dropIsolation(name) {
       dropped.push(name);
     },
+    hasService() {
+      return false;
+    },
     ...over,
   };
   return {

@@ -48,4 +48,8 @@ export class ServiceContainer {
     if (!this._services.has(key)) return undefined;
     return readProvidedService(this._services, key);
   }
+
+  has(key: keyof GwenProvides): boolean {
+    return this._services.has(key);
+  }
 }

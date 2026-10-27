@@ -31,7 +31,7 @@ import {
 } from "./hook-dispatch.js";
 import { rememberEngineInternals } from "./engine-internals.js";
 import { WasmModuleRunner } from "./wasm-module-runner.js";
-import type { GwenEngine, GwenEngineOptions } from "./engine-types.js";
+import type { GwenEngine, GwenEngineOptions, GwenProvides } from "./engine-types.js";
 import { DisposableRegistry, createDisposable } from "../disposable.js";
 import type { ComponentType } from "../types";
 
@@ -158,6 +158,7 @@ export abstract class EngineCollaborators {
       reportSetup: (plugin, error) => this._policy.reportSetupError(plugin, error),
       reportTeardown: (plugin, error) => this._policy.reportTeardown(plugin, error),
       dropIsolation: (name) => this._policy.dropIsolation(name),
+      hasService: (key) => this._serviceContainer.has(key as keyof GwenProvides),
     });
     bindFailureReporter(this, (error, target, hook) => {
       this._policy.reportCaught(error, hook, { target });
