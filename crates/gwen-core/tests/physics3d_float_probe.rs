@@ -667,11 +667,6 @@ fn mesh_pose_case(x: f32, kind: u8, kinematic: bool, vertices: [f32; 9]) {
     let _ = engine.physics3d_cast_ray(0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 100.0, ALL, ALL, true);
 }
 
-/// Runs `f` under `catch_unwind` with the panic hook silenced; true when it panicked.
-fn panicked(f: impl FnOnce()) -> bool {
-    panic_report(f).is_some()
-}
-
 /// Panic message and source location, or `None` when `f` returns.
 fn panic_report(f: impl FnOnce()) -> Option<String> {
     let _lock = HOOK_LOCK.lock().unwrap_or_else(|p| p.into_inner());
@@ -729,18 +724,16 @@ fn hostile_floats_never_panic() {
 
 #[test]
 fn control_one_by_one_heightfield_panics() {
-    let outcome = if panicked(|| heightfield(1, 1)) {
-        "panicked"
-    } else {
-        "returned"
-    };
-    assert_eq!(
-        outcome, "panicked",
-        "1x1 heightfield did not panic: probe cannot detect"
+    let report = panic_report(|| heightfield(1, 1)).unwrap_or_default();
+    assert_ne!(
+        report.find("at least 2 rows and columns."),
+        None,
+        "{report}"
     );
 }
 
-/// An index past the vertex list still panics inside parry 0.31.1 `TriMesh::new`.
+/// An index past the vertex list panics in parry3d 0.31.1 `shape/trimesh.rs:1251`
+/// (`rebuild_bvh`). `TriMesh::new` returns `Result` at `trimesh.rs:629`.
 fn out_of_range_trimesh_index() {
     use rapier3d::math::Vector;
     use rapier3d::parry::shape::TriMesh;
@@ -754,15 +747,9 @@ fn out_of_range_trimesh_index() {
 
 #[test]
 fn control_out_of_range_trimesh_index_panics() {
-    let outcome = if panicked(out_of_range_trimesh_index) {
-        "panicked"
-    } else {
-        "returned"
-    };
-    assert_eq!(
-        outcome, "panicked",
-        "out-of-range trimesh index did not panic"
-    );
+    let report = panic_report(out_of_range_trimesh_index).unwrap_or_default();
+    assert_ne!(report.find("index out of bounds"), None, "{report}");
+    assert_ne!(report.find("trimesh.rs"), None, "{report}");
 }
 
 #[test]

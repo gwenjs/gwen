@@ -369,13 +369,8 @@ fn run_guarded<R>(f: impl FnOnce() -> R) -> Option<R> {
     catch_unwind(AssertUnwindSafe(f)).ok()
 }
 
-/// Runs `f` with the panic hook silenced; true when it panicked.
-fn panicked(f: impl FnOnce()) -> bool {
-    run_guarded(f).is_none()
-}
-
 /// Builds a heightfield straight through rapier. The export refuses a grid below 2x2, so the
-/// control reaches parry's own assert without it.
+/// control reaches parry3d 0.31.1 `shape/heightfield3.rs:90` without it.
 fn heightfield(rows: usize, cols: usize) {
     use rapier3d::math::Vector;
     use rapier3d::parry::utils::Array2;
@@ -419,16 +414,30 @@ fn hostile_joint_inputs_never_make_a_body_state_non_finite() {
     );
 }
 
+fn panic_text(f: impl FnOnce()) -> String {
+    let _lock = HOOK_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+    let _guard = HookGuard::silence();
+    match catch_unwind(AssertUnwindSafe(f)) {
+        Ok(()) => String::new(),
+        Err(payload) => {
+            if let Some(text) = payload.downcast_ref::<&str>() {
+                (*text).to_string()
+            } else if let Some(text) = payload.downcast_ref::<String>() {
+                text.clone()
+            } else {
+                "non-string panic".to_string()
+            }
+        }
+    }
+}
+
 #[test]
 fn control_one_by_one_heightfield_panics() {
-    let outcome = if panicked(|| heightfield(1, 1)) {
-        "panicked"
-    } else {
-        "returned"
-    };
-    assert_eq!(
-        outcome, "panicked",
-        "1x1 heightfield did not panic: probe cannot detect"
+    let report = panic_text(|| heightfield(1, 1));
+    assert_ne!(
+        report.find("at least 2 rows and columns."),
+        None,
+        "{report}"
     );
 }
 

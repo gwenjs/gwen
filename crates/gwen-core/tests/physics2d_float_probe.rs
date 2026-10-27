@@ -234,9 +234,28 @@ fn failed(f: impl FnOnce() -> Result<(), Physics2DError>) -> bool {
 /// One height. parry asserts `heights.len() > 1` before it builds the shape.
 fn one_sample_heightfield() -> Result<(), Physics2DError> {
     use rapier2d::math::Vector;
-    // parry2d 0.31.1 `shape/heightfield2.rs:40` asserts `heights.len() > 1`.
+    // parry2d 0.31.1 `shape/heightfield2.rs:40-43` asserts `heights.len() > 1`.
     let _ = rapier2d::geometry::ColliderBuilder::heightfield(vec![0.0], Vector::new(1.0, 1.0));
     Ok(())
+}
+
+fn panic_text(f: impl FnOnce() -> Result<(), Physics2DError>) -> String {
+    let _lock = HOOK_LOCK
+        .lock()
+        .unwrap_or_else(|poison| poison.into_inner());
+    let _guard = HookGuard::silence();
+    match catch_unwind(AssertUnwindSafe(f)) {
+        Ok(_) => String::new(),
+        Err(payload) => {
+            if let Some(text) = payload.downcast_ref::<&str>() {
+                (*text).to_string()
+            } else if let Some(text) = payload.downcast_ref::<String>() {
+                text.clone()
+            } else {
+                "non-string panic".to_string()
+            }
+        }
+    }
 }
 
 #[test]
@@ -250,14 +269,87 @@ fn hostile_floats_never_panic() {
 
 #[test]
 fn control_rapier_panics_on_one_sample_heightfield() {
-    let outcome = if failed(one_sample_heightfield) {
-        "panicked"
-    } else {
-        "returned"
-    };
+    let report = panic_text(one_sample_heightfield);
+    assert_ne!(
+        report.find("A heightfield heights must have at least 2 elements."),
+        None,
+        "{report}"
+    );
+}
+
+/// Magnitudes for one raw dynamic step. `1.0e7` is the locked world extent.
+const SCAN_MAGNITUDES: [f32; 9] = [
+    1.0e6, 1.0e7, 1.0e8, 4.9e8, 8.4e8, 1.0e9, 1.2e9, 2.0e9, 2.5e9,
+];
+
+/// One `PhysicsPipeline::step` of a dynamic ball (radius 0.5) at `y = m`.
+/// `PhysicsWorld::step` disables a body past ±1e7, so this calls the pipeline.
+fn raw_ball_step_at(m: f32) {
+    use rapier2d::prelude::*;
+    let mut bodies = RigidBodySet::new();
+    let mut colliders = ColliderSet::new();
+    let ball = bodies.insert(
+        RigidBodyBuilder::dynamic()
+            .translation(Vector::new(0.0, m))
+            .build(),
+    );
+    colliders.insert_with_parent(ColliderBuilder::ball(0.5).build(), ball, &mut bodies);
+    let mut pipeline = PhysicsPipeline::new();
+    let mut islands = IslandManager::new();
+    let mut broad_phase = DefaultBroadPhase::new();
+    let mut narrow_phase = NarrowPhase::new();
+    let mut impulse_joints = ImpulseJointSet::new();
+    let mut multibody_joints = MultibodyJointSet::new();
+    let mut ccd = CCDSolver::new();
+    let mut soft_bodies = SoftBodySet::new();
+    pipeline.step(
+        Vector::new(0.0, -9.81),
+        &IntegrationParameters::default(),
+        &mut islands,
+        &mut broad_phase,
+        &mut narrow_phase,
+        &mut bodies,
+        &mut colliders,
+        &mut impulse_joints,
+        &mut multibody_joints,
+        &mut soft_bodies,
+        &mut ccd,
+        &(),
+        &(),
+    );
+}
+
+#[test]
+fn broad_phase_extent_scan() {
+    let report: Vec<String> = SCAN_MAGNITUDES
+        .into_iter()
+        .map(|m| {
+            let _lock = HOOK_LOCK
+                .lock()
+                .unwrap_or_else(|poison| poison.into_inner());
+            let _guard = HookGuard::silence();
+            let flag = if catch_unwind(AssertUnwindSafe(|| raw_ball_step_at(m))).is_err() {
+                "panic"
+            } else {
+                "ok"
+            };
+            format!("{m:.1e} step={flag}")
+        })
+        .collect();
+    let at_or_below: Vec<String> = report
+        .iter()
+        .zip(SCAN_MAGNITUDES)
+        .filter(|(line, m)| *m <= 1.0e7 && line.ends_with("panic"))
+        .map(|(line, _)| line.clone())
+        .collect();
     assert_eq!(
-        outcome, "panicked",
-        "one-sample heightfield did not panic: probe cannot detect"
+        at_or_below,
+        Vec::<String>::new(),
+        "panic at or below 1e7; {report:?}"
+    );
+    assert_eq!(
+        report,
+        SCAN_MAGNITUDES.map(|m| format!("{m:.1e} step=ok")).to_vec()
     );
 }
 

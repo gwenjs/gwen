@@ -339,7 +339,8 @@ fn raw_rapier_steps_at_1e12_without_panicking_and_with_finite_positions() {
 }
 
 /// Magnitudes for one dynamic step and for ray, point and shape queries.
-/// `1.0e7` is the locked world extent. Nothing at or below it may panic.
+/// Re-measured on rapier 0.36.1 on 2026-10-27. Every pinned row stayed `ok`.
+/// `1.0e7` is the game-world extent. Nothing at or below it may panic.
 const SCAN_MAGNITUDES: [f32; 9] = [
     1.0e6, 1.0e7, 1.0e8, 4.9e8, 8.4e8, 1.0e9, 1.2e9, 2.0e9, 2.5e9,
 ];
