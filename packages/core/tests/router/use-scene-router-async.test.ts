@@ -111,10 +111,9 @@ describe("async onEnter — engine context propagation", () => {
     });
 
     const engine = await createEngine({ maxEntities: 100 });
-    // Use callAsync (not engine.run) — run() uses synchronous call() which
-    // restores context immediately when the async fn yields, losing context
-    // before callAsync inside send() can propagate it across the await.
-    await engineContext.callAsync(engine, async () => {
+    // Scene enter and exit hooks keep this engine current across await.
+    // engine.run only has to cover the synchronous router registration.
+    await engine.run(async () => {
       const nav = useSceneRouter(Router);
       await nav.send("GO");
     });
@@ -144,7 +143,7 @@ describe("async onEnter — engine context propagation", () => {
     });
 
     const engine = await createEngine({ maxEntities: 100 });
-    await engineContext.callAsync(engine, async () => {
+    await engine.run(async () => {
       await useSceneRouter(Router).send("GO");
     });
 
@@ -173,7 +172,7 @@ describe("async onEnter — engine context propagation", () => {
     });
 
     const engine = await createEngine({ maxEntities: 100 });
-    await engineContext.callAsync(engine, async () => {
+    await engine.run(async () => {
       await useSceneRouter(Router).send("GO");
     });
 
@@ -197,11 +196,11 @@ describe("async onEnter — engine context propagation", () => {
     });
 
     const engine = await createEngine({ maxEntities: 100 });
-    await engineContext.callAsync(engine, async () => {
+    await engine.run(async () => {
       await useSceneRouter(Router).send("GO");
     });
 
-    // After callAsync completes, context must be cleared
+    // After the transition, the slot is empty again.
     expect(engineContext.tryUse()).toBeFalsy();
   });
 
@@ -232,7 +231,7 @@ describe("async onEnter — engine context propagation", () => {
     });
 
     const engine = await createEngine({ maxEntities: 100 });
-    await engineContext.callAsync(engine, async () => {
+    await engine.run(async () => {
       const nav = useSceneRouter(Router);
       await nav.send("TO_B");
       await nav.send("TO_C");

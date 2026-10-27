@@ -123,6 +123,9 @@ const KIT_CONTRACTS = new Set([
   "GwenContextErrorCodes",
   "getCurrentScope",
   "_setCurrentScope",
+  "_engineSlot",
+  "EngineSlot",
+  "tryUseEngine",
 ]);
 
 /**

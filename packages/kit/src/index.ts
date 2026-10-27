@@ -20,6 +20,8 @@ export { useLogger, useErrorReporter, usePerfMark } from "./observability.js";
 // Scope API for plugin authors
 export { useCurrentScope } from "./context.js";
 export { getCurrentScope, _setCurrentScope } from "./scope-slot.js";
+export { _engineSlot, tryUseEngine } from "./engine-slot.js";
+export type { EngineSlot } from "./engine-slot.js";
 export {
   GwenContextError,
   GwenContextErrorCodes,

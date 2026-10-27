@@ -5,8 +5,10 @@
       "GwenContextError",
       "GwenContextErrorCodes",
       "KitErrorCodes",
+      "_engineSlot",
       "_setCurrentScope",
       "getCurrentScope",
+      "tryUseEngine",
       "useCurrentScope",
       "useErrorReporter",
       "useLogger",
@@ -15,6 +17,7 @@
     "types": [
       "AutoImport",
       "DeepPartial",
+      "EngineSlot",
       "GwenConfig",
       "GwenContextBoundary",
       "GwenContextErrorCode",

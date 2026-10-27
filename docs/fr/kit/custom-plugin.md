@@ -344,6 +344,20 @@ dispose()  // libère la ressource
 Le cycle de vie des scènes (`onEnter` / `onExit`) n'établit pas encore de contexte de cleanup, donc `onCleanup` est un no-op lorsqu'il est appelé depuis `onEnter`. Une future mise à jour de `@gwenjs/core` enveloppera `onEnter` dans `withCleanup` et effectuera le dispose sur `onExit`, rendant tous les composables transparents dans les scènes. **Utilisez `onCleanup` dès maintenant** pour que votre plugin soit compatible sans aucune modification.
 :::
 
+### `tryUseEngine()`
+
+`tryUseEngine()` retourne le moteur que `useEngine()` retourne, ou `undefined` là où `useEngine()` lance `CORE:OUTSIDE_ENGINE_CONTEXT`. Il ne lance jamais. Utilisez-le dans un plugin qui doit fonctionner avec ou sans moteur.
+
+```ts
+import { tryUseEngine } from '@gwenjs/kit'
+
+export function logIfRunning(message: string): void {
+  const engine = tryUseEngine()
+  if (engine === undefined) return
+  engine.logger.info(message)
+}
+```
+
 ## Gestion des erreurs
 
 Gérez les erreurs qui se produisent dans votre plugin :
