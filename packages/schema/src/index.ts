@@ -114,6 +114,11 @@ export type { TransformReader2D, TransformRef2D, TransformSample2D } from "./tra
 
 export type { GwenScopeType, GwenScopeMeta, IGwenScope } from "./scope";
 
+// ─── Engine config ───────────────────────────────────────────────────────────
+
+export { ENGINE_DEFAULTS, checkEngineConfig, formatReceived } from "./engine-config";
+export type { GwenEngineConfig, GwenConfigIssue } from "./engine-config";
+
 // ─── Module ──────────────────────────────────────────────────────────────────
 
 export type {
