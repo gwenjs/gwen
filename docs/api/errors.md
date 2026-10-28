@@ -141,7 +141,7 @@ Cause. The call is outside `defineActor()`, `plugin setup()`, or `withCleanup()`
   | `fingerprint` | Fingerprints differ, or `gwen.fingerprint` is absent or repeated. | Glue fingerprint. | Section text, `<no gwen.fingerprint section>`, or `<n gwen.fingerprint sections>`. |
   | `exports` | A glue `rawExports` name is not a module export. | Missing names joined by `,`. | `<absent>` |
   | `imports` | The module imports a name the contract does not list. | `<not in contract>` | Those names joined by `,`. |
-- `CORE:ENGINE_DISPOSED` {#core-engine-disposed} Thrown by `createEngineLocal().get()` when it would create a value after `engine.stop()` began disposing, and by engine dispose (#261).
+- `CORE:ENGINE_DISPOSED` {#core-engine-disposed} Thrown by `createEngineLocal().get()` when it would create a value after `engine.stop()` began disposing, and by `WasmBridgeImpl` after `engine.stop()`.
 - `CORE:WASM_CAPACITY_EXHAUSTED` {#core-wasm-capacity-exhausted} Thrown by WASM instance capacity (#263).
 - `CORE:INVALID_ENGINE` {#core-invalid-engine} Thrown by `createEngineLocal().get()` when the argument is not an engine.
 - `CORE:ENGINE_LOCAL_REENTRANT` {#core-engine-local-reentrant} Thrown by `createEngineLocal().get()` when `init` reads the same local for the engine it is building.
