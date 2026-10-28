@@ -218,10 +218,10 @@ export class EngineEntities {
 
   /** WASM spawn. Used outside a chunk loop, and when the mirror is already full. */
   private createNow(): EntityId {
-    const created = this.deps.bridge.createEntity();
-    if (created.index >= this.slotSpan) this.slotSpan = created.index + 1;
+    const id = this.deps.bridge._createEntityRaw();
+    const index = entityIndex(id);
+    if (index >= this.slotSpan) this.slotSpan = index + 1;
     this.aliveEpoch += 1;
-    const id = createEntityId(created.index, created.generation);
     if (this.hookCounts.entitySpawn !== 0) this.deps.emitSpawn(id);
     return id;
   }

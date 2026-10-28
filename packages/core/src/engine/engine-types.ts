@@ -322,6 +322,11 @@ export interface GwenEngineOptions {
   _bridge?: WasmBridgeImpl;
 
   /**
+   * @internal Set by setupGwen, createEngine when it creates the bridge, and the generated bootstrap. stop() disposes the bridge only when true.
+   */
+  _ownsBridge?: true;
+
+  /**
    * Maximum number of unique component-type query signatures to cache.
    * When full, the least-recently-used signature is evicted.
    * @default 256
