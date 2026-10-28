@@ -224,12 +224,28 @@ impl Engine {
     ///
     /// # Errors
     ///
-    /// [`CoreError::ComponentTypeLimitReached`] on the 129th layout.
+    /// [`CoreError::ComponentTypeLimitReached`] on the 129th layout with no
+    /// released id.
     /// [`CoreError::ComponentLayoutInvalid`] when a lane byte is unknown, the
     /// list is longer than 64, or the row is wider than 512 bytes. The table
     /// is unchanged.
     pub fn register_component(&mut self, lane_kinds: &[u8]) -> Result<u32, CoreError> {
         self.storage.register(lane_kinds)
+    }
+
+    /// Frees a component type id that no longer has rows.
+    ///
+    /// An unknown id, or an id that is already free, returns `Ok(())`.
+    /// A type that still has rows, or that a live query lists, returns
+    /// [`CoreError::ComponentTypeInUse`] and changes nothing. After a release
+    /// the id reads as unregistered until `register_component` reuses it.
+    ///
+    /// # Errors
+    ///
+    /// [`CoreError::ComponentTypeInUse`] when a row of `type_id` is still
+    /// stored or a live query lists it.
+    pub fn release_component(&mut self, type_id: u32) -> Result<(), CoreError> {
+        self.storage.release(type_id)
     }
 
     /// Add or overwrite one component row.

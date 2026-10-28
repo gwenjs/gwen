@@ -88,6 +88,12 @@ export interface WasmEngineBase {
    * @returns The type id used by later component calls.
    */
   register_component(lane_kinds: Uint8Array): number;
+  /**
+   * Free a component type id that no longer has rows.
+   * An unknown id does nothing. A type that still has rows throws
+   * an `Error` whose `code` is `CORE:COMPONENT_TYPE_IN_USE`.
+   */
+  release_component(type_id: number): void;
   /** Byte address of the 512-byte staging buffer. */
   component_staging_ptr(): number;
   /** Copy `staging[0..rowBytes]` onto the entity. */
@@ -1167,7 +1173,8 @@ export interface WasmBridge {
    * @returns The type id used by later component calls.
    * @throws {GwenWasmError} `CORE:COMPONENT_LAYOUT_INVALID` when a lane byte
    *   is unknown, the list is longer than 64, or the row is wider than 512.
-   * @throws {GwenWasmError} `CORE:COMPONENT_TYPE_LIMIT_REACHED` on the 129th layout.
+   * @throws {GwenWasmError} `CORE:COMPONENT_TYPE_LIMIT_REACHED` on the 129th layout
+   *   with no released id.
    */
   registerComponent(laneKinds: Uint8Array): number;
   /** Byte address of the 512-byte staging buffer. */
