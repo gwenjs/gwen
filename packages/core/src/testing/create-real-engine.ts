@@ -98,7 +98,11 @@ export async function createRealEngine(
     async dispose(): Promise<void> {
       if (disposed) return;
       disposed = true;
-      await engine.stop();
+      try {
+        await engine.stop();
+      } finally {
+        bridge.dispose();
+      }
     },
   };
 }

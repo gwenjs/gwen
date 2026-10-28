@@ -59,6 +59,7 @@ export abstract class EngineCollaborators {
   protected readonly _loop: EngineLoop;
   readonly hooks: Hookable<GwenRuntimeHooks> = createHooks<GwenRuntimeHooks>();
   /** @internal */ readonly _bridge: WasmBridgeImpl;
+  /** @internal */ readonly _ownsBridge: boolean;
   protected readonly _entities: EngineEntities;
 
   /**
@@ -73,6 +74,7 @@ export abstract class EngineCollaborators {
     const engine = this.asEngine();
     const hookCounts = trackCoreHookListeners(this.hooks);
     this._bridge = opts._bridge ?? new WasmBridgeImpl();
+    this._ownsBridge = opts._bridge === undefined || opts._ownsBridge === true;
     this.maxEntities = opts.maxEntities ?? ENGINE_DEFAULTS.maxEntities;
     this.targetFPS = opts.targetFPS ?? ENGINE_DEFAULTS.targetFPS;
     this.maxDeltaSeconds = opts.maxDeltaSeconds ?? ENGINE_DEFAULTS.maxDeltaSeconds;

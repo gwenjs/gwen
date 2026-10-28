@@ -27,6 +27,8 @@ export type CoreVariant = "light" | "physics2d" | "physics3d";
 export interface WasmEntityId {
   readonly index: number;
   readonly generation: number;
+  /** Glue destructor. Absent on the plain object {@link WasmBridge.createEntity} returns. */
+  free?(): void;
 }
 
 // ─── WASM core module interface ─────────────────────────────────────────────
@@ -56,6 +58,9 @@ export interface GwenCoreWasm {
 
 /** Exports common to ALL core variants (light, physics2d, physics3d) */
 export interface WasmEngineBase {
+  /** wasm-bindgen destructor. */
+  free?(): void;
+
   // ── Entity ──────────────────────────────────────────────────────────────
 
   /**
@@ -1103,6 +1108,14 @@ export interface InitWasmOptions {
 // ─── WasmBridge public interface ────────────────────────────────────────────
 
 export interface WasmBridge {
+  /**
+   * Release this bridge. Idempotent.
+   * A caller that passed `_bridge` calls `bridge.dispose()` after `stop()`.
+   * After an owned bridge is disposed, every bridge call that reaches WASM throws
+   * `CORE:ENGINE_DISPOSED`; `isActive()` returns false.
+   */
+  dispose(): void;
+
   /** True if Rust/WASM core is initialized and ready. */
   isActive(): boolean;
 
@@ -1123,7 +1136,7 @@ export interface WasmBridge {
 
   // ── Entity ──────────────────────────────────────────────────────────────
 
-  /** Create a new entity and return its packed handle (index + generation). */
+  /** Create a new entity and return a plain `{ index, generation }`. */
   createEntity(): WasmEntityId;
   /**
    * Create N entities, each with a transform.

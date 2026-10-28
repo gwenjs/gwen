@@ -108,14 +108,19 @@ class MemoryViewImpl<T extends MemoryViewType> implements MemoryView<T> {
   private _epoch = 0;
   private _disposed = false;
   private _reason = "used after dispose";
+  private readonly _name: string;
+  private _desc: MemoryViewDescriptor<T> | null;
 
   constructor(
     private readonly _owner: EngineMemory,
-    private readonly _desc: MemoryViewDescriptor<T>,
-  ) {}
+    desc: MemoryViewDescriptor<T>,
+  ) {
+    this._name = desc.name;
+    this._desc = desc;
+  }
 
   get name(): string {
-    return this._desc.name;
+    return this._name;
   }
 
   get epoch(): number {
@@ -124,7 +129,7 @@ class MemoryViewImpl<T extends MemoryViewType> implements MemoryView<T> {
 
   get array(): MemoryViewArray<T> {
     if (this._disposed || this._owner.closed) {
-      throw invalid(this._desc.name, this._owner.closed ? "engine stopped" : this._reason);
+      throw invalid(this._name, this._owner.closed ? "engine stopped" : this._reason);
     }
     const cached = this._array;
     // DataView.byteLength throws once the buffer is detached. The buffer length is 0 for both.
@@ -136,42 +141,51 @@ class MemoryViewImpl<T extends MemoryViewType> implements MemoryView<T> {
     if (this._disposed) return;
     this._disposed = true;
     this._reason = "used after dispose";
-    this._owner.unregister(this._desc.name);
+    this._owner.unregister(this._name);
+    this._array = null;
+    this._desc = null;
   }
 
   markStopped(): void {
     this._disposed = true;
     this._reason = "engine stopped";
+    this._array = null;
+    this._desc = null;
   }
 
   warnIfDetached(errors: EngineErrorBus, epoch: number, frame: number): void {
+    const desc = this._desc;
     const cached = this._array;
-    if (cached === null || cached.buffer.byteLength !== 0) return;
+    if (desc === null || cached === null || cached.buffer.byteLength !== 0) return;
     errors.emit({
       level: "warning",
       code: CoreErrorCodes.MEMORY_VIEW_DETACHED,
-      message: `[${this._desc.name}] re-read .array after any WASM call`,
-      source: this._desc.name,
-      context: { view: this._desc.name, epoch, frame },
+      message: `[${desc.name}] re-read .array after any WASM call`,
+      source: desc.name,
+      context: { view: desc.name, epoch, frame },
     });
   }
 
   private _rebuild(): MemoryViewArray<T> {
+    const desc = this._desc;
+    if (desc === null) {
+      throw invalid(this._name, this._reason);
+    }
     const memory = this._owner.linearMemory();
     if (memory === null) {
-      throw invalid(this._desc.name, "no linear memory");
+      throw invalid(this._name, "no linear memory");
     }
-    const ptr = this._desc.ptr();
-    const length = this._desc.length();
+    const ptr = desc.ptr();
+    const length = desc.length();
     if (!(length > 0) || !Number.isInteger(length)) {
-      throw invalid(this._desc.name, "length must be > 0");
+      throw invalid(this._name, "length must be > 0");
     }
-    const type = this._desc.type;
+    const type = desc.type;
     const bytes = type === "dataview" ? length : length * ELEMENT_BYTES[type];
     const align = ELEMENT_ALIGN[type];
     const buffer = memory.buffer;
     if (ptr < 0 || ptr % align !== 0 || ptr + bytes > buffer.byteLength) {
-      throw invalid(this._desc.name, "out of bounds or misaligned");
+      throw invalid(this._name, "out of bounds or misaligned");
     }
     const next = buildArray(type, buffer, ptr, length);
     this._array = next;

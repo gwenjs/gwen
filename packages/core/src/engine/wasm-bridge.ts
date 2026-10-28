@@ -245,6 +245,10 @@ export class WasmBridgeImpl implements WasmBridge {
   /** Set after a core trap. Later calls throw without entering WASM. */
   private _poisoned = false;
   private _panicCause: WebAssembly.RuntimeError | null = null;
+  /** Set by {@link dispose}. A call that reaches WASM throws `CORE:ENGINE_DISPOSED`. */
+  private _disposed = false;
+  /** Provider release (#263). Null until that provider exists. */
+  private _release: (() => void) | null = null;
 
   /** Track the last seen ArrayBuffer to detect memory.grow() events. */
   private _lastMemoryBuffer: ArrayBuffer | null = null;
@@ -301,9 +305,11 @@ export class WasmBridgeImpl implements WasmBridge {
    *
    * @param variant The core variant to load ('light', 'physics2d', 'physics3d')
    * @param options Initialization options (urls, max entities)
+   * @throws {GwenError} `CORE:ENGINE_DISPOSED` when this bridge was disposed.
    * @throws {GwenError} If WASM cannot be loaded or has invalid format
    */
   async init(variant: CoreVariant = "light", options: InitWasmOptions = {}): Promise<void> {
+    if (this._disposed) this._throwDisposed();
     if (this._wasmEngine) return;
     if (this._initPromise) return this._initPromise;
     this._poisoned = false;
@@ -424,7 +430,8 @@ export class WasmBridgeImpl implements WasmBridge {
    * Guard that returns the active WasmEngine or throws a descriptive error.
    * All bridge methods call this so the error message is consistent and actionable.
    *
-   * @throws {GwenError} If `init()` has not been called yet.
+   * @throws {GwenError} `CORE:ENGINE_DISPOSED` after `dispose()`.
+   * @throws {GwenError} `CORE:WASM_NOT_INITIALIZED` if `init()` has not been called yet.
    * @internal
    */
   /** Reads stay available after a panic. Writes use {@link _requireWasm}. */
@@ -434,6 +441,7 @@ export class WasmBridgeImpl implements WasmBridge {
   }
 
   private _requireWasm(): WasmEngine {
+    if (this._disposed) this._throwDisposed();
     if (this._poisoned && this._panicCause) {
       throw new GwenWasmPanicError(undefined, this._panicCause);
     }
@@ -454,6 +462,16 @@ export class WasmBridgeImpl implements WasmBridge {
   private _poison(cause: WebAssembly.RuntimeError): void {
     this._poisoned = true;
     this._panicCause = cause;
+  }
+
+  private _throwDisposed(): never {
+    throw new GwenError(
+      CoreErrorCodes.ENGINE_DISPOSED,
+      "The WASM bridge was disposed by engine.stop().",
+      {
+        hint: __GWEN_DEV__ ? "Create a new engine; a stopped engine cannot be reused." : undefined,
+      },
+    );
   }
 
   private _mapWasmError(err: unknown, exportName: string): unknown {
@@ -492,6 +510,31 @@ export class WasmBridgeImpl implements WasmBridge {
 
   // ── Status ───────────────────────────────────────────────────────────────
 
+  /**
+   * Drop the glue engine and every cache this bridge holds.
+   * A second call does nothing. A caller that passed `_bridge` calls this after `stop()`.
+   */
+  dispose(): void {
+    if (this._disposed) return;
+    this._disposed = true;
+    const eng = this._wasmEngine;
+    this._wasmEngine = null;
+    this._wasmModule = null;
+    this._wasmExports = null;
+    this._initPromise = null;
+    this._lastMemoryBuffer = null;
+    this._queryResultView = null;
+    this._resetQueryBuffers();
+    try {
+      eng?.free?.();
+    } catch {
+      /* already freed */
+    }
+    const release = this._release;
+    this._release = null;
+    release?.();
+  }
+
   isActive(): boolean {
     return this._wasmEngine !== null;
   }
@@ -525,7 +568,8 @@ export class WasmBridgeImpl implements WasmBridge {
   // ── Entity ───────────────────────────────────────────────────────────────
 
   /**
-   * Create a new entity and return its packed handle (index + generation).
+   * Create a new entity and return a plain `{ index, generation }`.
+   * The glue wrapper is freed before this returns.
    *
    * @throws {GwenWasmError} code `CORE:ENTITY_LIMIT_REACHED` when `maxEntities` is reached.
    *   The bridge stays usable after that throw.
@@ -536,8 +580,32 @@ export class WasmBridgeImpl implements WasmBridge {
     const wasm = this._requireWasm();
     try {
       const created = wasm.create_entity();
-      noteEntityAllocated(this, created.index, created.generation);
-      return created;
+      const id = { index: created.index, generation: created.generation };
+      created.free?.();
+      noteEntityAllocated(this, id.index, id.generation);
+      return id;
+    } catch (error: unknown) {
+      throw this._mapWasmError(error, "create_entity");
+    }
+  }
+
+  /**
+   * Create a new entity and return the packed id.
+   * The glue wrapper is freed before this returns.
+   * Same deferral, allocation note, and error mapping as {@link createEntity}.
+   * @internal
+   */
+  _createEntityRaw(): EntityId {
+    const reserved = deferEntityCreate(this);
+    if (reserved !== undefined) return createEntityId(reserved.index, reserved.generation);
+    const wasm = this._requireWasm();
+    try {
+      const created = wasm.create_entity();
+      const index = created.index;
+      const generation = created.generation;
+      created.free?.();
+      noteEntityAllocated(this, index, generation);
+      return createEntityId(index, generation);
     } catch (error: unknown) {
       throw this._mapWasmError(error, "create_entity");
     }

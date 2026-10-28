@@ -218,6 +218,10 @@ export class GwenEngineImpl extends EngineCollaborators implements GwenEngine {
    * inside `setup`, is not removed.
    * To know when teardown has finished, observe `engine:state-change` to `stopped`.
    * A `faulted` engine stays `faulted`.
+   * When this engine owns the bridge, `stop()` disposes it after disposables and before
+   * the error policy. A caller that passed `_bridge` calls `bridge.dispose()` after `stop()`.
+   * After an owned bridge is disposed, every bridge call that reaches WASM throws
+   * `CORE:ENGINE_DISPOSED`; `isActive()` returns false.
    */
   async stop(): Promise<void> {
     if (this._teardownOnce !== null) return;
@@ -233,7 +237,8 @@ export class GwenEngineImpl extends EngineCollaborators implements GwenEngine {
   /**
    * Cancel the frame, run `engine:stop`, tear plugins down last-installed-first,
    * then clear hooks, isolation, this engine's module handles, and disposables.
-   * Plugin teardown runs while the error policy is still attached.
+   * An owned WASM bridge is disposed after disposables and before the error policy.
+   * Plugin teardown runs while the bridge and the error policy are still attached.
    */
   private async _teardown(): Promise<void> {
     this._loop.cancel();
@@ -254,9 +259,13 @@ export class GwenEngineImpl extends EngineCollaborators implements GwenEngine {
     try {
       this.disposables.disposeAll(); // LIFO — last registered, first disposed
     } finally {
-      this._policy.dispose();
-      if (this._stateMachine.state === "stopping")
-        await this._stateMachine.transition("stopped", "USER");
+      try {
+        if (this._ownsBridge) this._bridge.dispose();
+      } finally {
+        this._policy.dispose();
+        if (this._stateMachine.state === "stopping")
+          await this._stateMachine.transition("stopped", "USER");
+      }
     }
   }
 

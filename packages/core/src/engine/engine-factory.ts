@@ -55,6 +55,8 @@ async function nodeWasmUrls(variant: CoreVariant): Promise<{ jsUrl?: string; was
  *
  * @param options - Engine configuration. All fields optional.
  * @returns The engine. When `options._bridge` is omitted, the light bridge is loaded first.
+ * The engine owns that bridge, so `stop()` disposes it. A caller that passes `_bridge`
+ * calls `bridge.dispose()` after `stop()`.
  *
  * @example
  * ```typescript
@@ -71,7 +73,7 @@ export async function createEngine(options?: GwenEngineOptions): Promise<GwenEng
   const variant = opts.variant ?? "light";
   const urls = await nodeWasmUrls(variant);
   await bridge.init(variant, { ...opts, ...urls });
-  return new GwenEngineImpl({ ...opts, _bridge: bridge });
+  return new GwenEngineImpl({ ...opts, _bridge: bridge, _ownsBridge: true });
 }
 
 /**
@@ -81,7 +83,7 @@ export async function createEngine(options?: GwenEngineOptions): Promise<GwenEng
  * ```ts
  * const bridge = new WasmBridgeImpl();
  * await bridge.init(options?.variant ?? 'light', options);
- * const engine = await createEngine({ ...options, _bridge: bridge });
+ * const engine = await createEngine({ ...options, _bridge: bridge, _ownsBridge: true });
  * ```
  *
  * Use this in application entry points. In tests or environments where WASM
@@ -102,5 +104,5 @@ export async function createEngine(options?: GwenEngineOptions): Promise<GwenEng
 export async function setupGwen(options?: GwenEngineOptions): Promise<GwenEngine> {
   const bridge = new WasmBridgeImpl();
   await bridge.init(options?.variant ?? "light", options);
-  return createEngine({ ...options, _bridge: bridge });
+  return createEngine({ ...options, _bridge: bridge, _ownsBridge: true });
 }
