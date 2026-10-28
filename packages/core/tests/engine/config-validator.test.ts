@@ -3,9 +3,11 @@
  */
 
 import { describe, it, expect, vi, afterEach } from "vitest";
+import * as schema from "@gwenjs/schema";
 import type { IGwenLogProvider } from "@gwenjs/schema";
 import { validateEngineConfig } from "../../src/engine/engine-config-validator.js";
 import { GwenConfigError } from "../../src/engine/config-error.js";
+import { createEngine, type GwenEngine } from "../../src/index";
 
 describe("GwenConfigError", () => {
   it("is an Error instance", () => {
@@ -298,5 +300,232 @@ describe("validateEngineConfig — logger.providers shape", () => {
       field: "logger.providers",
       hint: __GWEN_DEV__ ? "Pass objects with a handle(entry) method." : undefined,
     });
+  });
+});
+
+describe("validateEngineConfig — schema contract", () => {
+  function asOptions(
+    input: Readonly<Record<string, unknown>>,
+  ): Parameters<typeof validateEngineConfig>[0] {
+    return input as Parameters<typeof validateEngineConfig>[0];
+  }
+
+  it("validateEngineConfig throws CORE:INVALID_CONFIG exactly when checkEngineConfig reports an issue", () => {
+    expect(typeof schema.checkEngineConfig).toBe("function");
+    const rows: ReadonlyArray<Readonly<Record<string, unknown>>> = [
+      {},
+      { maxEntities: 1 },
+      { maxEntities: 2_000_000 },
+      { maxEntities: 2_000_001 },
+      { maxEntities: 0 },
+      { maxEntities: 1.5 },
+      { targetFPS: 1 },
+      { targetFPS: 300 },
+      { targetFPS: 301 },
+      { targetFPS: 0 },
+      { maxDeltaSeconds: 10 },
+      { maxDeltaSeconds: 10.0001 },
+      { maxDeltaSeconds: 0 },
+      { maxDeltaSeconds: -0 },
+      { variant: "light" },
+      { variant: "physics2d" },
+      { variant: "physics3d" },
+      { variant: "nope" },
+      { loop: "internal" },
+      { loop: "external" },
+      { loop: "fixed" },
+      { physicsHz: 0 },
+      { physicsHz: -1 },
+      { physicsHz: Number.NaN },
+      { maxCatchupSteps: 0 },
+      { maxCatchupSteps: -1 },
+      { maxCatchupSteps: 1.5 },
+      { debug: false },
+      { debug: true },
+      { debug: "yes" },
+      { maxEntities: 0, targetFPS: 0, debug: "yes" },
+      {
+        maxEntities: 1,
+        jsUrl: "x",
+        wasmUrl: "y",
+        glue: {},
+        wasmInstance: "isolated",
+        queryCacheSize: 4,
+        _bridge: {},
+      },
+      Object.create({ maxEntities: 0 }),
+      Object.create({ maxEntities: 1 }),
+    ];
+    for (const input of rows) {
+      const issues = schema.checkEngineConfig(input);
+      let caught: unknown;
+      try {
+        validateEngineConfig(asOptions(input));
+      } catch (error: unknown) {
+        caught = error;
+      }
+      if (issues.length === 0) {
+        expect(caught).toBeUndefined();
+        continue;
+      }
+      expect(caught).toBeInstanceOf(GwenConfigError);
+      if (!(caught instanceof GwenConfigError)) continue;
+      expect(caught.code).toBe("CORE:INVALID_CONFIG");
+      expect(caught.field).toBe(issues[0]?.path);
+    }
+  });
+
+  it("boundaries min, min-1, max, max+1 for the 3 numeric fields", () => {
+    expect(typeof schema.checkEngineConfig).toBe("function");
+    const rows: ReadonlyArray<{
+      input: Readonly<Record<string, unknown>>;
+      ok: boolean;
+      field?: string;
+      value?: number;
+      hint?: string;
+    }> = [
+      { input: { maxEntities: 1 }, ok: true },
+      {
+        input: { maxEntities: 0 },
+        ok: false,
+        field: "maxEntities",
+        value: 0,
+        hint: "Must be a positive integer. Try 10_000 for a typical game.",
+      },
+      { input: { maxEntities: 2_000_000 }, ok: true },
+      {
+        input: { maxEntities: 2_000_001 },
+        ok: false,
+        field: "maxEntities",
+        value: 2_000_001,
+        hint: "Above 2 000 000 entities, consider chunking your world.",
+      },
+      { input: { targetFPS: 1 }, ok: true },
+      {
+        input: { targetFPS: 0 },
+        ok: false,
+        field: "targetFPS",
+        value: 0,
+        hint: "Must be between 1 and 300. Common values: 30, 60, 120.",
+      },
+      { input: { targetFPS: 300 }, ok: true },
+      {
+        input: { targetFPS: 301 },
+        ok: false,
+        field: "targetFPS",
+        value: 301,
+        hint: "Must be between 1 and 300. Common values: 30, 60, 120.",
+      },
+      { input: { maxDeltaSeconds: Number.MIN_VALUE }, ok: true },
+      {
+        input: { maxDeltaSeconds: 0 },
+        ok: false,
+        field: "maxDeltaSeconds",
+        value: 0,
+        hint: "Must be > 0 and ≤ 10. Default 0.1 s prevents spiral-of-death.",
+      },
+      { input: { maxDeltaSeconds: 10 }, ok: true },
+      {
+        input: { maxDeltaSeconds: 10.0001 },
+        ok: false,
+        field: "maxDeltaSeconds",
+        value: 10.0001,
+        hint: "Must be > 0 and ≤ 10. Default 0.1 s prevents spiral-of-death.",
+      },
+    ];
+    for (const row of rows) {
+      let caught: unknown;
+      try {
+        validateEngineConfig(asOptions(row.input));
+      } catch (error: unknown) {
+        caught = error;
+      }
+      if (row.ok) {
+        expect(caught).toBeUndefined();
+        continue;
+      }
+      expect(caught).toBeInstanceOf(GwenConfigError);
+      if (!(caught instanceof GwenConfigError)) continue;
+      expect(caught.code).toBe("CORE:INVALID_CONFIG");
+      expect(caught.field).toBe(row.field);
+      expect(caught.value).toBe(row.value);
+      expect(caught.hint).toBe(__GWEN_DEV__ ? row.hint : undefined);
+    }
+  });
+
+  it("validateEngineConfig hints Expected <expected>. for variant, loop, physicsHz, maxCatchupSteps and debug", () => {
+    expect(typeof schema.checkEngineConfig).toBe("function");
+    const rows: ReadonlyArray<Readonly<Record<string, unknown>>> = [
+      { variant: "nope" },
+      { loop: "fixed" },
+      { physicsHz: -1 },
+      { maxCatchupSteps: -1 },
+      { debug: "yes" },
+    ];
+    for (const input of rows) {
+      const issue = schema.checkEngineConfig(input)[0];
+      expect(issue).toBeDefined();
+      let caught: unknown;
+      try {
+        validateEngineConfig(asOptions(input));
+      } catch (error: unknown) {
+        caught = error;
+      }
+      expect(caught).toBeInstanceOf(GwenConfigError);
+      if (!(caught instanceof GwenConfigError) || issue === undefined) continue;
+      expect(caught.field).toBe(issue.path);
+      expect(caught.hint).toBe(__GWEN_DEV__ ? `Expected ${issue.expected}.` : undefined);
+    }
+  });
+
+  it("validateEngineConfig rejects a null-prototype debug object as CORE:INVALID_CONFIG", () => {
+    expect(typeof schema.checkEngineConfig).toBe("function");
+    const debug: object = Object.create(null);
+    let caught: unknown;
+    try {
+      validateEngineConfig(asOptions({ debug }));
+    } catch (error: unknown) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(GwenConfigError);
+    if (!(caught instanceof GwenConfigError)) return;
+    expect(caught.code).toBe("CORE:INVALID_CONFIG");
+    expect(caught.field).toBe("debug");
+  });
+});
+
+describe("createEngine config defaults", () => {
+  it("createEngine without options reads every default from schema ENGINE_DEFAULTS", async () => {
+    expect(typeof schema.checkEngineConfig).toBe("function");
+    expect(typeof schema.ENGINE_DEFAULTS).toBe("object");
+    let engine: GwenEngine | undefined;
+    try {
+      engine = await createEngine();
+      expect(schema.ENGINE_DEFAULTS.maxEntities).toBe(10_000);
+      expect(engine.maxEntities).toBe(schema.ENGINE_DEFAULTS.maxEntities);
+      expect(engine.targetFPS).toBe(schema.ENGINE_DEFAULTS.targetFPS);
+      expect(engine.maxDeltaSeconds).toBe(schema.ENGINE_DEFAULTS.maxDeltaSeconds);
+      expect(engine.debug).toBe(schema.ENGINE_DEFAULTS.debug);
+      expect(engine.variant).toBe("light");
+    } finally {
+      await engine?.stop();
+    }
+  });
+
+  it("two engines keep their own config", async () => {
+    expect(typeof schema.checkEngineConfig).toBe("function");
+    let first: GwenEngine | undefined;
+    let second: GwenEngine | undefined;
+    try {
+      first = await createEngine({ maxEntities: 11, targetFPS: 30 });
+      second = await createEngine({ maxEntities: 22, targetFPS: 48 });
+      expect(first.maxEntities).toBe(11);
+      expect(first.targetFPS).toBe(30);
+      expect(second.maxEntities).toBe(22);
+      expect(second.targetFPS).toBe(48);
+    } finally {
+      await second?.stop();
+      await first?.stop();
+    }
   });
 });
