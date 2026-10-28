@@ -92,7 +92,7 @@ describe("plugin error isolation", () => {
       bridge._injectMock(createMockWasmEngine());
       const wasmBytes = Uint8Array.from(
         Buffer.from(
-          "0061736d010000000105016000017f03020100071b01176777656e5f706c7567696e5f6170695f76657273696f6e00000a09010700418089fa000b",
+          "0061736d010000000105016000017f03020100071b01176777656e5f706c7567696e5f6170695f76657273696f6e00000a0901070041e890fa000b",
           "hex",
         ),
       );
@@ -119,7 +119,7 @@ describe("plugin error isolation", () => {
       const engine = await createEngine({ errorBus: bus });
       const wasmBytes = Uint8Array.from(
         Buffer.from(
-          "0061736d010000000105016000017f03020100071b01176777656e5f706c7567696e5f6170695f76657273696f6e00000a09010700418089fa000b",
+          "0061736d010000000105016000017f03020100071b01176777656e5f706c7567696e5f6170695f76657273696f6e00000a0901070041e890fa000b",
           "hex",
         ),
       );

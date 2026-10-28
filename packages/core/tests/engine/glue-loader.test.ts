@@ -15,7 +15,7 @@ import { WasmBridgeImpl } from "../../src/internal";
 import { CoreErrorCodes } from "../../src/engine/engine-errors.js";
 
 const MINIMAL_WASM_URL = `data:application/wasm;base64,${Buffer.from(
-  "0061736d010000000105016000017f03020100071b01176777656e5f706c7567696e5f6170695f76657273696f6e00000a09010700418089fa000b",
+  "0061736d010000000105016000017f03020100071b01176777656e5f706c7567696e5f6170695f76657273696f6e00000a0901070041e890fa000b",
   "hex",
 ).toString("base64")}`;
 

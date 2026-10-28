@@ -84,7 +84,7 @@ export interface WasmModuleOptions<Exports extends WebAssembly.Exports = WebAsse
 }
 
 /** Current GWEN plugin API version. Encoded as major * 1_000_000 + minor * 1_000 + patch. */
-export const GWEN_PLUGIN_API_VERSION = 2_000_000; // v2.0.0
+export const GWEN_PLUGIN_API_VERSION = 2_001_000; // v2.1.0
 
 /**
  * Rejects a plugin instance whose ABI export differs from {@link GWEN_PLUGIN_API_VERSION}.

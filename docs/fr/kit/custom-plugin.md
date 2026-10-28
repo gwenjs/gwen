@@ -585,7 +585,7 @@ L'offset est l'export `gwen_<name>_ptr()` quand le module le fournit, sinon le `
 
 Quand cet export existe, le moteur instancie le module deux fois. La première instance lit l'offset. La seconde est le handle que le jeu garde. La fonction `start` s'exécute sur les deux instances. Le second `start` voit l'offset renvoyé par le premier export. La version d'API du plugin est vérifiée avant d'accepter cet offset. Un offset de sonde différent de la seconde instance est `CORE:WASM_MODULE_REGION_INVALID`.
 
-Importez `gwen.transform_buffer_ptr`, `gwen.transform_stride` (32), `gwen.max_entities` et `gwen.abi_version`. `abi_version` renvoie `2_000_000` et reste constant pendant toute la vie du module. Le format est little-endian, 32 octets par index d'entité :
+Importez `gwen.transform_buffer_ptr`, `gwen.transform_stride` (32), `gwen.max_entities` et `gwen.abi_version`. `abi_version` renvoie `2_001_000` et reste constant pendant toute la vie du module. Le format est little-endian, 32 octets par index d'entité :
 
 | Offset | Type | Sens |
 |---|---|---|
@@ -622,7 +622,7 @@ buf.full         // true si push échouerait
 
 ### ABI du plugin
 
-La version d'ABI courante est `2_000_000` (v2.0.0). Le nombre vaut `major * 1_000_000 + minor * 1_000 + patch`.
+La version d'ABI courante est `2_001_000` (v2.1.0). Le nombre vaut `major * 1_000_000 + minor * 1_000 + patch`.
 
 `loadWasmModule` rejette un module dont l'export `gwen_plugin_api_version` est absent, n'est pas une fonction, ou n'est pas exactement ce nombre. L'erreur est `GwenWasmAbiError`, code `CORE:WASM_MODULE_ABI_MISMATCH`. Le message nomme le module et les deux versions. Si l'export est absent ou n'est pas une fonction, la version réelle se lit « none declared ». Le module n'est pas enregistré. Le moteur continue.
 

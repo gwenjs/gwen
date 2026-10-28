@@ -12,19 +12,19 @@ declare module "../src/engine/engine-types.js" {
   }
 }
 
-// (func (export "gwen_plugin_api_version") (result i32) (i32.const 2000000))
+// (func (export "gwen_plugin_api_version") (result i32) (i32.const 2001000))
 const MINIMAL_WASM = Uint8Array.from(
   Buffer.from(
-    "0061736d010000000105016000017f03020100071b01176777656e5f706c7567696e5f6170695f76657273696f6e00000a09010700418089fa000b",
+    "0061736d010000000105016000017f03020100071b01176777656e5f706c7567696e5f6170695f76657273696f6e00000a0901070041e890fa000b",
     "hex",
   ),
 );
 
 // (module (memory (export "memory") 1)
-//   (func (export "gwen_plugin_api_version") (result i32) (i32.const 2000000)))
+//   (func (export "gwen_plugin_api_version") (result i32) (i32.const 2001000)))
 const WASM_WITH_MEMORY = Uint8Array.from(
   Buffer.from(
-    "0061736d010000000105016000017f030201000503010001072402066d656d6f72790200176777656e5f706c7567696e5f6170695f76657273696f6e00000a09010700418089fa000b",
+    "0061736d010000000105016000017f030201000503010001072402066d656d6f72790200176777656e5f706c7567696e5f6170695f76657273696f6e00000a0901070041e890fa000b",
     "hex",
   ),
 );

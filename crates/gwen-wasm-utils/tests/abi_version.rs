@@ -8,6 +8,7 @@ mod declared {
 
 #[test]
 fn one_module_calls_the_abi_version_and_a_channel_export() {
+    assert_eq!(gwen_wasm_utils::GWEN_PLUGIN_API_VERSION, 2_001_000);
     assert_eq!(
         declared::gwen_plugin_api_version(),
         gwen_wasm_utils::GWEN_PLUGIN_API_VERSION

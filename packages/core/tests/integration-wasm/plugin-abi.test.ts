@@ -8,7 +8,7 @@
  *
  * (module
  *   (func (export "gwen_plugin_api_version") (result i32)
- *     i32.const 2000000)
+ *     i32.const 2001000)
  *   (func (export "marker") (result i32)
  *     i32.const 7))
  *
@@ -23,7 +23,7 @@
  * (module
  *   (import "gwen" "abi_version" (func $abi (result i32)))
  *   (func (export "gwen_plugin_api_version") (result i32)
- *     i32.const 2000000)
+ *     i32.const 2001000)
  *   (func (export "read_abi") (result i32)
  *     (call $abi)))
  *
@@ -53,17 +53,17 @@ declare module "../../src/engine/engine-types.js" {
 const ADVICE = "recompile the plugin against the current gwen-wasm-utils / ABI version.";
 
 function abiMessage(moduleName: string, shown: string): string {
-  const what = `Plugin "${moduleName}" declares ABI version ${shown}, expected 2000000.`;
+  const what = `Plugin "${moduleName}" declares ABI version ${shown}, expected 2001000.`;
   const fix = __GWEN_DEV__ ? `\nFix: ${ADVICE}` : "";
   return `[engine.loadWasmModule()] ${what}${fix}\nSee https://gwenjs.github.io/gwen/api/errors#core-wasm-module-abi-mismatch (CORE:WASM_MODULE_ABI_MISMATCH)`;
 }
 
 const CURRENT_HEX =
-  "0061736d010000000105016000017f0303020000072402176777656e5f706c7567696e5f6170695f76657273696f6e0000066d61726b657200010a0e020700418089fa000b040041070b";
+  "0061736d010000000105016000017f0303020000072402176777656e5f706c7567696e5f6170695f76657273696f6e0000066d61726b657200010a0e02070041e890fa000b040041070b";
 const NEXT_HEX =
   "0061736d010000000105016000017f03020100071b01176777656e5f706c7567696e5f6170695f76657273696f6e00000a09010700418189fa000b";
 const IMPORT_HEX =
-  "0061736d010000000105016000017f021401046777656e0b6162695f76657273696f6e00000303020000072602176777656e5f706c7567696e5f6170695f76657273696f6e000108726561645f61626900020a0e020700418089fa000b040010000b";
+  "0061736d010000000105016000017f021401046777656e0b6162695f76657273696f6e00000303020000072602176777656e5f706c7567696e5f6170695f76657273696f6e000108726561645f61626900020a0e02070041e890fa000b040010000b";
 const EMPTY_HEX = "0061736d01000000";
 const PROBE_HEX =
   "0061736d010000000108026000006000017f0303020001073102136777656e5f7472616e73666f726d735f7074720000176777656e5f706c7567696e5f6170695f76657273696f6e00010a0d020300000b0700418189fa000b";
@@ -125,10 +125,10 @@ function failureOf(caught: unknown): {
 }
 
 describe("plugin ABI handshake", () => {
-  it("loads a module that returns 2_000_000 and steps it", async () => {
+  it("loads a module that returns 2_001_000 and steps it", async () => {
     const started = await createRealEngine({ variant: "light", maxEntities: 32 });
     try {
-      expect(GWEN_PLUGIN_API_VERSION).toBe(2_000_000);
+      expect(GWEN_PLUGIN_API_VERSION).toBe(2_001_000);
       let steps = 0;
       const handle = await started.engine.loadWasmModule<VersionExports>({
         name: "current",
@@ -137,7 +137,7 @@ describe("plugin ABI handshake", () => {
           steps += 1;
         },
       });
-      expect(handle.exports.gwen_plugin_api_version()).toBe(2_000_000);
+      expect(handle.exports.gwen_plugin_api_version()).toBe(2_001_000);
       expect(handle.exports.marker()).toBe(7);
       const before = started.engine.frameCount;
       await started.advance(1, 1 / 60);
@@ -169,7 +169,7 @@ describe("plugin ABI handshake", () => {
       expect(failure.name).toBe("GwenWasmAbiError");
       expect(failure.code).toBe("CORE:WASM_MODULE_ABI_MISMATCH");
       expect(failure.module).toBe("next");
-      expect(failure.expected).toBe(2_000_000);
+      expect(failure.expected).toBe(2_001_000);
       expect(failure.actual).toBe(2_000_001);
       expect(failure.composable).toBe("engine.loadWasmModule");
       expect(failure.hint).toBe(__GWEN_DEV__ ? ADVICE : undefined);
@@ -233,7 +233,7 @@ describe("plugin ABI handshake", () => {
       expect(failure.name).toBe("GwenWasmAbiError");
       expect(failure.code).toBe("CORE:WASM_MODULE_ABI_MISMATCH");
       expect(failure.actual).toBeNull();
-      expect(failure.expected).toBe(2_000_000);
+      expect(failure.expected).toBe(2_001_000);
       expect(failure.composable).toBe("engine.loadWasmModule");
       expect(failure.hint).toBe(__GWEN_DEV__ ? ADVICE : undefined);
       expect(failure.message.split("\n")[0]).not.toContain("Fix:");
@@ -254,7 +254,7 @@ describe("plugin ABI handshake", () => {
         url: wasmDataUrl(IMPORT_HEX),
       });
       const read = handle.exports.read_abi();
-      expect(read).toBe(2_000_000);
+      expect(read).toBe(2_001_000);
       expect(read).toBe(GWEN_PLUGIN_API_VERSION);
     } finally {
       await started.dispose();
@@ -268,7 +268,7 @@ describe("plugin ABI handshake", () => {
         name: "reader",
         url: wasmDataUrl(IMPORT_HEX),
       });
-      expect(first.exports.read_abi()).toBe(2_000_000);
+      expect(first.exports.read_abi()).toBe(2_001_000);
       const second = await started.engine.loadWasmModule<AbiReadExports>({
         name: "reader",
         url: "data:application/wasm;base64,AAAA",

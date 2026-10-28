@@ -7,11 +7,11 @@ import { Physics2DPlugin } from "../../../physics2d/src/plugin/index";
 import { createRealEngine, type RealEngineHandle } from "./harness.js";
 
 // (func (export "trap") unreachable)
-// (func (export "gwen_plugin_api_version") (result i32) (i32.const 2000000))
+// (func (export "gwen_plugin_api_version") (result i32) (i32.const 2001000))
 function trapModuleBytes(): Uint8Array<ArrayBuffer> {
   return Uint8Array.from(
     Buffer.from(
-      "0061736d010000000108026000006000017f030302000107220204747261700000176777656e5f706c7567696e5f6170695f76657273696f6e00010a0d020300000b0700418089fa000b",
+      "0061736d010000000108026000006000017f030302000107220204747261700000176777656e5f706c7567696e5f6170695f76657273696f6e00010a0d020300000b070041e890fa000b",
       "hex",
     ),
   );
