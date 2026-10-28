@@ -4,7 +4,7 @@
  */
 
 import { createHooks, type Hookable } from "hookable";
-import type { GwenLogLevel, IGwenLogger } from "@gwenjs/schema";
+import { ENGINE_DEFAULTS, type GwenLogLevel, type IGwenLogger } from "@gwenjs/schema";
 import type { GwenRuntimeHooks } from "./runtime-hooks";
 import { stringPoolFor } from "../utils/string-pool";
 import { consoleLogProvider } from "../logger/console-log-provider";
@@ -73,13 +73,13 @@ export abstract class EngineCollaborators {
     const engine = this.asEngine();
     const hookCounts = trackCoreHookListeners(this.hooks);
     this._bridge = opts._bridge ?? new WasmBridgeImpl();
-    this.maxEntities = opts.maxEntities ?? 10_000;
-    this.targetFPS = opts.targetFPS ?? 60;
-    this.maxDeltaSeconds = opts.maxDeltaSeconds ?? 0.1;
+    this.maxEntities = opts.maxEntities ?? ENGINE_DEFAULTS.maxEntities;
+    this.targetFPS = opts.targetFPS ?? ENGINE_DEFAULTS.targetFPS;
+    this.maxDeltaSeconds = opts.maxDeltaSeconds ?? ENGINE_DEFAULTS.maxDeltaSeconds;
     this.variant = opts.variant ?? "light";
-    this.debug = opts.debug ?? false;
-    this.physicsHz = opts.physicsHz ?? 0;
-    this.maxCatchupSteps = opts.maxCatchupSteps ?? 2;
+    this.debug = opts.debug ?? ENGINE_DEFAULTS.debug;
+    this.physicsHz = opts.physicsHz ?? ENGINE_DEFAULTS.physicsHz;
+    this.maxCatchupSteps = opts.maxCatchupSteps ?? ENGINE_DEFAULTS.maxCatchupSteps;
     this._stats = new EngineStatsRecorder({
       targetFPS: this.targetFPS,
       debug: this.debug,
