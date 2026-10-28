@@ -64,6 +64,8 @@ pub struct ComponentLayout {
     pub lanes: Vec<LaneKind>,
     /// Sum of the lane widths.
     pub row_bytes: u16,
+    /// Set by [`ChunkStore::release`]. A free slot reads as unregistered.
+    free: bool,
 }
 
 /// Where an entity's row sits. Absent when the entity has no component.
@@ -153,6 +155,8 @@ pub struct ChunkStore {
     staging: [u64; STAGING_WORDS],
     queries: Vec<Option<StoreQuery>>,
     free_queries: Vec<u32>,
+    /// Freed component type ids. The next [`ChunkStore::register`] pops one.
+    free_types: Vec<u32>,
 }
 
 struct StoreQuery {
@@ -245,6 +249,7 @@ impl ChunkStore {
             staging: [0; STAGING_WORDS],
             queries: Vec::new(),
             free_queries: Vec::new(),
+            free_types: Vec::new(),
         })
     }
 
@@ -255,20 +260,25 @@ impl ChunkStore {
 
     /// Records a layout and returns its type id.
     ///
-    /// The 129th call returns [`CoreError::ComponentTypeLimitReached`] before
+    /// A free id is taken only after the lane bytes pass. With no free id,
+    /// the 129th call returns [`CoreError::ComponentTypeLimitReached`] before
     /// the lane bytes are checked. A layout error leaves the table unchanged.
     pub fn register(&mut self, lane_kinds: &[u8]) -> Result<u32, CoreError> {
-        if self.layouts.len() >= TYPE_SLOTS {
+        let reused = self.free_types.last().copied();
+        let type_id = if let Some(type_id) = reused {
+            type_id
+        } else if self.layouts.len() >= TYPE_SLOTS {
             return Err(CoreError::ComponentTypeLimitReached {
                 max: MAX_COMPONENT_TYPES,
             });
-        }
-        let type_id = match u32::try_from(self.layouts.len()) {
-            Ok(type_id) => type_id,
-            Err(_) => {
-                return Err(CoreError::ComponentTypeLimitReached {
-                    max: MAX_COMPONENT_TYPES,
-                });
+        } else {
+            match u32::try_from(self.layouts.len()) {
+                Ok(type_id) => type_id,
+                Err(_) => {
+                    return Err(CoreError::ComponentTypeLimitReached {
+                        max: MAX_COMPONENT_TYPES,
+                    });
+                }
             }
         };
         if lane_kinds.len() > MAX_LANES {
@@ -297,13 +307,78 @@ impl ChunkStore {
         };
         let mut lanes = Vec::new();
         lanes.extend(lane_kinds.iter().copied().map(LaneKind));
+        if reused.is_some() {
+            let Some(slot) = self.layouts.get_mut(type_id as usize) else {
+                return Err(layout_error(type_id, LAYOUT_REASON_UNREGISTERED_TYPE));
+            };
+            slot.type_id = type_id;
+            slot.bit = bit;
+            slot.lanes = lanes;
+            slot.row_bytes = row_bytes;
+            slot.free = false;
+            match self.free_types.pop() {
+                Some(_) => return Ok(type_id),
+                None => return Err(layout_error(type_id, LAYOUT_REASON_UNREGISTERED_TYPE)),
+            }
+        }
         self.layouts.push(ComponentLayout {
             type_id,
             bit,
             lanes,
             row_bytes,
+            free: false,
         });
         Ok(type_id)
+    }
+
+    /// Frees `type_id` when no row still stores it.
+    ///
+    /// An unknown id, or an id that is already free, returns `Ok(())`.
+    /// A chunk with `len > 0` on a mask that holds the bit, or a live query
+    /// that lists the type, returns [`CoreError::ComponentTypeInUse`] and
+    /// writes nothing. Otherwise every archetype that held the bit is retired:
+    /// its chunks are freed, its mask and type list are cleared, the layout
+    /// slot is tombstoned so the id reads as unregistered, and the next
+    /// [`ChunkStore::register`] can reuse it. The generation bumps.
+    pub fn release(&mut self, type_id: u32) -> Result<(), CoreError> {
+        let Some(bit) = self.live_layout(type_id).map(|layout| layout.bit) else {
+            return Ok(());
+        };
+        for query in self.queries.iter().flatten() {
+            if query.types.contains(&type_id) {
+                return Err(CoreError::ComponentTypeInUse { type_id });
+            }
+        }
+        let mut matched = Vec::new();
+        for (index, arch) in self.archetypes.iter().enumerate() {
+            if arch.mask.contains(bit) {
+                matched.push(index);
+            }
+        }
+        for index in &matched {
+            let Some(arch) = self.archetypes.get(*index) else {
+                continue;
+            };
+            for chunk_id in &arch.chunks {
+                let Some(chunk) = self.chunk_ref(*chunk_id) else {
+                    continue;
+                };
+                if chunk.len > 0 {
+                    return Err(CoreError::ComponentTypeInUse { type_id });
+                }
+            }
+        }
+        for index in matched {
+            self.retire_archetype(index);
+        }
+        if let Some(layout) = self.layouts.get_mut(type_id as usize) {
+            layout.lanes.clear();
+            layout.row_bytes = 0;
+            layout.free = true;
+        }
+        self.free_types.push(type_id);
+        self.bump();
+        Ok(())
     }
 
     /// Inserts `type_id` or overwrites it in place.
@@ -331,7 +406,7 @@ impl ChunkStore {
         if !self.generation_matches(index, generation) {
             return Ok(false);
         }
-        let row_bytes = match self.layouts.get(type_id as usize) {
+        let row_bytes = match self.live_layout(type_id) {
             Some(layout) => layout.row_bytes as usize,
             None => return Err(layout_error(type_id, LAYOUT_REASON_UNREGISTERED_TYPE)),
         };
@@ -349,7 +424,7 @@ impl ChunkStore {
             None => return Err(layout_error(type_id, LAYOUT_REASON_UNREGISTERED_TYPE)),
         };
         let existing = self.find_archetype(mask);
-        if existing.is_none() && self.archetypes.len() >= MAX_ARCHETYPES as usize {
+        if existing.is_none() && !self.can_add_archetype() {
             return Err(CoreError::ArchetypeLimitReached {
                 max: MAX_ARCHETYPES,
             });
@@ -439,7 +514,7 @@ impl ChunkStore {
             None => return Ok(false),
         };
         let existing = self.find_archetype(mask);
-        if existing.is_none() && self.archetypes.len() >= MAX_ARCHETYPES as usize {
+        if existing.is_none() && !self.can_add_archetype() {
             return Err(CoreError::ArchetypeLimitReached {
                 max: MAX_ARCHETYPES,
             });
@@ -594,7 +669,7 @@ impl ChunkStore {
         generation: u32,
         type_id: u32,
     ) -> Result<bool, CoreError> {
-        let width = match self.layouts.get(type_id as usize) {
+        let width = match self.live_layout(type_id) {
             Some(layout) => layout.row_bytes as usize,
             None => return Err(layout_error(type_id, LAYOUT_REASON_UNREGISTERED_TYPE)),
         };
@@ -623,8 +698,7 @@ impl ChunkStore {
         type_id: u32,
     ) -> Result<bool, CoreError> {
         let Some(width) = self
-            .layouts
-            .get(type_id as usize)
+            .live_layout(type_id)
             .map(|layout| layout.row_bytes as usize)
         else {
             return Ok(false);
@@ -693,8 +767,7 @@ impl ChunkStore {
         out: &mut [u8],
     ) -> Result<bool, CoreError> {
         let Some(width) = self
-            .layouts
-            .get(type_id as usize)
+            .live_layout(type_id)
             .map(|layout| layout.row_bytes as usize)
         else {
             return Ok(false);
@@ -801,9 +874,15 @@ impl ChunkStore {
         Some(self.chunk_ref(chunk)?.entity_index.as_ptr() as usize)
     }
 
-    /// Archetypes created so far.
+    /// Live archetypes. A retired slot has an empty mask and is not counted.
     pub fn archetype_count(&self) -> u32 {
-        u32::try_from(self.archetypes.len()).unwrap_or_default()
+        let mut live = 0usize;
+        for arch in &self.archetypes {
+            if !arch.mask.is_empty() {
+                live = live.saturating_add(1);
+            }
+        }
+        u32::try_from(live).unwrap_or_default()
     }
 
     /// Layouts registered so far.
@@ -837,8 +916,18 @@ impl ChunkStore {
     }
 
     /// Layout recorded for `type_id`.
+    ///
+    /// A released id has no layout until [`ChunkStore::register`] reuses it.
     pub fn layout(&self, type_id: u32) -> Option<&ComponentLayout> {
-        self.layouts.get(type_id as usize)
+        self.live_layout(type_id)
+    }
+
+    /// Every lookup of a layout goes through here, so a free id reads as
+    /// unregistered.
+    fn live_layout(&self, type_id: u32) -> Option<&ComponentLayout> {
+        self.layouts
+            .get(type_id as usize)
+            .filter(|layout| !layout.free)
     }
 
     /// Address of the chunk's entity-generation column.
@@ -985,7 +1074,7 @@ impl ChunkStore {
         }
         let mut viewable = Vec::new();
         for &type_id in type_ids {
-            let Some(layout) = self.layouts.get(type_id as usize) else {
+            let Some(layout) = self.live_layout(type_id) else {
                 return Err(layout_error(type_id, LAYOUT_REASON_UNREGISTERED_TYPE));
             };
             for (offset, lane) in layout.lanes.iter().enumerate() {
@@ -1350,7 +1439,7 @@ impl ChunkStore {
     fn mask_of(&self, types: &[u32]) -> Option<BitSet128> {
         let mut mask = BitSet128::new();
         for type_id in types {
-            let bit = self.layouts.get(*type_id as usize)?.bit;
+            let bit = self.live_layout(*type_id)?.bit;
             if !mask.set(bit) {
                 return None;
             }
@@ -1362,6 +1451,17 @@ impl ChunkStore {
         self.archetypes.iter().position(|arch| arch.mask == mask)
     }
 
+    /// First retired slot. A cleared mask with an empty type list can be reused.
+    fn reusable_archetype(&self) -> Option<usize> {
+        self.archetypes
+            .iter()
+            .position(|arch| arch.mask.is_empty() && arch.types.is_empty())
+    }
+
+    fn can_add_archetype(&self) -> bool {
+        self.archetypes.len() < MAX_ARCHETYPES as usize || self.reusable_archetype().is_some()
+    }
+
     fn arch_has(&self, arch: usize, type_id: u32) -> bool {
         self.archetypes
             .get(arch)
@@ -1369,13 +1469,10 @@ impl ChunkStore {
     }
 
     fn create_archetype(&mut self, mask: BitSet128, types: &[u32]) -> Option<usize> {
-        if self.archetypes.len() >= MAX_ARCHETYPES as usize {
-            return None;
-        }
         let mut lane_sizes = Vec::new();
         let mut lane_at = Vec::new();
         for type_id in types {
-            let layout = self.layouts.get(*type_id as usize)?;
+            let layout = self.live_layout(*type_id)?;
             let start = u16::try_from(lane_sizes.len()).ok()?;
             lane_at.push(start);
             for lane in &layout.lanes {
@@ -1385,6 +1482,20 @@ impl ChunkStore {
         }
         let mut stored = Vec::new();
         stored.extend_from_slice(types);
+        if let Some(index) = self.reusable_archetype() {
+            let id = u32::try_from(index).ok()?;
+            let arch = self.archetypes.get_mut(index)?;
+            arch.id = id;
+            arch.mask = mask;
+            arch.types = stored;
+            arch.lane_at = lane_at;
+            arch.lane_sizes = lane_sizes;
+            arch.chunks.clear();
+            return Some(index);
+        }
+        if self.archetypes.len() >= MAX_ARCHETYPES as usize {
+            return None;
+        }
         let id = u32::try_from(self.archetypes.len()).ok()?;
         self.archetypes.push(Archetype {
             id,
@@ -1401,7 +1512,7 @@ impl ChunkStore {
         let archetype = self.archetypes.get(arch)?;
         let pos = archetype.types.binary_search(&type_id).ok()?;
         let start = usize::from(*archetype.lane_at.get(pos)?);
-        let width = self.layouts.get(type_id as usize)?.lanes.len();
+        let width = self.live_layout(type_id)?.lanes.len();
         Some((start, start + width))
     }
 
@@ -1442,6 +1553,26 @@ impl ChunkStore {
         };
         self.archetypes.get_mut(arch_index)?.chunks.push(id);
         Some(id)
+    }
+
+    fn retire_archetype(&mut self, index: usize) {
+        let mut chunk_ids = Vec::new();
+        if let Some(arch) = self.archetypes.get_mut(index) {
+            chunk_ids.append(&mut arch.chunks);
+            arch.mask.clear();
+            arch.types.clear();
+            arch.lane_at.clear();
+            arch.lane_sizes.clear();
+        }
+        for chunk_id in chunk_ids {
+            let live = match self.chunks.get(chunk_id as usize) {
+                Some(slot) => slot.data.is_some(),
+                None => false,
+            };
+            if live {
+                self.free_chunk(chunk_id);
+            }
+        }
     }
 
     fn free_chunk(&mut self, id: u32) {
@@ -1850,7 +1981,7 @@ impl ChunkStore {
         if !self.arch_has(arch_index, type_id) {
             return false;
         }
-        match self.layouts.get(type_id as usize) {
+        match self.live_layout(type_id) {
             Some(layout) => data.len() == usize::from(layout.row_bytes),
             None => false,
         }

@@ -98,6 +98,7 @@ Cause. The call is outside `defineActor()`, `plugin setup()`, or `withCleanup()`
 - `CORE:QUERY_CAPACITY_EXCEEDED` {#core-query-capacity-exceeded}
 - `CORE:ENTITY_LIMIT_REACHED` {#core-entity-limit-reached}
 - `CORE:COMPONENT_TYPE_LIMIT_REACHED` {#core-component-type-limit-reached}
+- `CORE:COMPONENT_TYPE_IN_USE` {#core-component-type-in-use} — component type {type_id} still has rows
 - `CORE:INVALID_PARENT` {#core-invalid-parent}
 - `CORE:INVALID_MAX_ENTITIES` {#core-invalid-max-entities}
 - `CORE:BUFFER_LENGTH_MISMATCH` {#core-buffer-length-mismatch}

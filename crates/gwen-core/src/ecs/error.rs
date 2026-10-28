@@ -40,6 +40,11 @@ pub enum CoreError {
         /// Maximum number of component types (128).
         max: u32,
     },
+    /// `release` refused because a row of this type is still stored.
+    ComponentTypeInUse {
+        /// Type id that still has rows.
+        type_id: u32,
+    },
     /// `set_entity_parent` refused a self-parent or a cycle.
     InvalidParent {
         /// Child entity index.
@@ -159,6 +164,7 @@ impl CoreError {
             Self::EntityLimitReached { .. } => "CORE:ENTITY_LIMIT_REACHED",
             Self::QueryCapacityExceeded { .. } => "CORE:QUERY_CAPACITY_EXCEEDED",
             Self::ComponentTypeLimitReached { .. } => "CORE:COMPONENT_TYPE_LIMIT_REACHED",
+            Self::ComponentTypeInUse { .. } => "CORE:COMPONENT_TYPE_IN_USE",
             Self::InvalidParent { .. } => "CORE:INVALID_PARENT",
             Self::InvalidMaxEntities { .. } => "CORE:INVALID_MAX_ENTITIES",
             Self::BufferLengthMismatch { .. } => "CORE:BUFFER_LENGTH_MISMATCH",
@@ -202,6 +208,9 @@ impl fmt::Display for CoreError {
             }
             Self::ComponentTypeLimitReached { max } => {
                 write!(f, "Component type limit reached: {max}")
+            }
+            Self::ComponentTypeInUse { type_id } => {
+                write!(f, "component type {type_id} still has rows")
             }
             Self::InvalidParent { child, parent } => {
                 write!(f, "Invalid parent: child {child} parent {parent}")
