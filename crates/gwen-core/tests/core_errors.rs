@@ -77,6 +77,9 @@ fn assert_known_code(err: &CoreError) {
         CoreError::StorageInconsistent { .. } => {
             assert_eq!(err.code(), "CORE:STORAGE_INCONSISTENT");
         }
+        CoreError::ComponentTypeInUse { .. } => {
+            assert_eq!(err.code(), "CORE:COMPONENT_TYPE_IN_USE");
+        }
     }
 }
 
@@ -85,6 +88,14 @@ fn history_buffers_unavailable_reports_its_code_and_message() {
     let err = CoreError::HistoryBuffersUnavailable { max_entities: 64 };
     assert_eq!(err.code(), "CORE:HISTORY_BUFFERS_UNAVAILABLE");
     assert_eq!(err.to_string(), "history buffers cannot be allocated");
+    assert_known_code(&err);
+}
+
+#[test]
+fn component_type_in_use_reports_its_code_and_message() {
+    let err = CoreError::ComponentTypeInUse { type_id: 3 };
+    assert_eq!(err.code(), "CORE:COMPONENT_TYPE_IN_USE");
+    assert_eq!(err.to_string(), "component type 3 still has rows");
     assert_known_code(&err);
 }
 

@@ -410,6 +410,20 @@ fn wasm_invalid_shared_buffer_has_core_code() {
 }
 
 #[cfg(target_arch = "wasm32")]
+#[wasm_bindgen_test]
+fn wasm_release_component_in_use_carries_its_code() {
+    let mut engine = make_engine();
+    let id = must_ok(engine.create_entity());
+    let type_id = must_ok(engine.register_component(&[0]));
+    let added = must_ok(engine.add_component(id.index(), id.generation(), type_id, &[1, 0, 0, 0]));
+    assert_eq!(added, true);
+    let err = must_err(engine.release_component(type_id));
+    assert_eq!(js_error_code(err), "CORE:COMPONENT_TYPE_IN_USE");
+    let raw = must_ok(engine.get_component_raw(id.index(), id.generation(), type_id));
+    assert_eq!(raw, vec![1, 0, 0, 0]);
+}
+
+#[cfg(target_arch = "wasm32")]
 trait FreeOutcome {
     fn shared_buffer_error(self) -> Option<gwen_core::CoreError>;
 }
