@@ -141,7 +141,7 @@ Cause. L'appel est hors de `defineActor()`, `plugin setup()` ou `withCleanup()`.
   | `fingerprint` | Les empreintes diffèrent, ou `gwen.fingerprint` est absente ou répétée. | Empreinte de la glue. | Texte de la section, `<no gwen.fingerprint section>`, ou `<n gwen.fingerprint sections>`. |
   | `exports` | Un nom de `rawExports` n'est pas un export du module. | Noms manquants joints par `,`. | `<absent>` |
   | `imports` | Le module importe un nom absent du contrat. | `<not in contract>` | Ces noms joints par `,`. |
-- `CORE:ENGINE_DISPOSED` {#core-engine-disposed} Lancé par `createEngineLocal().get()` quand il créerait une valeur après le début de la libération par `engine.stop()`, et par la libération du moteur (#261).
+- `CORE:ENGINE_DISPOSED` {#core-engine-disposed} Lancé par `createEngineLocal().get()` quand il créerait une valeur après le début de la libération par `engine.stop()`, et par `WasmBridgeImpl` après `engine.stop()`.
 - `CORE:WASM_CAPACITY_EXHAUSTED` {#core-wasm-capacity-exhausted} Lancé par la capacité d'instance WASM (#263).
 - `CORE:INVALID_ENGINE` {#core-invalid-engine} Lancé par `createEngineLocal().get()` quand l'argument n'est pas un moteur.
 - `CORE:ENGINE_LOCAL_REENTRANT` {#core-engine-local-reentrant} Lancé par `createEngineLocal().get()` quand `init` relit le même local pour le moteur qu'il construit.
