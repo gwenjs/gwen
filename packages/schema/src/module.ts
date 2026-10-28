@@ -13,6 +13,7 @@
 
 import type { GwenPlugin } from "./plugin.js";
 import type { DeepPartial } from "./config.js";
+import type { GwenConfigIssue } from "./engine-config.js";
 
 /**
  * Augmentable module options merged into `defineConfig`.
@@ -287,6 +288,15 @@ export interface GwenModuleDefinition<Options extends object = Record<string, un
    * Merged with user-provided config using `defu` — user values take precedence.
    */
   defaults?: DeepPartial<Options>;
+
+  /**
+   * Checks resolved options for this module.
+   * Paths are relative to the module section. The resolver sets `owner`.
+   *
+   * @param options - Resolved options (user values merged with `defaults`).
+   * @returns Issues. An empty list means the options are accepted.
+   */
+  validate?(options: Options): readonly GwenConfigIssue[];
 
   /**
    * Build-time setup function. Runs in Node.js during `gwen dev`,

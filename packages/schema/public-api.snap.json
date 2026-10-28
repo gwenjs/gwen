@@ -1,18 +1,21 @@
 {
   ".": {
     "values": [
+      "ENGINE_DEFAULTS",
       "GWEN_DOCS_BASE",
       "GwenError",
       "RENDERER_CONTRACT_VERSION",
       "RENDER_VIEW_MATRIX_LENGTH",
       "TRANSFORM_2D_SERVICE",
       "assertModuleFirstInput",
+      "checkEngineConfig",
       "createEntityId",
       "defaultOptions",
       "entityGeneration",
       "entityIndex",
       "errorDocsAnchor",
       "errorDocsUrl",
+      "formatReceived",
       "resolveConfig",
       "unpackEntityId",
       "validateResolvedConfig"
@@ -31,8 +34,10 @@
       "GwenBaseConfig",
       "GwenBuildHooks",
       "GwenConfigInput",
+      "GwenConfigIssue",
       "GwenDisposable",
       "GwenEngineBase",
+      "GwenEngineConfig",
       "GwenEngineState",
       "GwenEngineStateChangeReason",
       "GwenErrorBusBase",
