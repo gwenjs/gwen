@@ -744,3 +744,256 @@ fn a_dormant_entity_is_awake_after_losing_its_last_component() -> Result<(), Cor
     assert_eq!(row4(&store, 0, 0, kind)?, le4(2));
     Ok(())
 }
+
+#[test]
+fn release_with_only_empty_archetypes_retires_them_and_reuses_the_bit() -> Result<(), CoreError> {
+    let mut store = open(4)?;
+    let first = store.register(&[0])?;
+    let middle = store.register(&[0])?;
+    let last = store.register(&[0])?;
+    assert_eq!(store.add(0, 0, first, &le4(1)), Ok(true));
+    assert_eq!(store.add(1, 0, middle, &le4(2)), Ok(true));
+    assert_eq!(store.add(2, 0, last, &le4(3)), Ok(true));
+    let middle_chunk = store.location(1).map(|loc| loc.chunk);
+    assert_eq!(store.remove(0, 0, first), Ok(true));
+    assert_eq!(store.remove(1, 0, middle), Ok(true));
+    assert_eq!(store.remove(2, 0, last), Ok(true));
+    let layouts = store.layout_count();
+    let archetypes = store.archetype_count();
+    assert_eq!(archetypes, 3);
+    assert_eq!(store.release(middle), Ok(()));
+    assert_eq!(store.archetype_count(), archetypes - 1);
+    assert_eq!(store.layout_count(), layouts);
+    assert_eq!(store.location(1), None);
+    match middle_chunk {
+        Some(chunk) => assert_eq!(store.chunk_len(chunk), None),
+        None => assert_eq!(middle_chunk, Some(0)),
+    }
+    assert_eq!(store.register(&[0])?, middle);
+    assert_eq!(store.layout_count(), layouts);
+    Ok(())
+}
+
+#[test]
+fn release_with_a_non_empty_archetype_is_an_error_and_changes_nothing() -> Result<(), CoreError> {
+    let mut store = open(4)?;
+    let kept = store.register(&[0])?;
+    let busy = store.register(&[0])?;
+    assert_eq!(store.add(0, 0, kept, &le4(4)), Ok(true));
+    assert_eq!(store.add(1, 0, busy, &le4(5)), Ok(true));
+    let layouts = store.layout_count();
+    let archetypes = store.archetype_count();
+    assert_eq!(
+        store.release(busy),
+        Err(CoreError::ComponentTypeInUse { type_id: busy })
+    );
+    assert_eq!(store.layout_count(), layouts);
+    assert_eq!(store.archetype_count(), archetypes);
+    assert_eq!(row4(&store, 1, 0, busy)?, le4(5));
+    assert_eq!(row4(&store, 0, 0, kept)?, le4(4));
+    assert_eq!(store.register(&[0])?, 2);
+    Ok(())
+}
+
+#[test]
+fn release_of_a_free_or_unknown_type_is_a_no_op() -> Result<(), CoreError> {
+    let mut store = open(4)?;
+    let layouts = store.layout_count();
+    let archetypes = store.archetype_count();
+    assert_eq!(store.release(4), Ok(()));
+    assert_eq!(store.release(4), Ok(()));
+    assert_eq!(store.layout_count(), layouts);
+    assert_eq!(store.archetype_count(), archetypes);
+    let id = store.register(&[0])?;
+    assert_eq!(store.add(0, 0, id, &le4(1)), Ok(true));
+    assert_eq!(store.remove(0, 0, id), Ok(true));
+    assert_eq!(store.release(id), Ok(()));
+    let layouts_after = store.layout_count();
+    let archetypes_after = store.archetype_count();
+    assert_eq!(store.release(id), Ok(()));
+    assert_eq!(store.layout_count(), layouts_after);
+    assert_eq!(store.archetype_count(), archetypes_after);
+    Ok(())
+}
+
+#[test]
+fn the_129th_type_registers_after_one_release() -> Result<(), CoreError> {
+    let mut store = open(2)?;
+    for index in 0..MAX_COMPONENT_TYPES {
+        let id = store.register(&[4])?;
+        assert_eq!(id, index);
+    }
+    assert_eq!(store.release(7), Ok(()));
+    assert_eq!(store.register(&[0])?, 7);
+    assert_eq!(store.layout_count(), MAX_COMPONENT_TYPES);
+    Ok(())
+}
+
+#[test]
+fn release_then_register_gives_a_fresh_layout() -> Result<(), CoreError> {
+    let mut store = open(2)?;
+    let id = store.register(&[0])?;
+    assert_eq!(store.add(0, 0, id, &le4(1)), Ok(true));
+    assert_eq!(store.remove(0, 0, id), Ok(true));
+    assert_eq!(store.release(id), Ok(()));
+    let again = store.register(&[0, 0])?;
+    assert_eq!(again, id);
+    let layout = store.layout(again);
+    assert_eq!(layout.map(|item| item.row_bytes), Some(8));
+    assert_eq!(layout.map(|item| item.lanes.len()), Some(2));
+    assert_eq!(layout.map(|item| item.bit), Some(0));
+    assert_eq!(store.add(0, 0, again, &[9, 0, 0, 0, 8, 0, 0, 0]), Ok(true));
+    let mut buf = [0u8; 8];
+    assert_eq!(store.copy_row(0, 0, again, &mut buf), Ok(true));
+    assert_eq!(buf, [9, 0, 0, 0, 8, 0, 0, 0]);
+    Ok(())
+}
+
+#[test]
+fn a_query_registered_before_release_still_runs_after_it() -> Result<(), CoreError> {
+    let mut store = open(4)?;
+    let position = store.register(&[0])?;
+    let marker = store.register(&[0])?;
+    assert_eq!(store.add(0, 0, position, &le4(7)), Ok(true));
+    assert_eq!(store.add(1, 0, position, &le4(8)), Ok(true));
+    assert_eq!(store.add(1, 0, marker, &le4(9)), Ok(true));
+    assert_eq!(store.remove(1, 0, marker), Ok(true));
+    let query = store.register_query(&[position])?;
+    assert_eq!(store.query_chunks(query).err(), None);
+    let archetypes = store.archetype_count();
+    assert_eq!(store.release(marker), Ok(()));
+    assert_eq!(store.archetype_count(), archetypes - 1);
+    assert_eq!(store.query_chunks(query).err(), None);
+    assert_eq!(
+        store
+            .query_table(query)
+            .and_then(|table| table.first().copied()),
+        Some(1)
+    );
+    assert_eq!(
+        store
+            .query_table(query)
+            .and_then(|table| table.get(3).copied()),
+        Some(2)
+    );
+    assert_eq!(row4(&store, 0, 0, position)?, le4(7));
+    assert_eq!(row4(&store, 1, 0, position)?, le4(8));
+    // `query_chunks` rebuilds on every call, here over an archetype table that
+    // now holds a retired slot.
+    assert_eq!(store.add(2, 0, position, &le4(9)), Ok(true));
+    assert_eq!(store.query_chunks(query).err(), None);
+    assert_eq!(row4(&store, 2, 0, position)?, le4(9));
+    Ok(())
+}
+
+#[test]
+fn two_retired_archetypes_recreated_do_not_collide() -> Result<(), CoreError> {
+    let mut store = open(4)?;
+    let left = store.register(&[0])?;
+    let right = store.register(&[0])?;
+    assert_eq!(store.add(0, 0, left, &le4(1)), Ok(true));
+    assert_eq!(store.add(1, 0, right, &le4(2)), Ok(true));
+    assert_eq!(store.remove(0, 0, left), Ok(true));
+    assert_eq!(store.remove(1, 0, right), Ok(true));
+    assert_eq!(store.archetype_count(), 2);
+    assert_eq!(store.release(left), Ok(()));
+    assert_eq!(store.release(right), Ok(()));
+    assert_eq!(store.archetype_count(), 0);
+    let right_again = store.register(&[4])?;
+    let left_again = store.register(&[0, 0])?;
+    assert_eq!(right_again, right);
+    assert_eq!(left_again, left);
+    assert_eq!(
+        store.add(0, 0, left_again, &[3, 0, 0, 0, 4, 0, 0, 0]),
+        Ok(true)
+    );
+    assert_eq!(store.add(1, 0, right_again, &[5]), Ok(true));
+    let left_arch = store.entity_archetype(0)?;
+    let right_arch = store.entity_archetype(1)?;
+    assert_ne!(left_arch, right_arch);
+    assert_eq!(left_arch.map(|id| id < 2), Some(true));
+    assert_eq!(right_arch.map(|id| id < 2), Some(true));
+    assert_eq!(store.archetype_count(), 2);
+    let mut wide = [0u8; 8];
+    assert_eq!(store.copy_row(0, 0, left_again, &mut wide), Ok(true));
+    assert_eq!(wide, [3, 0, 0, 0, 4, 0, 0, 0]);
+    let mut flag = [0u8; 1];
+    assert_eq!(store.copy_row(1, 0, right_again, &mut flag), Ok(true));
+    assert_eq!(flag, [5]);
+    Ok(())
+}
+
+#[test]
+fn a_released_type_id_is_unregistered_until_it_is_reused() -> Result<(), CoreError> {
+    let mut store = open(4)?;
+    let kept = store.register(&[0])?;
+    let freed = store.register(&[0])?;
+    assert_eq!(store.add(0, 0, kept, &le4(1)), Ok(true));
+    assert_eq!(store.add(0, 0, freed, &le4(2)), Ok(true));
+    assert_eq!(store.remove(0, 0, freed), Ok(true));
+    assert_eq!(store.release(freed), Ok(()));
+    let archetypes = store.archetype_count();
+    let generation = store.generation();
+    let unregistered = CoreError::ComponentLayoutInvalid {
+        type_id: freed,
+        reason: LAYOUT_REASON_UNREGISTERED_TYPE,
+    };
+    assert_eq!(store.add(1, 0, freed, &[]), Err(unregistered));
+    assert_eq!(store.write_staged(1, 0, freed), Err(unregistered));
+    assert_eq!(store.register_query(&[freed]), Err(unregistered));
+    assert_eq!(store.layout(freed), None);
+    assert_eq!(store.location(1), None);
+    assert_eq!(store.archetype_count(), archetypes);
+    assert_eq!(store.generation(), generation);
+    assert_eq!(store.register(&[0])?, freed);
+    assert_eq!(store.add(1, 0, freed, &le4(3)), Ok(true));
+    Ok(())
+}
+
+#[test]
+fn a_reused_type_id_does_not_alias_a_neighbour_lane() -> Result<(), CoreError> {
+    let mut store = open(4)?;
+    let kept = store.register(&[0])?;
+    let freed = store.register(&[0])?;
+    assert_eq!(store.add(0, 0, kept, &le4(7)), Ok(true));
+    assert_eq!(store.add(0, 0, freed, &le4(8)), Ok(true));
+    assert_eq!(store.remove(0, 0, freed), Ok(true));
+    assert_eq!(store.release(freed), Ok(()));
+    // The outcome is pinned by the previous test. Here only the later reads matter.
+    let _attempt = store.add(1, 0, freed, &[]);
+    assert_eq!(store.release(freed), Ok(()));
+    assert_eq!(store.register(&[0])?, freed);
+    assert_eq!(store.add(1, 0, freed, &le4(5)), Ok(true));
+    assert_eq!(store.add(0, 0, freed, &le4(6)), Ok(true));
+    assert_eq!(row4(&store, 0, 0, kept)?, le4(7));
+    assert_eq!(row4(&store, 0, 0, freed)?, le4(6));
+    assert_eq!(row4(&store, 1, 0, freed)?, le4(5));
+    Ok(())
+}
+
+#[test]
+fn release_is_refused_while_a_live_query_lists_the_type() -> Result<(), CoreError> {
+    let mut store = open(4)?;
+    let kept = store.register(&[0])?;
+    let watched = store.register(&[0])?;
+    assert_eq!(store.add(0, 0, kept, &le4(1)), Ok(true));
+    assert_eq!(store.add(0, 0, watched, &le4(2)), Ok(true));
+    assert_eq!(store.remove(0, 0, watched), Ok(true));
+    let query = store.register_query(&[watched])?;
+    let layouts = store.layout_count();
+    let archetypes = store.archetype_count();
+    let generation = store.generation();
+    assert_eq!(
+        store.release(watched),
+        Err(CoreError::ComponentTypeInUse { type_id: watched })
+    );
+    assert_eq!(store.layout_count(), layouts);
+    assert_eq!(store.archetype_count(), archetypes);
+    assert_eq!(store.generation(), generation);
+    assert_eq!(store.layout(watched).map(|item| item.row_bytes), Some(4));
+    assert_eq!(store.register(&[0])?, 2);
+    store.release_query(query);
+    assert_eq!(store.release(watched), Ok(()));
+    assert_eq!(store.layout(watched), None);
+    Ok(())
+}

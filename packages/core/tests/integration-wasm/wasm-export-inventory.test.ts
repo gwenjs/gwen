@@ -82,6 +82,7 @@ const ENGINE: Record<string, ExportRow> = {
   read_component_staged: result(),
   register_component: result(),
   register_query: result(),
+  release_component: result(),
   release_query: infallible(
     "forwards the handle at bindings.rs:427-428; an unknown handle does nothing",
   ),
@@ -234,6 +235,7 @@ describe("WASM export inventory", () => {
       "read_component_staged",
       "register_component",
       "register_query",
+      "release_component",
       "remove_component",
       "set_components_bulk",
       "set_entity_dormant",
