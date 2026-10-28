@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import * as contract from './check-pr-contract.mjs';
+import * as wasmSize from './check-wasm-size.mjs';
+
+const CONTRACT_SCRIPT = fileURLToPath(new URL('./check-pr-contract.mjs', import.meta.url));
 
 const { reviewPrContract } = contract;
 
@@ -483,5 +491,608 @@ test('accepts a conclusion word followed by a condition or an alternative', () =
   for (const line of ['Final verdict — ship it if CI passes', 'My verdict is: ready', '| Verdict | LGTM |']) {
     const errors = review(`${goodBody}\n${line}\n`);
     assert.ok(errors.some((error) => error.startsWith('self-written verdict or approve:')), line);
+  }
+});
+
+const WASM_COMMAND = 'node scripts/check-wasm-size.mjs';
+const WASM_COMMAND_ERROR =
+  'wasm-size.json-only diff: the Acceptance table must cite the command node scripts/check-wasm-size.mjs';
+const SOURCE_TEST_ERROR = 'a source file change needs a changed test file';
+
+function wasmCatalog() {
+  return {
+    version: 1,
+    toolchain: { rust: '1.99.0', wasmPack: '0.13.1', wasmOpt: '133' },
+    binaryen: { 'macos-arm64': { sha256: 'abc', url: 'https://example.test/a' } },
+    tolerance: 0.05,
+    toleranceMinBytes: 2048,
+    variants: {
+      light: {
+        path: 'packages/core/wasm/light/gwen_core_bg.wasm',
+        raw: 10,
+        gzip: { baseline: 5, budget: 6 },
+        brotli: { baseline: 4, budget: 5 },
+      },
+    },
+  };
+}
+
+function shiftedCatalog() {
+  const head = wasmCatalog();
+  head.variants.light.gzip.baseline = 8;
+  return head;
+}
+
+/**
+ * @param {{ command?: boolean, section?: 'filled' | 'empty' | 'fenced' | 'none', proof?: 'row' | 'test-file' | 'other' | 'none' }} [options]
+ */
+function wasmBudgetBody(options = {}) {
+  const command = options.command !== false;
+  const section = options.section ?? 'filled';
+  const proof = options.proof ?? 'row';
+  const acceptance = command
+    ? `| Record the wasm baseline | \`${WASM_COMMAND}\` |`
+    : '| Record the wasm baseline | record the baseline |';
+  /** @type {string[]} */
+  const proofLines = [];
+  if (proof === 'row') {
+    proofLines.push(
+      '## Red proof',
+      '',
+      '| Test file | Command | Failing line |',
+      '| --- | --- | --- |',
+      '| scripts/check-wasm-size.test.mjs | git diff | baseline |',
+      '',
+    );
+  } else if (proof === 'test-file') {
+    proofLines.push(
+      '## Red proof',
+      '',
+      '| Test file | Command | Failing line |',
+      '| --- | --- | --- |',
+      `| ${testFile} | git diff | AssertionError |`,
+      '',
+    );
+  } else if (proof === 'other') {
+    proofLines.push(
+      '## Red proof',
+      '',
+      '| Test file | Command | Failing line |',
+      '| --- | --- | --- |',
+      '| scripts/other.test.mjs | git diff | AssertionError |',
+      '',
+    );
+  }
+  /** @type {string[]} */
+  const sectionLines = [];
+  if (section === 'filled') sectionLines.push('## WASM size budget', '', 'light gzip baseline re-recorded.', '');
+  else if (section === 'empty') sectionLines.push('## WASM size budget', '');
+  else if (section === 'fenced') {
+    sectionLines.push('```', '## WASM size budget', '', 'light gzip baseline re-recorded.', '```', '');
+  }
+  return [
+    '## Acceptance -> test',
+    '',
+    '| Acceptance | Test |',
+    '| --- | --- |',
+    acceptance,
+    '',
+    ...proofLines,
+    ...sectionLines,
+    '## Breaking changes',
+    '',
+    'None.',
+    '',
+  ].join('\n');
+}
+
+/**
+ * @param {{
+ *   body?: string,
+ *   changedFiles?: string[],
+ *   changedTestFiles?: string[],
+ *   baseWasmSize?: string | null,
+ *   headWasmSize?: string | null,
+ *   exists?: (file: string) => boolean,
+ * }} [options]
+ */
+function reviewWasm(options = {}) {
+  const base = wasmCatalog();
+  const head = shiftedCatalog();
+  return reviewPrContract({
+    title: 'ci: record wasm baselines',
+    body: options.body ?? wasmBudgetBody(),
+    exists: options.exists ?? ((file) => file === testFile),
+    changedTestFiles: options.changedTestFiles ?? [],
+    changedFiles: options.changedFiles ?? ['wasm-size.json'],
+    baseWasmSize: options.baseWasmSize === undefined ? JSON.stringify(base) : options.baseWasmSize,
+    headWasmSize: options.headWasmSize === undefined ? JSON.stringify(head) : options.headWasmSize,
+  });
+}
+
+test('accepts a wasm-size.json-only diff with a non-empty WASM size budget section', () => {
+  assert.deepEqual(
+    reviewWasm({
+      body: wasmBudgetBody({ proof: 'none' }),
+      changedFiles: ['wasm-size.json'],
+      changedTestFiles: [],
+    }),
+    [],
+  );
+});
+
+test('accepts wasm-size.json plus docs with a non-empty WASM size budget section', () => {
+  assert.deepEqual(
+    reviewWasm({
+      body: wasmBudgetBody({ proof: 'row' }),
+      changedFiles: ['wasm-size.json', 'internals-docs/adr/x.md'],
+      changedTestFiles: [],
+    }),
+    [],
+  );
+});
+
+test('rejects a wasm-size.json diff with no WASM size budget section or an empty one', () => {
+  const bodies = [
+    wasmBudgetBody({ section: 'none' }),
+    wasmBudgetBody({ section: 'empty' }),
+    wasmBudgetBody({ section: 'fenced' }),
+  ];
+  for (const body of bodies) {
+    const errors = reviewWasm({ body });
+    assert.ok(errors.some((error) => error.includes('WASM size budget')), body);
+  }
+});
+
+test('keeps the test file requirement when another non-docs file changes with wasm-size.json', () => {
+  const errors = reviewWasm({ changedFiles: ['wasm-size.json', 'scripts/foo.mjs'], changedTestFiles: [] });
+  assert.ok(errors.includes(SOURCE_TEST_ERROR));
+  assert.equal(
+    errors.some((error) => error.includes('wasm-size.json')),
+    false,
+  );
+});
+
+test('rejects a wasm-size.json diff that changes a key outside variants values', () => {
+  const change = (dotted) =>
+    `wasm-size.json changes ${dotted}: only values under variants.<name> may change without a test`;
+  /** @type {{ key: string, expect: string, once?: boolean, touch: (base: ReturnType<typeof wasmCatalog>, head: ReturnType<typeof wasmCatalog>) => void }[]} */
+  const cases = [
+    {
+      key: 'tolerance',
+      expect: change('tolerance'),
+      touch: (_base, head) => {
+        head.tolerance = 0.9;
+      },
+    },
+    {
+      key: 'toleranceMinBytes',
+      expect: change('toleranceMinBytes'),
+      touch: (_base, head) => {
+        head.toleranceMinBytes = 1;
+      },
+    },
+    {
+      key: 'toolchain.rust',
+      expect: change('toolchain.rust'),
+      touch: (_base, head) => {
+        head.toolchain.rust = '0.0.0';
+      },
+    },
+    {
+      key: 'binaryen.macos-arm64.sha256',
+      expect: change('binaryen.macos-arm64.sha256'),
+      touch: (_base, head) => {
+        head.binaryen['macos-arm64'].sha256 = 'fff';
+      },
+    },
+    {
+      key: 'version',
+      expect: change('version'),
+      touch: (_base, head) => {
+        head.version = 2;
+      },
+    },
+    {
+      key: 'variants.newname added',
+      expect: change('variants.newname'),
+      touch: (_base, head) => {
+        head.variants.newname = {
+          path: 'n',
+          raw: 1,
+          gzip: { baseline: 1, budget: 1 },
+          brotli: { baseline: 1, budget: 1 },
+        };
+      },
+    },
+    {
+      key: 'variants.newname removed',
+      expect: change('variants.newname'),
+      touch: (base) => {
+        base.variants.newname = {
+          path: 'n',
+          raw: 1,
+          gzip: { baseline: 1, budget: 1 },
+          brotli: { baseline: 1, budget: 1 },
+        };
+      },
+    },
+    {
+      key: 'variants.light.path',
+      expect: change('variants.light.path'),
+      touch: (_base, head) => {
+        head.variants.light.path = 'other.wasm';
+      },
+    },
+    {
+      key: 'variants.light.gzip.extra',
+      expect: change('variants.light.gzip.extra'),
+      touch: (_base, head) => {
+        head.variants.light.gzip.extra = 1;
+      },
+    },
+    {
+      key: 'variants.light.raw',
+      expect: 'wasm-size.json variants.light.raw must be a finite non-negative number',
+      touch: (_base, head) => {
+        head.variants.light.raw = 'nope';
+      },
+    },
+    {
+      key: 'variants.light.note',
+      expect: change('variants.light.note'),
+      touch: (base, head) => {
+        base.variants.light.note = 'a';
+        head.variants.light.note = 'b';
+      },
+    },
+    {
+      key: 'variants.light.gzip.tol',
+      expect: change('variants.light.gzip.tol'),
+      touch: (base, head) => {
+        base.variants.light.gzip.tol = 0.05;
+        head.variants.light.gzip.tol = 0.5;
+      },
+    },
+    {
+      key: 'variants.light.path deleted',
+      expect: change('variants.light.path'),
+      once: true,
+      touch: (_base, head) => {
+        delete head.variants.light.path;
+      },
+    },
+    {
+      key: 'variants.light.gzip deleted',
+      expect: change('variants.light.gzip'),
+      once: true,
+      touch: (_base, head) => {
+        delete head.variants.light.gzip;
+      },
+    },
+    {
+      key: 'variants.light.gzip.baseline',
+      expect: 'wasm-size.json variants.light.gzip.baseline must be a finite non-negative number',
+      touch: (_base, head) => {
+        head.variants.light.gzip.baseline = 'nope';
+      },
+    },
+    {
+      key: 'variants.light.brotli.budget',
+      expect: 'wasm-size.json variants.light.brotli.budget must be a finite non-negative number',
+      touch: (_base, head) => {
+        head.variants.light.brotli.budget = -1;
+      },
+    },
+    {
+      key: 'variants.light.raw deleted',
+      expect: change('variants.light.raw'),
+      once: true,
+      touch: (_base, head) => {
+        delete head.variants.light.raw;
+      },
+    },
+    {
+      key: 'variants.light.gzip.baseline deleted',
+      expect: change('variants.light.gzip.baseline'),
+      once: true,
+      touch: (_base, head) => {
+        delete head.variants.light.gzip.baseline;
+      },
+    },
+    {
+      key: 'variants.light.gzip.budget deleted',
+      expect: change('variants.light.gzip.budget'),
+      once: true,
+      touch: (_base, head) => {
+        delete head.variants.light.gzip.budget;
+      },
+    },
+    {
+      key: 'variants.light.brotli.baseline deleted',
+      expect: change('variants.light.brotli.baseline'),
+      once: true,
+      touch: (_base, head) => {
+        delete head.variants.light.brotli.baseline;
+      },
+    },
+    {
+      key: 'variants.light.brotli.budget deleted',
+      expect: change('variants.light.brotli.budget'),
+      once: true,
+      touch: (_base, head) => {
+        delete head.variants.light.brotli.budget;
+      },
+    },
+    {
+      key: 'variants.light.gzip.baseline added',
+      expect: change('variants.light.gzip.baseline'),
+      once: true,
+      touch: (base) => {
+        delete base.variants.light.gzip.baseline;
+      },
+    },
+  ];
+  for (const row of cases) {
+    const base = wasmCatalog();
+    const head = wasmCatalog();
+    row.touch(base, head);
+    const errors = reviewWasm({
+      baseWasmSize: JSON.stringify(base),
+      headWasmSize: JSON.stringify(head),
+    });
+    assert.ok(errors.includes(row.expect), row.key);
+    if (row.once) assert.equal(errors.filter((error) => error === row.expect).length, 1, row.key);
+  }
+  const base = wasmCatalog();
+  const head = wasmCatalog();
+  head.variants.light.raw = 0;
+  head.variants.light.gzip.baseline = 8;
+  head.variants.light.gzip.budget = 9;
+  head.variants.light.brotli.baseline = 7;
+  head.variants.light.brotli.budget = 8;
+  assert.deepEqual(
+    reviewWasm({ baseWasmSize: JSON.stringify(base), headWasmSize: JSON.stringify(head) }),
+    [],
+  );
+});
+
+test('keeps the docs-only n/a line accepted and refuses workflow paths', () => {
+  const docsBody = goodBody
+    .replace(/## Red proof[\s\S]*?## Breaking changes/, '## Breaking changes')
+    .replace('## Breaking changes', 'Red proof: n/a (no code change)\n\n## Breaking changes');
+  assert.deepEqual(review(docsBody, 'docs: clarify the contract', [], ['docs/a.md', 'x.md']), []);
+  const errors = reviewWasm({
+    changedFiles: ['wasm-size.json', '.github/workflows/ci.yml'],
+    changedTestFiles: [],
+  });
+  assert.ok(errors.includes(SOURCE_TEST_ERROR));
+  assert.equal(
+    errors.some((error) => error.startsWith('wasm-size.json')),
+    false,
+  );
+});
+
+test('follows the normal red proof path when a test file changes with wasm-size.json', () => {
+  const section = '\n## WASM size budget\n\nlight gzip baseline re-recorded.\n';
+  const present = `${goodBody}${section}`;
+  const missing = present.replace(
+    `| ${testFile} | git diff | AssertionError |`,
+    '| scripts/other.test.mjs | git diff | AssertionError |',
+  );
+  const shared = {
+    changedFiles: ['wasm-size.json', testFile],
+    changedTestFiles: [testFile],
+    exists: (file) => file === testFile,
+  };
+  const missingErrors = reviewWasm({ ...shared, body: missing });
+  assert.ok(missingErrors.includes(`Red proof table is missing a row for ${testFile}`));
+  assert.deepEqual(reviewWasm({ ...shared, body: present }), []);
+});
+
+test('uses the section detection of check-wasm-size.mjs', () => {
+  // The contract is stricter (stripping fences with visibleLines) only inside fenced blocks, which A3 covers.
+  assert.equal(typeof wasmSize.budgetSection, 'function');
+  const bodies = [
+    '## WASM size budget\n\nlight gzip baseline re-recorded.\n',
+    '## WASM size budget\n',
+    'no heading here\n',
+    '## WASM size budget\n\n## Other\n',
+    '## Other\n\ntext\n\n## WASM size budget\n\nbudget line\n',
+  ];
+  for (const body of bodies) {
+    const content = wasmSize.budgetSection(body).content === true;
+    const errors = reviewWasm({
+      body,
+      baseWasmSize: JSON.stringify(wasmCatalog()),
+      headWasmSize: JSON.stringify(wasmCatalog()),
+    });
+    const exempt = !errors.some((error) => error.includes('WASM size budget'));
+    assert.equal(exempt, content, body);
+  }
+});
+
+test('refuses a wasm-size.json diff when the base has no wasm-size.json', () => {
+  const errors = reviewWasm({ baseWasmSize: null });
+  assert.ok(errors.includes('wasm-size.json cannot be compared with the base: absent on the base'));
+});
+
+test('refuses a wasm-size.json diff with invalid JSON on the base or the head', () => {
+  const baseBad = reviewWasm({ baseWasmSize: '{', headWasmSize: JSON.stringify(wasmCatalog()) });
+  assert.ok(baseBad.includes('wasm-size.json cannot be compared with the base: invalid JSON on the base'));
+  const headBad = reviewWasm({ baseWasmSize: JSON.stringify(wasmCatalog()), headWasmSize: '{' });
+  assert.ok(headBad.includes('wasm-size.json cannot be compared with the base: invalid JSON on the head'));
+});
+
+test('does not exempt a wasm-size.json in a subfolder', () => {
+  const errors = reviewWasm({ changedFiles: ['packages/x/wasm-size.json'], changedTestFiles: [] });
+  assert.ok(errors.includes(SOURCE_TEST_ERROR));
+  assert.equal(
+    errors.some((error) => error.startsWith('wasm-size.json')),
+    false,
+  );
+});
+
+test('asks the Acceptance table of a wasm-size.json diff to cite the check command', () => {
+  const errors = reviewWasm({ body: wasmBudgetBody({ command: false }) });
+  assert.deepEqual(errors, [WASM_COMMAND_ERROR]);
+});
+
+test('refuses a wasm-size.json diff whose Acceptance cell only names a longer command', () => {
+  const body = wasmBudgetBody().replace(
+    `| Record the wasm baseline | \`${WASM_COMMAND}\` |`,
+    '| Record the wasm baseline | do not run node scripts/check-wasm-size.mjs.bak |',
+  );
+  assert.deepEqual(reviewWasm({ body }), [WASM_COMMAND_ERROR]);
+});
+
+test('refuses a wasm-size.json diff when the head file is absent', () => {
+  for (const headWasmSize of [null, undefined]) {
+    const errors = reviewPrContract({
+      title: 'ci: record wasm baselines',
+      body: wasmBudgetBody(),
+      exists: () => false,
+      changedTestFiles: [],
+      changedFiles: ['wasm-size.json'],
+      baseWasmSize: JSON.stringify(wasmCatalog()),
+      headWasmSize,
+    });
+    assert.ok(
+      errors.includes('wasm-size.json cannot be compared with the base: absent on the head'),
+      String(headWasmSize),
+    );
+  }
+});
+
+/**
+ * @param {string | undefined} hygieneBase
+ * @returns {NodeJS.ProcessEnv}
+ */
+function gitEnv(hygieneBase) {
+  /** @type {NodeJS.ProcessEnv} */
+  const env = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (key.startsWith('GIT_')) continue;
+    if (value !== undefined) env[key] = value;
+  }
+  if (hygieneBase !== undefined) env.HYGIENE_BASE = hygieneBase;
+  return env;
+}
+
+/**
+ * @param {string} cwd
+ * @param {string[]} args
+ */
+function git(cwd, args) {
+  const result = spawnSync(
+    'git',
+    ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...args],
+    { cwd, env: gitEnv(), encoding: 'utf8' },
+  );
+  if (result.status !== 0) throw new Error(result.stderr || `git ${args.join(' ')}`);
+}
+
+function initRepo() {
+  const cwd = mkdtempSync(join(tmpdir(), 'pr-contract-'));
+  git(cwd, ['init', '-b', 'main']);
+  return cwd;
+}
+
+/**
+ * @param {string} cwd
+ * @param {string} message
+ */
+function commitAll(cwd, message) {
+  git(cwd, ['add', '-A']);
+  git(cwd, ['commit', '-m', message]);
+}
+
+/**
+ * @param {string} cwd
+ * @param {string} hygieneBase
+ */
+function runMain(cwd, hygieneBase) {
+  const bodyFile = join(cwd, 'body.md');
+  writeFileSync(bodyFile, wasmBudgetBody({ proof: 'none' }));
+  return spawnSync(process.execPath, [CONTRACT_SCRIPT, '--body-file', bodyFile, '--title', 't'], {
+    cwd,
+    env: gitEnv(hygieneBase),
+    encoding: 'utf8',
+  });
+}
+
+test('accepts a root wasm-size.json value change through main', () => {
+  const cwd = initRepo();
+  try {
+    writeFileSync(join(cwd, 'wasm-size.json'), JSON.stringify(wasmCatalog()));
+    commitAll(cwd, 'base');
+    git(cwd, ['branch', 'base']);
+    const head = wasmCatalog();
+    head.variants.light.gzip.baseline = 8;
+    writeFileSync(join(cwd, 'wasm-size.json'), JSON.stringify(head));
+    commitAll(cwd, 'head');
+    const result = runMain(cwd, 'base');
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout.trim(), 'PR contract ok');
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('refuses a tolerance change through main', () => {
+  const cwd = initRepo();
+  try {
+    writeFileSync(join(cwd, 'wasm-size.json'), JSON.stringify(wasmCatalog()));
+    commitAll(cwd, 'base');
+    git(cwd, ['branch', 'base']);
+    const head = wasmCatalog();
+    head.tolerance = 0.9;
+    writeFileSync(join(cwd, 'wasm-size.json'), JSON.stringify(head));
+    commitAll(cwd, 'head');
+    const result = runMain(cwd, 'base');
+    assert.equal(result.status, 1);
+    assert.ok(result.stderr.includes('tolerance'), result.stderr);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('refuses a wasm-size.json added on the head through main', () => {
+  const cwd = initRepo();
+  try {
+    writeFileSync(join(cwd, 'README'), 'x');
+    commitAll(cwd, 'base');
+    git(cwd, ['branch', 'base']);
+    writeFileSync(join(cwd, 'wasm-size.json'), JSON.stringify(wasmCatalog()));
+    commitAll(cwd, 'add');
+    const result = runMain(cwd, 'base');
+    assert.equal(result.status, 1);
+    assert.ok(result.stderr.includes('absent on the base'), result.stderr);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('compares wasm-size.json with the merge-base when the base branch moved', () => {
+  const cwd = initRepo();
+  try {
+    writeFileSync(join(cwd, 'wasm-size.json'), JSON.stringify(wasmCatalog()));
+    commitAll(cwd, 'fork');
+    git(cwd, ['branch', 'base']);
+    const head = wasmCatalog();
+    head.variants.light.gzip.baseline = 8;
+    writeFileSync(join(cwd, 'wasm-size.json'), JSON.stringify(head));
+    commitAll(cwd, 'head');
+    git(cwd, ['checkout', 'base']);
+    const moved = wasmCatalog();
+    moved.tolerance = 0.9;
+    writeFileSync(join(cwd, 'wasm-size.json'), JSON.stringify(moved));
+    commitAll(cwd, 'base moved');
+    git(cwd, ['checkout', 'main']);
+    const result = runMain(cwd, 'base');
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout.trim(), 'PR contract ok');
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
   }
 });
