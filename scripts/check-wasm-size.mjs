@@ -257,7 +257,7 @@ export function evaluateWasmSize(input) {
  * @param {string} body
  * @returns {{ heading: boolean, content: boolean }}
  */
-function budgetSection(body) {
+export function budgetSection(body) {
   let fence = false;
   let heading = false;
   let content = false;

@@ -5,6 +5,10 @@
  * no verdict, approve, or self-review heading, no bare APPROVE line,
  * no closing keyword next to a "no test" cell. `Red proof: n/a (no code change)`
  * is accepted only when every changed path is under docs/, a markdown file, or .github/.
+ * A repo-root `wasm-size.json` diff (alone or with those docs paths) needs no changed
+ * test file when the body has a non-empty "## WASM size budget" section and only
+ * finite non-negative values under `variants.<name>` change. Its Acceptance table
+ * cites `node scripts/check-wasm-size.mjs`, and the Red proof check is skipped.
  *
  * Tests pass the body in. CI (`pull_request`) reads `gh pr view`.
  * Run: node scripts/check-pr-contract.mjs
@@ -13,7 +17,9 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import { fileURLToPath } from 'node:url';
+import * as wasmSize from './check-wasm-size.mjs';
 
 const PLACEHOLDER = ['MISS', 'ING'].join('');
 const UNFINISHED = /not done/i;
@@ -25,6 +31,8 @@ const UNFINISHED = /not done/i;
  *   exists: (file: string) => boolean,
  *   changedTestFiles?: string[],
  *   changedFiles?: string[],
+ *   baseWasmSize?: string | null,
+ *   headWasmSize?: string | null,
  * }} Input
  */
 
@@ -94,6 +102,7 @@ export function reviewPrContract(input) {
   /** @type {{ file: string, name: string }[]} */
   const pairs = [];
   let sawTable = false;
+  let citesWasmCommand = false;
   for (let i = 0; i < lines.length; i++) {
     if (!isRow(lines[i] ?? '') || i + 1 >= lines.length || !isSeparator(lines[i + 1] ?? '')) continue;
     const header = splitRow(lines[i] ?? '').join(' ').toLowerCase();
@@ -102,11 +111,11 @@ export function reviewPrContract(input) {
     for (let j = i + 2; j < lines.length && isRow(lines[j] ?? ''); j++) {
       for (const cell of splitRow(lines[j] ?? '')) {
         pairs.push(...pairsFromCell(cell));
+        if (cellCitesWasmSizeCommand(cell)) citesWasmCommand = true;
       }
     }
   }
   if (!sawTable) errors.push('no Acceptance -> test table');
-  else if (pairs.length === 0) errors.push('Acceptance table has no test file::test name pair');
 
   for (const pair of pairs) {
     if (pair.file.startsWith('/') || pair.file.includes('..')) {
@@ -136,9 +145,19 @@ export function reviewPrContract(input) {
   }
 
   const visible = visibleLines(lines);
-  checkRedProof(visible, errors, input.changedTestFiles, input.changedFiles);
+  const visibleText = visible.join('\n');
+  const wasmExempt = wasmSizeExemption(input, visibleText, errors);
+  if (sawTable && pairs.length === 0 && !wasmExempt) {
+    errors.push('Acceptance table has no test file::test name pair');
+  }
+  if (wasmExempt && !citesWasmCommand) {
+    errors.push(
+      'wasm-size.json-only diff: the Acceptance table must cite the command node scripts/check-wasm-size.mjs',
+    );
+  }
+  if (!wasmExempt) checkRedProof(visible, errors, input.changedTestFiles, input.changedFiles);
   checkVerdict(visible, errors);
-  checkNoTestCloses(visible, visible.join('\n'), errors);
+  checkNoTestCloses(visible, visibleText, errors);
 
   return errors;
 }
@@ -219,6 +238,216 @@ function isDocsPath(file) {
 function docsOnly(changedFiles) {
   return Array.isArray(changedFiles) && changedFiles.length > 0 && changedFiles.every(isDocsPath);
 }
+
+/**
+ * @param {string} file
+ * @returns {boolean}
+ */
+function isRootWasmSize(file) {
+  return String(file).split('\\').join('/') === 'wasm-size.json';
+}
+
+/**
+ * Root wasm-size.json, alone or with docs paths.
+ * @param {string[] | undefined} changedFiles
+ * @returns {boolean}
+ */
+function isWasmSizeCandidate(changedFiles) {
+  if (!Array.isArray(changedFiles) || changedFiles.length === 0) return false;
+  if (!changedFiles.some((file) => isRootWasmSize(file))) return false;
+  return changedFiles.every((file) => isDocsPath(file) || isRootWasmSize(file));
+}
+
+/**
+ * Whole token after backticks are stripped, so a longer name does not count.
+ * @param {string} cell
+ * @returns {boolean}
+ */
+function cellCitesWasmSizeCommand(cell) {
+  const text = cell.replace(/`/g, '');
+  const needle = 'node scripts/check-wasm-size.mjs';
+  let from = 0;
+  while (from <= text.length - needle.length) {
+    const at = text.indexOf(needle, from);
+    if (at === -1) return false;
+    const before = at === 0 ? '' : text[at - 1];
+    const after = text[at + needle.length] ?? '';
+    if (!/[\w./-]/.test(before) && !/[\w./-]/.test(after)) return true;
+    from = at + 1;
+  }
+  return false;
+}
+
+/**
+ * True when a repo-root wasm-size.json diff may skip the test-file rule and
+ * the Red proof check. A failed section or compare pushes its error and
+ * returns false, so the normal rules still run.
+ * @param {Input} input
+ * @param {string} visibleText
+ * @param {string[]} errors
+ * @returns {boolean}
+ */
+function wasmSizeExemption(input, visibleText, errors) {
+  if (!isWasmSizeCandidate(input.changedFiles)) return false;
+  const budget = wasmSize.budgetSection(visibleText);
+  if (budget.content !== true) {
+    errors.push('wasm-size.json changed without a non-empty "## WASM size budget" section in the PR body');
+    return false;
+  }
+  const compareErrors = compareWasmSize(input.baseWasmSize, input.headWasmSize);
+  if (compareErrors.length > 0) {
+    errors.push(...compareErrors);
+    return false;
+  }
+  return true;
+}
+
+/**
+ * @param {unknown} value
+ * @returns {value is Record<string, unknown>}
+ */
+function isPlainObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+/**
+ * @param {unknown} value
+ * @returns {boolean}
+ */
+function isFiniteNonNegative(value) {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0;
+}
+
+/**
+ * @param {string} dotted
+ * @returns {string}
+ */
+function wasmChange(dotted) {
+  return `wasm-size.json changes ${dotted}: only values under variants.<name> may change without a test`;
+}
+
+/**
+ * @param {string} text
+ * @returns {{ ok: true, value: unknown } | { ok: false, value: null }}
+ */
+function parseWasmJson(text) {
+  try {
+    return { ok: true, value: JSON.parse(text) };
+  } catch {
+    return { ok: false, value: null };
+  }
+}
+
+/**
+ * @param {string | null | undefined} baseWasmSize
+ * @param {string | null | undefined} headWasmSize
+ * @returns {string[]}
+ */
+function compareWasmSize(baseWasmSize, headWasmSize) {
+  if (baseWasmSize == null) {
+    return ['wasm-size.json cannot be compared with the base: absent on the base'];
+  }
+  const baseParsed = parseWasmJson(baseWasmSize);
+  if (!baseParsed.ok) return ['wasm-size.json cannot be compared with the base: invalid JSON on the base'];
+  if (headWasmSize == null) return ['wasm-size.json cannot be compared with the base: absent on the head'];
+  const headParsed = parseWasmJson(headWasmSize);
+  if (!headParsed.ok) return ['wasm-size.json cannot be compared with the base: invalid JSON on the head'];
+  if (!isPlainObject(baseParsed.value) || !isPlainObject(headParsed.value)) {
+    return ['wasm-size.json cannot be compared with the base: not a JSON object'];
+  }
+  return diffWasmSize(baseParsed.value, headParsed.value);
+}
+
+/**
+ * @param {string[]} errors
+ * @param {unknown} value
+ * @param {string} dotted
+ */
+function rejectBadLeaf(errors, value, dotted) {
+  if (!isFiniteNonNegative(value)) errors.push(`wasm-size.json ${dotted} must be a finite non-negative number`);
+}
+
+/** Allowed value leaves. Presence of any other key is a structure change. */
+const WASM_LEAVES = [['raw'], ['gzip', 'baseline'], ['gzip', 'budget'], ['brotli', 'baseline'], ['brotli', 'budget']];
+
+/**
+ * One walk of the allowed leaves. The number check and the mask both use it.
+ * @param {Record<string, unknown>} doc
+ * @param {(parent: Record<string, unknown>, leaf: string, dotted: string) => void} visit
+ */
+function eachWasmLeaf(doc, visit) {
+  if (!isPlainObject(doc.variants)) return;
+  for (const [name, variant] of Object.entries(doc.variants)) {
+    for (const path of WASM_LEAVES) {
+      let current = variant;
+      for (let i = 0; i < path.length - 1 && isPlainObject(current); i++) current = current[path[i]];
+      if (!isPlainObject(current)) continue;
+      visit(current, path[path.length - 1], `variants.${name}.${path.join('.')}`);
+    }
+  }
+}
+
+/**
+ * A leaf present on one side only is one structure error. Both sides then drop it.
+ * @param {string[]} errors
+ * @param {Record<string, unknown>} base
+ * @param {Record<string, unknown>} head
+ */
+function walkWasmLeaves(errors, base, head) {
+  const onBase = new Map();
+  eachWasmLeaf(base, (parent, leaf, dotted) => {
+    if (Object.prototype.hasOwnProperty.call(parent, leaf)) onBase.set(dotted, { parent, leaf });
+  });
+  eachWasmLeaf(head, (parent, leaf, dotted) => {
+    const prior = onBase.get(dotted);
+    const inHead = Object.prototype.hasOwnProperty.call(parent, leaf);
+    if ((prior !== undefined) !== inHead) errors.push(wasmChange(dotted));
+    else if (inHead) rejectBadLeaf(errors, parent[leaf], dotted);
+    if (prior) delete prior.parent[prior.leaf];
+    if (inHead) delete parent[leaf];
+  });
+}
+
+/**
+ * One error per key that is only on one side, or whose primitive or array value differs.
+ * @param {string[]} errors
+ * @param {unknown} base
+ * @param {unknown} head
+ * @param {string} prefix
+ */
+function compareMasked(errors, base, head, prefix) {
+  if (!isPlainObject(base) || !isPlainObject(head)) {
+    if (!isDeepStrictEqual(base, head)) errors.push(wasmChange(prefix));
+    return;
+  }
+  const keys = [...new Set([...Object.keys(base), ...Object.keys(head)])].sort();
+  for (const key of keys) {
+    const dotted = prefix === '' ? key : `${prefix}.${key}`;
+    const inBase = Object.prototype.hasOwnProperty.call(base, key);
+    const inHead = Object.prototype.hasOwnProperty.call(head, key);
+    if (inBase !== inHead) {
+      errors.push(wasmChange(dotted));
+      continue;
+    }
+    compareMasked(errors, base[key], head[key], dotted);
+  }
+}
+
+/**
+ * @param {Record<string, unknown>} base
+ * @param {Record<string, unknown>} head
+ * @returns {string[]}
+ */
+function diffWasmSize(base, head) {
+  /** @type {string[]} */
+  const errors = [];
+  const baseClone = structuredClone(base);
+  const headClone = structuredClone(head);
+  walkWasmLeaves(errors, baseClone, headClone);
+  compareMasked(errors, baseClone, headClone, '');
+  return errors;
+}
+
 
 /**
  * @param {string} cell
@@ -488,6 +717,36 @@ function loadFromGh() {
   return { title: parsed.title ?? '', body: parsed.body ?? '' };
 }
 
+
+/**
+ * Base is the merge-base of HYGIENE_BASE and HEAD, so a moved base cannot fake a diff.
+ * A failing git show is null. Read only when the root file is in the diff.
+ * @param {string[]} changedFiles
+ * @returns {{ baseWasmSize?: string | null, headWasmSize?: string | null }}
+ */
+function readWasmSizePair(changedFiles) {
+  if (!changedFiles.some((file) => isRootWasmSize(file))) return {};
+  // A failed merge-base already throws in listChangedFiles.
+  const mergeBase = execFileSync('git', ['merge-base', hygieneBase(), 'HEAD'], { encoding: 'utf8' }).trim();
+  return {
+    baseWasmSize: gitShow(mergeBase, 'wasm-size.json'),
+    headWasmSize: gitShow('HEAD', 'wasm-size.json'),
+  };
+}
+
+/**
+ * @param {string} rev
+ * @param {string} file
+ * @returns {string | null}
+ */
+function gitShow(rev, file) {
+  try {
+    return execFileSync('git', ['show', `${rev}:${file}`], { encoding: 'utf8', maxBuffer: 1 << 26 });
+  } catch {
+    return null;
+  }
+}
+
 function main() {
   const bodyFlag = process.argv.indexOf('--body-file');
   const titleFlag = process.argv.indexOf('--title');
@@ -518,6 +777,7 @@ function main() {
     exists: (file) => existsSync(path.resolve(process.cwd(), file)),
     changedTestFiles: changedFiles.filter((file) => isChangedTestFile(file, file.endsWith('.rs') ? fileDiff(file) : '')),
     changedFiles,
+    ...readWasmSizePair(changedFiles),
   });
   if (errors.length === 0) {
     console.log('PR contract ok');
