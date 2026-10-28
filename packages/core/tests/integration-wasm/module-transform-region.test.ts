@@ -449,7 +449,7 @@ describe("module transform region", () => {
       expect(caught.name).toBe("GwenWasmAbiError");
       expect(Reflect.get(caught, "code")).toBe(CoreErrorCodes.WASM_MODULE_ABI_MISMATCH);
       expect(Reflect.get(caught, "actual")).toBe(2);
-      expect(caught.message).toContain("2000000");
+      expect(caught.message).toContain("2001000");
       expect(() => started.engine.getWasmModule("abi-before-region")).toThrow();
       await started.advance(1, 1 / 60);
       expect(started.engine.state).not.toBe("faulted");

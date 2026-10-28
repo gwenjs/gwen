@@ -90,7 +90,7 @@ No earlier document states what the engine trusts, what it checks, and what the 
    - ABI, before region use.
      `checkPluginApiVersion` runs on the probe (`packages/core/src/engine/wasm-module-runner.ts:113`) and on the real instance (`packages/core/src/engine/wasm-module-runner.ts:141`).
      The function is `packages/core/src/engine/engine-types.ts:96-105`.
-     A missing export, a non-function, or a number other than `GWEN_PLUGIN_API_VERSION` (`2_000_000`, `packages/core/src/engine/engine-types.ts:84`) throws `GwenWasmAbiError` with code `CORE:WASM_MODULE_ABI_MISMATCH`.
+     A missing export, a non-function, or a number other than `GWEN_PLUGIN_API_VERSION` (`2_001_000`, `packages/core/src/engine/engine-types.ts:87`) throws `GwenWasmAbiError` with code `CORE:WASM_MODULE_ABI_MISMATCH`.
      The module is not registered.
    - Declared regions (`packages/core/src/engine/wasm-module-runner.ts:306-375`).
      An unknown region name is `CORE:WASM_MODULE_REGION_INVALID`.

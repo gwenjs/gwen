@@ -8,7 +8,7 @@ import { checkPluginApiVersion, GWEN_PLUGIN_API_VERSION } from "../../src/engine
 const ADVICE = "recompile the plugin against the current gwen-wasm-utils / ABI version.";
 
 function abiMessage(moduleName: string, shown: string): string {
-  const what = `Plugin "${moduleName}" declares ABI version ${shown}, expected 2000000.`;
+  const what = `Plugin "${moduleName}" declares ABI version ${shown}, expected 2001000.`;
   const fix = __GWEN_DEV__ ? `\nFix: ${ADVICE}` : "";
   return `[checkPluginApiVersion()] ${what}${fix}\nSee https://gwenjs.github.io/gwen/api/errors#core-wasm-module-abi-mismatch (CORE:WASM_MODULE_ABI_MISMATCH)`;
 }
@@ -31,7 +31,7 @@ describe("checkPluginApiVersion", () => {
     expect(caught.name).toBe("GwenWasmAbiError");
     expect(readField(caught, "code")).toBe("CORE:WASM_MODULE_ABI_MISMATCH");
     expect(readField(caught, "module")).toBe("bare");
-    expect(readField(caught, "expected")).toBe(2_000_000);
+    expect(readField(caught, "expected")).toBe(2_001_000);
     expect(readField(caught, "actual")).toBeNull();
     expect(readField(caught, "composable")).toBe("checkPluginApiVersion");
     expect(readField(caught, "hint")).toBe(__GWEN_DEV__ ? ADVICE : undefined);
@@ -78,7 +78,7 @@ describe("checkPluginApiVersion", () => {
     expect(caught.message).toContain("none declared");
   });
 
-  it("throws GwenWasmAbiError naming 2000000 and 2000001", () => {
+  it("throws GwenWasmAbiError naming 2001000 and 2000001", () => {
     const exports: WebAssembly.Exports = {
       gwen_plugin_api_version: () => 2_000_001,
     };
@@ -93,7 +93,7 @@ describe("checkPluginApiVersion", () => {
     expect(caught.name).toBe("GwenWasmAbiError");
     expect(readField(caught, "code")).toBe("CORE:WASM_MODULE_ABI_MISMATCH");
     expect(readField(caught, "module")).toBe("next");
-    expect(readField(caught, "expected")).toBe(2_000_000);
+    expect(readField(caught, "expected")).toBe(2_001_000);
     expect(readField(caught, "actual")).toBe(2_000_001);
     expect(readField(caught, "composable")).toBe("checkPluginApiVersion");
     expect(readField(caught, "hint")).toBe(__GWEN_DEV__ ? ADVICE : undefined);
@@ -114,11 +114,11 @@ function abiNumber(major: number, minor: number, patch: number): number {
 }
 
 describe("GWEN_PLUGIN_API_VERSION", () => {
-  it("is 2_000_000", () => {
-    expect(GWEN_PLUGIN_API_VERSION).toBe(2_000_000);
+  it("is 2_001_000", () => {
+    expect(GWEN_PLUGIN_API_VERSION).toBe(2_001_000);
   });
 
   it("uses encoding major * 1_000_000 + minor * 1_000 + patch", () => {
-    expect(GWEN_PLUGIN_API_VERSION).toBe(abiNumber(2, 0, 0));
+    expect(GWEN_PLUGIN_API_VERSION).toBe(abiNumber(2, 1, 0));
   });
 });
