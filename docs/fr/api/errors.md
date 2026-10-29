@@ -92,7 +92,7 @@ Cause. L'appel est hors de `defineActor()`, `plugin setup()` ou `withCleanup()`.
 - `CORE:FRAME_LOOP_ERROR` {#core-frame-loop-error}
 - `CORE:PLUGIN_SETUP_ERROR` {#core-plugin-setup-error}
 - `CORE:PLUGIN_RUNTIME_ERROR` {#core-plugin-runtime-error}
-- `CORE:WASM_LOAD_ERROR` {#core-wasm-load-error}
+- `CORE:WASM_LOAD_ERROR` {#core-wasm-load-error} `initWasm` mappe `WebAssembly.LinkError` et `WebAssembly.CompileError` levés par `glue.initSync` vers ce code (`packages/core/src/engine/wasm-instance-provider.ts:58`). `cause` est cette erreur. Le message est le texte de l'erreur, écrit comme une phrase (`packages/core/src/engine/wasm-instance-provider.ts:59`).
 - `CORE:WASM_TIMEOUT` {#core-wasm-timeout}
 - `CORE:WASM_PANIC` {#core-wasm-panic}
 - `CORE:QUERY_CAPACITY_EXCEEDED` {#core-query-capacity-exceeded}
@@ -143,7 +143,7 @@ Cause. L'appel est hors de `defineActor()`, `plugin setup()` ou `withCleanup()`.
   | `exports` | Un nom de `rawExports` n'est pas un export du module. | Noms manquants joints par `,`. | `<absent>` |
   | `imports` | Le module importe un nom absent du contrat. | `<not in contract>` | Ces noms joints par `,`. |
 - `CORE:ENGINE_DISPOSED` {#core-engine-disposed} Lancé par `createEngineLocal().get()` quand il créerait une valeur après le début de la libération par `engine.stop()`, et par `WasmBridgeImpl` après `engine.stop()`.
-- `CORE:WASM_CAPACITY_EXHAUSTED` {#core-wasm-capacity-exhausted} Lancé par la capacité d'instance WASM (#263).
+- `CORE:WASM_CAPACITY_EXHAUSTED` {#core-wasm-capacity-exhausted} Lancé par `initWasm`, depuis les fournisseurs d'instance (`packages/core/src/engine/wasm-instance-provider.ts:44`), quand `glue.initSync` lève un `RangeError` ou une valeur qui n'est pas une `Error` (`packages/core/src/engine/wasm-instance-provider.ts:45`). Le message est `Cannot create another WASM instance (mode "${mode}", ${live} live).` (`packages/core/src/engine/wasm-instance-provider.ts:48`). `cause` est la valeur levée (`packages/core/src/engine/wasm-instance-provider.ts:51`). En développement, `hint` est `Use wasmInstance: "shared", fewer engines per process, or worker threads.` (`packages/core/src/engine/wasm-instance-provider.ts:52`). Les recours sont `wasmInstance: "shared"`, moins de moteurs par processus, ou des worker threads.
 - `CORE:INVALID_ENGINE` {#core-invalid-engine} Lancé par `createEngineLocal().get()` quand l'argument n'est pas un moteur.
 - `CORE:ENGINE_LOCAL_REENTRANT` {#core-engine-local-reentrant} Lancé par `createEngineLocal().get()` quand `init` relit le même local pour le moteur qu'il construit.
 

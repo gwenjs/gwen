@@ -114,10 +114,10 @@ No earlier document states what the engine trusts, what it checks, and what the 
 
 ### Host duty
 
-7. Memory isolation per engine is planned in #263 as an `isolated` instance mode.
+7. Memory isolation per engine is `wasmInstance: "isolated"` (`packages/core/src/engine/wasm-bridge.ts:358`).
    CPU containment with workers is planned in #268.
-   Neither is an option in this tree.
-   `packages/core/src` has no `instanceMode` and no `worker_threads`.
+   Workers are not an option in this tree.
+   `packages/core/src` has no `worker_threads`.
    `engine.isolated()` is the list of error targets already skipped (`packages/core/src/engine/engine-types.ts:516-520`, `packages/core/src/engine/gwen-engine.ts:82-84`).
    It is not an instance mode.
    A non-returning call still runs on the caller's thread.
@@ -129,7 +129,7 @@ No earlier document states what the engine trusts, what it checks, and what the 
    The engine checks `maxEntities` as an integer from 1 to 2_000_000 (`packages/core/src/engine/engine-config-validator.ts:38-52`).
    A value above 500_000 warns and is still accepted (`:54-58`).
    The engine has no engine-count cap.
-   Browser ceilings are a host responsibility, planned in #263.
+   Browser ceilings are a host responsibility. When `glue.initSync` throws a `RangeError` or a value that is not an `Error`, `initWasm` throws `CORE:WASM_CAPACITY_EXHAUSTED` (`packages/core/src/engine/wasm-instance-provider.ts:46`). Browser `isolated` is not supported until #265.
    The Node capacity gate is planned in #264.
 
 ## Consequences
@@ -149,14 +149,14 @@ No earlier document states what the engine trusts, what it checks, and what the 
 
 ## Not shipped
 
-These names appear above so a later ticket can cite them. None of them is engine behaviour today.
+These names appear above so a later ticket can cite them. #263's instance mode is engine behaviour (`packages/core/src/engine/wasm-bridge.ts:358`). The rest is not.
 
 - #259 — the factory generator and the package export are in this tree.
   The notices file is not. #259 decided that `packages/core/THIRD-PARTY-NOTICES` will list wasm-bindgen under the Apache-2.0 option of `MIT OR Apache-2.0`.
   `git ls-files` and a root listing found no `THIRD-PARTY-NOTICES` file.
   `packages/core/package.json` `files` lists `dist`, `wasm`, `!wasm/toolchain.json`, and `LICENSE` (`:6-11`).
 - #260 — fingerprint compare and `CORE:WASM_GLUE_MISMATCH`. Planned.
-- #263 — `isolated` instance mode, and the browser capacity limit. Planned. The issue is "Add a WASM instance provider: shared or isolated instances".
+- #263 — `wasmInstance` `"shared"` (default) or `"isolated"` (one instance per engine) is in the tree (`packages/core/src/engine/wasm-bridge.ts:358`, `packages/core/src/engine/wasm-instance-provider.ts:128`). `createEngine` in Node still defaults to `shared` (`packages/core/src/engine/engine-factory.ts:79`). Browser `isolated` is not supported until #265. The browser capacity limit is not in this tree. The issue is "Add a WASM instance provider: shared or isolated instances".
 - #264 — Node capacity gate on Linux. Planned. The issue is "Gate WASM instance capacity in CI on Linux x64 and arm64".
 - #268 — workers for CPU containment. Planned. The issue is "Document and test a multi-room server on `worker_threads`".
 - #270 — community module byte cap. Planned.
@@ -228,5 +228,6 @@ These lines match tests in this tree. Nothing else in this ADR is claimed as a t
 - A `/wasm` request that leaves the wasm directory returns no body.
   `packages/vite/tests/vite-plugin.test.ts`, "gwen() WASM middleware — path traversal containment", including "rejects `..` traversal to a .wasm file outside the wasm directory".
 
-No test in this record covers `CORE:WASM_GLUE_MISMATCH`, a module byte cap, an `isolated` instance mode, workers, or a `THIRD-PARTY-NOTICES` file.
-Those are planned in #260, #270, #263, #268, and #259.
+No test in this record covers `CORE:WASM_GLUE_MISMATCH`, a module byte cap, workers, or a `THIRD-PARTY-NOTICES` file.
+Isolated instances are covered by `packages/core/tests/integration-wasm/instance-provider.test.ts` and `packages/core/tests/engine/instance-capacity.test.ts`.
+The rest are planned in #260, #270, #268, and #259.

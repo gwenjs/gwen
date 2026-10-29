@@ -125,7 +125,7 @@ export const DebugSystem = defineSystem(() => {
 
 ## Moteurs sur une même instance
 
-Deux moteurs peuvent tourner sur une même instance WASM. Chaque moteur possède ses entités, son monde physique et ses tampons de chemin. Un chemin écrit par un moteur n'est pas le chemin que l'autre moteur lit.
+C'est `wasmInstance: "shared"`, le défaut (`packages/core/src/engine/wasm-bridge.ts:358`). Deux moteurs peuvent tourner sur une même instance WASM. Chaque moteur possède ses entités, son monde physique et ses tampons de chemin. Un chemin écrit par un moteur n'est pas le chemin que l'autre moteur lit.
 
 `jsUrl` est l'URL de `gwen_core_factory.js`. `init()` avec `jsUrl` ou `wasmUrl` sur un pont déjà initialisé rejette `CORE:WASM_LOAD_ERROR`.
 
@@ -134,6 +134,34 @@ Ils partagent encore trois choses :
 - Le budget de mémoire linéaire. Une instance a une seule `WebAssembly.Memory`. Tous les moteurs de cette instance y allouent. `wasmMemoryBytes` est la taille de cette mémoire.
 - L'allocateur. Un seul allocateur sert tous les moteurs de l'instance.
 - Le domaine de faute. Un trap laisse la mémoire de l'instance partagée dans un état inconnu. Seul le moteur qui a levé le trap est marqué empoisonné. Les autres moteurs ne sont pas arrêtés et ne doivent pas être tenus pour fiables.
+
+## Plusieurs moteurs par page ou par processus
+
+`wasmInstance` choisit l'instance WASM (`packages/core/src/engine/wasm-bridge.ts:358`).
+
+| Mode | Comportement |
+| --- | --- |
+| `shared` (défaut) | Une instance par module compilé. Les moteurs de ce module partagent sa mémoire linéaire. |
+| `isolated` | Une instance par moteur, avec sa propre mémoire linéaire (`packages/core/src/engine/wasm-instance-provider.ts:128`). |
+
+`createEngine` dans Node utilise encore `shared` par défaut (`packages/core/src/engine/engine-factory.ts:79`). `isolated` devient le défaut Node seulement avec `@gwenjs/core/node`, dans un ticket ultérieur (#267).
+
+`isolated` dans le navigateur n'est pas pris en charge avant la barrière navigateur (#265).
+
+Capacité mesurée :
+
+| Runtime | Mesure |
+| --- | --- |
+| Chromium | Environ 125 mémoires WASM par processus de rendu. |
+| Firefox | Environ 999, puis une valeur qui n'est pas une `Error`. |
+| WebKit | Pas de limite stable. Observations de 13,575 à 14,600 instances. Ces chiffres sont des observations, pas des limites. |
+| Node 22 | Environ 10 GiB de mémoire virtuelle par instance avec le gestionnaire de traps activé. Prévoir le budget avec `ulimit -v`. |
+
+Quand `glue.initSync` lève un `RangeError` ou une valeur qui n'est pas une `Error`, `initWasm` lève `CORE:WASM_CAPACITY_EXHAUSTED` (`packages/core/src/engine/wasm-instance-provider.ts:46`). Les recours sont `wasmInstance: "shared"`, moins de moteurs par processus, ou des worker threads.
+
+```ts
+const room = await createEngine({ variant: "physics2d", wasmInstance: "isolated" });
+```
 
 ## Statistiques de frame
 

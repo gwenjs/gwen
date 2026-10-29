@@ -92,7 +92,7 @@ Cause. The call is outside `defineActor()`, `plugin setup()`, or `withCleanup()`
 - `CORE:FRAME_LOOP_ERROR` {#core-frame-loop-error}
 - `CORE:PLUGIN_SETUP_ERROR` {#core-plugin-setup-error}
 - `CORE:PLUGIN_RUNTIME_ERROR` {#core-plugin-runtime-error}
-- `CORE:WASM_LOAD_ERROR` {#core-wasm-load-error}
+- `CORE:WASM_LOAD_ERROR` {#core-wasm-load-error} `initWasm` maps `WebAssembly.LinkError` and `WebAssembly.CompileError` from `glue.initSync` to this code (`packages/core/src/engine/wasm-instance-provider.ts:58`). The `cause` is that error. The message is that error's text, written as a sentence (`packages/core/src/engine/wasm-instance-provider.ts:59`).
 - `CORE:WASM_TIMEOUT` {#core-wasm-timeout}
 - `CORE:WASM_PANIC` {#core-wasm-panic}
 - `CORE:QUERY_CAPACITY_EXCEEDED` {#core-query-capacity-exceeded}
@@ -143,7 +143,7 @@ Cause. The call is outside `defineActor()`, `plugin setup()`, or `withCleanup()`
   | `exports` | A glue `rawExports` name is not a module export. | Missing names joined by `,`. | `<absent>` |
   | `imports` | The module imports a name the contract does not list. | `<not in contract>` | Those names joined by `,`. |
 - `CORE:ENGINE_DISPOSED` {#core-engine-disposed} Thrown by `createEngineLocal().get()` when it would create a value after `engine.stop()` began disposing, and by `WasmBridgeImpl` after `engine.stop()`.
-- `CORE:WASM_CAPACITY_EXHAUSTED` {#core-wasm-capacity-exhausted} Thrown by WASM instance capacity (#263).
+- `CORE:WASM_CAPACITY_EXHAUSTED` {#core-wasm-capacity-exhausted} Thrown by `initWasm`, from the instance providers (`packages/core/src/engine/wasm-instance-provider.ts:44`), when `glue.initSync` throws a `RangeError` or a value that is not an `Error` (`packages/core/src/engine/wasm-instance-provider.ts:45`). The message is `Cannot create another WASM instance (mode "${mode}", ${live} live).` (`packages/core/src/engine/wasm-instance-provider.ts:48`). `cause` is the thrown value (`packages/core/src/engine/wasm-instance-provider.ts:51`). In development, `hint` is `Use wasmInstance: "shared", fewer engines per process, or worker threads.` (`packages/core/src/engine/wasm-instance-provider.ts:52`). The fallbacks are `wasmInstance: "shared"`, fewer engines per process, or worker threads.
 - `CORE:INVALID_ENGINE` {#core-invalid-engine} Thrown by `createEngineLocal().get()` when the argument is not an engine.
 - `CORE:ENGINE_LOCAL_REENTRANT` {#core-engine-local-reentrant} Thrown by `createEngineLocal().get()` when `init` reads the same local for the engine it is building.
 
