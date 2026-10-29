@@ -24,9 +24,6 @@ function makeConfig(overrides: Partial<ResolvedGwenConfig> = {}): ResolvedGwenCo
     logger: {
       minLevel: "warn",
     },
-    debug: {
-      perf: false,
-    },
     ...overrides,
   };
 }

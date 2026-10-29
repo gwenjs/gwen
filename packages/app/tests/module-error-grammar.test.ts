@@ -5,7 +5,7 @@ import { expect, it } from "vitest";
 import { defineGwenModule, type GwenModule } from "@gwenjs/kit/module";
 import { GwenError } from "@gwenjs/schema";
 import { GwenApp } from "../src/app.js";
-import { resolveConfig } from "../src/config.js";
+import { resolveLoadedConfig } from "../src/config.js";
 
 const see = (code: string): string =>
   `See https://gwenjs.github.io/gwen/api/errors#${code.toLowerCase().replace(/[:_]/g, "-")} (${code})`;
@@ -23,7 +23,7 @@ async function thrown(
   loader?: (moduleName: string) => Promise<GwenModule>,
 ): Promise<GwenError> {
   const caught: unknown = await new GwenApp()
-    .setupModules(resolveConfig({ modules: [name] }), loader)
+    .setupModules(resolveLoadedConfig({ modules: [name] }), loader)
     .catch((err: unknown) => err);
   expect(caught).toBeInstanceOf(GwenError);
   if (!(caught instanceof GwenError)) throw new Error("expected GwenError");
