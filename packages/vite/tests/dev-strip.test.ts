@@ -64,6 +64,7 @@ const SENTINELS = [
   "WASM core loaded",
   "exceeded 50% of frame budget",
   "WASM memory sentinel violation",
+  "was garbage-collected without stop()",
   "ownership transferred",
   "isolated after",
   "__routerName__",

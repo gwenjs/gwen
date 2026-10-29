@@ -247,6 +247,14 @@ describe("generateEntryModule — bootstrap correctness", () => {
     expect(code).toContain('import { WasmBridgeImpl } from "@gwenjs/core/internal";');
   });
 
+  it("the bootstrap passes _ownsBridge: true to createEngine", () => {
+    const code = entryModule(false);
+    const start = code.indexOf("createEngine(");
+    const call = code.slice(start, code.indexOf(");", start));
+    expect(call).toContain("_bridge: bridge");
+    expect(call).toContain("_ownsBridge: true");
+  });
+
   it("bootstrap does not pass requireSAB", () => {
     const code = entryModule(false);
     expect(code).not.toContain("requireSAB");
