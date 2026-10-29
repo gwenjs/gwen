@@ -6,9 +6,8 @@
  * parsed with the TypeScript compiler) and the package manifests, and enforces
  * rules R1-R12 on the package graph.
  *
- * Every rule is at zero hits. The one exception is the `DEFERRED` list below: violations owned by
- * another ticket (today the `GwenModuleEntry` declaration of #61). The ratchet works in both
- * directions:
+ * Every rule is at zero hits. `DEFERRED` is empty: there is no open exception. The ratchet works in
+ * both directions:
  *   - a hit that is not a deferred row fails its rule (a new violation cannot slip in);
  *   - a deferred row with no hit fails the ratchet (a fixed violation must delete its row).
  *
@@ -84,7 +83,6 @@ const SCHEMA_CONTRACTS = new Set([
   "EngineStateChangePayload",
   "GwenEngineStateChangeReason",
   "GwenPlugin",
-  "GwenModuleEntry",
   "RENDERER_CONTRACT_VERSION",
   "RENDER_VIEW_MATRIX_LENGTH",
   "RendererKind",
@@ -608,10 +606,8 @@ function scanR2a(): Hit[] {
   const file = "packages/schema/package.json";
   const manifest = manifestOf("schema");
   for (const key of manifest.deps.dependencies) {
-    if (key !== "defu") out.add("R2a", file, `dependencies: unexpected ${key}`);
+    out.add("R2a", file, `dependencies: unexpected ${key}`);
   }
-  if (!manifest.deps.dependencies.includes("defu"))
-    out.add("R2a", file, "dependencies: missing defu");
   for (const field of ["devDependencies", "peerDependencies"] as const) {
     for (const key of manifest.deps[field]) {
       if (key.startsWith("@gwenjs/")) out.add("R2a", file, `${field}: unexpected ${key}`);
@@ -919,18 +915,8 @@ interface Row {
   owner: string;
 }
 
-/** Violations owned by another ticket: the `GwenModuleEntry` declaration of #61 (D-76-c), nothing else. */
-const DEFERRED: Row[] = [
-  {
-    rule: "R8",
-    file: "packages/app/src/types.ts",
-    match: "export type GwenModuleEntry",
-    owner: "#61",
-  },
-];
-const DEFERRED_OWNER = "#61";
-const DEFERRED_RULE = "R8";
-const DEFERRED_SYMBOL = "GwenModuleEntry";
+/** No deferred violation. A row with no live hit fails the ratchet. */
+const DEFERRED: Row[] = [];
 
 async function unrecordedHits(rule: RuleId): Promise<string[]> {
   const recorded = new Set(DEFERRED.map(hitKey));
@@ -1056,7 +1042,8 @@ describe("deps-graph", () => {
     expect(await unrecordedHits("R1")).toEqual([]);
   });
 
-  it("schema has no @gwenjs dependency and only defu", async () => {
+  it("schema declares no runtime dependency", async () => {
+    expect(manifestOf("schema").deps.dependencies).toEqual([]);
     expect(await unrecordedHits("R2a")).toEqual([]);
   });
 
@@ -1141,21 +1128,12 @@ describe("deps-graph", () => {
       if (rowKeys.has(key)) problems.push(`duplicate row: ${describeHit(row)}`);
       rowKeys.add(key);
       if (!hitKeys.has(key)) problems.push(`stale row (${row.owner}): ${describeHit(row)}`);
-      if (row.owner !== DEFERRED_OWNER) {
-        problems.push(
-          `deferred row without owner ${DEFERRED_OWNER} ("${row.owner}"): ${row.rule} ${row.file}`,
-        );
-      }
-      if (row.rule !== DEFERRED_RULE || !row.match.includes(DEFERRED_SYMBOL)) {
-        problems.push(
-          `deferred row that is not a ${DEFERRED_RULE} hit on ${DEFERRED_SYMBOL}: ${describeHit(row)}`,
-        );
-      }
     }
     for (const hit of hits) {
       if (!rowKeys.has(hitKey(hit))) problems.push(`unrecorded hit: ${describeHit(hit)}`);
     }
     expect(problems).toEqual([]);
+    expect(DEFERRED).toEqual([]);
   });
 
   it("renderer.ts exports only types and the two frozen constants", () => {

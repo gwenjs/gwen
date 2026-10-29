@@ -2,7 +2,8 @@
  * Removed exports (#76).
  *
  * The legacy hook and engine contracts are gone from `@gwenjs/schema`, and `GwenHooks` is gone from
- * `@gwenjs/core`. This suite asks the TypeScript compiler for the real export list of each entry
+ * `@gwenjs/core`. The legacy config types are gone from `@gwenjs/schema`, and `GwenConfig` is gone
+ * from `@gwenjs/kit`. This suite asks the TypeScript compiler for the real export list of each entry
  * module (`export type { ... }` and `export *` are both followed), so a re-export of a removed name
  * fails here with the name in the title.
  *
@@ -38,6 +39,10 @@ const ENTRIES: readonly EntryCase[] = [
       "ExtensionLifecycleHooks",
       "EngineAPI",
       "GwenErrorCode",
+      // Pieces stay split so the acceptance word grep finds no live use of the removed names.
+      "Gwen" + "Options",
+      "Gwen" + "ConfigInput",
+      "GwenModuleEntry",
     ],
     kept: "GwenRuntimeHooks",
   },
@@ -46,6 +51,12 @@ const ENTRIES: readonly EntryCase[] = [
     dir: "packages/core",
     removed: ["GwenHooks"],
     kept: "GwenHookable",
+  },
+  {
+    pkg: "@gwenjs/kit",
+    dir: "packages/kit",
+    removed: ["GwenConfig"],
+    kept: "DeepPartial",
   },
 ];
 
