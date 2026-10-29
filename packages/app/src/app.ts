@@ -321,6 +321,9 @@ export class GwenApp {
         app.buildHooks.hook(event, fn as never);
       },
 
+      /**
+       * Declared as a shallow `Readonly`. The value is frozen in depth, except `plugins` elements, `vite`, and `hooks`.
+       */
       get options(): Readonly<ResolvedGwenConfig> {
         return resolved;
       },
@@ -416,7 +419,11 @@ function prepareModules(config: ResolvedGwenConfig, loaded: readonly LoadedModul
   }
   const builtIn: ModuleRun[] = [];
   const users: ModuleRun[] = [];
+  const seenNames = new Set<string>();
   for (const entry of all) {
+    const moduleName = entry.mod.meta.name;
+    if (seenNames.has(moduleName)) continue;
+    seenNames.add(moduleName);
     const run = resolveModuleRun(entry, record, owners, issues);
     if (BUILT_IN_MODULES.includes(entry.mod)) builtIn.push(run);
     else users.push({ ...run, label: entry.name });
