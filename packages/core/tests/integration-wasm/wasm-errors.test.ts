@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -43,7 +43,7 @@ function mismatch(text: string): string {
 }
 
 function lightUrls(): { jsUrl: string; wasmUrl: string } {
-  const jsPath = fileURLToPath(new URL("../../wasm/light/gwen_core.js", import.meta.url));
+  const jsPath = fileURLToPath(new URL("../../wasm/light/gwen_core_factory.js", import.meta.url));
   const wasmPath = fileURLToPath(new URL("../../wasm/light/gwen_core_bg.wasm", import.meta.url));
   const wasmBytes = readFileSync(wasmPath);
   return {
@@ -216,26 +216,30 @@ describe("WASM coded errors", () => {
   it("Engine::new outside the range is INVALID_MAX_ENTITIES and a later init works", async () => {
     const bridge = new WasmBridgeImpl();
     const urls = lightUrls();
-    let caught: unknown;
     try {
-      await bridge.init("light", { maxEntities: 0, ...urls });
-    } catch (error: unknown) {
-      caught = error;
-    }
-    expectWasmError(caught, CoreErrorCodes.INVALID_MAX_ENTITIES, "new");
+      let caught: unknown;
+      try {
+        await bridge.init("light", { maxEntities: 0, ...urls });
+      } catch (error: unknown) {
+        caught = error;
+      }
+      expectWasmError(caught, CoreErrorCodes.INVALID_MAX_ENTITIES, "new");
 
-    await bridge.init("light", { maxEntities: 2, ...urls });
-    const created = bridge.createEntity();
-    expect(created.index).toBe(0);
-    expect(created.generation).toBe(0);
-    expect(bridge.countEntities()).toBe(1);
-    const engine = await createEngine({ variant: "light", maxEntities: 2, _bridge: bridge });
-    try {
-      await expectNextFrame(engine);
+      await bridge.init("light", { maxEntities: 2, ...urls });
+      const created = bridge.createEntity();
+      expect(created.index).toBe(0);
+      expect(created.generation).toBe(0);
+      expect(bridge.countEntities()).toBe(1);
+      const engine = await createEngine({ variant: "light", maxEntities: 2, _bridge: bridge });
+      try {
+        await expectNextFrame(engine);
+      } finally {
+        await engine.stop();
+      }
+      expect(engine.state).toBe("stopped");
     } finally {
-      await engine.stop();
+      bridge.dispose();
     }
-    expect(engine.state).toBe("stopped");
   });
 
   it("syncTransformsToBuffer above capacity is INVALID_MAX_ENTITIES and writes nothing", async () => {
@@ -292,52 +296,63 @@ describe("WASM coded errors", () => {
 
   it("a trap inside Engine::new stays poisoned only until the next init", async () => {
     const dir = mkdtempSync(join(tmpdir(), "gwen-glue-"));
-    const jsPath = join(dir, "glue.js");
+    const urls = lightUrls();
+    const jsPath = join(dir, "glue.mjs");
     writeFileSync(
       jsPath,
       [
-        "export function initSync() {",
-        "  return { memory: new WebAssembly.Memory({ initial: 1 }) };",
-        "}",
-        "export class Engine {",
-        "  constructor() { throw new WebAssembly.RuntimeError('trap in new'); }",
+        `import * as real from ${JSON.stringify(urls.jsUrl)};`,
+        "export const CONTRACT = real.CONTRACT;",
+        "export const wasmUrl = real.wasmUrl;",
+        "export function createGlue() {",
+        "  const glue = real.createGlue();",
+        "  return {",
+        "    initSync(input) { return glue.initSync(input); },",
+        "    Engine: class Engine {",
+        "      constructor() { throw new WebAssembly.RuntimeError('trap in new'); }",
+        "    },",
+        "  };",
         "}",
         "",
       ].join("\n"),
     );
-    const wasmBytes = new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
     const bridge = new WasmBridgeImpl();
-    let caught: unknown;
     try {
-      await bridge.init("light", {
-        maxEntities: 2,
-        jsUrl: pathToFileURL(jsPath).href,
-        wasmUrl: `data:application/wasm;base64,${Buffer.from(wasmBytes).toString("base64")}`,
-      });
-    } catch (error: unknown) {
-      caught = error;
-    }
-    expect(caught).toBeInstanceOf(GwenWasmPanicError);
+      let caught: unknown;
+      try {
+        await bridge.init("light", {
+          maxEntities: 2,
+          jsUrl: pathToFileURL(jsPath).href,
+          wasmUrl: urls.wasmUrl,
+        });
+      } catch (error: unknown) {
+        caught = error;
+      }
+      expect(caught).toBeInstanceOf(GwenWasmPanicError);
 
-    let poisoned: unknown;
-    try {
-      bridge.createEntity();
-    } catch (error: unknown) {
-      poisoned = error;
-    }
-    expect(poisoned).toBeInstanceOf(GwenWasmPanicError);
+      let poisoned: unknown;
+      try {
+        bridge.createEntity();
+      } catch (error: unknown) {
+        poisoned = error;
+      }
+      expect(poisoned).toBeInstanceOf(GwenWasmPanicError);
 
-    await bridge.init("light", { maxEntities: 2, ...lightUrls() });
-    const created = bridge.createEntity();
-    expect(created.index).toBe(0);
-    expect(created.generation).toBe(0);
-    const engine = await createEngine({ variant: "light", maxEntities: 2, _bridge: bridge });
-    try {
-      await expectNextFrame(engine);
+      await bridge.init("light", { maxEntities: 2, ...urls });
+      const created = bridge.createEntity();
+      expect(created.index).toBe(0);
+      expect(created.generation).toBe(0);
+      const engine = await createEngine({ variant: "light", maxEntities: 2, _bridge: bridge });
+      try {
+        await expectNextFrame(engine);
+      } finally {
+        await engine.stop();
+      }
+      expect(engine.state).toBe("stopped");
     } finally {
-      await engine.stop();
+      bridge.dispose();
+      rmSync(dir, { recursive: true, force: true });
     }
-    expect(engine.state).toBe("stopped");
   });
 
   it("a wrongly sized bulk buffer throws both sizes and the next frame runs", async () => {

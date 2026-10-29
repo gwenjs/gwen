@@ -3,7 +3,7 @@
  * The codes and the control flow stay. Only the rendered text moves.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -22,16 +22,10 @@ const LOAD_SEE =
 const TIMEOUT_MESSAGE =
   "[initWasm()] Fetching the WASM binary timed out after 10s.\nSee https://gwenjs.github.io/gwen/api/errors#core-wasm-timeout (CORE:WASM_TIMEOUT)";
 
-afterEach(() => {
-  for (const key of Object.keys(globalThis)) {
-    if (key.startsWith("__gwenGlue_")) Reflect.deleteProperty(globalThis, key);
-  }
-});
-
 function glueFile(): { dir: string; jsUrl: string } {
   const dir = mkdtempSync(join(tmpdir(), "gwen-bridge-err-"));
   const file = join(dir, "glue.mjs");
-  writeFileSync(file, "export default function init() { return {}; }\n", "utf8");
+  writeFileSync(file, "export function createGlue() { return {}; }\n", "utf8");
   return { dir, jsUrl: pathToFileURL(file).href };
 }
 

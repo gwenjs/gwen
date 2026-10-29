@@ -1,8 +1,5 @@
 /**
- * Glue cache is shared by WASM variant.
- *
- * Resetting one bridge, or stopping one engine, must leave `__gwenGlue_*`
- * keys in place for any other engine on the same variant.
+ * `engine.stop()` drops community WASM modules loaded on that engine.
  */
 
 import { describe, it, expect, afterEach, vi } from "vitest";
@@ -23,42 +20,10 @@ const MINIMAL_WASM = Uint8Array.from(
   ),
 );
 
-describe("WasmBridgeImpl._reset keeps the shared glue cache", () => {
-  afterEach(() => {
-    const ctx = globalThis as Record<string, unknown>;
-    for (const key of Object.keys(ctx)) {
-      if (key.startsWith("__gwenGlue_")) delete ctx[key];
-    }
-  });
-
-  it("keeps __gwenGlue_ module cache keys", () => {
-    const ctx = globalThis as Record<string, unknown>;
-    ctx["__gwenGlue_https___cdn_example_com_gwen_js"] = { version: "mock" };
-
-    new WasmBridgeImpl()._reset();
-
-    expect(ctx["__gwenGlue_https___cdn_example_com_gwen_js"]).toEqual({ version: "mock" });
-  });
-
-  it("keeps __resolve callback keys left by the blob script path", () => {
-    const ctx = globalThis as Record<string, unknown>;
-    const resolve = () => {};
-    ctx["__gwenGlue_https___cdn_example_com_gwen_js__resolve"] = resolve;
-
-    new WasmBridgeImpl()._reset();
-
-    expect(ctx["__gwenGlue_https___cdn_example_com_gwen_js__resolve"]).toBe(resolve);
-  });
-});
-
 describe("engine.stop() — WASM module and glue cache cleanup", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
-    const ctx = globalThis as Record<string, unknown>;
-    for (const key of Object.keys(ctx)) {
-      if (key.startsWith("__gwenGlue_")) delete ctx[key];
-    }
   });
 
   function engineWithWasmFetch(): Promise<Awaited<ReturnType<typeof createEngine>>> {
@@ -98,22 +63,5 @@ describe("engine.stop() — WASM module and glue cache cleanup", () => {
       }
     }).toThrow(/test_module/);
     expect(caught).toMatchObject({ code: CoreErrorCodes.WASM_MODULE_NOT_FOUND });
-  });
-
-  it("keeps globalThis glue cache keys on stop()", async () => {
-    const engine = await engineWithWasmFetch();
-    const name = "test_module";
-    try {
-      await engine.loadWasmModule({ name, url: "http://x/test_module.wasm" });
-      const ctx = globalThis as Record<string, unknown>;
-      const glueKey = `__gwenGlue_${name}_`;
-      ctx[glueKey] = { mock: true };
-
-      await engine.stop();
-
-      expect(ctx[glueKey]).toEqual({ mock: true });
-    } finally {
-      await engine.stop();
-    }
   });
 });

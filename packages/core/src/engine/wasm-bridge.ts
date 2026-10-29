@@ -39,7 +39,9 @@ import {
   noteEntityAllocated,
   noteEntityDeallocated,
 } from "./entity-trace.js";
-import { bytesFromDataUrl } from "./wasm-module-cache.js";
+import { getWasmModule } from "./wasm-module-cache.js";
+import { checkGwenModule } from "./wasm-contract.js";
+import { sharedProvider } from "./wasm-instance-provider.js";
 
 // ─── Re-exports from the type module ────────────────────────────────────────
 // Public types live in ./wasm-bridge-types.ts. Re-export them so
@@ -60,7 +62,8 @@ export type {
 import type {
   CoreVariant,
   WasmEntityId,
-  GwenCoreWasm,
+  GwenCoreGlueFactoryModule,
+  GwenCoreGlueInstance,
   WasmEngineBase,
   WasmEnginePhysics2D,
   WasmEnginePhysics3D,
@@ -96,43 +99,34 @@ const _pkgWasmBase: string | null = (() => {
 
 // InitWasmOptions — extracted to ./wasm-bridge-types.ts
 
-/**
- * Shape of a wasm-bindgen generated ES glue module.
- * The exact exports depend on the wasm-bindgen version and init mode.
- */
-interface WasmGlueModule {
-  /** Async init — returns raw WASM instance exports including the linear memory. */
-  default?: (init: {
-    module_or_path?: Response | BufferSource | undefined;
-  }) => Promise<{ memory?: WebAssembly.Memory }>;
-  /** Sync init — returns raw WASM instance exports including the linear memory. */
-  initSync?: (init: { module: ArrayBuffer }) => { memory?: WebAssembly.Memory };
-  Engine?: new (maxEntities: number) => WasmEngine;
-  [key: string]: unknown;
+/** `jsUrl` or `wasmUrl` is an explicit source. Later tickets add fields here. */
+function hasSource(options: InitWasmOptions): boolean {
+  return options.jsUrl !== undefined || options.wasmUrl !== undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isGlueFactory(value: unknown): value is GwenCoreGlueFactoryModule {
+  if (!isRecord(value)) return false;
+  return typeof value.createGlue === "function";
 }
 
 /**
- * Load a WASM ES glue module with `import()` on every thread.
+ * Load `gwen_core_factory.js` with `import()` on every thread.
  *
- * The same path runs on the main thread, in a worker, and in Node. The glue
- * URL is imported as a module. Nothing is built from that URL, so a page does
- * not need `blob:` in `script-src`.
- *
- * The loaded module is cached on `globalThis` under a deterministic key so repeated
- * calls for the same URL are free (no extra network round-trips).
+ * The same path runs on the main thread, in a worker, and in Node. The URL is
+ * imported as a module. Nothing is built from that URL, so a page does not
+ * need `blob:` in `script-src`.
  *
  * A URL that does not parse, or an `import()` that rejects, throws
  * {@link GwenError} `CORE:WASM_LOAD_ERROR`. The message names `jsUrl`.
+ * A module with no `createGlue` function throws the same code and names the factory file.
  *
- * @param jsUrl Absolute or root-relative URL to the wasm-bindgen JS glue file.
+ * @param jsUrl Absolute or root-relative URL of `gwen_core_factory.js`.
  */
-async function loadWasmGlue(jsUrl: string): Promise<WasmGlueModule> {
-  const key = `__gwenGlue_${jsUrl.replace(/\W/g, "_")}`;
-  const ctx = globalThis as Record<string, unknown>;
-
-  // Cache hit — same URL already loaded in this context.
-  if (ctx[key]) return ctx[key] as WasmGlueModule;
-
+async function loadGlueFactory(jsUrl: string): Promise<GwenCoreGlueFactoryModule> {
   // Resolve to an absolute URL. `globalThis.location` is available in both
   // the main thread (window.location) and module workers (self.location).
   // Node has no `location`, so the glue URL is its own base.
@@ -147,16 +141,24 @@ async function loadWasmGlue(jsUrl: string): Promise<WasmGlueModule> {
     });
   }
 
+  let factory: unknown;
   try {
-    const glue = (await import(/* @vite-ignore */ absoluteUrl)) as WasmGlueModule;
-    ctx[key] = glue;
-    return glue;
+    factory = await import(/* @vite-ignore */ absoluteUrl);
   } catch (cause) {
     throw new GwenError(CoreErrorCodes.WASM_LOAD_ERROR, `Unable to load WASM glue: ${jsUrl}.`, {
       composable: "initWasm",
       cause,
     });
   }
+
+  if (!isGlueFactory(factory)) {
+    throw new GwenError(
+      CoreErrorCodes.WASM_LOAD_ERROR,
+      `jsUrl must point at gwen_core_factory.js, got ${jsUrl}.`,
+      { composable: "initWasm" },
+    );
+  }
+  return factory;
 }
 
 // #endregion
@@ -220,7 +222,7 @@ export function poisonWasmBridge(bridge: object, cause: WebAssembly.RuntimeError
 export class WasmBridgeImpl implements WasmBridge {
   // ── Per-instance state (was module-level) ─────────────────────────────────
   private _wasmEngine: WasmEngine | null = null;
-  private _wasmModule: GwenCoreWasm | null = null;
+  private _wasmModule: GwenCoreGlueInstance | null = null;
   private _wasmExports: { memory?: WebAssembly.Memory } | null = null;
   private _initPromise: Promise<void> | null = null;
   private _maxEntities = 10_000;
@@ -230,7 +232,7 @@ export class WasmBridgeImpl implements WasmBridge {
   private _panicCause: WebAssembly.RuntimeError | null = null;
   /** Set by {@link dispose}. A call that reaches WASM throws `CORE:ENGINE_DISPOSED`. */
   private _disposed = false;
-  /** Provider release (#263). Null until that provider exists. */
+  /** Drops this bridge's ref on the shared glue. Null until acquire. */
   private _release: (() => void) | null = null;
 
   /** Track the last seen ArrayBuffer to detect memory.grow() events. */
@@ -289,12 +291,25 @@ export class WasmBridgeImpl implements WasmBridge {
    * @param variant The core variant to load ('light', 'physics2d', 'physics3d')
    * @param options Initialization options (urls, max entities)
    * @throws {GwenError} `CORE:ENGINE_DISPOSED` when this bridge was disposed.
+   * @throws {GwenError} `CORE:WASM_LOAD_ERROR` when `jsUrl` or `wasmUrl` is passed again
+   *   after init has started. A call with neither returns the init already running.
    * @throws {GwenError} If WASM cannot be loaded or has invalid format
    */
   async init(variant: CoreVariant = "light", options: InitWasmOptions = {}): Promise<void> {
     if (this._disposed) this._throwDisposed();
-    if (this._wasmEngine) return;
-    if (this._initPromise) return this._initPromise;
+    if (this._wasmEngine !== null || this._initPromise !== null) {
+      if (hasSource(options)) {
+        return Promise.reject(
+          new GwenError(
+            CoreErrorCodes.WASM_LOAD_ERROR,
+            "The bridge is already initialised; create a new engine.",
+            { composable: "initWasm" },
+          ),
+        );
+      }
+      if (this._wasmEngine !== null) return;
+      if (this._initPromise !== null) return this._initPromise;
+    }
     this._poisoned = false;
     this._panicCause = null;
 
@@ -305,7 +320,7 @@ export class WasmBridgeImpl implements WasmBridge {
 
     const variantPath = `${variant}/`;
     const resolvedJsUrl =
-      jsUrl ?? (_pkgWasmBase ? `${_pkgWasmBase}${variantPath}gwen_core.js` : null);
+      jsUrl ?? (_pkgWasmBase ? `${_pkgWasmBase}${variantPath}gwen_core_factory.js` : null);
     const resolvedWasmUrl =
       wasmUrl ?? (_pkgWasmBase ? `${_pkgWasmBase}${variantPath}gwen_core_bg.wasm` : null);
 
@@ -321,62 +336,29 @@ export class WasmBridgeImpl implements WasmBridge {
     }
 
     this._initPromise = (async () => {
-      const glue = await loadWasmGlue(resolvedJsUrl);
-
-      const _fetchController = new AbortController();
-      const _fetchTimeoutId = setTimeout(() => _fetchController.abort(), 10_000);
-
-      let wasmInput: Response | Uint8Array<ArrayBuffer> | undefined;
-      try {
-        if (resolvedWasmUrl?.startsWith("data:")) {
-          wasmInput = bytesFromDataUrl(resolvedWasmUrl);
-        } else if (resolvedWasmUrl) {
-          wasmInput = await fetch(resolvedWasmUrl, { signal: _fetchController.signal });
-          if (!wasmInput.ok) {
-            throw new GwenError(
-              CoreErrorCodes.WASM_LOAD_ERROR,
-              `The WASM binary fetch failed with HTTP ${wasmInput.status} ${wasmInput.statusText}.`,
-              { composable: "initWasm" },
-            );
-          }
-        }
-      } catch (err) {
-        if (err instanceof Error && err.name === "AbortError") {
-          throw new GwenError(
-            CoreErrorCodes.WASM_TIMEOUT,
-            "Fetching the WASM binary timed out after 10s.",
-            { composable: "initWasm" },
-          );
-        }
-        throw err;
-      } finally {
-        clearTimeout(_fetchTimeoutId);
-      }
-
-      if (typeof glue.default === "function") {
-        // glue.default() returns the raw WASM instance exports (including memory)
-        this._wasmExports = await glue.default({ module_or_path: wasmInput });
-      } else if (typeof glue.initSync === "function") {
-        const buf = await (await fetch(resolvedWasmUrl!)).arrayBuffer();
-        this._wasmExports = glue.initSync({ module: buf });
-      } else {
-        throw new GwenError(CoreErrorCodes.WASM_LOAD_ERROR, "The WASM glue has no init function.", {
-          composable: "initWasm",
-          hint: __GWEN_DEV__ ? "The glue file may be corrupted." : undefined,
-        });
-      }
-
-      if (typeof glue.Engine !== "function") {
+      const factory = await loadGlueFactory(resolvedJsUrl);
+      if (this._disposed) this._throwDisposed();
+      if (resolvedWasmUrl === null) {
         throw new GwenError(
           CoreErrorCodes.WASM_LOAD_ERROR,
-          "The WASM glue loaded but the Engine class was not found.",
-          { composable: "initWasm" },
+          `Unable to resolve the WASM URL for variant "${variant}".`,
+          {
+            composable: "initWasm",
+            hint: __GWEN_DEV__ ? "Make sure @gwenjs/core is correctly installed." : undefined,
+          },
         );
       }
-
-      this._wasmModule = glue as GwenCoreWasm;
+      const wasmModule = await getWasmModule(resolvedWasmUrl);
+      if (this._disposed) this._throwDisposed();
+      checkGwenModule(wasmModule, factory.CONTRACT);
+      const acquired = sharedProvider.acquire(wasmModule, factory);
+      this._release = () => {
+        sharedProvider.release(acquired.glue);
+      };
+      this._wasmModule = acquired.glue;
+      this._wasmExports = acquired.exports;
       try {
-        this._wasmEngine = new glue.Engine(maxEntities);
+        this._wasmEngine = new acquired.glue.Engine(maxEntities);
       } catch (err: unknown) {
         throw this._mapWasmError(err, "new");
       }
@@ -389,6 +371,9 @@ export class WasmBridgeImpl implements WasmBridge {
         console.log(`[GWEN] WASM core loaded — ${label} variant active`);
       }
     })().catch((err: unknown) => {
+      const release = this._release;
+      this._release = null;
+      release?.();
       this._initPromise = null;
       this._wasmEngine = null;
       this._wasmModule = null;
@@ -1083,8 +1068,7 @@ export class WasmBridgeImpl implements WasmBridge {
   /**
    * Return the live `WebAssembly.Memory` exported by gwen_core.wasm.
    *
-   * wasm-bindgen exposes it as `glueModule.memory`. We cache the module
-   * reference in `_wasmModule` at init time, so this is a single property
+   * The shared provider returns it as `exports.memory`. This is one property
    * read — no cost on the hot path.
    *
    * Returns `null` when the WASM module is not yet loaded or when running

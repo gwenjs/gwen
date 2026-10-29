@@ -5,7 +5,7 @@
  * and the page needs no `blob:` entry in its CSP.
  */
 
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -23,12 +23,6 @@ const BRIDGE_SOURCE = fileURLToPath(new URL("../../src/engine/wasm-bridge.ts", i
 const GLUE_URL = "https://gwenjs.github.io/gwen/api/errors#core-wasm-load-error";
 const GLUE_SEE = `See ${GLUE_URL} (CORE:WASM_LOAD_ERROR)`;
 
-afterEach(() => {
-  for (const key of Object.keys(globalThis)) {
-    if (key.startsWith("__gwenGlue_")) Reflect.deleteProperty(globalThis, key);
-  }
-});
-
 describe("loadWasmGlue", () => {
   it("source builds no module source", () => {
     const source = readFileSync(BRIDGE_SOURCE, "utf8");
@@ -36,6 +30,7 @@ describe("loadWasmGlue", () => {
     expect(source).not.toContain("new Blob(");
     expect(source).not.toContain('createElement("script")');
     expect(source).not.toContain("createObjectURL");
+    expect(source).not.toContain("__gwenGlue_");
   });
 
   it("init rejects with CORE:WASM_LOAD_ERROR when the glue URL does not load", async () => {
@@ -87,17 +82,19 @@ describe("loadWasmGlue", () => {
   it("init wraps a plain glue init Error as CORE:WASM_LOAD_ERROR and keeps the cause", async () => {
     const rejected = new Error("glue init failed");
     Reflect.set(globalThis, "__gwenGlue_rejected", rejected);
-    const caught = await catchGlue(
-      "export default function init() { throw globalThis.__gwenGlue_rejected; }\n",
-    );
-    expect(caught).toBeInstanceOf(GwenError);
-    if (!(caught instanceof GwenError)) return;
-    expect(caught.message).toBe(`[initWasm()] glue init failed.\n${GLUE_SEE}`);
-    expect(caught.cause).toBe(rejected);
-    expect(caught.code).toBe(CoreErrorCodes.WASM_LOAD_ERROR);
+    try {
+      const caught = await catchThrowingGlue("throw globalThis.__gwenGlue_rejected;");
+      expect(caught).toBeInstanceOf(GwenError);
+      if (!(caught instanceof GwenError)) return;
+      expect(caught.message).toBe(`[initWasm()] glue init failed.\n${GLUE_SEE}`);
+      expect(caught.cause).toBe(rejected);
+      expect(caught.code).toBe(CoreErrorCodes.WASM_LOAD_ERROR);
+    } finally {
+      Reflect.deleteProperty(globalThis, "__gwenGlue_rejected");
+    }
   });
   it("init keeps a non-Error glue failure raw and still sets docsUrl", async () => {
-    const caught = await catchGlue("export default function init() { throw 'not-an-error'; }\n");
+    const caught = await catchThrowingGlue("throw 'not-an-error';");
     expect(caught).toBeInstanceOf(GwenError);
     if (!(caught instanceof GwenError)) return;
     expect(caught.message).toBe(`[initWasm()] not-an-error.\n${GLUE_SEE}`);
@@ -105,18 +102,51 @@ describe("loadWasmGlue", () => {
     expect(caught.code).toBe(CoreErrorCodes.WASM_LOAD_ERROR);
   });
 });
-async function catchGlue(source: string): Promise<unknown> {
+
+function lightFactoryHref(): string {
+  return pathToFileURL(
+    fileURLToPath(new URL("../../wasm/light/gwen_core_factory.js", import.meta.url)),
+  ).href;
+}
+
+function lightWasmDataUrl(): string {
+  const wasmPath = fileURLToPath(new URL("../../wasm/light/gwen_core_bg.wasm", import.meta.url));
+  return `data:application/wasm;base64,${readFileSync(wasmPath).toString("base64")}`;
+}
+
+/** A factory whose `initSync` throws. The contract matches the real light binary. */
+function throwingFactorySource(body: string): string {
+  return [
+    `import { CONTRACT, wasmUrl } from ${JSON.stringify(lightFactoryHref())};`,
+    "export { CONTRACT, wasmUrl };",
+    "export function createGlue() {",
+    "  return {",
+    "    initSync() {",
+    `      ${body}`,
+    "    },",
+    "    Engine: class Engine {},",
+    "  };",
+    "}",
+    "",
+  ].join("\n");
+}
+
+function catchThrowingGlue(body: string): Promise<unknown> {
+  return catchGlue(throwingFactorySource(body), lightWasmDataUrl());
+}
+
+async function catchGlue(source: string, wasmUrl: string = MINIMAL_WASM_URL): Promise<unknown> {
   const dir = mkdtempSync(join(tmpdir(), "gwen-glue-"));
   const bridge = new WasmBridgeImpl();
   try {
     const jsUrl = pathToFileURL(join(dir, "glue.mjs")).href;
     writeFileSync(fileURLToPath(jsUrl), source, "utf8");
-    await bridge.init("light", { jsUrl, wasmUrl: MINIMAL_WASM_URL });
+    await bridge.init("light", { jsUrl, wasmUrl });
     return undefined;
   } catch (err: unknown) {
     return err;
   } finally {
-    bridge._reset();
+    bridge.dispose();
     rmSync(dir, { recursive: true, force: true });
   }
 }
