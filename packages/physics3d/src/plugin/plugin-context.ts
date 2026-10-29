@@ -59,6 +59,13 @@ export interface PluginContext {
   nextBodyId: number;
   backendMode: "wasm" | "local";
   wasmBridge: Physics3DWasmBridge | null;
+  /**
+   * Core bridge for this engine. Teardown does not clear it.
+   * Null before setup. The bulk kinematic steps, the step function, the collision
+   * and CC views, and `emitDisabledBodies` read the glue from it per call.
+   * Other methods use `wasmBridge`.
+   */
+  coreBridge: Physics3DBridgeRuntime | null;
   bridgeRuntime: Physics3DBridgeRuntime | null;
   _engine: GwenEngine | null;
   log: GwenLogger;
@@ -167,6 +174,7 @@ export function createPluginContext(
     nextBodyId: 1,
     backendMode: "local",
     wasmBridge: null,
+    coreBridge: null,
     bridgeRuntime: null,
     _engine: null,
     log: {

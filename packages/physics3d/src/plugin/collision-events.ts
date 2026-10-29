@@ -108,8 +108,9 @@ export function detectLocalCollisions(ctx: PluginContext): InternalCollisionEven
  * flags bit 0: 1 = contact started, 0 = contact ended
  */
 export function readWasmCollisionEvents(ctx: PluginContext): InternalCollisionEvent3D[] {
-  if (!ctx.wasmBridge) return [];
-  const pb = ctx.wasmBridge;
+  const core = ctx.coreBridge;
+  if (core === null) return [];
+  const pb = core.getPhysicsBridge();
   if (!pb.physics3d_get_collision_events_ptr || !pb.physics3d_get_collision_event_count) {
     return [];
   }
@@ -129,10 +130,11 @@ export function readWasmCollisionEvents(ctx: PluginContext): InternalCollisionEv
     ctx.collisionEvents = engine.memory.view({
       name: "physics3d:collision-events",
       type: "dataview",
-      ptr: () => pb.physics3d_get_collision_events_ptr?.() ?? 0,
+      ptr: () => ctx.coreBridge?.getPhysicsBridge().physics3d_get_collision_events_ptr?.() ?? 0,
       length: () => {
-        const live = ctx.bridgeRuntime?.getLinearMemory?.() ?? pb.memory ?? null;
-        const livePtr = pb.physics3d_get_collision_events_ptr?.() ?? 0;
+        const livePb = ctx.coreBridge?.getPhysicsBridge();
+        const live = ctx.bridgeRuntime?.getLinearMemory?.() ?? livePb?.memory ?? null;
+        const livePtr = livePb?.physics3d_get_collision_events_ptr?.() ?? 0;
         if (live === null) return 0;
         const liveAvailable = live.buffer.byteLength - livePtr;
         const cap = MAX_EVENTS_3D * EVENT_STRIDE_3D;
