@@ -20,7 +20,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { GwenError } from "@gwenjs/schema";
 import { describe, expect, it } from "vitest";
 
-import { CoreErrorCodes } from "../../src/engine/engine-errors.js";
+import { CoreErrorCodes, GwenWasmPanicError } from "../../src/engine/engine-errors.js";
 import { createEngine } from "../../src/engine/engine-factory.js";
 import type { GwenEngine } from "../../src/engine/engine-types.js";
 import { entityGeneration, entityIndex } from "../../src/types/entity.js";
@@ -29,6 +29,8 @@ import type { CoreVariant } from "../../src/engine/wasm-bridge-types.js";
 import { invalidateWasmModule } from "../../src/engine/wasm-module-cache.js";
 import "../../../physics2d/src/augment";
 import { Physics2DPlugin } from "../../../physics2d/src/plugin/index";
+import "../../../physics3d/src/augment";
+import { Physics3DPlugin } from "../../../physics3d/src/plugin/index";
 
 const VARIANTS = ["light", "physics2d", "physics3d"] as const;
 
@@ -38,6 +40,12 @@ const VARIANTS = ["light", "physics2d", "physics3d"] as const;
  */
 const PHYSICS2D_HASH_A = 1648044585;
 const PHYSICS2D_HASH_B = 1648044585;
+/**
+ * Shared-mode run of `buildScene3d`, 60 steps at `physicsHz: 60`.
+ * Command: pnpm --filter @gwenjs/core exec vitest run --config vitest.wasm.config.ts --project dev tests/integration-wasm/probe-263.test.ts
+ * Received `hash3`: 2972392379. The probe file was removed after the run.
+ */
+const PHYSICS3D_HASH_A = 2972392379;
 
 const CORRUPT_WASM_URL = "data:application/wasm;base64,AAAA";
 
@@ -592,3 +600,294 @@ function flakyInstantiateFactory(realJsUrl: string): string {
     "",
   ].join("\n");
 }
+
+function memoryOf(engine: GwenEngine): WebAssembly.Memory {
+  const memory = bridgeOf(engine).getLinearMemory();
+  if (!(memory instanceof WebAssembly.Memory)) throw new Error("no linear memory");
+  return memory;
+}
+
+async function openTwo(
+  into: GwenEngine[],
+  variant: CoreVariant,
+  mode: "isolated" | "shared",
+  physicsHz?: number,
+): Promise<readonly [GwenEngine, GwenEngine]> {
+  const timing = physicsHz === undefined ? {} : { physicsHz };
+  const engineA = await createEngine({ variant, wasmInstance: mode, maxEntities: 32, ...timing });
+  const engineB = await createEngine({ variant, wasmInstance: mode, maxEntities: 32, ...timing });
+  into.push(engineA, engineB);
+  return [engineA, engineB];
+}
+
+async function openOne(
+  into: GwenEngine[],
+  variant: CoreVariant,
+  mode: "isolated" | "shared",
+): Promise<GwenEngine> {
+  const engine = await createEngine({
+    variant,
+    wasmInstance: mode,
+    maxEntities: 32,
+    physicsHz: 60,
+  });
+  into.push(engine);
+  return engine;
+}
+
+const BOX3D = { shape: { type: "box" as const, halfX: 0.3, halfY: 0.3, halfZ: 0.3 } };
+
+async function buildScene3d(engine: GwenEngine): Promise<ReturnType<GwenEngine["createEntity"]>[]> {
+  await engine.use(Physics3DPlugin({ gravity: { x: 0, y: -10, z: 0 }, maxEntities: 32 }));
+  const api = engine.inject("physics3d");
+  const floor = engine.createEntity();
+  api.createBody(floor, {
+    kind: "fixed",
+    initialPosition: { x: 0, y: 0, z: 0 },
+    colliders: [{ shape: { type: "box" as const, halfX: 5, halfY: 0.25, halfZ: 5 } }],
+  });
+  const spots = [
+    { x: 0, y: 4, z: 0 },
+    { x: 1.25, y: 7.5, z: 0.4 },
+    { x: -0.5, y: 2.25, z: -0.2 },
+  ] as const;
+  return spots.map((spot) => {
+    const id = engine.createEntity();
+    api.createBody(id, { kind: "dynamic", initialPosition: spot, colliders: [BOX3D] });
+    return id;
+  });
+}
+
+function positionHash3d(
+  engine: GwenEngine,
+  ids: readonly ReturnType<GwenEngine["createEntity"]>[],
+): number {
+  const api = engine.inject("physics3d");
+  const values: number[] = [];
+  for (const id of ids) {
+    const state = api.getBodyState(id);
+    if (state === undefined) throw new Error("missing physics3d body");
+    values.push(
+      state.position.x,
+      state.position.y,
+      state.position.z,
+      state.rotation.x,
+      state.rotation.y,
+      state.rotation.z,
+      state.rotation.w,
+    );
+  }
+  return fnv1a(values);
+}
+
+async function sceneHash(engine: GwenEngine, variant: "physics2d" | "physics3d"): Promise<number> {
+  const ids = variant === "physics2d" ? await buildScene(engine) : await buildScene3d(engine);
+  await engine.startExternal();
+  for (let step = 0; step < 60; step += 1) await engine.advance(1 / 60);
+  return variant === "physics2d" ? positionHash(engine, ids) : positionHash3d(engine, ids);
+}
+
+describe("isolated wasm instance", () => {
+  it.each(VARIANTS)(
+    "isolated: two engines have different memory objects (%s)",
+    async (variant) => {
+      const engines: GwenEngine[] = [];
+      try {
+        const [engineA, engineB] = await openTwo(engines, variant, "isolated");
+        expect(memoryOf(engineA)).not.toBe(memoryOf(engineB));
+      } finally {
+        await stopAll(engines);
+      }
+    },
+    60_000,
+  );
+
+  it.each(VARIANTS)(
+    "isolated: memory.grow in A leaves B's size and data unchanged (%s)",
+    async (variant) => {
+      const engines: GwenEngine[] = [];
+      try {
+        const [engineA, engineB] = await openTwo(engines, variant, "isolated");
+        for (let n = 0; n < 3; n += 1) engineA.createEntity();
+        for (let n = 0; n < 10; n += 1) engineB.createEntity();
+        const memA = memoryOf(engineA);
+        const memB = memoryOf(engineB);
+        const beforeA = memA.buffer.byteLength;
+        const beforeB = memB.buffer.byteLength;
+        memA.grow(1);
+        expect(memA.buffer.byteLength).toBeGreaterThan(beforeA);
+        expect(memB.buffer.byteLength).toBe(beforeB);
+        expect(engineA.getStats().entityCount).toBe(3);
+        expect(engineB.getStats().entityCount).toBe(10);
+      } finally {
+        await stopAll(engines);
+      }
+    },
+    60_000,
+  );
+
+  it("isolated: a trap in A faults A only and B keeps advancing", async () => {
+    const engines: GwenEngine[] = [];
+    try {
+      const [engineA, engineB] = await openTwo(engines, "physics2d", "isolated", 60);
+      await buildScene(engineA);
+      const idsB = await buildScene(engineB);
+      await engineA.startExternal();
+      await engineB.startExternal();
+      const panics: unknown[] = [];
+      engineA.errors.on((event) => {
+        if (event.code === CoreErrorCodes.WASM_PANIC) panics.push(event.error);
+      });
+      new Uint8Array(memoryOf(engineA).buffer).fill(0xff);
+      let rejection: unknown;
+      let steps = 0;
+      for (; steps < 60; steps += 1) {
+        try {
+          await engineA.advance(1 / 60);
+        } catch (error: unknown) {
+          rejection = error;
+          break;
+        }
+        if (panics.length > 0 || engineA.state === "faulted") break;
+      }
+      const trap = rejection instanceof GwenWasmPanicError ? rejection : panics[0];
+      if (!(trap instanceof GwenWasmPanicError)) {
+        const seen = rejection instanceof Error ? rejection.name : String(rejection);
+        throw new Error(
+          `A did not trap within 60 advances (state ${engineA.state}, steps ${steps}, rejection ${seen}, panics ${panics.length})`,
+        );
+      }
+      expect(trap).toBeInstanceOf(GwenWasmPanicError);
+      expect(engineA.state).toBe("faulted");
+
+      const bErrors: unknown[] = [];
+      for (let step = 0; step < 60; step += 1) {
+        try {
+          await engineB.advance(1 / 60);
+        } catch (error: unknown) {
+          bErrors.push(error);
+          break;
+        }
+      }
+      expect(bErrors).toEqual([]);
+      expect(engineB.state).toBe("running");
+      expect(positionHash(engineB, idsB)).toBe(PHYSICS2D_HASH_A);
+    } finally {
+      await stopAll(engines);
+    }
+  }, 60_000);
+
+  it("isolated rooms keep their own entity counts and component values (physics2d)", async () => {
+    const engines: GwenEngine[] = [];
+    try {
+      const [engineA, engineB] = await openTwo(engines, "physics2d", "isolated", 60);
+      const idsA = await buildScene(engineA);
+      await engineB.use(Physics2DPlugin({ gravity: -10, maxEntities: 32 }));
+      const apiB = engineB.inject("physics2d");
+      const idB = engineB.createEntity();
+      apiB.addBoxCollider(apiB.addRigidBody(idB, "dynamic", 2, 6), 0.3, 0.3);
+      await engineA.startExternal();
+      await engineB.startExternal();
+      for (let step = 0; step < 60; step += 1) {
+        await engineA.advance(1 / 60);
+        await engineB.advance(1 / 60);
+      }
+      expect(engineA.getStats().entityCount).toBe(4);
+      expect(engineB.getStats().entityCount).toBe(1);
+      expect(positionHash(engineA, idsA)).toBe(PHYSICS2D_HASH_A);
+      expect(positionHash(engineB, [idB])).not.toBe(PHYSICS2D_HASH_A);
+      expect(memoryOf(engineA)).not.toBe(memoryOf(engineB));
+    } finally {
+      await stopAll(engines);
+    }
+  }, 60_000);
+
+  it.each(["physics2d", "physics3d"] as const)(
+    "determinism: alone, interleaved and shared give identical state hashes (%s)",
+    async (variant) => {
+      const expected = variant === "physics2d" ? PHYSICS2D_HASH_A : PHYSICS3D_HASH_A;
+      const engines: GwenEngine[] = [];
+      try {
+        const alone = await openOne(engines, variant, "isolated");
+        const aloneHash = await sceneHash(alone, variant);
+        const [roomA, roomB] = await openTwo(engines, variant, "isolated", 60);
+        const idsA = variant === "physics2d" ? await buildScene(roomA) : await buildScene3d(roomA);
+        if (variant === "physics2d") await buildScene(roomB);
+        else await buildScene3d(roomB);
+        await roomA.startExternal();
+        await roomB.startExternal();
+        for (let step = 0; step < 60; step += 1) {
+          await roomA.advance(1 / 60);
+          await roomB.advance(1 / 60);
+        }
+        const interleaved =
+          variant === "physics2d" ? positionHash(roomA, idsA) : positionHash3d(roomA, idsA);
+
+        const shared = await openOne(engines, variant, "shared");
+        const sharedHash = await sceneHash(shared, variant);
+
+        expect(aloneHash).toBe(expected);
+        expect(interleaved).toBe(expected);
+        expect(sharedHash).toBe(expected);
+        expect(memoryOf(roomA)).not.toBe(memoryOf(roomB));
+      } finally {
+        await stopAll(engines);
+      }
+    },
+    60_000,
+  );
+
+  it("isolated: light init fetches only light URLs", async () => {
+    const root = fileURLToPath(new URL("../../wasm/", import.meta.url));
+    const paths: string[] = [];
+    const server = createServer((request, response) => {
+      const pathname = new URL(request.url ?? "/", "http://127.0.0.1").pathname;
+      paths.push(pathname);
+      const relative = pathname.replace(/^\/+/, "");
+      const file = path.resolve(root, relative);
+      const fromRoot = path.relative(root, file);
+      if (fromRoot.startsWith("..") || path.isAbsolute(fromRoot) || !existsSync(file)) {
+        response.writeHead(404).end();
+        return;
+      }
+      response.writeHead(200, { "content-type": "application/octet-stream" });
+      createReadStream(file).pipe(response);
+    });
+    const engines: GwenEngine[] = [];
+    try {
+      await listen(server);
+      const address = server.address();
+      if (address === null || typeof address === "string")
+        throw new Error("test server has no port");
+      const jsUrl = factoryUrl("light");
+      const wasmUrl = `http://127.0.0.1:${address.port}/light/gwen_core_bg.wasm`;
+      const bridgeA = new WasmBridgeImpl();
+      const bridgeB = new WasmBridgeImpl();
+      await bridgeA.init("light", { jsUrl, wasmUrl, wasmInstance: "isolated", maxEntities: 32 });
+      await bridgeB.init("light", { jsUrl, wasmUrl, wasmInstance: "isolated", maxEntities: 32 });
+      engines.push(
+        await createEngine({
+          variant: "light",
+          maxEntities: 32,
+          wasmInstance: "isolated",
+          _bridge: bridgeA,
+          _ownsBridge: true,
+        }),
+        await createEngine({
+          variant: "light",
+          maxEntities: 32,
+          wasmInstance: "isolated",
+          _bridge: bridgeB,
+          _ownsBridge: true,
+        }),
+      );
+      expect(paths).toEqual(["/light/gwen_core_bg.wasm"]);
+      const loaded: unknown = await import(jsUrl);
+      expect(fingerprintOf(loaded)).toContain("variant=light");
+      expect(bridgeA.getLinearMemory()).not.toBe(bridgeB.getLinearMemory());
+    } finally {
+      await stopAll(engines);
+      await closeServer(server);
+    }
+  }, 60_000);
+});
