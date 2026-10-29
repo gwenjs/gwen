@@ -10,6 +10,12 @@ import type * as T_internal from "@gwenjs/core/internal";
 import type * as T_wasm_light from "@gwenjs/core/wasm/light";
 import type * as T_wasm_physics2d from "@gwenjs/core/wasm/physics2d";
 import type * as T_wasm_physics3d from "@gwenjs/core/wasm/physics3d";
+import type * as T_wasm_light_dev from "@gwenjs/core/wasm/light-dev";
+import type * as T_wasm_physics2d_dev from "@gwenjs/core/wasm/physics2d-dev";
+import type * as T_wasm_physics3d_dev from "@gwenjs/core/wasm/physics3d-dev";
+import type * as T_wasm_light_dev_factory from "@gwenjs/core/wasm/light-dev/factory";
+import type * as T_wasm_physics2d_dev_factory from "@gwenjs/core/wasm/physics2d-dev/factory";
+import type * as T_wasm_physics3d_dev_factory from "@gwenjs/core/wasm/physics3d-dev/factory";
 
 type _0 = [
   Root.Color,
@@ -134,6 +140,24 @@ type _6 = [
 type _7 = [T_wasm_light.InitInput, T_wasm_light.InitOutput, T_wasm_light.SyncInitInput];
 type _8 = [T_wasm_physics2d.InitInput, T_wasm_physics2d.InitOutput, T_wasm_physics2d.SyncInitInput];
 type _9 = [T_wasm_physics3d.InitInput, T_wasm_physics3d.InitOutput, T_wasm_physics3d.SyncInitInput];
+type _10 = [
+  T_wasm_light_dev.InitInput,
+  T_wasm_light_dev.InitOutput,
+  T_wasm_light_dev.SyncInitInput,
+];
+type _11 = [
+  T_wasm_physics2d_dev.InitInput,
+  T_wasm_physics2d_dev.InitOutput,
+  T_wasm_physics2d_dev.SyncInitInput,
+];
+type _12 = [
+  T_wasm_physics3d_dev.InitInput,
+  T_wasm_physics3d_dev.InitOutput,
+  T_wasm_physics3d_dev.SyncInitInput,
+];
+type _13 = [T_wasm_light_dev_factory.GwenCoreGlueInstance];
+type _14 = [T_wasm_physics2d_dev_factory.GwenCoreGlueInstance];
+type _15 = [T_wasm_physics3d_dev_factory.GwenCoreGlueInstance];
 
 // @ts-expect-error TS2305 — removed from @gwenjs/core
 import { engineContext } from "@gwenjs/core";

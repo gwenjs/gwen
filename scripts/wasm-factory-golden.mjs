@@ -17,7 +17,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
-const VARIANTS = ["light", "physics2d", "physics3d"];
+const VARIANTS = ["light", "physics2d", "physics3d", "light-dev", "physics2d-dev", "physics3d-dev"];
 const FIELDS = ["names", "rawExports", "imports"];
 
 /**
@@ -97,8 +97,10 @@ export function shapeDiff(built, golden) {
  */
 function diffLine(variant, field, built, golden) {
   const { plus, minus } = shapeDiff(built, golden);
-  if (plus.length === 0 && minus.length === 0) return null;
-  return `[glue-shape] ${variant}.${field} differs: +[${plus.join(", ")}] -[${minus.join(", ")}]`;
+  const allowExtra = variant.endsWith("-dev") && field === "imports";
+  const extra = allowExtra ? [] : plus;
+  if (extra.length === 0 && minus.length === 0) return null;
+  return `[glue-shape] ${variant}.${field} differs: +[${extra.join(", ")}] -[${minus.join(", ")}]`;
 }
 
 /**
@@ -133,14 +135,22 @@ async function loadShape(root, variant) {
 }
 
 /**
+ * @param {string} name
+ */
+function releaseName(name) {
+  return name.endsWith("-dev") ? name.slice(0, -4) : name;
+}
+
+/**
  * @param {unknown} variants
  * @param {string} name
  * @returns {Shape}
  */
 function goldenShape(variants, name) {
+  const key = releaseName(name);
   const empty = { names: [], rawExports: [], imports: [] };
-  if (typeof variants !== "object" || variants === null || !(name in variants)) return empty;
-  const row = Reflect.get(variants, name);
+  if (typeof variants !== "object" || variants === null || !(key in variants)) return empty;
+  const row = Reflect.get(variants, key);
   if (typeof row !== "object" || row === null) return empty;
   return {
     names: ("names" in row ? stringList(row.names) : null) ?? [],
@@ -226,7 +236,9 @@ function writeGolden(root, shapes, wasmBindgen) {
   for (const variant of VARIANTS) {
     const shape = shapes[variant];
     if (!shape) continue;
-    variants[variant] = {
+    const key = releaseName(variant);
+    if (key !== variant) continue;
+    variants[key] = {
       names: shape.names,
       rawExports: shape.rawExports,
       imports: shape.imports,

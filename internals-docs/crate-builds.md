@@ -147,6 +147,16 @@ Shipped browser binaries are optimised with the `wasm-opt` version pinned in `wa
 `pnpm check:wasm-size` compares each variant with that file.
 The Node build-tools binary is reported in the CI step summary and is not gated.
 
+## Dev-checked variants
+
+`pnpm build:wasm` also writes `packages/core/wasm/<variant>-dev/` for `light`, `physics2d` and `physics3d`.
+That build uses opt-level 1, debug assertions and overflow checks.
+`[profile.dev-checked]` in the workspace `Cargo.toml` records the same settings.
+wasm-pack cannot select that profile, so `scripts/build-wasm.sh` sets `CARGO_PROFILE_RELEASE_OPT_LEVEL`, `CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS` and `CARGO_PROFILE_RELEASE_OVERFLOW_CHECKS`.
+The dev build uses `CARGO_TARGET_DIR` `target/dev-checked`, so it does not reuse the release cache.
+`wasm-opt` runs at `-O1` and keeps the same `--enable-*` list as the release binaries.
+`scripts/build-wasm.sh` overrides `RUSTFLAGS` and `CARGO_TARGET_DIR` from the environment for each build.
+
 ## Troubleshooting
 
 ### "WASM file not found"

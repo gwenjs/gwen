@@ -32,6 +32,8 @@ export default defineConfig({
 
 Ce fichier est traité au moment du build par le plugin Vite.
 
+`@gwenjs/core` fournit aussi un cœur vérifié pour chaque variante, sous `@gwenjs/core/wasm/<variant>-dev` (`opt-level=1`, assertions de debug et contrôles de dépassement activés). Rien ne le charge encore.
+
 ## Référence de configuration
 
 | Propriété | Type | Description |

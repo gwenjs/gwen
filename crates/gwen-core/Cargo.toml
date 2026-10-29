@@ -65,6 +65,10 @@ build-tools = ["dep:gltf", "physics3d"]
 pathfinding-2d = ["dep:pathfinding"]
 pathfinding-3d = ["dep:pathfinding"]
 
+# Internal. Not in `default`. Rapier 0.36.1 has `simd8`, not `simd-stable`.
+physics2d-simd = ["rapier2d/simd8"]
+physics3d-simd = ["rapier3d/simd8"]
+
 default = []
 
 [dev-dependencies]

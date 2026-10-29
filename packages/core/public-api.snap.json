@@ -346,5 +346,29 @@
   "./wasm/physics3d/factory": {
     "values": ["CONTRACT", "createGlue", "wasmUrl"],
     "types": ["GwenCoreGlueInstance"]
+  },
+  "./wasm/light-dev": {
+    "values": ["Engine", "JsEntityId", "default", "initSync"],
+    "types": ["InitInput", "InitOutput", "SyncInitInput"]
+  },
+  "./wasm/physics2d-dev": {
+    "values": ["Engine", "JsEntityId", "default", "initSync"],
+    "types": ["InitInput", "InitOutput", "SyncInitInput"]
+  },
+  "./wasm/physics3d-dev": {
+    "values": ["Engine", "JsEntityId", "default", "initSync"],
+    "types": ["InitInput", "InitOutput", "SyncInitInput"]
+  },
+  "./wasm/light-dev/factory": {
+    "values": ["CONTRACT", "createGlue", "wasmUrl"],
+    "types": ["GwenCoreGlueInstance"]
+  },
+  "./wasm/physics2d-dev/factory": {
+    "values": ["CONTRACT", "createGlue", "wasmUrl"],
+    "types": ["GwenCoreGlueInstance"]
+  },
+  "./wasm/physics3d-dev/factory": {
+    "values": ["CONTRACT", "createGlue", "wasmUrl"],
+    "types": ["GwenCoreGlueInstance"]
   }
 }
