@@ -1,6 +1,6 @@
 import type { Physics2DConfig, PhysicsQualityPreset } from "./types";
 import { GwenConfigError } from "@gwenjs/core";
-import { GwenError } from "@gwenjs/schema";
+import { GwenError, formatReceived, type GwenConfigIssue } from "@gwenjs/schema";
 import { Physics2DErrorCodes } from "./errors";
 
 /** Pixel to meter ratio used for internal conversions. */
@@ -9,6 +9,51 @@ export const PIXELS_PER_METER = 50;
 export const MAX_LAYERS = 32;
 /** Default layer mask (all bits set). */
 export const LAYER_ALL = 0xffffffff;
+
+/**
+ * Defaults shared by `normalizeConfig` and the physics2d module.
+ * `maxLinearVelocity` and `coalesceEvents` stay plugin-only.
+ */
+export const PHYSICS2D_DEFAULTS = Object.freeze({
+  gravity: -9.81,
+  gravityX: 0,
+  maxEntities: 10_000,
+  qualityPreset: "medium",
+  eventMode: "pull",
+  debug: false,
+} as const);
+
+type InvalidLayerBit = {
+  name: string;
+  bit: unknown;
+};
+
+function invalidLayerBits(config: Physics2DConfig): InvalidLayerBit[] {
+  const layers = config.layers;
+  if (layers === undefined || layers === null) return [];
+  const found: InvalidLayerBit[] = [];
+  for (const [name, bit] of Object.entries(layers)) {
+    if (typeof bit === "number" && bit >= 0 && bit < MAX_LAYERS && Number.isInteger(bit)) {
+      continue;
+    }
+    found.push({ name, bit });
+  }
+  return found;
+}
+
+function layerBitIssues(config: Physics2DConfig): GwenConfigIssue[] {
+  return invalidLayerBits(config).map((layer) => ({
+    path: `layers.${layer.name}`,
+    expected: `an integer in [0, ${MAX_LAYERS - 1}]`,
+    received: formatReceived(layer.bit),
+    owner: "@gwenjs/physics2d",
+  }));
+}
+
+/** Layer-bit rule. Each path is `layers.<name>`. */
+export function checkPhysics2DConfig(config: Physics2DConfig): GwenConfigIssue[] {
+  return layerBitIssues(config);
+}
 
 /**
  * Normalized internal configuration for the Physics2D plugin.
@@ -32,18 +77,19 @@ export type NormalizedPhysics2DConfig = {
  * @throws {GwenConfigError} If `maxLinearVelocity` is not finite or not positive.
  */
 export function normalizeConfig(config: Physics2DConfig): NormalizedPhysics2DConfig {
+  const invalid = invalidLayerBits(config)[0];
+  if (invalid !== undefined) {
+    throw new GwenError(
+      Physics2DErrorCodes.INVALID_LAYERS,
+      `Layer "${invalid.name}" has invalid bit index ${invalid.bit}.`,
+      {
+        hint: __GWEN_DEV__ ? `Use an integer in [0, ${MAX_LAYERS - 1}].` : undefined,
+      },
+    );
+  }
   const layers: Record<string, number> = {};
   if (config.layers) {
     for (const [name, bit] of Object.entries(config.layers)) {
-      if (bit < 0 || bit >= MAX_LAYERS || !Number.isInteger(bit)) {
-        throw new GwenError(
-          Physics2DErrorCodes.INVALID_LAYERS,
-          `Layer "${name}" has invalid bit index ${bit}.`,
-          {
-            hint: __GWEN_DEV__ ? `Use an integer in [0, ${MAX_LAYERS - 1}].` : undefined,
-          },
-        );
-      }
       layers[name] = bit;
     }
   }
@@ -56,13 +102,13 @@ export function normalizeConfig(config: Physics2DConfig): NormalizedPhysics2DCon
     });
   }
   return {
-    gravity: config.gravity ?? -9.81,
-    gravityX: config.gravityX ?? 0,
+    gravity: config.gravity ?? PHYSICS2D_DEFAULTS.gravity,
+    gravityX: config.gravityX ?? PHYSICS2D_DEFAULTS.gravityX,
     maxLinearVelocity: config.maxLinearVelocity ?? 400,
-    maxEntities: config.maxEntities ?? 10_000,
-    qualityPreset: config.qualityPreset ?? "medium",
-    eventMode: config.eventMode ?? "pull",
-    debug: config.debug ?? false,
+    maxEntities: config.maxEntities ?? PHYSICS2D_DEFAULTS.maxEntities,
+    qualityPreset: config.qualityPreset ?? PHYSICS2D_DEFAULTS.qualityPreset,
+    eventMode: config.eventMode ?? PHYSICS2D_DEFAULTS.eventMode,
+    debug: config.debug ?? PHYSICS2D_DEFAULTS.debug,
     coalesceEvents: config.coalesceEvents ?? true,
     ...(config.ccdEnabled !== undefined ? { ccdEnabled: config.ccdEnabled } : {}),
     layers,
