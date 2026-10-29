@@ -294,6 +294,7 @@
       "getTweenManager",
       "getWasmBridge",
       "invalidateWasmModule",
+      "isolatedProvider",
       "poisonWasmBridge",
       "readTransform3DPosition",
       "readTransform3DRotation",

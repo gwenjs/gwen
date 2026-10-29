@@ -54,6 +54,8 @@ async function nodeWasmUrls(variant: CoreVariant): Promise<{ jsUrl?: string; was
  * Create a GWEN engine instance.
  *
  * @param options - Engine configuration. All fields optional.
+ *   In Node, when the package `wasm/` directory is found, its URLs replace `jsUrl` and `wasmUrl`.
+ *   The other fields, including `wasmInstance`, go through as given. Omitted `wasmInstance` stays `"shared"` (#267).
  * @returns The engine. When `options._bridge` is omitted, the light bridge is loaded first.
  * The engine owns that bridge, so `stop()` disposes it. A caller that passes `_bridge`
  * calls `bridge.dispose()` after `stop()`.
@@ -92,7 +94,8 @@ export async function createEngine(
  * must be mocked, call {@link createEngine} directly and pass a pre-configured
  * `WasmBridgeImpl` via the `_bridge` option (e.g. `createEngine({ _bridge: myBridge })`).
  *
- * @param options - Engine configuration. `variant` is forwarded to `bridge.init`.
+ * @param options - Engine configuration. `variant` and `wasmInstance` are forwarded to `bridge.init`.
+ *   An omitted `wasmInstance` stays `"shared"`.
  * @returns A fully initialised {@link GwenEngine} with WASM ready.
  *
  * @example

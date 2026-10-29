@@ -1129,8 +1129,9 @@ export interface InitWasmOptions {
   /** Optional URL to the WASM binary (gwen_core_bg.wasm). */
   wasmUrl?: string;
   /**
-   * `shared` keeps one WASM instance per compiled module.
+   * `shared` (default) keeps one WASM instance per compiled module.
    * `isolated` keeps one instance per engine, with its own linear memory.
+   * Browser `isolated` is not supported until the browser gate (#265).
    * @default "shared"
    */
   wasmInstance?: WasmInstanceMode;
