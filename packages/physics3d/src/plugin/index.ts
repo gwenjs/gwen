@@ -22,7 +22,7 @@ import {
   clearEngineSensors,
 } from "../composables/on-sensor";
 
-import type { Physics3DBridgeRuntime } from "./bridge";
+import type { Physics3DBridgeRuntime, Physics3DWasmBridge } from "./bridge";
 import { clearOwnerChanges, entitySlot, guardOwned, ownerEntityId } from "./entity-owner";
 import { createPluginContext, type PluginContext } from "./plugin-context";
 
@@ -82,9 +82,11 @@ function disabledBodyReason(code: number): "non-finite" | "out-of-bounds" | "vel
 
 /** Registry lookup only. A slot with no body is skipped. */
 function emitDisabledBodies(ctx: PluginContext): void {
-  const bridge = ctx.wasmBridge;
-  const take = bridge?.physics3d_take_disabled_slots;
-  if (bridge === null || typeof take !== "function") return;
+  const core = ctx.coreBridge;
+  if (core === null) return;
+  const bridge = core.getPhysicsBridge();
+  const take = bridge.physics3d_take_disabled_slots;
+  if (typeof take !== "function") return;
   const raw = take.call(bridge);
   const engine = ctx._engine;
   if (engine === null) return;
@@ -113,6 +115,21 @@ function emitDisabledBodies(ctx: PluginContext): void {
  * physics3d variant is not loaded (e.g. during tests).
  */
 export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
+  /** One core bridge per engine. Teardown does not delete the entry. */
+  const coreByEngine = new WeakMap<GwenEngine, Physics3DBridgeRuntime>();
+
+  /**
+   * Glue for this call, or null when this engine has no core bridge yet.
+   * A disposed bridge throws `CORE:ENGINE_DISPOSED` instead of returning null.
+   */
+  function physicsForCall(): Physics3DWasmBridge | null {
+    const engine = engineContext.tryUse();
+    if (engine === undefined || engine === null) return null;
+    const core = coreByEngine.get(engine);
+    if (core === undefined) return null;
+    return core.getPhysicsBridge();
+  }
+
   const contexts = createEngineLocal(() => {
     const cfg = normalizePhysics3DConfig(config);
     const layerRegistry = buildLayerRegistry(cfg.layers);
@@ -239,8 +256,8 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
     setAngularVelocity: _setAngularVelocity,
     setKinematicPosition: _setKinematicPosition,
     bulkStepKinematics: (slots, vx, vy, vz, dt) => {
-      const pb = ctx.wasmBridge;
-      if (pb === null) return 0;
+      const pb = physicsForCall();
+      if (pb === null || ctx.wasmBridge === null) return 0;
       return callPhysics3DExport(
         ctx,
         "physics3d_bulk_step_kinematics",
@@ -248,8 +265,8 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
       );
     },
     bulkStepKinematicRotations: (slots, wx, wy, wz, dt) => {
-      const pb = ctx.wasmBridge;
-      if (pb === null) return 0;
+      const pb = physicsForCall();
+      if (pb === null || ctx.wasmBridge === null) return 0;
       return callPhysics3DExport(
         ctx,
         "physics3d_bulk_step_kinematic_rotations",
@@ -319,11 +336,13 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
     name: "@gwenjs/physics3d",
 
     setup(engine: GwenEngine): void {
-      ctx._engine = useEngine("Physics3DPlugin.setup");
+      const real = useEngine("Physics3DPlugin.setup");
+      ctx._engine = real;
       ctx.log = engine.logger?.child("@gwenjs/physics3d") ?? ctx.log;
       // boundary: WASM bridge runtime is wider than the public GwenWasmModules handle.
       const bridge = getWasmBridge() as unknown as Physics3DBridgeRuntime;
       ctx._variant = bridge.variant;
+      // Same object as coreBridge. Teardown clears bridgeRuntime, not coreBridge.
       ctx.bridgeRuntime = bridge;
 
       if (ctx._variant !== "physics3d") {
@@ -337,6 +356,9 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
           },
         );
       }
+
+      ctx.coreBridge = bridge;
+      coreByEngine.set(real, bridge);
 
       const pb = bridge.getPhysicsBridge();
 
@@ -378,19 +400,21 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
         );
       }
 
-      // One step per frame: `try` here, no closure per call. A rejected step leaves
+      // One step per frame: read the glue here, no closure over it. A rejected step leaves
       // `engine:before-update` through the existing hook-error path.
-      const step = pb.physics3d_step;
-      ctx.stepFn =
-        typeof step === "function"
-          ? (delta: number): void => {
-              try {
-                step.call(pb, delta);
-              } catch (err: unknown) {
-                throw mapPhysics3DError(ctx, err, "physics3d_step");
-              }
+      const canStep = typeof pb.physics3d_step === "function";
+      ctx.stepFn = canStep
+        ? (delta: number): void => {
+            const live = ctx.coreBridge?.getPhysicsBridge();
+            const step = live?.physics3d_step;
+            if (live === undefined || typeof step !== "function") return;
+            try {
+              step.call(live, delta);
+            } catch (err: unknown) {
+              throw mapPhysics3DError(ctx, err, "physics3d_step");
             }
-          : null;
+          }
+        : null;
 
       // Detect WASM backend: if physics3d_add_body is exported, delegate to Rapier3D
       if (typeof pb.physics3d_add_body === "function") {
@@ -402,9 +426,10 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
           ctx.ccState = engine.memory.view({
             name: "physics3d:cc-state",
             type: "f32",
-            ptr: () => pb.physics3d_get_cc_sab_ptr?.() ?? 0,
+            ptr: () => ctx.coreBridge?.getPhysicsBridge().physics3d_get_cc_sab_ptr?.() ?? 0,
             length: () => {
-              const maxCC = pb.physics3d_get_max_cc_entities?.() ?? 32;
+              const live = ctx.coreBridge?.getPhysicsBridge();
+              const maxCC = live?.physics3d_get_max_cc_entities?.() ?? 32;
               return maxCC * ctx.CC_STATE_STRIDE;
             },
           });
@@ -545,7 +570,7 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
         }
       });
 
-      engine.provide("physics3d", bindToEngine(useEngine("Physics3DPlugin.setup"), service));
+      engine.provide("physics3d", bindToEngine(real, service));
 
       if (ctx.cfg.debug) {
         ctx.log.debug(`Initialized. Backend=${ctx.backendMode} quality=${ctx.cfg.qualityPreset}`);
