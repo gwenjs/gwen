@@ -36,9 +36,6 @@
     "test": "vitest run",
     "watch": "vite build --watch"
   },
-  "dependencies": {
-    "defu": "^6.1.4"
-  },
   "devDependencies": {
     "typescript": "^6.0.2",
     "vite": "^8.0.3",

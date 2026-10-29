@@ -8,7 +8,7 @@
 import type { CoreVariant } from "../engine/wasm-bridge";
 
 /**
- * Interface that matches the relevant part of GwenConfig for detection.
+ * Plugins and modules read from the loaded gwen.config object.
  */
 interface VariantConfig {
   plugins?: Array<{ name: string }>;
@@ -23,7 +23,7 @@ interface VariantConfig {
  * 2. If 'Physics2D' plugin or '@gwenjs/physics2d' module is present → 'physics2d'
  * 3. Default → 'light'
  *
- * @param config - The loaded GwenConfig object
+ * @param config - The loaded gwen.config object
  * @returns The detected CoreVariant
  */
 export function detectCoreVariant(config: VariantConfig): CoreVariant {

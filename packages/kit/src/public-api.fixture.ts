@@ -7,7 +7,6 @@ import type * as T_module from "@gwenjs/kit/module";
 type _0 = [
   Root.AutoImport,
   Root.DeepPartial<never>,
-  Root.GwenConfig,
   Root.GwenContextBoundary,
   Root.GwenContextErrorCode,
   Root.MergePluginsPrefabExtensions<never>,
