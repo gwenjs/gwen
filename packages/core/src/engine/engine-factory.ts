@@ -41,11 +41,11 @@ async function nodeWasmUrls(variant: CoreVariant): Promise<{ jsUrl?: string; was
   const candidates = ["../../wasm", "../wasm", "../../../wasm"].map((relative) =>
     path.join(here, relative, variant),
   );
-  const root = candidates.find((dir) => fs.existsSync(path.join(dir, "gwen_core.js")));
+  const root = candidates.find((dir) => fs.existsSync(path.join(dir, "gwen_core_factory.js")));
   if (root === undefined) return {};
   const wasmBytes = fs.readFileSync(path.join(root, "gwen_core_bg.wasm"));
   return {
-    jsUrl: pathToFileURL(path.join(root, "gwen_core.js")).href,
+    jsUrl: pathToFileURL(path.join(root, "gwen_core_factory.js")).href,
     wasmUrl: `data:application/wasm;base64,${wasmBytes.toString("base64")}`,
   };
 }

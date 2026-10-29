@@ -57,7 +57,7 @@ function assertArtifact(variant: CoreVariant, filePath: string): void {
 export async function createRealEngine(
   options: CreateRealEngineOptions,
 ): Promise<RealEngineHandle> {
-  const jsPath = artifactPath(options.variant, "gwen_core.js");
+  const jsPath = artifactPath(options.variant, "gwen_core_factory.js");
   const wasmPath = artifactPath(options.variant, "gwen_core_bg.wasm");
   assertArtifact(options.variant, jsPath);
   assertArtifact(options.variant, wasmPath);
