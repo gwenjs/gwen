@@ -1,6 +1,7 @@
 /**
- * Owned-bridge dispose on stop (P-261-1) and held physics services (P-261-2).
- * Real WASM. Dev only (`__GWEN_DEV__`).
+ * Owned-bridge dispose on stop (P-261-1), held physics services (P-261-2),
+ * and the dev warning when an engine is collected without stop() (P-261-3).
+ * Real WASM. The gc project sets `__GWEN_DEV__`.
  */
 import { describe, expect, it } from "vitest";
 import { GwenError } from "@gwenjs/schema";
@@ -14,6 +15,7 @@ import {
   type GwenEngine,
 } from "../../../src/index.js";
 import type { MemoryView } from "../../../src/engine/engine-memory.js";
+import { createDisposable } from "../../../src/disposable.js";
 import { WasmBridgeImpl } from "../../../src/engine/wasm-bridge.js";
 import type { CoreVariant } from "../../../src/engine/wasm-bridge-types.js";
 import { createRealEngine } from "../harness.js";
@@ -91,6 +93,54 @@ function holdArray(view: MemoryView<"u8">): WeakRef<Uint8Array> {
 function holdPhysicsGlue(bridge: WasmBridgeImpl): WeakRef<object> {
   const glue = bridge.getPhysicsBridge();
   return new WeakRef(glue);
+}
+
+/** Label is `variant#` plus a per-process counter. The counter is not fixed. */
+function leakWarning(variant: string): RegExp {
+  return new RegExp(
+    `^\\[GWEN\\] engine "${variant}#\\d+" was garbage-collected without stop\\(\\); call engine\\.stop\\(\\) to release its WASM instance\\.$`,
+  );
+}
+
+/** The engine dies with this call. The caller keeps no reference. */
+async function abandon(variant: CoreVariant): Promise<void> {
+  await createEngine({ variant });
+}
+
+/**
+ * `stopped` is prepared, then both engines become unreachable when this returns.
+ * `leaked` is the live control: it is never stopped.
+ */
+async function dropStoppedAndLeaked(
+  prepare: (stopped: GwenEngine) => Promise<void>,
+): Promise<void> {
+  const stopped = await createEngine({ variant: "light" });
+  const leaked = await createEngine({ variant: "physics2d" });
+  await prepare(stopped);
+  if (leaked.variant !== "physics2d") {
+    throw new Error(`control engine variant ${leaked.variant}`);
+  }
+}
+
+/** Up to 50 turns. Each turn is `forceGc` plus one macrotask. */
+async function collectLeakWarnings(drop: () => Promise<void>): Promise<string[]> {
+  const warnings: string[] = [];
+  const previous = console.warn;
+  console.warn = (...args: unknown[]) => {
+    warnings.push(args.map((arg) => String(arg)).join(" "));
+  };
+  try {
+    await drop();
+    for (let turn = 0; turn < 50; turn += 1) {
+      await forceGc();
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, 0);
+      });
+    }
+    return warnings.slice();
+  } finally {
+    console.warn = previous;
+  }
 }
 
 async function owned(
@@ -518,6 +568,87 @@ describe("bridge dispose", () => {
     } finally {
       await engine.stop();
     }
+  });
+
+  it("warns once in dev when an engine is collected without stop()", async () => {
+    assertGc();
+    const warnings = await collectLeakWarnings(() => abandon("light"));
+    expect(warnings).toEqual([expect.stringMatching(leakWarning("light"))]);
+  });
+
+  it("no warning after stop()", async () => {
+    assertGc();
+    const warnings = await collectLeakWarnings(() =>
+      dropStoppedAndLeaked(async (stopped) => {
+        await stopped.stop();
+      }),
+    );
+    expect(warnings).toEqual([expect.stringMatching(leakWarning("physics2d"))]);
+  });
+
+  it("no warning after stop() even when a plugin teardown throws", async () => {
+    assertGc();
+    const warnings = await collectLeakWarnings(() =>
+      dropStoppedAndLeaked(async (stopped) => {
+        await stopped.use({
+          name: "throws-on-teardown",
+          setup() {},
+          teardown() {
+            throw new Error("plugin teardown failed");
+          },
+        });
+        await stopped.stop();
+      }),
+    );
+    expect(warnings).toEqual([expect.stringMatching(leakWarning("physics2d"))]);
+  });
+
+  it("no warning after stop() even when a disposable throws", async () => {
+    assertGc();
+    const warnings = await collectLeakWarnings(() =>
+      dropStoppedAndLeaked(async (stopped) => {
+        stopped.disposables.add(
+          "throws",
+          createDisposable(() => {
+            throw new Error("disposable failed");
+          }),
+        );
+        let caught: unknown;
+        try {
+          await stopped.stop();
+        } catch (error: unknown) {
+          caught = error;
+        }
+        expect(caught).toBeInstanceOf(Error);
+        if (caught instanceof Error) expect(caught.message).toBe("disposable failed");
+      }),
+    );
+    expect(warnings).toEqual([expect.stringMatching(leakWarning("physics2d"))]);
+  });
+
+  it("no warning after stop() even when bridge.dispose() throws", async () => {
+    assertGc();
+    const warnings = await collectLeakWarnings(() =>
+      dropStoppedAndLeaked(async (stopped) => {
+        const bridge = stopped.inject("wasm:bridge");
+        const original = Reflect.get(bridge, "dispose");
+        expect(typeof original).toBe("function");
+        if (typeof original !== "function") return;
+        Reflect.set(bridge, "dispose", () => {
+          Reflect.apply(original, bridge, []);
+          throw new Error("bridge dispose failed");
+        });
+        let caught: unknown;
+        try {
+          await stopped.stop();
+        } catch (error: unknown) {
+          caught = error;
+        }
+        expect(caught).toBeInstanceOf(Error);
+        if (caught instanceof Error) expect(caught.message).toBe("bridge dispose failed");
+      }),
+    );
+    expect(warnings).toEqual([expect.stringMatching(leakWarning("physics2d"))]);
   });
 });
 
