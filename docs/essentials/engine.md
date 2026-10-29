@@ -49,6 +49,34 @@ This file is processed at build time by the Vite plugin.
 | `hooks` | `Partial<GwenBuildHooks>` | Build-time hook subscriptions |
 | `plugins` | `GwenPlugin[]` | Direct plugin registration (escape hatch) |
 
+## Config layering
+
+Later layers win.
+
+| Layer | Source | What it sets |
+|---|---|---|
+| L0 | Package defaults (`defaults` on the module) | Starting values for that module's section |
+| Derived | `engine.variant` | A default under L1, chosen from the modules you list. With `@gwenjs/physics2d` or `@gwenjs/physics3d` listed, a different variant is `APP:CONFIG_CONFLICT`. Otherwise the value in the file wins |
+| L1 | The matching section in `gwen.config.ts` | Your values, over L0 |
+
+Vite is a separate stack. The GWEN base comes first, then extenders registered by modules, then your `vite` key last.
+
+| Merge | Rule |
+|---|---|
+| Plain objects | Deep merge |
+| Arrays | The higher layer replaces the array |
+| `undefined` | The lower value stays |
+| Other values | The higher value is kept, including the same object reference |
+
+| Code | Example |
+|---|---|
+| `APP:CONFIG_INVALID` | `[GWEN] Invalid gwen.config:` then `"engine" expected an object, received null` |
+| `APP:CONFIG_CONFLICT` | The invalid line adds ` (conflicts with @gwenjs/app)` |
+| `APP:CONFIG_LOAD_FAILED` | `[GWEN] No gwen.config.ts (or .js / .mjs / .cjs) found in <cwd>.` and `See https://gwenjs.github.io/gwen/api/errors#app-config-load-failed (APP:CONFIG_LOAD_FAILED)` |
+| `CORE:INVALID_CONFIG` | `Invalid config "maxEntities": -1.` |
+
+Sources: `packages/app/src/app.ts:459`, `packages/app/src/config.ts:79-91`, `packages/app/src/config.ts:93-99`, `packages/vite/src/index.ts:482-504`, `packages/app/src/app.ts:200-202`, `packages/app/src/app.ts:257`, `packages/app/src/merge.ts:21-22`, `packages/app/src/config-error.ts:14-22`, `packages/app/tests/config-layering.test.ts:128-130`, `packages/app/tests/config-layering.test.ts:133-138`, `packages/app/tests/config-layering.test.ts:541-549`, `packages/app/tests/config-layering.test.ts:154-157`, `packages/app/src/config-loader.ts:110`, `packages/app/tests/config-loader.test.ts:123-126`, `packages/core/src/engine/config-error.ts:30`, `packages/core/tests/engine/config-validator.test.ts:33`.
+
 ## Extending Vite
 
 GWEN manages your Vite configuration — no `vite.config.ts` needed. Use the `vite` field for static config:

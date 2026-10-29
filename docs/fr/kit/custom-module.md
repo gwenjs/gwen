@@ -192,6 +192,8 @@ export default defineConfig({
 Augmentez `@gwenjs/schema`, pas `@gwenjs/app`. Ajoutez `@gwenjs/schema` aux dépendances de votre projet pour qu'il soit résolu depuis votre projet ; l'augmentation `declare module "@gwenjs/schema"` fonctionne alors sans commentaire de suppression.
 :::
 
+`defaults` est fusionné sous la section de `gwen.config.ts`. `validate?` lit cette section fusionnée et retourne `GwenConfigIssue[]`. Le `path` de chaque issue est relatif à la section. Une liste vide l'accepte (`packages/schema/src/module.ts:293-300`).
+
 ### Support des sous-répertoires
 
 ```
@@ -417,6 +419,7 @@ export default defineGwenModule<Options>({
     version?: string
   }
   defaults?: DeepPartial<Options>
+  validate?(options: Options): readonly GwenConfigIssue[]
   setup(options: Options, gwen: GwenKit): void | Promise<void>
 })
 ```
