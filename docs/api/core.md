@@ -953,6 +953,6 @@ nav.current                    // current state name
 
 ## GwenWasmMismatchError
 
-`GwenWasmMismatchError` is the public error for a glue/binary mismatch (`CORE:WASM_GLUE_MISMATCH`). `reason` is `build`, `fingerprint`, `exports`, or `imports`. `expected` and `actual` name the two sides. `checkGwenModule` (internal, not exported from `@gwenjs/core`; `packages/core/src/engine/wasm-contract.ts:3`) throws it on the compiled module, before any instance. The engine does not call that check yet (#263).
+`GwenWasmMismatchError` is the public error for a glue/binary mismatch (`CORE:WASM_GLUE_MISMATCH`). `reason` is `build`, `fingerprint`, `exports`, or `imports`. `expected` and `actual` name the two sides. `checkGwenModule` (internal, not exported from `@gwenjs/core`; `packages/core/src/engine/wasm-contract.ts:3`) throws it on the compiled module, before any instance. `init` calls that check before it acquires an instance (#263).
 
 In development the hint is `Load the binary with the factory of the same build (pnpm build:wasm rebuilds both).` A production build omits the hint.

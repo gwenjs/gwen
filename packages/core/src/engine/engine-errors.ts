@@ -178,7 +178,7 @@ export const CoreErrorCodes = {
   PLUGIN_IN_USE: "CORE:PLUGIN_IN_USE",
   /** Thrown by `TweenPool.claim`. */
   TWEEN_POOL_EXHAUSTED: "CORE:TWEEN_POOL_EXHAUSTED",
-  /** Declared for the glue/binary check. The loader does not throw it (#263). */
+  /** Thrown by `init` when the compiled module does not match its glue contract (#260). */
   WASM_GLUE_MISMATCH: "CORE:WASM_GLUE_MISMATCH",
   /**
    * Thrown by `createEngineLocal().get()` when it would create a value after

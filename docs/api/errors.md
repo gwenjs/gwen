@@ -134,7 +134,7 @@ Cause. The call is outside `defineActor()`, `plugin setup()`, or `withCleanup()`
 - `CORE:PLUGIN_DEPENDENCY_MISSING` {#core-plugin-dependency-missing} `engine.use` rejected because a required plugin or service is not installed.
 - `CORE:PLUGIN_IN_USE` {#core-plugin-in-use} `engine.unuse` rejected because an installed plugin still requires this plugin or one of its services.
 - `CORE:TWEEN_POOL_EXHAUSTED` {#core-tween-pool-exhausted}
-- `CORE:WASM_GLUE_MISMATCH` {#core-wasm-glue-mismatch} `checkGwenModule` rejects a compiled module that does not match its glue. The engine does not call the check yet (#263).
+- `CORE:WASM_GLUE_MISMATCH` {#core-wasm-glue-mismatch} `checkGwenModule` rejects a compiled module that does not match its glue. `init` calls the check before it acquires an instance (#263).
 
   | `reason` | Meaning | `expected` | `actual` |
   | --- | --- | --- | --- |

@@ -1123,7 +1123,7 @@ export interface GwenCoreGlueFactoryModule {
 export interface InitWasmOptions {
   /** Max number of entities the engine can track (default: 10,000). */
   maxEntities?: number;
-  /** Optional URL to the wasm-bindgen glue (gwen_core.js). */
+  /** URL of `gwen_core_factory.js`. */
   jsUrl?: string;
   /** Optional URL to the WASM binary (gwen_core_bg.wasm). */
   wasmUrl?: string;

@@ -18,7 +18,7 @@ export type GwenWasmMismatchReason = "build" | "fingerprint" | "exports" | "impo
 
 /**
  * The compiled module does not match its glue contract.
- * The engine does not throw this yet (#263).
+ * Thrown by `init` when the compiled module does not match its glue contract (#260).
  */
 export class GwenWasmMismatchError extends GwenError {
   override readonly code: typeof CoreErrorCodes.WASM_GLUE_MISMATCH;
