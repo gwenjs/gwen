@@ -10,7 +10,7 @@ import { checkEngineConfig, ENGINE_DEFAULTS, formatReceived } from "@gwenjs/sche
 import type { GwenConfigIssue } from "@gwenjs/schema";
 import { GwenAppConfigError } from "./config-error";
 import { loadRawGwenConfig } from "./config-loader";
-import { mergeLayers, recordOf } from "./merge";
+import { isPlainRecord, mergeLayers } from "./merge";
 import type { GwenUserConfig, ResolvedGwenConfig } from "./types";
 
 export type {
@@ -52,6 +52,15 @@ function pushTupleIssues(modules: unknown, issues: GwenConfigIssue[]): void {
   }
 }
 
+function pushObjectIssue(path: string, value: unknown, issues: GwenConfigIssue[]): void {
+  issues.push({
+    path,
+    expected: "an object",
+    received: formatReceived(value),
+    owner: "@gwenjs/app",
+  });
+}
+
 function moduleNames(modules: unknown): string[] {
   if (!Array.isArray(modules)) return [];
   const names: string[] = [];
@@ -88,8 +97,13 @@ export function resolveLoadedConfig(user: GwenUserConfig, configFile = ""): Reso
     modules: [],
   };
   const merged = mergeLayers<ResolvedGwenConfig>(base, user);
-  const engine = recordOf(merged.engine);
-  issues.push(...checkEngineConfig(engine, "@gwenjs/app", "engine."));
+  const engine = merged.engine;
+  if (isPlainRecord(engine)) {
+    issues.push(...checkEngineConfig(engine, "@gwenjs/app", "engine."));
+  } else {
+    pushObjectIssue("engine", engine, issues);
+  }
+  if (!isPlainRecord(merged.logger)) pushObjectIssue("logger", merged.logger, issues);
   if (issues.length > 0) throw new GwenAppConfigError(configFile, issues);
   return attachConfigFile(merged, configFile);
 }

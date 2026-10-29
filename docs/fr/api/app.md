@@ -95,13 +95,13 @@ type ResolvedGwenConfig = GwenUserConfig & {
 }
 ```
 
-**Description.** Configuration entièrement résolue, avec les défauts du moteur remplis. `engine.variant` est la valeur explicite, ou la variante dérivée de `modules`. Un module la lit sur `gwen.options`.
+**Description.** Configuration entièrement résolue, avec les défauts du moteur remplis. `engine.variant` est la valeur explicite, ou la variante dérivée de `modules`. Un module la lit sur `kit.options`, un objet gelé en profondeur pour tout l'appel `setupModules`, sauf `plugins` (les éléments), `vite` et `hooks`, qui gardent leur identité, et les fonctions et les instances de classe ne sont jamais copiées.
 
-`resolveGwenConfig` charge `gwen.config.ts`. Les objets simples fusionnent en profondeur. Un tableau de la couche haute remplace le tableau de la couche basse. `undefined` laisse la valeur basse. `null` est une valeur. Une fonction ou une instance de classe est gardée par référence.
+`resolveGwenConfig` charge `gwen.config.ts`. Les objets simples fusionnent en profondeur. Un tableau de la couche haute remplace le tableau de la couche basse. `undefined` laisse la valeur basse. `null` est une valeur. Une fonction ou une instance de classe est gardée par référence. Une clé propre `__proto__` ne change pas le prototype.
 
-Une entrée de module est le nom du paquet, une chaîne. Un tuple, une clé top-level inconnue, ou un champ de la mauvaise forme échoue au chargement avec `APP:CONFIG_INVALID`. Le message nomme le chemin, la forme attendue et la valeur reçue. Un `engine.variant` explicite qui contredit un module de physique, un `configKey` réservé, ou deux modules qui partagent un `configKey` échoue avec `APP:CONFIG_CONFLICT`. Il n'y a pas de bloc `debug` top-level. `engine.loop` vaut `"internal"` ou `"external"`.
+Le chargement a deux phases. `resolveGwenConfig` rejette un champ de `engine`, un `engine` ou un `logger` qui n'est pas un objet, une entrée de module en tuple, et un `engine.variant` explicite qui contredit un module de physique (`APP:CONFIG_CONFLICT`). `GwenApp.setupModules` rejette une clé top-level inconnue, un `configKey` réservé ou dupliqué (`APP:CONFIG_CONFLICT`), un problème de `validate`, une section de module qui n'est pas un objet, et une valeur qui n'est pas sérialisable en JSON, y compris un cycle ou `undefined` dans un tableau. Chaque phase lève sa propre `GwenAppConfigError`. Une config avec un problème de moteur et une clé inconnue lève deux fois. Une entrée de module est le nom du paquet, une chaîne. Il n'y a pas de bloc `debug` top-level. `engine.loop` vaut `"internal"` ou `"external"`.
 
-c12 ne lit pas `.env`, les fichiers rc, `package.json`, ni les couches `$test` / `$development`.
+c12 ne lit pas `.env`, les fichiers rc, `package.json`, ni les couches `$development` / `$test`. `NODE_ENV` n'en sélectionne pas.
 
 ### GwenBuildHooks
 

@@ -24,8 +24,19 @@
 import { existsSync } from "node:fs";
 import { loadConfig } from "c12";
 import { GwenError } from "@gwenjs/schema";
+import { isPlainRecord, mergeLayers } from "./merge";
 import type { GwenUserConfig } from "./types";
 import { AppErrorCodes, causeText } from "./error-codes";
+
+/** c12's defu drops null. This merger keeps it, so null stays a value. */
+function mergeConfigLayers<T>(...sources: Array<T | null | undefined>): T {
+  let acc: unknown = {};
+  for (let index = sources.length - 1; index >= 0; index -= 1) {
+    const layer = sources[index];
+    if (isPlainRecord(layer)) acc = mergeLayers(acc, layer);
+  }
+  return acc as T;
+}
 
 // ─── GwenConfigLoadError ─────────────────────────────────────────────────────
 
@@ -73,6 +84,7 @@ export async function loadRawGwenConfig(cwd: string): Promise<RawGwenConfig> {
       cwd,
       dotenv: false,
       rcFile: false,
+      merger: mergeConfigLayers,
       envName: false,
       globalRc: false,
       packageJson: false,
