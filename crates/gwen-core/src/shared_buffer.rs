@@ -3,8 +3,8 @@
 //! The address handed to the host is `ptr.as_ptr() as usize`.
 //! Later access uses the stored [`NonNull`], never an integer cast back to a pointer.
 
+use rustc_hash::FxHashMap;
 use std::alloc::Layout;
-use std::collections::HashMap;
 use std::ptr::NonNull;
 
 use crate::ecs::error::CoreError;
@@ -19,13 +19,13 @@ struct Allocation {
 
 /// Allocations created by [`crate::bindings::Engine::alloc_shared_buffer`].
 pub(crate) struct SharedBuffers {
-    live: HashMap<usize, Allocation>,
+    live: FxHashMap<usize, Allocation>,
 }
 
 impl SharedBuffers {
     pub(crate) fn new() -> Self {
         Self {
-            live: HashMap::new(),
+            live: FxHashMap::default(),
         }
     }
 

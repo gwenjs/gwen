@@ -37,7 +37,7 @@ use crate::ecs::error::CoreError;
 use crate::entity::EntityId;
 use crate::transform_math::{Mat3, Vec2};
 use bytemuck::{Pod, Zeroable};
-use std::collections::HashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 /// 2D Transform component for entities (Plain Old Data)
 ///
@@ -324,10 +324,10 @@ impl TransformNode {
 
 /// Transform system - manages hierarchical transforms
 pub struct TransformSystem {
-    transforms: HashMap<EntityId, TransformNode>,
+    transforms: FxHashMap<EntityId, TransformNode>,
     root_entities: Vec<EntityId>,
     #[allow(dead_code, reason = "reserved for a future O(1) index lookup")]
-    entity_to_index: HashMap<EntityId, usize>,
+    entity_to_index: FxHashMap<EntityId, usize>,
     update_order: Vec<EntityId>,
     /// `update_order` is rebuilt on the next `update`, not on every link change.
     order_dirty: bool,
@@ -337,9 +337,9 @@ impl TransformSystem {
     /// Create new transform system
     pub fn new() -> Self {
         TransformSystem {
-            transforms: HashMap::new(),
+            transforms: FxHashMap::default(),
             root_entities: Vec::new(),
-            entity_to_index: HashMap::new(),
+            entity_to_index: FxHashMap::default(),
             update_order: Vec::new(),
             order_dirty: false,
         }
@@ -611,7 +611,7 @@ impl TransformSystem {
     /// Traverse hierarchy iteratively so a chain of `max_entities` cannot overflow.
     fn traverse_hierarchy(&mut self, root: EntityId) {
         let mut stack = vec![root];
-        let mut seen = std::collections::HashSet::new();
+        let mut seen = FxHashSet::default();
         while let Some(entity) = stack.pop() {
             if !seen.insert(entity) {
                 continue;

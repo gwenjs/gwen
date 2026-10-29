@@ -2,8 +2,8 @@
 //!
 //! Pub/sub event system for entity events.
 
+use rustc_hash::FxHashMap;
 use std::any::{Any, TypeId};
-use std::collections::HashMap;
 
 /// Trait for all events
 pub trait Event: 'static {
@@ -16,7 +16,7 @@ type EventHandler = Box<dyn Fn(&dyn Any)>;
 
 /// Event bus - pub/sub system for events
 pub struct EventBus {
-    handlers: HashMap<TypeId, Vec<EventHandler>>,
+    handlers: FxHashMap<TypeId, Vec<EventHandler>>,
     queue: Vec<Box<dyn Event>>,
 }
 
@@ -24,7 +24,7 @@ impl EventBus {
     /// Create a new event bus
     pub fn new() -> Self {
         EventBus {
-            handlers: HashMap::new(),
+            handlers: FxHashMap::default(),
             queue: Vec::new(),
         }
     }
