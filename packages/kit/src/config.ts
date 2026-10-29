@@ -1,31 +1,9 @@
 /**
  * Typed project configuration helper for GWEN plugins.
  *
- * Provides plugin extension-merging utilities and type re-exports.
+ * Provides plugin extension-merging utilities.
  * `defineConfig()` lives in `@gwenjs/app` — not here.
  */
-
-import type { GwenOptions } from "@gwenjs/schema";
-
-/**
- * Resolved GWEN project configuration shape.
- *
- * An alias for `GwenOptions` from `@gwenjs/schema`, re-exported here for
- * ergonomic access in CLI tooling and plugin packages that need to read
- * or validate the project config without importing from `@gwenjs/schema` directly.
- *
- * @example
- * ```ts
- * import type { GwenConfig } from '@gwenjs/kit'
- *
- * function printTargetFPS(config: GwenConfig) {
- *   console.log(config.engine?.targetFPS ?? 60)
- * }
- * ```
- *
- * @since 1.0.0
- */
-export type { GwenOptions as GwenConfig };
 
 /** Converts a union to an intersection (`A | B` -> `A & B`). */
 type UnionToIntersection<U> = (U extends unknown ? (arg: U) => void : never) extends (

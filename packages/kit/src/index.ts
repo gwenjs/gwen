@@ -8,7 +8,6 @@
 export type { AutoImport, VitePlugin, ViteUserConfig, DeepPartial } from "@gwenjs/schema";
 
 export type {
-  GwenConfig,
   MergePluginsPrefabExtensions,
   MergePluginsSceneExtensions,
   MergePluginsUIExtensions,

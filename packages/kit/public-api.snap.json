@@ -18,7 +18,6 @@
       "AutoImport",
       "DeepPartial",
       "EngineSlot",
-      "GwenConfig",
       "GwenContextBoundary",
       "GwenContextErrorCode",
       "MergePluginsPrefabExtensions",

@@ -222,8 +222,9 @@ export interface GwenKit {
   addVitePlugin(plugin: VitePlugin): void;
 
   /**
-   * Extends the Vite user config. The extender receives the current config and
-   * must return a partial override, merged with `defu` (user values win).
+   * Extends the Vite user config. The extender receives the accumulated config
+   * and returns a partial override. Overrides apply as a shallow spread: the
+   * last extender's top-level keys replace earlier ones.
    *
    * @param extender - Function that receives the current config and returns overrides.
    * @example
@@ -285,7 +286,7 @@ export interface GwenModuleDefinition<Options extends object = Record<string, un
 
   /**
    * Default option values.
-   * Merged with user-provided config using `defu` — user values take precedence.
+   * Merged with the user's module section by `mergeLayers`, user values over these defaults.
    */
   defaults?: DeepPartial<Options>;
 

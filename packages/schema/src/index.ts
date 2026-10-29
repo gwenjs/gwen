@@ -1,23 +1,12 @@
 /**
- * GWEN Configuration Schema - Main Entry Point
- *
- * Single source of truth for GWEN engine configuration types and defaults.
+ * GWEN schema entry point.
  *
  * @module @gwenjs/schema
  */
 
 // ─── types ──────────────────────────────────────────────────────────────────
-export type {
-  GwenHookHandler,
-  GwenModuleEntry,
-  GwenOptions,
-  GwenConfigInput,
-  DeepPartial,
-} from "./config";
+export type { GwenHookHandler, DeepPartial } from "./config";
 
-// ─── Runtime ─────────────────────────────────────────────────────────────────
-export { defaultOptions, resolveConfig } from "./defaults";
-export { validateResolvedConfig, assertModuleFirstInput } from "./validate";
 // ─── Disposable ──────────────────────────────────────────────────────────────
 
 export type { GwenDisposable, DisposableRegistryBase } from "./disposable";

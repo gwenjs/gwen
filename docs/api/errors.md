@@ -156,11 +156,11 @@ Cause. The call is outside `defineActor()`, `plugin setup()`, or `withCleanup()`
 
 ### SCHEMA:MODULES_REQUIRED {#schema-modules-required}
 
-Cause. Legacy `plugins`, `tsPlugins`, or `wasmPlugins` are set and `modules` is empty. Fix. Declare at least one `modules` entry.
+Cause. Nothing in @gwenjs/schema throws this code. The check left with assertModuleFirstInput. Fix. Declare modules in gwen.config.ts. A bad entry is APP:CONFIG_INVALID from `resolveGwenConfig` in `@gwenjs/app/resolve`.
 
 ### SCHEMA:INVALID_CONFIG {#schema-invalid-config}
 
-Cause. A resolved option is outside the range or shape `validateResolvedConfig` checks. Fix. Use a value the message names. `targetFPS` is from 30 to 240.
+Cause. Nothing in @gwenjs/schema throws this code. The check left with validateResolvedConfig. Fix. A range error in gwen.config.ts is APP:CONFIG_INVALID from `resolveGwenConfig` in `@gwenjs/app/resolve`. The createEngine path is CORE:INVALID_CONFIG.
 
 ## @gwenjs/app
 

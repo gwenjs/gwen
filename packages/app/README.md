@@ -27,7 +27,7 @@ await app.start();
 
 ## Configuration
 
-See `@gwenjs/schema` for the full `GwenConfig` type and all available options.
+See `GwenUserConfig` in this package and `resolveGwenConfig` in `@gwenjs/app/resolve`. The field table is `## Config Reference` in the engine essentials.
 
 ```typescript
 // gwen.config.ts
