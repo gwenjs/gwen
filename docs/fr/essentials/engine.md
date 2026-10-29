@@ -97,6 +97,8 @@ export const DebugSystem = defineSystem(() => {
 
 Deux moteurs peuvent tourner sur une même instance WASM. Chaque moteur possède ses entités, son monde physique et ses tampons de chemin. Un chemin écrit par un moteur n'est pas le chemin que l'autre moteur lit.
 
+`jsUrl` est l'URL de `gwen_core_factory.js`. `init()` avec `jsUrl` ou `wasmUrl` sur un pont déjà initialisé rejette `CORE:WASM_LOAD_ERROR`.
+
 Ils partagent encore trois choses :
 
 - Le budget de mémoire linéaire. Une instance a une seule `WebAssembly.Memory`. Tous les moteurs de cette instance y allouent. `wasmMemoryBytes` est la taille de cette mémoire.
@@ -227,7 +229,7 @@ Ce sont des cibles 1.0. Une ligne marquée Cible n'est pas vraie dans le code ac
 1. Cible (#89) : le moteur démarre dans Node sans globaux DOM, depuis des octets ou un module compilé, pour les variantes light, 2D et 3D.
 2. `startExternal()` plus un `advance(1 / physicsHz)` exécute un pas fixe et un rendu. `engine:afterTick` s'exécute une fois par pas, et `frameCount` compte ces pas. `advance(dt)` accumule sur la même horloge que `start()`.
 3. Avec `physicsHz === 0`, `advance(dt)` exécute un pas. Son `dt` est la valeur de l'appelant, plafonnée par `maxDeltaSeconds` et multipliée par `timeScale`. Il ne vient pas de l'horloge murale. Avec `physicsHz > 0`, la valeur plafonnée est ajoutée à l'accumulateur et chaque pas utilise `1 / physicsHz` multiplié par `timeScale`.
-4. Cible (#59) : plusieurs moteurs dans un même processus ne partagent pas d'état d'exécution, et `stop()` sur un moteur laisse les autres tourner. Jusqu'à #59, `stop()` efface chaque clé `__gwenGlue_*` de `globalThis`.
+4. Cible (#59) : plusieurs moteurs dans un même processus ne partagent pas d'état d'exécution, et `stop()` sur un moteur laisse les autres tourner. Le pont ne garde pas de module glue sur `globalThis`.
 5. Une erreur fatale ne fait passer que ce moteur à `faulted`.
 6. Les gestionnaires d'erreur globaux sont optionnels. Le cœur n'en installe aucun sauf si `window` existe.
 7. Le déterminisme n'est pas garanti. La note Déterminisme de cette page le dit (#84).

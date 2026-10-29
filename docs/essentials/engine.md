@@ -97,6 +97,8 @@ export const DebugSystem = defineSystem(() => {
 
 Two engines can run on one WASM instance. Each engine owns its entities, its physics world, and its path buffers. A path written by one engine is not the path the other engine reads.
 
+`jsUrl` is the URL of `gwen_core_factory.js`. `init()` with `jsUrl` or `wasmUrl` on an already initialised bridge rejects `CORE:WASM_LOAD_ERROR`.
+
 They still share three things:
 
 - The linear-memory budget. One instance has one `WebAssembly.Memory`. Every engine of that instance allocates from it. `wasmMemoryBytes` is the size of that memory.
@@ -266,7 +268,7 @@ These are 1.0 targets. A line marked Target is not true on this tree.
 1. Target (#89): the engine starts in Node with no DOM globals, from bytes or a compiled module, for the light, 2D, and 3D variants.
 2. `startExternal()` plus one `advance(1 / physicsHz)` runs one fixed step and one render. `engine:afterTick` runs once per step, and `frameCount` counts those steps. `advance(dt)` accumulates on the same clock as `start()`.
 3. With `physicsHz === 0`, `advance(dt)` runs one step. Its `dt` is the caller value, capped by `maxDeltaSeconds` and scaled by `timeScale`, and it does not come from the wall clock. With `physicsHz > 0`, the capped caller value is added to the accumulator and each step uses `1 / physicsHz` scaled by `timeScale`.
-4. Target (#59): several engines in one process share no runtime state, and `stop()` on one engine leaves the others running. Until #59, `stop()` deletes every `__gwenGlue_*` key on `globalThis`.
+4. Target (#59): several engines in one process share no runtime state, and `stop()` on one engine leaves the others running. The bridge does not store a glue module on `globalThis`.
 5. A fatal error moves only that engine to `faulted`.
 6. Global error handlers are optional. Core installs none unless `window` exists.
 7. Determinism is not guaranteed. The Determinism note on this page says so (#84).
