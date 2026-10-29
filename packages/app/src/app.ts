@@ -20,7 +20,7 @@ import { createViewportsPlugin } from "./viewports-plugin";
 import { createScreenPlugin } from "./create-screen-plugin";
 import { BUILT_IN_MODULES } from "./built-in-modules";
 import { GwenError } from "@gwenjs/schema";
-import { formatReceived, type GwenBaseConfig, type GwenConfigIssue } from "@gwenjs/schema";
+import { formatReceived, type GwenConfigIssue } from "@gwenjs/schema";
 import { AppErrorCodes, causeText } from "./error-codes";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -165,8 +165,9 @@ export class GwenApp {
 
     await this.buildHooks.callHook("build:before");
 
+    const view = freezeResolved(config);
     for (const run of prepared.builtIn) {
-      await this.runSetup(config, run.mod, run.options, `Built-in module "${run.mod.meta.name}"`);
+      await this.runSetup(view, run.mod, run.options, `Built-in module "${run.mod.meta.name}"`);
     }
 
     // 2. viewports + screen plugins (existing code, unchanged)
@@ -193,7 +194,7 @@ export class GwenApp {
     }
 
     for (const run of prepared.users) {
-      await this.runSetup(config, run.mod, run.options, `Module "${run.label}"`);
+      await this.runSetup(view, run.mod, run.options, `Module "${run.label}"`);
     }
 
     // Apply the user's direct `vite` config extension last.
@@ -273,10 +274,10 @@ export class GwenApp {
    * Called once per module so each module gets a fresh kit reference
    * (while sharing the same underlying collections on `this`).
    *
-   * @param config - The resolved project config exposed via `kit.options`.
+   * @param resolved - Frozen config view exposed via `kit.options`.
    * @returns A GwenKit implementation.
    */
-  private _createKit(config: ResolvedGwenConfig): GwenKit {
+  private _createKit(resolved: Readonly<ResolvedGwenConfig>): GwenKit {
     // Capture `this` as `app` to keep the closure readable.
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const app = this;
@@ -320,19 +321,19 @@ export class GwenApp {
         app.buildHooks.hook(event, fn as never);
       },
 
-      get options(): GwenBaseConfig {
-        return Object.freeze({ ...config }) as GwenBaseConfig;
+      get options(): Readonly<ResolvedGwenConfig> {
+        return resolved;
       },
     };
   }
 
   private async runSetup(
-    config: ResolvedGwenConfig,
+    resolved: Readonly<ResolvedGwenConfig>,
     mod: GwenModule,
     options: Record<string, unknown>,
     label: string,
   ) {
-    const kit = this._createKit(config);
+    const kit = this._createKit(resolved);
     await this.buildHooks.callHook("module:before", mod);
     try {
       await mod.setup(options, kit);
@@ -435,10 +436,11 @@ function resolveModuleRun(
   const owned = key !== undefined && owners.get(key) === mod.meta.name;
   const user = owned ? record[key] : undefined;
   const defaultsRecord = isPlainRecord(defaults) ? defaults : {};
-  const merged =
-    user === undefined || isPlainRecord(user)
-      ? mergeLayers(defaultsRecord, isPlainRecord(user) ? user : {})
-      : user;
+  if (owned && key !== undefined && user !== undefined && !isPlainRecord(user)) {
+    issues.push(configIssue(key, "an object", formatReceived(user), mod.meta.name));
+    return { mod, options: defaultsRecord, label: mod.meta.name };
+  }
+  const merged = mergeLayers(defaultsRecord, isPlainRecord(user) ? user : {});
   const options = isPlainRecord(merged) ? merged : {};
   if (owned && key !== undefined) {
     pushSerializable(merged, defaults, key, mod.meta.name, issues);
@@ -454,31 +456,99 @@ function resolveModuleRun(
   return { mod, options, label: mod.meta.name };
 }
 
+function rejectSerializable(
+  path: string,
+  value: unknown,
+  owner: string,
+  issues: GwenConfigIssue[],
+): void {
+  issues.push(configIssue(path, "a JSON-serializable value", formatReceived(value), owner));
+}
+
 function pushSerializable(
   value: unknown,
   fallback: unknown,
   path: string,
   owner: string,
   issues: GwenConfigIssue[],
+  stack?: WeakSet<object>,
 ): void {
   if (value === undefined || Object.is(value, fallback)) return;
   if (value === null || typeof value === "string" || typeof value === "boolean") return;
   if (typeof value === "number" && Number.isFinite(value)) return;
+  const seen = stack ?? new WeakSet<object>();
+  if (Array.isArray(value) || isPlainRecord(value)) {
+    if (seen.has(value)) {
+      rejectSerializable(path, value, owner, issues);
+      return;
+    }
+    seen.add(value);
+    if (Array.isArray(value)) {
+      const items = Array.isArray(fallback) ? fallback : [];
+      for (let index = 0; index < value.length; index += 1) {
+        const item = value[index];
+        if (item === undefined) {
+          rejectSerializable(`${path}.${index}`, item, owner, issues);
+          continue;
+        }
+        pushSerializable(item, items[index], `${path}.${index}`, owner, issues, seen);
+      }
+    } else {
+      const base = isPlainRecord(fallback) ? fallback : {};
+      for (const child of Object.keys(value)) {
+        pushSerializable(value[child], base[child], `${path}.${child}`, owner, issues, seen);
+      }
+    }
+    seen.delete(value);
+    return;
+  }
+  rejectSerializable(path, value, owner, issues);
+}
+
+function copyFrozenValue(value: unknown, seen: WeakMap<object, unknown>): unknown {
+  return copyFrozenNode(value, seen, true);
+}
+
+function copyFrozenNode(value: unknown, seen: WeakMap<object, unknown>, root: boolean): unknown {
+  if (typeof value === "function" || value === null || typeof value !== "object") return value;
+  const cached = seen.get(value);
+  if (cached !== undefined) return cached;
   if (Array.isArray(value)) {
-    const items = Array.isArray(fallback) ? fallback : [];
-    for (let index = 0; index < value.length; index += 1) {
-      pushSerializable(value[index], items[index], `${path}.${index}`, owner, issues);
-    }
-    return;
+    const copy: unknown[] = [];
+    seen.set(value, copy);
+    for (const item of value) copy.push(copyFrozenNode(item, seen, false));
+    return Object.freeze(copy);
   }
-  if (isPlainRecord(value)) {
-    const base = isPlainRecord(fallback) ? fallback : {};
-    for (const child of Object.keys(value)) {
-      pushSerializable(value[child], base[child], `${path}.${child}`, owner, issues);
-    }
-    return;
+  if (!isPlainRecord(value)) return value;
+  const copy: Record<string, unknown> = {};
+  seen.set(value, copy);
+  for (const key of Object.keys(value)) {
+    if (key === "__proto__") continue;
+    const child = value[key];
+    copy[key] = root ? copyRootField(key, child, seen) : copyFrozenNode(child, seen, false);
   }
-  issues.push(configIssue(path, "a JSON-serializable value", formatReceived(value), owner));
+  if (root) copyOwnSymbols(value, copy);
+  return Object.freeze(copy);
+}
+
+function copyRootField(key: string, child: unknown, seen: WeakMap<object, unknown>): unknown {
+  if (key === "plugins" && Array.isArray(child)) return Object.freeze(child.slice());
+  if (key === "modules" && Array.isArray(child)) return Object.freeze(child.slice());
+  if (key === "plugins" || key === "vite" || key === "hooks") return child;
+  return copyFrozenNode(child, seen, false);
+}
+
+function copyOwnSymbols(source: object, target: object): void {
+  for (const key of Object.getOwnPropertySymbols(source)) {
+    const description = Object.getOwnPropertyDescriptor(source, key);
+    if (description !== undefined) Object.defineProperty(target, key, description);
+  }
+}
+
+function freezeResolved(config: ResolvedGwenConfig): Readonly<ResolvedGwenConfig> {
+  const frozen = copyFrozenValue(config, new WeakMap());
+  if (!isPlainRecord(frozen)) return config;
+  return frozen as Readonly<ResolvedGwenConfig>;
 }
 
 /**

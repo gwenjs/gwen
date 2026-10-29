@@ -95,13 +95,13 @@ type ResolvedGwenConfig = GwenUserConfig & {
 }
 ```
 
-**Description.** Fully resolved configuration with engine defaults filled in. `engine.variant` is the explicit value, or the variant derived from `modules`. A module reads it on `gwen.options`.
+**Description.** Fully resolved configuration with engine defaults filled in. `engine.variant` is the explicit value, or the variant derived from `modules`. A module reads it on `kit.options`, one object frozen in depth per `setupModules` call, except `plugins` (elements), `vite` and `hooks`, which keep their identity, and functions and class instances are never copied.
 
-`resolveGwenConfig` loads `gwen.config.ts`. Plain objects merge deeply. An array from the higher layer replaces the lower array. `undefined` leaves the lower value. `null` is a value. A function or a class instance is kept by reference.
+`resolveGwenConfig` loads `gwen.config.ts`. Plain objects merge deeply. An array from the higher layer replaces the lower array. `undefined` leaves the lower value. `null` is a value. A function or a class instance is kept by reference. An own `__proto__` key does not change the prototype.
 
-A module entry is a package-name string. A tuple, an unknown top-level key, or a field of the wrong shape fails the load with `APP:CONFIG_INVALID`. The message names the path, the expected shape, and the received value. An explicit `engine.variant` that contradicts a physics module, a reserved `configKey`, or two modules sharing one `configKey` fails with `APP:CONFIG_CONFLICT`. There is no top-level `debug` block. `engine.loop` is `"internal"` or `"external"`.
+Loading has two phases. `resolveGwenConfig` rejects an engine field, a non-object `engine` or `logger`, a tuple module entry, and an explicit `engine.variant` that contradicts a physics module (`APP:CONFIG_CONFLICT`). `GwenApp.setupModules` rejects an unknown top-level key, a reserved or duplicate `configKey` (`APP:CONFIG_CONFLICT`), a module `validate` issue, a module section that is not an object, and a value that is not JSON-serializable, including a cycle or `undefined` in an array. Each phase throws one `GwenAppConfigError`. A config with an engine issue and an unknown key throws twice. A module entry is a package-name string. There is no top-level `debug` block. `engine.loop` is `"internal"` or `"external"`.
 
-c12 does not read `.env`, rc files, `package.json`, or `$test` / `$development` layers.
+c12 does not read `.env`, rc files, `package.json`, or `$development` / `$test` layers. `NODE_ENV` does not select a layer.
 
 ### GwenBuildHooks
 

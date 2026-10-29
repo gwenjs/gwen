@@ -178,11 +178,11 @@ Cause. No `gwen.config.ts` (or `.js` / `.mjs` / `.cjs`) was found, or the file t
 
 ### APP:CONFIG_INVALID {#app-config-invalid}
 
-Cause. A field does not match the expected shape. The message names the path, the expected shape, and the received value. Fix. Use a value the message names.
+Cause. A field does not match the expected shape. `resolveGwenConfig` reports an engine field, a non-object `engine` or `logger`, a tuple module entry, and a variant shape. `GwenApp.setupModules` reports an unknown top-level key, a module section that is not an object, a `validate` issue, and a value that is not JSON-serializable, including a cycle or `undefined` in an array. The message names the path, the expected shape, and the received value. An empty config path renders `Invalid gwen.config:` with no parentheses. Fix. Use a value the message names.
 
 ### APP:CONFIG_CONFLICT {#app-config-conflict}
 
-Cause. An explicit `engine.variant` contradicts a physics module, two modules share one `configKey`, or a `configKey` is reserved. The message names both sides. Fix. Keep one owner, or set `engine.variant` to the variant derived from the modules.
+Cause. An explicit `engine.variant` contradicts a physics module (`resolveGwenConfig`), two modules share one `configKey`, or a `configKey` is reserved (`GwenApp.setupModules`). The message names both sides. Fix. Keep one owner, or set `engine.variant` to the variant derived from the modules.
 
 ## @gwenjs/vite
 

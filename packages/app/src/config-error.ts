@@ -11,7 +11,9 @@ export class GwenAppConfigError extends GwenError {
     const code = issues.some((issue) => issue.conflictsWith !== undefined)
       ? AppErrorCodes.CONFIG_CONFLICT
       : AppErrorCodes.CONFIG_INVALID;
-    const lines = [`Invalid gwen.config (${configFile}):`];
+    const head =
+      configFile.length === 0 ? "Invalid gwen.config:" : `Invalid gwen.config (${configFile}):`;
+    const lines = [head];
     for (const issue of issues) {
       const conflict =
         issue.conflictsWith === undefined ? "" : ` (conflicts with ${issue.conflictsWith})`;

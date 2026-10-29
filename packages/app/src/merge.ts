@@ -23,14 +23,24 @@ export function mergeLayers<T>(low: T, high: DeepPartialInput<T>): T {
   return mergeValue(low, high) as T;
 }
 
-function mergeValue(low: unknown, high: unknown): unknown {
+function mergeValue(
+  low: unknown,
+  high: unknown,
+  stack?: WeakMap<object, Record<string, unknown>>,
+): unknown {
   if (high === undefined) return low;
   if (!isPlainRecord(high)) return high;
+  const seen = stack ?? new WeakMap<object, Record<string, unknown>>();
+  const cycle = seen.get(high);
+  if (cycle !== undefined) return cycle;
   const base: Record<string, unknown> = isPlainRecord(low) ? { ...low } : {};
+  seen.set(high, base);
   for (const key of Object.keys(high)) {
+    if (key === "__proto__") continue;
     const highVal = high[key];
     if (highVal === undefined) continue;
-    base[key] = mergeValue(base[key], highVal);
+    base[key] = mergeValue(base[key], highVal, seen);
   }
+  seen.delete(high);
   return base;
 }
