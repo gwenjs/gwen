@@ -176,6 +176,14 @@ Cause. Le paquet ou le fichier du module n'a pas pu être importé, l'import n'a
 
 Cause. Aucun `gwen.config.ts` (ou `.js` / `.mjs` / `.cjs`) n'a été trouvé, ou le fichier a levé une erreur au chargement. Fix. Ajoutez le fichier de config, ou corrigez l'erreur de syntaxe nommée dans le message. Quand le fichier a levé, `cause` est cette erreur.
 
+### APP:CONFIG_INVALID {#app-config-invalid}
+
+Cause. Un champ ne correspond pas à la forme attendue. Le message nomme le chemin, la forme attendue et la valeur reçue. Fix. Utilisez une valeur nommée par le message.
+
+### APP:CONFIG_CONFLICT {#app-config-conflict}
+
+Cause. Un `engine.variant` explicite contredit un module de physique, deux modules partagent un `configKey`, ou un `configKey` est réservé. Le message nomme les deux côtés. Fix. Gardez un seul propriétaire, ou réglez `engine.variant` sur la variante dérivée des modules.
+
 ## @gwenjs/vite
 
 ### VITE:WASM_NOT_FOUND {#vite-wasm-not-found}

@@ -1,6 +1,12 @@
 {
   ".": {
-    "values": ["createScreenPlugin", "createViewportsPlugin", "defineConfig", "defineGwenModule"],
+    "values": [
+      "GwenAppConfigError",
+      "createScreenPlugin",
+      "createViewportsPlugin",
+      "defineConfig",
+      "defineGwenModule"
+    ],
     "types": [
       "AutoImport",
       "GwenBuildHooks",
@@ -16,9 +22,9 @@
   "./resolve": {
     "values": [
       "GwenApp",
+      "GwenAppConfigError",
       "GwenConfigLoadError",
       "loadRawGwenConfig",
-      "resolveConfig",
       "resolveGwenConfig"
     ],
     "types": [

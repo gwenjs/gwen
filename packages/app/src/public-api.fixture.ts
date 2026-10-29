@@ -5,6 +5,7 @@ import type * as T_resolve from "@gwenjs/app/resolve";
 
 type _0 = [
   Root.AutoImport,
+  Root.GwenAppConfigError,
   Root.GwenBuildHooks,
   Root.GwenKit,
   Root.GwenModule,
@@ -15,6 +16,7 @@ type _0 = [
   Root.ResolvedGwenConfig,
 ];
 type _1 = [
+  T_resolve.GwenAppConfigError,
   T_resolve.GwenBuildHooks,
   T_resolve.GwenModuleEntry,
   T_resolve.GwenModuleOptions,

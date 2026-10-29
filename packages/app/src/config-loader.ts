@@ -71,7 +71,12 @@ export async function loadRawGwenConfig(cwd: string): Promise<RawGwenConfig> {
     const result = await loadConfig<GwenUserConfig>({
       name: "gwen",
       cwd,
-      dotenv: true,
+      dotenv: false,
+      rcFile: false,
+      envName: false,
+      globalRc: false,
+      packageJson: false,
+      extend: false,
       // Custom resolver that handles CJS/ESM double-wrapping from jiti-register hook.
       // Three cases:
       //   1. No wrapping  → mod IS the config object
