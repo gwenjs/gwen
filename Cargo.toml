@@ -26,6 +26,21 @@ lto = false
 codegen-units = 16
 strip = false
 
+# wasm-pack 0.13 cannot select these profiles. scripts/build-wasm.sh applies the
+# same settings with CARGO_PROFILE_RELEASE_*. `lto = true` on [profile.release]
+# is inert: crates/gwen-core/Cargo.toml sets crate-type cdylib and rlib, and
+# cargo skips LTO for that pair.
+[profile.release-fast]
+inherits = "release"
+opt-level = 3
+
+# Same settings as the dev-checked env overrides in scripts/build-wasm.sh.
+[profile.dev-checked]
+inherits = "release"
+opt-level = 1
+debug-assertions = true
+overflow-checks = true
+
 # Issue #80 part 1. Each member opts in with `[lints] workspace = true`.
 [workspace.lints.rust]
 unsafe_op_in_unsafe_fn = "deny"

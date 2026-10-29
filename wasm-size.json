@@ -74,6 +74,15 @@
   "reportOnly": {
     "build-tools": {
       "path": "packages/physics3d/build-tools/gwen_core_bg.wasm"
+    },
+    "light-dev": {
+      "path": "packages/core/wasm/light-dev/gwen_core_bg.wasm"
+    },
+    "physics2d-dev": {
+      "path": "packages/core/wasm/physics2d-dev/gwen_core_bg.wasm"
+    },
+    "physics3d-dev": {
+      "path": "packages/core/wasm/physics3d-dev/gwen_core_bg.wasm"
     }
   }
 }
