@@ -12,7 +12,7 @@ import type { GwenModule } from "@gwenjs/kit/module";
 import type { AutoImport } from "@gwenjs/kit";
 import type { GwenPlugin } from "@gwenjs/core";
 import { GwenApp } from "../src/app.js";
-import { resolveConfig } from "../src/config.js";
+import { resolveLoadedConfig as resolveConfig } from "../src/config.js";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -174,6 +174,7 @@ describe("GwenApp.setupModules — options merging via configKey", () => {
     const [receivedOptions] = setupFn.mock.calls[0] as [Record<string, unknown>];
     expect(receivedOptions).toMatchObject({ a: 1, b: 2 });
   });
+
   it("stores PluginDeclaration objects in pluginDeclarations (not in plugins)", async () => {
     const decl = { src: "@gwenjs/renderer-core", export: "ScreenPlugin", options: { fov: 75 } };
     const mod = defineGwenModule({
@@ -195,25 +196,41 @@ describe("GwenApp.setupModules — options merging via configKey", () => {
 });
 
 describe("GwenApp.setupModules — reserved key collision", () => {
-  it("emits a warning and passes empty options when configKey collides with a reserved key", async () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const setupFn = vi.fn();
+  it("reserved configKey throws APP:CONFIG_CONFLICT", async () => {
+    let calls = 0;
     const mod = defineGwenModule({
       meta: { name: "@test/bad-key", configKey: "engine" }, // "engine" is reserved
       defaults: { x: 1 },
-      setup: setupFn,
+      setup() {
+        calls += 1;
+      },
     });
 
     const config = resolveConfig({ modules: ["@test/bad-key"] });
-    const app = new GwenApp();
-    await app.setupModules(config, makeLoader({ "@test/bad-key": mod }));
+    const caught = (await new GwenApp()
+      .setupModules(config, makeLoader({ "@test/bad-key": mod }))
+      .catch((err: unknown) => err)) as { code?: string; message?: string };
+    expect(caught.code).toBe("APP:CONFIG_CONFLICT");
+    expect(caught.message).toContain("@test/bad-key");
+    expect(calls).toBe(0);
+  });
 
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('"engine"'));
-    // options = {} merged with defaults → default x=1 still applies
-    const [receivedOptions] = setupFn.mock.calls[0] as [Record<string, unknown>];
-    expect(receivedOptions.x).toBe(1);
-
-    warnSpy.mockRestore();
+  it("duplicate configKey throws APP:CONFIG_CONFLICT", async () => {
+    const first = defineGwenModule({
+      meta: { name: "@test/first", configKey: "shared" },
+      setup() {},
+    });
+    const second = defineGwenModule({
+      meta: { name: "@test/second", configKey: "shared" },
+      setup() {},
+    });
+    const config = resolveConfig({ modules: ["@test/first", "@test/second"] });
+    const caught = (await new GwenApp()
+      .setupModules(config, makeLoader({ "@test/first": first, "@test/second": second }))
+      .catch((err: unknown) => err)) as { code?: string; message?: string };
+    expect(caught.code).toBe("APP:CONFIG_CONFLICT");
+    expect(caught.message).toContain("@test/first");
+    expect(caught.message).toContain("@test/second");
   });
 });
 
@@ -332,6 +349,7 @@ describe("GwenApp.setupModules — auto-imports and type templates", () => {
     await app.setupModules(config, makeLoader({ "@test/opts-mod": mod }));
 
     expect((capturedOptions as typeof config).engine.maxEntities).toBe(999);
+    expect(Object.isFrozen(capturedOptions)).toBe(true);
   });
 });
 

@@ -96,10 +96,10 @@ describe("createViewportsPlugin", () => {
 describe("createViewportsPlugin — idempotence via GwenApp", () => {
   it("setupModules replaces existing gwen:viewports plugin on second call", async () => {
     const { GwenApp } = await import("../src/app.js");
-    const { resolveConfig } = await import("../src/config.js");
+    const { resolveLoadedConfig } = await import("../src/config.js");
 
     const app = new GwenApp();
-    const config = resolveConfig({});
+    const config = resolveLoadedConfig({});
 
     await app.setupModules(config);
     const countAfterFirst = app.plugins.filter((p) => p.name === "gwen:viewports").length;
