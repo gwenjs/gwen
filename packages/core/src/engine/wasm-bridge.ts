@@ -41,7 +41,7 @@ import {
 } from "./entity-trace.js";
 import { getWasmModule } from "./wasm-module-cache.js";
 import { checkGwenModule } from "./wasm-contract.js";
-import { sharedProvider } from "./wasm-instance-provider.js";
+import { isolatedProvider, sharedProvider } from "./wasm-instance-provider.js";
 
 // ─── Re-exports from the type module ────────────────────────────────────────
 // Public types live in ./wasm-bridge-types.ts. Re-export them so
@@ -289,10 +289,14 @@ export class WasmBridgeImpl implements WasmBridge {
    * Load and initialize the gwen_core WASM module for this bridge instance.
    *
    * @param variant The core variant to load ('light', 'physics2d', 'physics3d')
-   * @param options Initialization options (urls, max entities)
+   * @param options Initialization options (urls, max entities, `wasmInstance`).
+   *   `wasmInstance: "isolated"` uses one instance per engine. The default is `"shared"`.
    * @throws {GwenError} `CORE:ENGINE_DISPOSED` when this bridge was disposed.
    * @throws {GwenError} `CORE:WASM_LOAD_ERROR` when `jsUrl` or `wasmUrl` is passed again
    *   after init has started. A call with neither returns the init already running.
+   *   `WebAssembly.LinkError` and `WebAssembly.CompileError` from `initSync` use this code.
+   * @throws {GwenError} `CORE:WASM_CAPACITY_EXHAUSTED` when `initSync` throws a `RangeError`
+   *   or a value that is not an `Error`. The dev hint names the fallbacks.
    * @throws {GwenError} If WASM cannot be loaded or has invalid format
    */
   async init(variant: CoreVariant = "light", options: InitWasmOptions = {}): Promise<void> {
@@ -351,9 +355,10 @@ export class WasmBridgeImpl implements WasmBridge {
       const wasmModule = await getWasmModule(resolvedWasmUrl);
       if (this._disposed) this._throwDisposed();
       checkGwenModule(wasmModule, factory.CONTRACT);
-      const acquired = sharedProvider.acquire(wasmModule, factory);
+      const provider = options.wasmInstance === "isolated" ? isolatedProvider : sharedProvider;
+      const acquired = provider.acquire(wasmModule, factory);
       this._release = () => {
-        sharedProvider.release(acquired.glue);
+        provider.release(acquired.glue);
       };
       this._wasmModule = acquired.glue;
       this._wasmExports = acquired.exports;

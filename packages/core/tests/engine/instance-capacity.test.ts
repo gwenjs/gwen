@@ -37,17 +37,20 @@ function tinyModule(): WebAssembly.Module {
   return new WebAssembly.Module(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0]));
 }
 
-function factory(initSync: GwenCoreGlueInstance["initSync"]): GwenCoreGlueFactoryModule {
-  const glue: GwenCoreGlueInstance = {
+function glueShell(initSync: GwenCoreGlueInstance["initSync"]): GwenCoreGlueInstance {
+  return {
     get Engine(): GwenCoreGlueInstance["Engine"] {
       throw new Error("Engine is unused");
     },
     initSync,
   };
+}
+
+function factory(initSync: GwenCoreGlueInstance["initSync"]): GwenCoreGlueFactoryModule {
   return {
     CONTRACT,
     wasmUrl: new URL("file:///gwen-capacity-test.wasm"),
-    createGlue: () => glue,
+    createGlue: () => glueShell(initSync),
   };
 }
 
@@ -140,6 +143,27 @@ describe("wasm instance capacity", () => {
     (_mode, provider) => {
       const caught = expectGwen(acquireThrown(provider, new RangeError("out of memory")));
       expect(caught.hint).toBe(__GWEN_DEV__ ? HINT : undefined);
+    },
+  );
+
+  it.each(PROVIDERS)(
+    "a double release or a release of an unknown glue does not change the live count (%s)",
+    (mode, provider) => {
+      const ok = factoryOk();
+      const glue = provider.acquire(tinyModule(), ok).glue;
+      provider.release(glue);
+      provider.release(glue);
+      provider.release(glueShell(() => ({ memory: new WebAssembly.Memory({ initial: 1 }) })));
+      const cleared = expectGwen(acquireThrown(provider, new RangeError("out of memory")));
+      expect(cleared.message.split("\n")[0]).toBe(capacityLine(mode, 0));
+
+      const held = provider.acquire(tinyModule(), ok).glue;
+      try {
+        const again = expectGwen(acquireThrown(provider, new RangeError("out of memory")));
+        expect(again.message.split("\n")[0]).toBe(capacityLine(mode, 1));
+      } finally {
+        provider.release(held);
+      }
     },
   );
 

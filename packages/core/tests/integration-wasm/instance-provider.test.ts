@@ -615,8 +615,9 @@ async function openTwo(
 ): Promise<readonly [GwenEngine, GwenEngine]> {
   const timing = physicsHz === undefined ? {} : { physicsHz };
   const engineA = await createEngine({ variant, wasmInstance: mode, maxEntities: 32, ...timing });
+  into.push(engineA);
   const engineB = await createEngine({ variant, wasmInstance: mode, maxEntities: 32, ...timing });
-  into.push(engineA, engineB);
+  into.push(engineB);
   return [engineA, engineB];
 }
 

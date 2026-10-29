@@ -22,6 +22,8 @@ const MINIMAL_WASM_URL = `data:application/wasm;base64,${Buffer.from(
 const BRIDGE_SOURCE = fileURLToPath(new URL("../../src/engine/wasm-bridge.ts", import.meta.url));
 const GLUE_URL = "https://gwenjs.github.io/gwen/api/errors#core-wasm-load-error";
 const GLUE_SEE = `See ${GLUE_URL} (CORE:WASM_LOAD_ERROR)`;
+const CAPACITY_URL = "https://gwenjs.github.io/gwen/api/errors#core-wasm-capacity-exhausted";
+const CAPACITY_SEE = `See ${CAPACITY_URL} (CORE:WASM_CAPACITY_EXHAUSTED)`;
 
 describe("loadWasmGlue", () => {
   it("source builds no module source", () => {
@@ -93,13 +95,17 @@ describe("loadWasmGlue", () => {
       Reflect.deleteProperty(globalThis, "__gwenGlue_rejected");
     }
   });
-  it("init keeps a non-Error glue failure raw and still sets docsUrl", async () => {
+  it("init maps a non-Error glue failure to CORE:WASM_CAPACITY_EXHAUSTED, keeps the cause and sets docsUrl", async () => {
     const caught = await catchThrowingGlue("throw 'not-an-error';");
     expect(caught).toBeInstanceOf(GwenError);
     if (!(caught instanceof GwenError)) return;
-    expect(caught.message).toBe(`[initWasm()] not-an-error.\n${GLUE_SEE}`);
-    expect(caught.docsUrl).toBe(GLUE_URL);
-    expect(caught.code).toBe(CoreErrorCodes.WASM_LOAD_ERROR);
+    expect(caught.message.split("\n")[0]).toBe(
+      `[initWasm()] Cannot create another WASM instance (mode "shared", 0 live).`,
+    );
+    expect(caught.message.endsWith(`\n${CAPACITY_SEE}`)).toBe(true);
+    expect(caught.cause).toBe("not-an-error");
+    expect(caught.docsUrl).toBe(CAPACITY_URL);
+    expect(caught.code).toBe(CoreErrorCodes.WASM_CAPACITY_EXHAUSTED);
   });
 });
 

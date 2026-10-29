@@ -26,7 +26,7 @@ export type {
 } from "./engine/wasm-bridge";
 export type { GwenCoreGlueFactoryModule, GwenCoreGlueInstance } from "./engine/wasm-bridge-types";
 export { invalidateWasmModule } from "./engine/wasm-module-cache";
-export { sharedProvider } from "./engine/wasm-instance-provider";
+export { isolatedProvider, sharedProvider } from "./engine/wasm-instance-provider";
 export type { WasmInstanceMode, WasmInstanceProvider } from "./engine/wasm-instance-provider";
 
 export {
