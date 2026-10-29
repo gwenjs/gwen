@@ -116,6 +116,8 @@ type _4 = [
 ];
 type _5 = [T_testing.CreateRealEngineOptions, T_testing.RealEngineHandle];
 type _6 = [
+  T_internal.GwenCoreGlueFactoryModule,
+  T_internal.GwenCoreGlueInstance,
   T_internal.GwenCoreWasm,
   T_internal.GwenTransformImports,
   T_internal.InitWasmOptions,
@@ -126,6 +128,8 @@ type _6 = [
   T_internal.WasmEnginePhysics2D,
   T_internal.WasmEnginePhysics3D,
   T_internal.WasmEntityId,
+  T_internal.WasmInstanceMode,
+  T_internal.WasmInstanceProvider,
 ];
 type _7 = [T_wasm_light.InitInput, T_wasm_light.InitOutput, T_wasm_light.SyncInitInput];
 type _8 = [T_wasm_physics2d.InitInput, T_wasm_physics2d.InitOutput, T_wasm_physics2d.SyncInitInput];

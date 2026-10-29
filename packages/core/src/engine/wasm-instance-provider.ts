@@ -16,15 +16,42 @@ export interface WasmInstanceProvider {
   release(glue: GwenCoreGlueInstance): void;
 }
 
-/** Process-wide provider. Each `acquire` instantiates. `release` does nothing. */
+interface SharedEntry {
+  glue: GwenCoreGlueInstance;
+  exports: { memory: WebAssembly.Memory };
+  refs: number;
+}
+
+const byModule = new WeakMap<WebAssembly.Module, SharedEntry>();
+const byGlue = new Map<GwenCoreGlueInstance, WebAssembly.Module>();
+
+/**
+ * One glue and one memory per compiled Module, for the whole process.
+ * The entry is stored only after `initSync` succeeds, and removed at zero refs.
+ */
 export const sharedProvider: WasmInstanceProvider = {
   mode: "shared",
   acquire(module, factory) {
+    const hit = byModule.get(module);
+    if (hit !== undefined) {
+      hit.refs += 1;
+      return { glue: hit.glue, exports: hit.exports };
+    }
     const glue = factory.createGlue();
     const exports = glue.initSync({ module });
+    const entry: SharedEntry = { glue, exports, refs: 1 };
+    byModule.set(module, entry);
+    byGlue.set(glue, module);
     return { glue, exports };
   },
   release(glue) {
-    void glue;
+    const module = byGlue.get(glue);
+    if (module === undefined) return;
+    const entry = byModule.get(module);
+    if (entry === undefined) return;
+    entry.refs -= 1;
+    if (entry.refs > 0) return;
+    byModule.delete(module);
+    byGlue.delete(glue);
   },
 };

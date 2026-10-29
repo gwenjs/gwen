@@ -374,15 +374,27 @@ Types: `CreateRealEngineOptions`, `RealEngineHandle`
 
 no semver guarantee — framework packages and generated code only
 
-Values: `EASING_MAP`, `FLAGS_OFFSET`, `FLAG_HAS_TRANSFORM`, `GwenScope`, `MAX_SAB_BYTES`, `SENTINEL`, `SharedMemoryManager`, `StringPool`, `StringPoolManager`, `stringPoolFor`, `TRANSFORM3D_STRIDE`, `TRANSFORM_OFFSETS`, `TRANSFORM_STRIDE`, `Transform3D`, `TweenManager`, `TweenPlugin`, `TweenPool`, `WasmBridgeImpl`, `_getActorContext`, `_getActorEntityId`, `buildTransformImports`, `createDisposable`, `createGwenHooks`, `detectCoreVariant`, `engineContext`, `entityIndex`, `executeAsync`, `getTweenManager`, `getWasmBridge`, `poisonWasmBridge`, `readTransform3DPosition`, `readTransform3DRotation`, `readTransform3DScale`, `reportRejectedHook`, `toGwenWasmError`, `writeTransform3DPosition`, `writeTransform3DRotation`, `writeTransform3DScale`
+Values: `EASING_MAP`, `FLAGS_OFFSET`, `FLAG_HAS_TRANSFORM`, `GwenScope`, `MAX_SAB_BYTES`, `SENTINEL`, `SharedMemoryManager`, `StringPool`, `StringPoolManager`, `stringPoolFor`, `TRANSFORM3D_STRIDE`, `TRANSFORM_OFFSETS`, `TRANSFORM_STRIDE`, `Transform3D`, `TweenManager`, `TweenPlugin`, `TweenPool`, `WasmBridgeImpl`, `_getActorContext`, `_getActorEntityId`, `buildTransformImports`, `createDisposable`, `createGwenHooks`, `detectCoreVariant`, `engineContext`, `entityIndex`, `executeAsync`, `getTweenManager`, `getWasmBridge`, `invalidateWasmModule`, `poisonWasmBridge`, `readTransform3DPosition`, `readTransform3DRotation`, `readTransform3DScale`, `reportRejectedHook`, `sharedProvider`, `toGwenWasmError`, `writeTransform3DPosition`, `writeTransform3DRotation`, `writeTransform3DScale`
 
-Types: `GwenCoreWasm`, `GwenTransformImports`, `InitWasmOptions`, `TweenPluginOptions`, `TweenPoolPolicy`, `TweenSlot`, `WasmEngine`, `WasmEnginePhysics2D`, `WasmEnginePhysics3D`, `WasmEntityId`
+Types: `GwenCoreGlueFactoryModule`, `GwenCoreGlueInstance`, `GwenCoreWasm`, `GwenTransformImports`, `InitWasmOptions`, `TweenPluginOptions`, `TweenPoolPolicy`, `TweenSlot`, `WasmEngine`, `WasmEnginePhysics2D`, `WasmEnginePhysics3D`, `WasmEntityId`, `WasmInstanceMode`, `WasmInstanceProvider`
+
+`GwenCoreGlueFactoryModule` — Creates one glue instance through `createGlue`.
+
+`GwenCoreGlueInstance` — One wasm-bindgen glue state: its `Engine` class and `initSync`, which instantiates a compiled module.
+
+`WasmInstanceMode` — `shared` keeps one instance per module, and `isolated` is one instance per acquire.
+
+`WasmInstanceProvider` — Acquires a glue and its memory for a compiled module, and releases that glue.
 
 `_getActorContext` — Actor context for the spawn in progress, or `null` when no factory is running.
+
+`invalidateWasmModule` — Drops the module cached for a URL and reports whether an entry was removed.
 
 `poisonWasmBridge` — Marks a core bridge poisoned after a trap that did not go through `toGwenWasmError`.
 
 `reportRejectedHook` — Attaches a rejection handler to a fire-and-forget `callHook` result.
+
+`sharedProvider` — Keeps one glue and one memory per compiled module for the whole process.
 
 `toGwenWasmError` — Maps an export failure onto a typed error.
 

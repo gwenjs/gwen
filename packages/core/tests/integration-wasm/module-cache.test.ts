@@ -160,6 +160,8 @@ it("a rejected compile is not cached", async () => {
     const first = await settled(() => getWasmModule(url));
     expect(first).toBeInstanceOf(GwenError);
     expect(first).toMatchObject({ code: "CORE:WASM_LOAD_ERROR" });
+    if (!(first instanceof GwenError)) return;
+    expect(first.message).toContain("The WASM binary fetch failed with HTTP 500");
 
     const second = await settled(() => getWasmModule(url));
     expect(second).toBeInstanceOf(WebAssembly.Module);
@@ -188,7 +190,7 @@ it("invalidateWasmModule drops the cached Module", async () => {
     expect(invalidateWasmModule(url)).toBe(true);
     const second = await getWasmModule(url);
     expect(second).not.toBe(first);
-    expect(invalidateWasmModule(url)).toBe(false);
+    expect(invalidateWasmModule(url)).toBe(true);
     expect(invalidateWasmModule(unknown)).toBe(false);
   } finally {
     await served.close();
