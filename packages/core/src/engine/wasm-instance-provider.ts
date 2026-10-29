@@ -55,3 +55,19 @@ export const sharedProvider: WasmInstanceProvider = {
     byGlue.delete(glue);
   },
 };
+
+/**
+ * One glue and one memory per `acquire`.
+ * Instantiation errors are not mapped, and live instances are not counted.
+ */
+export const isolatedProvider: WasmInstanceProvider = {
+  mode: "isolated",
+  acquire(module, factory) {
+    const glue = factory.createGlue();
+    const exports = glue.initSync({ module });
+    return { glue, exports };
+  },
+  release() {
+    return;
+  },
+};

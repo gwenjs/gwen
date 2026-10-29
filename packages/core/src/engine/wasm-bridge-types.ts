@@ -8,6 +8,7 @@
 
 import type { EntityId } from "./engine-api";
 import type { GlueContract } from "./wasm-contract.js";
+import type { WasmInstanceMode } from "./wasm-instance-provider.js";
 
 // ─── Core variant ───────────────────────────────────────────────────────────
 
@@ -1127,6 +1128,12 @@ export interface InitWasmOptions {
   jsUrl?: string;
   /** Optional URL to the WASM binary (gwen_core_bg.wasm). */
   wasmUrl?: string;
+  /**
+   * `shared` keeps one WASM instance per compiled module.
+   * `isolated` keeps one instance per engine, with its own linear memory.
+   * @default "shared"
+   */
+  wasmInstance?: WasmInstanceMode;
 }
 
 // ─── WasmBridge public interface ────────────────────────────────────────────

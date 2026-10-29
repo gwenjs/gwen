@@ -1,7 +1,7 @@
 import { WasmBridgeImpl } from "./wasm-bridge";
 import { validateEngineConfig } from "./engine-config-validator";
 import type { GwenEngine, GwenEngineOptions } from "./engine-types.js";
-import type { CoreVariant } from "./wasm-bridge-types.js";
+import type { CoreVariant, InitWasmOptions } from "./wasm-bridge-types.js";
 import { GwenEngineImpl } from "./gwen-engine.js";
 
 interface NodeFs {
@@ -65,7 +65,9 @@ async function nodeWasmUrls(variant: CoreVariant): Promise<{ jsUrl?: string; was
  * await engine.use(myPlugin())
  * ```
  */
-export async function createEngine(options?: GwenEngineOptions): Promise<GwenEngine> {
+export async function createEngine(
+  options?: GwenEngineOptions & InitWasmOptions,
+): Promise<GwenEngine> {
   validateEngineConfig(options ?? {});
   const opts = options ?? {};
   if (opts._bridge !== undefined) return new GwenEngineImpl(opts);
@@ -101,7 +103,9 @@ export async function createEngine(options?: GwenEngineOptions): Promise<GwenEng
  * await engine.start()
  * ```
  */
-export async function setupGwen(options?: GwenEngineOptions): Promise<GwenEngine> {
+export async function setupGwen(
+  options?: GwenEngineOptions & InitWasmOptions,
+): Promise<GwenEngine> {
   const bridge = new WasmBridgeImpl();
   await bridge.init(options?.variant ?? "light", options);
   return createEngine({ ...options, _bridge: bridge, _ownsBridge: true });
