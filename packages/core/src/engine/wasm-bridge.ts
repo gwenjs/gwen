@@ -39,6 +39,7 @@ import {
   noteEntityAllocated,
   noteEntityDeallocated,
 } from "./entity-trace.js";
+import { bytesFromDataUrl } from "./wasm-module-cache.js";
 
 // ─── Re-exports from the type module ────────────────────────────────────────
 // Public types live in ./wasm-bridge-types.ts. Re-export them so
@@ -108,24 +109,6 @@ interface WasmGlueModule {
   initSync?: (init: { module: ArrayBuffer }) => { memory?: WebAssembly.Memory };
   Engine?: new (maxEntities: number) => WasmEngine;
   [key: string]: unknown;
-}
-
-function bytesFromDataUrl(url: string): Uint8Array<ArrayBuffer> {
-  const comma = url.indexOf(",");
-  if (comma < 0) {
-    throw new GwenError(CoreErrorCodes.WASM_LOAD_ERROR, "The data URL has no payload.", {
-      composable: "initWasm",
-    });
-  }
-  const meta = url.slice(5, comma);
-  const payload = url.slice(comma + 1);
-  if (!meta.includes(";base64")) {
-    return new TextEncoder().encode(decodeURIComponent(payload));
-  }
-  const binary = atob(payload);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-  return bytes;
 }
 
 /**

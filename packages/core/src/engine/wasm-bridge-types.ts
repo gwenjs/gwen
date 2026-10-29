@@ -7,6 +7,7 @@
  */
 
 import type { EntityId } from "./engine-api";
+import type { GlueContract } from "./wasm-contract.js";
 
 // ─── Core variant ───────────────────────────────────────────────────────────
 
@@ -1098,6 +1099,21 @@ export interface WasmEnginePhysics3D extends WasmEngineBase {
 export type WasmEngine = WasmEngineBase &
   Partial<Omit<WasmEnginePhysics2D, keyof WasmEngineBase>> &
   Partial<Omit<WasmEnginePhysics3D, keyof WasmEngineBase>>;
+
+// ─── Glue factory module ────────────────────────────────────────────────────
+
+/** One wasm-bindgen glue state. `initSync` instantiates `module`. */
+export interface GwenCoreGlueInstance {
+  readonly Engine: new (maxEntities: number) => WasmEngine;
+  initSync(input: { module: WebAssembly.Module }): { memory: WebAssembly.Memory };
+}
+
+/** The `gwen_core_factory.js` module for one variant. */
+export interface GwenCoreGlueFactoryModule {
+  readonly createGlue: () => GwenCoreGlueInstance;
+  readonly CONTRACT: GlueContract;
+  readonly wasmUrl: URL;
+}
 
 // ─── Init options ───────────────────────────────────────────────────────────
 
