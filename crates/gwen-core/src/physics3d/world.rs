@@ -45,7 +45,7 @@ use crate::physics3d::error::{
     InvalidShapeReason, Physics3DError,
 };
 use crate::physics3d::events::{CollisionEventBuffer3D, PhysicsCollisionEvent3D};
-use crate::physics3d::pathfinding::NavGrid3D;
+use crate::physics3d::pathfinding::{NavGrid3D, MAX_PATH_NODES_3D};
 
 /// Maximum number of simultaneously active character controllers.
 pub const MAX_CC_ENTITIES: usize = 32;
@@ -302,6 +302,9 @@ pub struct PhysicsWorld3D {
     collision_events: CollisionEventBuffer3D,
     cc_state: [f32; MAX_CC_ENTITIES * CC_STATE_STRIDE],
     nav_grid: Option<NavGrid3D>,
+    /// Waypoints of the last search. Three `f32` values per node.
+    /// Allocated once in [`Self::new`].
+    path_buffer: Box<[f32; MAX_PATH_NODES_3D * 3]>,
     /// Linear-speed cap in metres per second. A faster dynamic body is scaled, not disabled.
     max_linear_velocity: f32,
     /// Interleaved `[slot, reason]` pairs recorded by [`Self::guard_dynamic_bodies`].
@@ -709,6 +712,7 @@ impl PhysicsWorld3D {
             collision_events: CollisionEventBuffer3D::new(),
             cc_state: [0.0; MAX_CC_ENTITIES * CC_STATE_STRIDE],
             nav_grid: None,
+            path_buffer: Box::new([0.0; MAX_PATH_NODES_3D * 3]),
             max_linear_velocity: DEFAULT_MAX_LINEAR_VELOCITY,
             disabled_slots: Vec::with_capacity(DISABLED_SLOT_CAPACITY),
         };
@@ -837,9 +841,9 @@ impl PhysicsWorld3D {
     /// `px` is checked before `py`, then `pz`. The world is not touched.
     ///
     /// This is an input guard on the query point. `trimesh_builder` runs
-    /// `check_collider_coordinate` on every vertex (`world.rs:522-524`, cap `1e9`).
+    /// `check_collider_coordinate` on every vertex (`world.rs:529-531`, cap `1e9`).
     /// `decoded_mesh_is_valid` applies that cap on the `load_bvh_collider` path
-    /// (`world.rs:607-610`).
+    /// (`world.rs:614-617`).
     /// Probe cases `mesh pose fixed 1e19 1m`, `mesh pose fixed 1e19 cap`,
     /// `mesh pose fixed 1e30 1m`, `mesh pose fixed 1e30 cap`, `mesh pose fixed max 1m`,
     /// `mesh pose fixed max cap`, `mesh pose kinematic 1e19 1m` and
@@ -3744,14 +3748,33 @@ impl PhysicsWorld3D {
         self.cc_state.as_ptr()
     }
 
-    /// This world's navigation grid, if one has been uploaded.
-    pub(crate) fn nav_grid(&self) -> Option<&NavGrid3D> {
-        self.nav_grid.as_ref()
-    }
-
     /// Mutable slot for this world's navigation grid.
     pub(crate) fn nav_grid_mut(&mut self) -> &mut Option<NavGrid3D> {
         &mut self.nav_grid
+    }
+
+    /// This world's path waypoints, three `f32` values per node.
+    pub(crate) fn path_buffer(&self) -> &[f32] {
+        self.path_buffer.as_ref()
+    }
+
+    /// Pointer to [`Self::path_buffer`].
+    pub(crate) fn path_buffer_ptr(&self) -> *const f32 {
+        self.path_buffer.as_ptr()
+    }
+
+    /// Search this world's grid and write waypoints into its path buffer.
+    pub(crate) fn find_path(
+        &mut self,
+        from: (f32, f32, f32),
+        to: (f32, f32, f32),
+    ) -> Result<usize, Physics3DError> {
+        crate::physics3d::pathfinding::find_path_checked(
+            self.nav_grid.as_ref(),
+            self.path_buffer.as_mut(),
+            from,
+            to,
+        )
     }
 }
 

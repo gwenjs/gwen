@@ -78,15 +78,17 @@ fn unsafe_site_u003_short_sync_is_invalid() {
 
 #[cfg(feature = "physics2d")]
 #[test]
-fn unsafe_site_u008_path_caps_at_max_nodes() -> Result<(), gwen_core::physics2d::Physics2DError> {
-    use gwen_core::physics2d::{find_path_2d, get_path_buffer_ptr, MAX_PATH_NODES};
+fn path_find_2d_caps_at_max_nodes() -> Result<(), gwen_core::physics2d::Physics2DError> {
+    use gwen_core::physics2d::{Physics2DError, MAX_PATH_NODES};
 
-    let count = find_path_2d(0.0, 0.0, 255.0, 0.0)?;
-    assert_eq!(count, MAX_PATH_NODES);
-    // SAFETY: `find_path_2d` just wrote `MAX_PATH_NODES` nodes and this read is the last one.
-    let last = unsafe { *get_path_buffer_ptr().add(MAX_PATH_NODES - 1) };
-    assert_eq!(last.x, 255.0);
-    assert_eq!(last.y, 0.0);
+    let mut engine = Engine::new(4).map_err(Physics2DError::Core)?;
+    let count = engine.path_find_2d(0.0, 0.0, 255.0, 0.0)?;
+    assert_eq!(count, MAX_PATH_NODES as u32);
+    let ptr = engine.path_get_result_ptr();
+    // SAFETY: `path_find_2d` just wrote `MAX_PATH_NODES` nodes into this engine's buffer.
+    let floats = unsafe { std::slice::from_raw_parts(ptr, MAX_PATH_NODES * 2) };
+    assert_eq!(floats[MAX_PATH_NODES * 2 - 2], 255.0);
+    assert_eq!(floats[MAX_PATH_NODES * 2 - 1], 0.0);
     Ok(())
 }
 

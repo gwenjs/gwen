@@ -13,6 +13,7 @@ fn field(fingerprint: &str, index: usize) -> &str {
 fn fingerprint_carries_the_abi_number() {
     assert_eq!(field(FINGERPRINT, 0), "gwen-core");
     assert_eq!(FINGERPRINT.split(';').count(), 4);
+    assert_eq!(GWEN_CORE_ABI_VERSION, 2);
     assert_eq!(
         field(FINGERPRINT, 2),
         format!("abi={GWEN_CORE_ABI_VERSION}")

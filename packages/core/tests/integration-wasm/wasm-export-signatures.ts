@@ -323,7 +323,7 @@ export const PHYSICS3D_WASM_EXTRA = [
   "engine_physics3d_get_gravity_scale (i32,i32,i32)->()",
   "engine_physics3d_get_linear_velocity (i32,i32,i32)->()",
   "engine_physics3d_get_max_cc_entities (i32)->(i32)",
-  "engine_physics3d_get_path_buffer_ptr_3d (i32)->(i32)",
+  "engine_physics3d_get_path_buffer_ptr_3d (i32,i32)->()",
   "engine_physics3d_get_sensor_state (i32,i32,i32,i32)->()",
   "engine_physics3d_has_body (i32,i32,i32)->()",
   "engine_physics3d_init (i32,f32,f32,f32,i32)->()",
@@ -360,30 +360,14 @@ export const PHYSICS3D_WASM_EXTRA = [
   "engine_physics3d_wake_all (i32,i32)->()",
 ] as const;
 
-// Free functions: wasm-bindgen exports them from the glue module, outside Engine.
-export const PHYSICS2D_FREE_JS = [
-  "find_path_2d(start_x, start_y, end_x, end_y)",
-  "get_collision_event_count()",
-  "get_collision_events_ptr()",
-  "get_path_buffer_ptr()",
-];
+// The core binaries no longer export a free path or collision buffer.
+export const PHYSICS2D_FREE_JS = [] as const;
 
-export const PHYSICS2D_FREE_WASM = [
-  "find_path_2d (i32,f32,f32,f32,f32)->()",
-  "get_collision_event_count ()->(i32)",
-  "get_collision_events_ptr ()->(i32)",
-  "get_path_buffer_ptr ()->(i32)",
-];
+export const PHYSICS2D_FREE_WASM = [] as const;
 
-export const PHYSICS3D_FREE_JS = [
-  "find_path_3d(from_x, from_y, from_z, to_x, to_y, to_z)",
-  "get_path_buffer_ptr_3d()",
-];
+export const PHYSICS3D_FREE_JS = [] as const;
 
-export const PHYSICS3D_FREE_WASM = [
-  "find_path_3d (f32,f32,f32,f32,f32,f32)->(i32)",
-  "get_path_buffer_ptr_3d ()->(i32)",
-];
+export const PHYSICS3D_FREE_WASM = [] as const;
 
 // Glue .d.ts signatures (comments stripped, one line per member, `Class.` prefix).
 // They carry the TypeScript types the wasm types and parameter names do not show:
@@ -489,10 +473,6 @@ export const PHYSICS2D_DTS_EXTRA = [
   "Engine.physics_take_disabled_slots(): Uint32Array;",
   "Engine.physics_unload_tilemap_chunk_body(chunk_id: number): void;",
   "Engine.physics_update_sensor_state(_slot: number, _collider_id: number, _active: number): void;",
-  "find_path_2d(start_x: number, start_y: number, end_x: number, end_y: number): number;",
-  "get_collision_event_count(): number;",
-  "get_collision_events_ptr(): number;",
-  "get_path_buffer_ptr(): number;",
 ];
 
 export const PHYSICS3D_DTS_EXTRA = [
@@ -570,6 +550,4 @@ export const PHYSICS3D_DTS_EXTRA = [
   "Engine.physics3d_update_heightfield_collider(entity_index: number, collider_id: number, heights_flat: Float32Array, rows: number, cols: number, scale_x: number, scale_y: number, scale_z: number, friction: number, restitution: number, layer_bits: number, mask_bits: number): boolean;",
   "Engine.physics3d_update_sensor_state(entity_index: number, sensor_id: number, is_active: boolean, count: number): void;",
   "Engine.physics3d_wake_all(): void;",
-  "find_path_3d(from_x: number, from_y: number, from_z: number, to_x: number, to_y: number, to_z: number): number;",
-  "get_path_buffer_ptr_3d(): number;",
 ];

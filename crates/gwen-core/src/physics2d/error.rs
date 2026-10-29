@@ -7,7 +7,7 @@
 use crate::ecs::CoreError;
 use std::fmt;
 
-/// Why `path_find_2d` or `find_path_2d` refuses a request.
+/// Why `path_find_2d` refuses a request.
 ///
 /// The numeric coordinate and distance bounds are applied by the check that
 /// returns [`Physics2DError::InvalidPathRequest`].

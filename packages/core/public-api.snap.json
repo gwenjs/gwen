@@ -322,27 +322,11 @@
     "types": ["InitInput", "InitOutput", "SyncInitInput"]
   },
   "./wasm/physics2d": {
-    "values": [
-      "Engine",
-      "JsEntityId",
-      "default",
-      "find_path_2d",
-      "get_collision_event_count",
-      "get_collision_events_ptr",
-      "get_path_buffer_ptr",
-      "initSync"
-    ],
+    "values": ["Engine", "JsEntityId", "default", "initSync"],
     "types": ["InitInput", "InitOutput", "SyncInitInput"]
   },
   "./wasm/physics3d": {
-    "values": [
-      "Engine",
-      "JsEntityId",
-      "default",
-      "find_path_3d",
-      "get_path_buffer_ptr_3d",
-      "initSync"
-    ],
+    "values": ["Engine", "JsEntityId", "default", "initSync"],
     "types": ["InitInput", "InitOutput", "SyncInitInput"]
   },
   "./wasm/light/factory": {

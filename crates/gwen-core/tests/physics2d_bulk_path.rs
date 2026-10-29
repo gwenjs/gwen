@@ -5,13 +5,8 @@
 
 #![cfg(feature = "physics2d")]
 
-use std::sync::{Mutex, MutexGuard};
-
 use gwen_core::bindings::Engine;
-use gwen_core::physics2d::{
-    find_path_2d, pathfinding::get_path_buffer_ptr, PathRequestReject, Physics2DError,
-    MAX_PATH_NODES,
-};
+use gwen_core::physics2d::{PathRequestReject, Physics2DError, MAX_PATH_NODES};
 use gwen_core::CoreError;
 
 fn engine() -> Result<Engine, Physics2DError> {
@@ -26,30 +21,35 @@ fn add(engine: &mut Engine, slot: u32, x: f32, y: f32, kind: u8) -> Result<u32, 
     engine.physics_add_rigid_body(slot, x, y, kind, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0, None, None)
 }
 
-fn path_lock() -> MutexGuard<'static, ()> {
-    static LOCK: Mutex<()> = Mutex::new(());
-    LOCK.lock().unwrap_or_else(|err| err.into_inner())
+fn node_at(engine: &Engine, index: usize) -> (f32, f32) {
+    let ptr = engine.path_get_result_ptr();
+    // SAFETY: `path_get_result_ptr` is this engine's 256-node buffer.
+    // `index` is below MAX_PATH_NODES, so the pair sits inside it.
+    let floats = unsafe { std::slice::from_raw_parts(ptr, MAX_PATH_NODES * 2) };
+    (floats[index * 2], floats[index * 2 + 1])
 }
 
-fn node_at(index: usize) -> (f32, f32) {
-    // SAFETY: the caller holds `path_lock` and `index` is below MAX_PATH_NODES.
-    let node = unsafe { *get_path_buffer_ptr().add(index) };
-    (node.x, node.y)
-}
-
-fn prime_path() -> [(f32, f32); 2] {
-    let count = find_path_2d(0.0, 0.0, 1.0, 0.0);
+fn prime_path(engine: &mut Engine) -> [(f32, f32); 2] {
+    let count = engine.path_find_2d(0.0, 0.0, 1.0, 0.0);
     assert_eq!(count, Ok(2));
-    [node_at(0), node_at(1)]
+    [node_at(engine, 0), node_at(engine, 1)]
 }
 
-fn refuse(start_x: f32, start_y: f32, end_x: f32, end_y: f32, reason: PathRequestReject) {
-    let kept = prime_path();
+fn refuse(
+    start_x: f32,
+    start_y: f32,
+    end_x: f32,
+    end_y: f32,
+    reason: PathRequestReject,
+) -> Result<(), Physics2DError> {
+    let mut engine = engine()?;
+    let kept = prime_path(&mut engine);
     assert_eq!(
-        find_path_2d(start_x, start_y, end_x, end_y),
+        engine.path_find_2d(start_x, start_y, end_x, end_y),
         Err(Physics2DError::InvalidPathRequest { reason })
     );
-    assert_eq!([node_at(0), node_at(1)], kept);
+    assert_eq!([node_at(&engine, 0), node_at(&engine, 1)], kept);
+    Ok(())
 }
 
 #[test]
@@ -317,104 +317,114 @@ fn apply_impulse_mismatch_leaves_the_component() -> Result<(), CoreError> {
 }
 
 #[test]
-fn nan_path_is_refused() {
-    let _guard = path_lock();
-    refuse(f32::NAN, 0.0, 1.0, 0.0, PathRequestReject::NonFinite);
-    refuse(0.0, f32::NAN, 1.0, 0.0, PathRequestReject::NonFinite);
-    refuse(0.0, 0.0, f32::NAN, 0.0, PathRequestReject::NonFinite);
-    refuse(0.0, 0.0, 1.0, f32::NAN, PathRequestReject::NonFinite);
+fn nan_path_is_refused() -> Result<(), Physics2DError> {
+    refuse(f32::NAN, 0.0, 1.0, 0.0, PathRequestReject::NonFinite)?;
+    refuse(0.0, f32::NAN, 1.0, 0.0, PathRequestReject::NonFinite)?;
+    refuse(0.0, 0.0, f32::NAN, 0.0, PathRequestReject::NonFinite)?;
+    refuse(0.0, 0.0, 1.0, f32::NAN, PathRequestReject::NonFinite)?;
+    Ok(())
 }
 
 #[test]
-fn infinite_path_is_refused() {
-    let _guard = path_lock();
-    refuse(f32::INFINITY, 0.0, 0.0, 0.0, PathRequestReject::NonFinite);
+fn infinite_path_is_refused() -> Result<(), Physics2DError> {
+    refuse(f32::INFINITY, 0.0, 0.0, 0.0, PathRequestReject::NonFinite)?;
     refuse(
         f32::NEG_INFINITY,
         0.0,
         0.0,
         0.0,
         PathRequestReject::NonFinite,
-    );
-    refuse(0.0, 0.0, f32::INFINITY, 0.0, PathRequestReject::NonFinite);
+    )?;
+    refuse(0.0, 0.0, f32::INFINITY, 0.0, PathRequestReject::NonFinite)?;
     refuse(
         0.0,
         0.0,
         f32::NEG_INFINITY,
         0.0,
         PathRequestReject::NonFinite,
-    );
+    )?;
+    Ok(())
 }
 
 #[test]
-fn coord_past_the_bound_is_refused() {
-    let _guard = path_lock();
+fn coord_past_the_bound_is_refused() -> Result<(), Physics2DError> {
     refuse(
         16_777_216.0,
         0.0,
         16_777_216.0,
         0.0,
         PathRequestReject::CoordOutOfRange,
-    );
+    )?;
     refuse(
         -16_777_216.0,
         0.0,
         0.0,
         0.0,
         PathRequestReject::CoordOutOfRange,
+    )?;
+    Ok(())
+}
+
+#[test]
+fn coord_at_the_bound_is_accepted() -> Result<(), Physics2DError> {
+    let mut engine = engine()?;
+    assert_eq!(
+        engine.path_find_2d(16_777_215.0, 0.0, 16_777_215.0, 0.0),
+        Ok(1)
     );
+    assert_eq!(node_at(&engine, 0), (16_777_215.0, 0.0));
+    assert_eq!(
+        engine.path_find_2d(-16_777_215.0, 0.0, -16_777_215.0, 0.0),
+        Ok(1)
+    );
+    assert_eq!(node_at(&engine, 0), (-16_777_215.0, 0.0));
+    Ok(())
 }
 
 #[test]
-fn coord_at_the_bound_is_accepted() {
-    let _guard = path_lock();
-    assert_eq!(find_path_2d(16_777_215.0, 0.0, 16_777_215.0, 0.0), Ok(1));
-    assert_eq!(node_at(0), (16_777_215.0, 0.0));
-    assert_eq!(find_path_2d(-16_777_215.0, 0.0, -16_777_215.0, 0.0), Ok(1));
-    assert_eq!(node_at(0), (-16_777_215.0, 0.0));
+fn distance_past_the_bound_is_refused() -> Result<(), Physics2DError> {
+    refuse(0.0, 0.0, 256.0, 0.0, PathRequestReject::DistanceOutOfRange)?;
+    Ok(())
 }
 
 #[test]
-fn distance_past_the_bound_is_refused() {
-    let _guard = path_lock();
-    refuse(0.0, 0.0, 256.0, 0.0, PathRequestReject::DistanceOutOfRange);
+fn distance_at_the_bound_is_accepted() -> Result<(), Physics2DError> {
+    let mut engine = engine()?;
+    assert_eq!(
+        engine.path_find_2d(0.0, 0.0, 255.0, 0.0),
+        Ok(MAX_PATH_NODES as u32)
+    );
+    assert_eq!(node_at(&engine, 0), (0.0, 0.0));
+    assert_eq!(node_at(&engine, MAX_PATH_NODES - 1), (255.0, 0.0));
+    Ok(())
 }
 
 #[test]
-fn distance_at_the_bound_is_accepted() {
-    let _guard = path_lock();
-    assert_eq!(find_path_2d(0.0, 0.0, 255.0, 0.0), Ok(MAX_PATH_NODES));
-    assert_eq!(node_at(0), (0.0, 0.0));
-    assert_eq!(node_at(MAX_PATH_NODES - 1), (255.0, 0.0));
-}
-
-#[test]
-fn i32_scale_coordinate_is_refused() {
-    let _guard = path_lock();
+fn i32_scale_coordinate_is_refused() -> Result<(), Physics2DError> {
     refuse(
         2_147_483_648.0,
         0.0,
         2_147_483_648.0,
         0.0,
         PathRequestReject::CoordOutOfRange,
-    );
+    )?;
     refuse(
         -2_147_483_648.0,
         0.0,
         0.0,
         0.0,
         PathRequestReject::CoordOutOfRange,
-    );
+    )?;
+    Ok(())
 }
 
 #[test]
 fn path_find_2d_refuses_the_same_nan() -> Result<(), Physics2DError> {
-    let _guard = path_lock();
     let mut first = engine()?;
     let mut second = engine()?;
-    let count = find_path_2d(0.0, 0.0, 1.0, 0.0)?;
+    let count = first.path_find_2d(0.0, 0.0, 1.0, 0.0)?;
     assert_eq!(count, 2);
-    let kept = [node_at(0), node_at(1)];
+    let kept = [node_at(&first, 0), node_at(&first, 1)];
     assert_eq!(
         first.path_find_2d(f32::NAN, 0.0, 1.0, 0.0),
         Err(Physics2DError::InvalidPathRequest {
@@ -433,7 +443,7 @@ fn path_find_2d_refuses_the_same_nan() -> Result<(), Physics2DError> {
             reason: PathRequestReject::DistanceOutOfRange,
         })
     );
-    assert_eq!([node_at(0), node_at(1)], kept);
+    assert_eq!([node_at(&first, 0), node_at(&first, 1)], kept);
     assert_eq!(first.path_find_2d(0.0, 0.0, 1.0, 0.0)?, 2);
     Ok(())
 }

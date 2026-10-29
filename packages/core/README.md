@@ -394,13 +394,13 @@ Types: `InitInput`, `InitOutput`, `SyncInitInput`
 
 ### `./wasm/physics2d`
 
-Values: `Engine`, `JsEntityId`, `default`, `find_path_2d`, `get_collision_event_count`, `get_collision_events_ptr`, `get_path_buffer_ptr`, `initSync`
+Values: `Engine`, `JsEntityId`, `default`, `initSync`
 
 Types: `InitInput`, `InitOutput`, `SyncInitInput`
 
 ### `./wasm/physics3d`
 
-Values: `Engine`, `JsEntityId`, `default`, `find_path_3d`, `get_path_buffer_ptr_3d`, `initSync`
+Values: `Engine`, `JsEntityId`, `default`, `initSync`
 
 Types: `InitInput`, `InitOutput`, `SyncInitInput`
 

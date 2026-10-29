@@ -539,7 +539,8 @@ export interface WasmEnginePhysics2D extends WasmEngineBase {
    */
   path_find_2d(fx: number, fy: number, tx: number, ty: number): number;
   /**
-   * Get pointer to the static path result buffer.
+   * Pointer to this engine's path result buffer.
+   * Allocated once when the engine is created.
    * Each node is 8 bytes: `[x: f32, y: f32]`.
    */
   path_get_result_ptr(): number;
@@ -988,6 +989,7 @@ export interface WasmEnginePhysics3D extends WasmEngineBase {
     toY: number,
     toZ: number,
   ): number;
+  /** Throws `PHYSICS3D:NOT_INITIALIZED` (`physics world is not initialized`) when `physics3d_init` has not run. */
   physics3d_get_path_buffer_ptr_3d?(): number;
 
   // ── Spatial queries ───────────────────────────────────────────────────────
@@ -1043,7 +1045,7 @@ export interface WasmEnginePhysics3D extends WasmEngineBase {
     outPtr: number,
     maxResults: number,
   ): number;
-  /** `[1, entity, px, py, pz, isInside]` on a hit, `[0]` on a miss. Throws `PHYSICS3D:INVALID_QUERY` when the point is not finite or sits outside ±1e7. That cap is a separate input guard. Vertex cap 1e9 at `world.rs:522-524`. `decoded_mesh_is_valid` applies it at `world.rs:607-610`. Probe cases `mesh pose fixed 1e19 1m`, `mesh pose fixed 1e19 cap`, `mesh pose fixed 1e30 1m`, `mesh pose fixed 1e30 cap`, `mesh pose fixed max 1m`, `mesh pose fixed max cap`, `mesh pose kinematic 1e19 1m` and `mesh pose kinematic 1e19 cap` use a pose up to `f32::MAX` and do not panic. parry3d-0.31.1 `point_composite_shape.rs:199-202` returns a point when the projection is missing (`point_projection_on_a_large_mesh_does_not_panic`). */
+  /** `[1, entity, px, py, pz, isInside]` on a hit, `[0]` on a miss. Throws `PHYSICS3D:INVALID_QUERY` when the point is not finite or sits outside ±1e7. That cap is a separate input guard. Vertex cap 1e9 at `world.rs:529-531`. `decoded_mesh_is_valid` applies it at `world.rs:614-617`. Probe cases `mesh pose fixed 1e19 1m`, `mesh pose fixed 1e19 cap`, `mesh pose fixed 1e30 1m`, `mesh pose fixed 1e30 cap`, `mesh pose fixed max 1m`, `mesh pose fixed max cap`, `mesh pose kinematic 1e19 1m` and `mesh pose kinematic 1e19 cap` use a pose up to `f32::MAX` and do not panic. parry3d-0.31.1 `point_composite_shape.rs:199-202` returns a point when the projection is missing (`point_projection_on_a_large_mesh_does_not_panic`). */
   physics3d_project_point?(
     px: number,
     py: number,

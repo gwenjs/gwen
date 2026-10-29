@@ -12,8 +12,8 @@ import { describe, expect, it } from "vitest";
  * `physics3d_step` and the three queries to `result` (`PHYSICS3D:INVALID_QUERY`,
  * `PHYSICS3D:INVALID_STEP_DELTA`).
  * `trimesh_builder` refuses each vertex above `1e9` (`check_collider_coordinate`,
- * `world.rs:522-524`). `decoded_mesh_is_valid` applies that cap on `load_bvh_collider`
- * (`world.rs:607-610`). parry3d-0.31.1 `query/point/point_composite_shape.rs:199-202`
+ * `world.rs:529-531`). `decoded_mesh_is_valid` applies that cap on `load_bvh_collider`
+ * (`world.rs:614-617`). parry3d-0.31.1 `query/point/point_composite_shape.rs:199-202`
  * returns a point when the projection is missing (`point_projection_on_a_large_mesh_does_not_panic`). Probe cases `mesh pose fixed 1e19 1m`,
  * `mesh pose fixed 1e19 cap`, `mesh pose fixed 1e30 1m`, `mesh pose fixed 1e30 cap`,
  * `mesh pose fixed max 1m`, `mesh pose fixed max cap`, `mesh pose kinematic 1e19 1m`
@@ -38,12 +38,6 @@ function result(): { kind: "result" } {
 }
 
 const PHYSICS3D: Record<string, ExportRow> = {
-  find_path_3d: infallible(
-    "ABI shim: the body returns the constant 0 and reads no argument (pathfinding.rs:210-224)",
-  ),
-  get_path_buffer_ptr_3d: infallible(
-    "returns the address of the thread-local path buffer without dereferencing it (pathfinding.rs:83-87)",
-  ),
   physics3d_add_ball_joint: result(),
   physics3d_add_body: result(),
   physics3d_add_box_collider: result(),
@@ -91,9 +85,7 @@ const PHYSICS3D: Record<string, ExportRow> = {
   physics3d_get_max_cc_entities: infallible(
     "returns the constant MAX_CC_ENTITIES (world.rs:3098-3100)",
   ),
-  physics3d_get_path_buffer_ptr_3d: infallible(
-    "returns the address of the thread-local path buffer without dereferencing it (pathfinding.rs:83-87)",
-  ),
+  physics3d_get_path_buffer_ptr_3d: result(),
   physics3d_get_sensor_state: result(),
   physics3d_has_body: result(),
   physics3d_init: infallible(
@@ -105,7 +97,7 @@ const PHYSICS3D: Record<string, ExportRow> = {
   physics3d_lock_rotations: result(),
   physics3d_lock_translations: result(),
   physics3d_overlap_shape: result(),
-  // Vertex cap 1e9 at world.rs:522-524. decoded_mesh_is_valid applies it at world.rs:607-610.
+  // Vertex cap 1e9 at world.rs:529-531. decoded_mesh_is_valid applies it at world.rs:614-617.
   // Probe cases mesh pose fixed 1e19 1m, mesh pose fixed 1e19 cap, mesh pose fixed 1e30 1m,
   // mesh pose fixed 1e30 cap, mesh pose fixed max 1m, mesh pose fixed max cap,
   // mesh pose kinematic 1e19 1m and mesh pose kinematic 1e19 cap: pose up to f32::MAX, no panic.
@@ -128,12 +120,12 @@ const PHYSICS3D: Record<string, ExportRow> = {
   physics3d_set_kinematic_position: result(),
   physics3d_set_linear_velocity: result(),
   physics3d_set_max_linear_velocity: infallible(
-    "bindings.rs:1932-1937 returns 0 or 1 and has no Result; world.rs:810-816 compares the float and does not index",
+    "bindings.rs:1922-1927 returns 0 or 1 and has no Result; world.rs:808-809 compares the float and does not index",
   ),
   physics3d_set_quality: result(),
   physics3d_step: result(),
   physics3d_take_disabled_slots: infallible(
-    "bindings.rs:1919-1924 returns a Vec and has no Result; world.rs:797-805 replaces the buffer with mem::replace and does not index it",
+    "bindings.rs:1909-1914 returns a Vec and has no Result; world.rs:797-800 replaces the buffer with mem::replace and does not index it",
   ),
   physics3d_update_heightfield_collider: result(),
   physics3d_update_sensor_state: result(),

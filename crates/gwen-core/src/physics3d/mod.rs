@@ -31,7 +31,5 @@ pub use error::{
 pub use events::{
     get_collision_event_count_3d, get_collision_events_ptr_3d, PhysicsCollisionEvent3D,
 };
-pub use pathfinding::{
-    find_path_3d, get_path_buffer_ptr_3d, MAX_NAVGRID_CELLS, MAX_PATH_COORD, MAX_PATH_NODES_3D,
-};
+pub use pathfinding::{MAX_NAVGRID_CELLS, MAX_PATH_COORD, MAX_PATH_NODES_3D};
 pub use world::PhysicsWorld3D;

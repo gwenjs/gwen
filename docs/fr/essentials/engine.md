@@ -93,6 +93,16 @@ export const DebugSystem = defineSystem(() => {
 })
 ```
 
+## Moteurs sur une même instance
+
+Deux moteurs peuvent tourner sur une même instance WASM. Chaque moteur possède ses entités, son monde physique et ses tampons de chemin. Un chemin écrit par un moteur n'est pas le chemin que l'autre moteur lit.
+
+Ils partagent encore trois choses :
+
+- Le budget de mémoire linéaire. Une instance a une seule `WebAssembly.Memory`. Tous les moteurs de cette instance y allouent. `wasmMemoryBytes` est la taille de cette mémoire.
+- L'allocateur. Un seul allocateur sert tous les moteurs de l'instance.
+- Le domaine de faute. Un trap laisse la mémoire de l'instance partagée dans un état inconnu. Seul le moteur qui a levé le trap est marqué empoisonné. Les autres moteurs ne sont pas arrêtés et ne doivent pas être tenus pour fiables.
+
 ## Statistiques de frame
 
 `engine.getStats()` retourne des métriques de performance en direct :

@@ -9,7 +9,7 @@ use wasm_bindgen::prelude::wasm_bindgen;
 #[macro_export]
 macro_rules! gwen_core_abi {
     () => {
-        "1"
+        "2"
     };
 }
 

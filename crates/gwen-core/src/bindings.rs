@@ -17,6 +17,7 @@ use wasm_bindgen::prelude::*;
 
 #[cfg(feature = "physics2d")]
 use crate::physics2d::{
+    pathfinding::{PathNode, MAX_PATH_NODES},
     BodyOptions, BodyType, ColliderOptions, Physics2DError, PhysicsQualityPreset, PhysicsWorld,
 };
 
@@ -128,6 +129,9 @@ pub struct Engine {
     shared_buffers: SharedBuffers,
     #[cfg(feature = "physics2d")]
     physics_world: Option<PhysicsWorld>,
+    /// 2D path waypoints. Allocated once in [`Engine::new`].
+    #[cfg(feature = "physics2d")]
+    path_buffer_2d: Box<[PathNode; MAX_PATH_NODES]>,
     #[cfg(feature = "physics3d")]
     physics3d_world: Option<PhysicsWorld3D>,
 }
@@ -161,6 +165,8 @@ impl Engine {
             shared_buffers: SharedBuffers::new(),
             #[cfg(feature = "physics2d")]
             physics_world: None,
+            #[cfg(feature = "physics2d")]
+            path_buffer_2d: Box::new([PathNode::default(); MAX_PATH_NODES]),
             #[cfg(feature = "physics3d")]
             physics3d_world: None,
         })
@@ -1744,7 +1750,7 @@ impl Engine {
 
     // ─── Pathfinding (2D) ──────────────────────────────────────────────────────
 
-    /// Find a 2D path. Same bounds as [`crate::physics2d::find_path_2d`].
+    /// Find a 2D path and write it into this engine's path buffer.
     ///
     /// # Errors
     /// Returns [`Physics2DError::InvalidPathRequest`] when a coordinate is not
@@ -1759,13 +1765,23 @@ impl Engine {
         to_x: f32,
         to_y: f32,
     ) -> Result<u32, Physics2DError> {
-        crate::physics2d::pathfinding::find_path_2d(from_x, from_y, to_x, to_y)
-            .map(|count| count as u32)
+        crate::physics2d::pathfinding::find_path_2d(
+            self.path_buffer_2d.as_mut(),
+            from_x,
+            from_y,
+            to_x,
+            to_y,
+        )
+        .map(|count| count as u32)
     }
 
+    /// Pointer to this engine's 2D path buffer.
+    ///
+    /// The buffer is allocated once in [`Engine::new`]. Each node is two `f32`
+    /// values `(x, y)`.
     #[cfg(feature = "physics2d")]
     pub fn path_get_result_ptr(&self) -> *const f32 {
-        crate::physics2d::pathfinding::get_path_buffer_ptr() as *const f32
+        self.path_buffer_2d.as_ptr().cast()
     }
 
     // ─── Physics 3D — Pathfinding (RFC pathfinding-3d) ───────────────────────
@@ -1820,7 +1836,7 @@ impl Engine {
 
     /// Find a path in the uploaded 3D voxel grid using A*.
     ///
-    /// Returns the number of waypoints written to the static path buffer.
+    /// Returns the number of waypoints written to this world's path buffer.
     /// Read the results via [`physics3d_get_path_buffer_ptr_3d`].
     ///
     /// # Arguments
@@ -1845,23 +1861,24 @@ impl Engine {
         to_y: f32,
         to_z: f32,
     ) -> Result<u32, Physics3DError> {
-        let world = self.world3d()?;
-        crate::physics3d::pathfinding::find_path_checked(
-            world.nav_grid(),
-            (from_x, from_y, from_z),
-            (to_x, to_y, to_z),
-        )
-        .map(|count| count as u32)
+        let world = self.world3d_mut()?;
+        world
+            .find_path((from_x, from_y, from_z), (to_x, to_y, to_z))
+            .map(|count| count as u32)
     }
 
-    /// Returns the WASM linear-memory pointer to the 3D path waypoint buffer.
+    /// Returns the WASM linear-memory pointer to this world's 3D path buffer.
     ///
-    /// Each waypoint is stored as three consecutive `f32` values `(x, y, z)`.
-    /// Wrap the returned pointer in a `Float32Array` view over WASM linear memory.
-    /// Valid until the next [`physics3d_find_path_3d`] call.
+    /// Each waypoint is three consecutive `f32` values `(x, y, z)`.
+    /// The buffer is allocated once in [`PhysicsWorld3D::new`].
+    /// Wrap the pointer in a `Float32Array` view over WASM linear memory.
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
     #[cfg(feature = "physics3d")]
-    pub fn physics3d_get_path_buffer_ptr_3d(&mut self) -> u32 {
-        crate::physics3d::pathfinding::get_path_buffer_ptr_3d() as u32
+    pub fn physics3d_get_path_buffer_ptr_3d(&mut self) -> Result<u32, Physics3DError> {
+        let world = self.world3d()?;
+        Ok(world.path_buffer_ptr() as u32)
     }
 
     // ─── Physics 3D — World lifecycle ─────────────────────────────────────────
@@ -4336,6 +4353,17 @@ impl Engine {
             }));
         }
         Ok(())
+    }
+
+    /// Floats of this world's path buffer. Not a wasm export.
+    ///
+    /// Exists for native tests. [`Self::physics3d_get_path_buffer_ptr_3d`] returns
+    /// the address as `u32` (`bindings.rs:1881`), and that `u32` drops the high half
+    /// on a 64-bit host. [`Self::check_shared_u32_slots`] stays public for the same
+    /// reason (`bindings.rs:4333`).
+    #[doc(hidden)]
+    pub fn physics3d_path_buffer(&self) -> Result<&[f32], Physics3DError> {
+        Ok(self.world3d()?.path_buffer())
     }
 
     /// Mutably borrow the 3D world, or refuse when `physics3d_init` has not run.
