@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import { GwenError } from "@gwenjs/schema";
 import { GwenWasmError, createEntityId } from "@gwenjs/core";
 import type { EntityId } from "@gwenjs/core";
+import { createRealEngine } from "@gwenjs/core/testing";
 
 import { buildLayerRegistry, normalizePhysics3DConfig } from "../src/config";
 import { createBody, removeBody } from "../src/plugin/body-management";
@@ -661,5 +662,35 @@ describe("navigation grid", () => {
 
     requireWasmError(err, "PHYSICS3D:INVALID_PATH_REQUEST", "physics3d_find_path_3d");
     expect(err).toBeInstanceOf(GwenError);
+  });
+});
+
+describe("physics3d path buffer pointer", () => {
+  it("physics3d_get_path_buffer_ptr_3d without a world throws PHYSICS3D:NOT_INITIALIZED", async () => {
+    const handle = await createRealEngine({ variant: "physics3d", maxEntities: 8 });
+    try {
+      const bridge = handle.bridge.getPhysicsBridge();
+      if (!("physics3d_get_path_buffer_ptr_3d" in bridge)) {
+        throw new Error("expected the physics3d bridge");
+      }
+      const read = bridge.physics3d_get_path_buffer_ptr_3d;
+      if (read === undefined) {
+        throw new Error("expected physics3d_get_path_buffer_ptr_3d");
+      }
+      let thrown: unknown;
+      let returned: unknown = undefined;
+      try {
+        returned = read.call(bridge);
+      } catch (err: unknown) {
+        thrown = err;
+      }
+      void returned;
+      expect(thrown).toMatchObject({
+        code: "PHYSICS3D:NOT_INITIALIZED",
+        message: "physics world is not initialized",
+      });
+    } finally {
+      await handle.dispose();
+    }
   });
 });
