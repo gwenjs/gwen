@@ -12,6 +12,7 @@ import type { GwenModule } from "@gwenjs/kit/module";
 import type { AutoImport } from "@gwenjs/kit";
 import type { GwenPlugin } from "@gwenjs/core";
 import { GwenApp } from "../src/app.js";
+import { BUILT_IN_MODULES } from "../src/built-in-modules.js";
 import { resolveLoadedConfig as resolveConfig } from "../src/config.js";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -231,6 +232,39 @@ describe("GwenApp.setupModules — reserved key collision", () => {
     expect(caught.code).toBe("APP:CONFIG_CONFLICT");
     expect(caught.message).toContain("@test/first");
     expect(caught.message).toContain("@test/second");
+  });
+});
+
+describe("GwenApp.setupModules — a module runs once", () => {
+  it("a module listed twice runs setup once", async () => {
+    let calls = 0;
+    const mod = defineGwenModule({
+      meta: { name: "@test/twice" },
+      setup() {
+        calls += 1;
+      },
+    });
+    const config = resolveConfig({ modules: ["@test/twice", "@test/twice"] });
+    await new GwenApp().setupModules(config, async () => mod);
+    expect(calls).toBe(1);
+  });
+
+  it("a built-in module listed in modules runs setup once", async () => {
+    const tween = BUILT_IN_MODULES.find((mod) => mod.meta.name === "@gwenjs/core:tween");
+    if (tween === undefined) throw new Error("missing @gwenjs/core:tween");
+    let calls = 0;
+    const previous = tween.setup;
+    tween.setup = (options, kit) => {
+      calls += 1;
+      return previous(options, kit);
+    };
+    try {
+      const config = resolveConfig({ modules: ["@gwenjs/core:tween"] });
+      await new GwenApp().setupModules(config, async () => tween);
+      expect(calls).toBe(1);
+    } finally {
+      tween.setup = previous;
+    }
   });
 });
 

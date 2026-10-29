@@ -351,6 +351,15 @@ describe("config layering", () => {
     expect(found.code).toBeUndefined();
     expect(speed).toBe(2);
   });
+  it("a module section set to false is APP:CONFIG_INVALID", async () => {
+    const raw = await boot(js("tween: false"), {});
+    const found = failure(raw);
+    const issue = found.issues?.find((item) => item.path === "tween");
+    expect(found.code).toBe("APP:CONFIG_INVALID");
+    expect(issue?.expected).toBe("an object");
+    expect(issue?.received).toBe(formatReceived(false));
+    expect(issue?.owner).toBe("@gwenjs/core:tween");
+  });
   it("engine + unknown key: two throws, each with its own issues", async () => {
     const first = failure(await load(js("engine: { targetFPS: 500 }, mystery: 1")));
     expect(first.code).toBe("APP:CONFIG_INVALID");
