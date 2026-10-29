@@ -293,11 +293,13 @@
       "executeAsync",
       "getTweenManager",
       "getWasmBridge",
+      "invalidateWasmModule",
       "poisonWasmBridge",
       "readTransform3DPosition",
       "readTransform3DRotation",
       "readTransform3DScale",
       "reportRejectedHook",
+      "sharedProvider",
       "stringPoolFor",
       "toGwenWasmError",
       "writeTransform3DPosition",
@@ -305,6 +307,8 @@
       "writeTransform3DScale"
     ],
     "types": [
+      "GwenCoreGlueFactoryModule",
+      "GwenCoreGlueInstance",
       "GwenCoreWasm",
       "GwenTransformImports",
       "InitWasmOptions",
@@ -314,7 +318,9 @@
       "WasmEngine",
       "WasmEnginePhysics2D",
       "WasmEnginePhysics3D",
-      "WasmEntityId"
+      "WasmEntityId",
+      "WasmInstanceMode",
+      "WasmInstanceProvider"
     ]
   },
   "./wasm/light": {

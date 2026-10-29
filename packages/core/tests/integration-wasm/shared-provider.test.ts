@@ -10,16 +10,43 @@ import type {
 } from "../../src/engine/wasm-bridge-types.js";
 
 const f: GwenCoreGlueFactoryModule = await import("@gwenjs/core/wasm/light/factory");
-const physics2d: GwenCoreGlueFactoryModule = await import("@gwenjs/core/wasm/physics2d/factory");
-const physics3d: GwenCoreGlueFactoryModule = await import("@gwenjs/core/wasm/physics3d/factory");
+const lightLoaded: unknown = await import("@gwenjs/core/wasm/light/factory");
+const physics2dLoaded: unknown = await import("@gwenjs/core/wasm/physics2d/factory");
+const physics3dLoaded: unknown = await import("@gwenjs/core/wasm/physics3d/factory");
 
 const VARIANTS = ["light", "physics2d", "physics3d"] as const;
 type Variant = (typeof VARIANTS)[number];
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+// physics2d is narrowed here: Engine.physics_get_sensor_state returns Uint32Array (packages/core/wasm/physics2d/gwen_core.d.ts:372, crates/gwen-core/src/bindings.rs:1592) while WasmEngine declares Int32Array (packages/core/src/engine/wasm-bridge-types.ts:490).
+function isGlueFactoryModule(value: unknown): value is GwenCoreGlueFactoryModule {
+  if (!isRecord(value)) return false;
+  if (typeof value.createGlue !== "function") return false;
+  if (!(value.wasmUrl instanceof URL)) return false;
+  if (!isRecord(value.CONTRACT)) return false;
+  return true;
+}
+
+function loadedFactory(variant: Variant): unknown {
+  if (variant === "light") return lightLoaded;
+  if (variant === "physics2d") return physics2dLoaded;
+  return physics3dLoaded;
+}
+
 function factoryOf(variant: Variant): GwenCoreGlueFactoryModule {
-  if (variant === "light") return f;
-  if (variant === "physics2d") return physics2d;
-  return physics3d;
+  const loaded = loadedFactory(variant);
+  if (!isGlueFactoryModule(loaded)) {
+    throw new Error(
+      `@gwenjs/core/wasm/${variant}/factory is missing createGlue, wasmUrl, or CONTRACT`,
+    );
+  }
+  if (variant === "light" && loaded !== f) {
+    throw new Error("light factory module is not the typed import");
+  }
+  return loaded;
 }
 
 function wasmBytes(variant: Variant): Uint8Array<ArrayBuffer> {

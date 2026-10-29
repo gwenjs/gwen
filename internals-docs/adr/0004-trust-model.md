@@ -53,7 +53,7 @@ No earlier document states what the engine trusts, what it checks, and what the 
    The engine does not check provenance.
    A non-OK fetch is `CORE:WASM_LOAD_ERROR` (`packages/core/src/engine/wasm-bridge.ts:344-349`).
    A fetch aborted after 10 seconds is `CORE:WASM_TIMEOUT` (`packages/core/src/engine/wasm-bridge.ts:336-357`).
-   A `data:` payload is decoded in `bytesFromDataUrl` (`packages/core/src/engine/wasm-bridge.ts:111-125`, called at `:341-342`).
+   A `data:` payload is decoded in `bytesFromDataUrl` (`packages/core/src/engine/wasm-module-cache.ts:18-34`, called at `packages/core/src/engine/wasm-bridge.ts:332`).
    The `initSync` fallback fetches `wasmUrl` again with no status check and no 10 s abort (`packages/core/src/engine/wasm-bridge.ts:367-369`).
    A failure that is not a `GwenError` is wrapped as `CORE:WASM_LOAD_ERROR` (`packages/core/src/engine/wasm-bridge.ts:398-412`).
    A trap in the `Engine` constructor is `CORE:WASM_PANIC` (`packages/core/src/engine/wasm-bridge.ts:385-389`).
@@ -173,9 +173,9 @@ Core binary, as the bridge does it today.
    It is not the room-worker recipe planned in #268.
    The loaded module is cached on `globalThis` under a key derived from the URL (`:143-147`).
 3. Fetch `wasmUrl` with a 10 second abort, or decode a `data:` URL (`packages/core/src/engine/wasm-bridge.ts:336-361`).
-   `bytesFromDataUrl` rejects a payload with no comma (`:111-115`).
+   `bytesFromDataUrl` rejects a payload with no comma (`packages/core/src/engine/wasm-module-cache.ts:19-24`).
    A `;base64` payload is decoded with `atob`.
-   Any other payload is `decodeURIComponent` then UTF-8 (`:116-120`).
+   Any other payload is `decodeURIComponent` then UTF-8 (`packages/core/src/engine/wasm-module-cache.ts:27-29`).
 4. Call `glue.default({ module_or_path })` or `glue.initSync`.
    Require `glue.Engine`.
    Construct `new glue.Engine(maxEntities)` (`packages/core/src/engine/wasm-bridge.ts:364-389`).
