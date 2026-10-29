@@ -477,7 +477,7 @@ export function generateEntryModule(
     `  const __gwenResolved = ${inlined};`,
     "  const bridge = new WasmBridgeImpl();",
     "  await bridge.init(__gwenResolved.engine.variant);",
-    "  const engine = await createEngine({ ...__gwenResolved.engine, logger: gwenConfig.logger, _bridge: bridge });",
+    "  const engine = await createEngine({ ...__gwenResolved.engine, logger: gwenConfig.logger, _bridge: bridge, _ownsBridge: true });",
     "",
     "  await engine.use(createViewportsPlugin(gwenConfig.viewports));",
     "  await engine.use(createScreenPlugin(gwenConfig.screen));",
