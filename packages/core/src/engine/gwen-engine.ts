@@ -13,6 +13,7 @@
  *   engine-error-policy.ts                      — EngineErrorPolicy
  *   engine-loop.ts                              — EngineLoop
  *   engine-collaborators.ts                     — collaborator construction
+ *   leak-warning.ts                             — dev collection warning
  *   hook-dispatch.ts                            — hook runners
  *   engine-internals.ts                         — pool dormancy and live query ids
  *   frame-scheduler.ts                          — rAF and worker fallback
@@ -37,6 +38,7 @@ import type {
 
 import { CoreErrorCodes, GwenEngineStateError } from "./engine-errors.js";
 import { EngineCollaborators } from "./engine-collaborators.js";
+import { registerEngineLeak, unregisterEngineLeak } from "./leak-warning.js";
 
 import type {
   WasmModuleOptions,
@@ -50,6 +52,7 @@ import type {
   EngineFrame,
   GwenEngineState,
   GwenEngine,
+  GwenEngineOptions,
 } from "./engine-types.js";
 import type { ComponentType } from "../types";
 
@@ -74,6 +77,13 @@ export class GwenEngineImpl extends EngineCollaborators implements GwenEngine {
    * reads it; every other check reads `state`.
    */
   private _teardownOnce: true | null = null;
+  /** Separate token so prod can store the shared `idleToken` and unregister needs no engine reference. */
+  private readonly _leakToken: object;
+
+  constructor(opts: GwenEngineOptions) {
+    super(opts);
+    this._leakToken = registerEngineLeak(this, this.variant);
+  }
 
   get errors(): EngineErrorBus {
     return this._policy.bus;
@@ -219,7 +229,8 @@ export class GwenEngineImpl extends EngineCollaborators implements GwenEngine {
    * To know when teardown has finished, observe `engine:state-change` to `stopped`.
    * A `faulted` engine stays `faulted`.
    * When this engine owns the bridge, `stop()` disposes it after disposables and before
-   * the error policy. A caller that passed `_bridge` calls `bridge.dispose()` after `stop()`.
+   * the error policy. A caller that passed `_bridge` without `_ownsBridge` calls
+   * `bridge.dispose()` after `stop()`.
    * After an owned bridge is disposed, every bridge call that reaches WASM throws
    * `CORE:ENGINE_DISPOSED`; `isActive()` returns false.
    */
@@ -235,12 +246,15 @@ export class GwenEngineImpl extends EngineCollaborators implements GwenEngine {
   }
 
   /**
-   * Cancel the frame, run `engine:stop`, tear plugins down last-installed-first,
-   * then clear hooks, isolation, this engine's module handles, and disposables.
+   * Drop the dev collection registration, cancel the frame, run `engine:stop`,
+   * tear plugins down last-installed-first, then clear hooks, isolation, this
+   * engine's module handles, and disposables.
    * An owned WASM bridge is disposed after disposables and before the error policy.
    * Plugin teardown runs while the bridge and the error policy are still attached.
    */
   private async _teardown(): Promise<void> {
+    // First: a later throw must not leave the dev registration in place.
+    unregisterEngineLeak(this._leakToken);
     this._loop.cancel();
     this._loop.releaseHistory();
     try {
