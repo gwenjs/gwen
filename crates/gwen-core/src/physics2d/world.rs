@@ -10,7 +10,7 @@ use crate::physics2d::events::{
     CollisionEventBuffer, PhysicsCollisionEvent as StaticCollisionEvent,
 };
 use rapier2d::prelude::*;
-use std::collections::{HashMap, HashSet};
+use rustc_hash::{FxHashMap, FxHashSet};
 use std::sync::{Mutex, PoisonError};
 
 const COLLIDER_ID_ABSENT: u32 = u32::MAX;
@@ -187,14 +187,14 @@ pub struct PhysicsWorld {
     ccd_solver: CCDSolver,
     soft_bodies: SoftBodySet,
 
-    pub entity_to_body: HashMap<u32, RigidBodyHandle>,
-    pub body_to_entity: HashMap<RigidBodyHandle, u32>,
-    handle_by_raw: HashMap<u32, RigidBodyHandle>,
+    pub entity_to_body: FxHashMap<u32, RigidBodyHandle>,
+    pub body_to_entity: FxHashMap<RigidBodyHandle, u32>,
+    handle_by_raw: FxHashMap<u32, RigidBodyHandle>,
     /// Maps tilemap chunk IDs to their pseudo-entity indices for unload/lookup.
-    tilemap_chunk_to_entity: HashMap<u32, u32>,
+    tilemap_chunk_to_entity: FxHashMap<u32, u32>,
     quality_preset: PhysicsQualityPreset,
     global_ccd_enabled: bool,
-    pub one_way_colliders: HashSet<ColliderHandle>,
+    pub one_way_colliders: FxHashSet<ColliderHandle>,
     collision_events: CollisionEventBuffer,
     /// Reused by `physics_step` so a step does not allocate a pose list.
     dynamic_pose_scratch: Vec<(u32, f32, f32, f32)>,
@@ -205,7 +205,7 @@ pub struct PhysicsWorld {
 }
 
 struct OneWayHooks<'a> {
-    set: &'a HashSet<ColliderHandle>,
+    set: &'a FxHashSet<ColliderHandle>,
 }
 
 impl PhysicsHooks for OneWayHooks<'_> {
@@ -238,13 +238,13 @@ impl PhysicsWorld {
             multibody_joint_set: MultibodyJointSet::new(),
             ccd_solver: CCDSolver::new(),
             soft_bodies: SoftBodySet::new(),
-            entity_to_body: HashMap::new(),
-            body_to_entity: HashMap::new(),
-            handle_by_raw: HashMap::new(),
-            tilemap_chunk_to_entity: HashMap::new(),
+            entity_to_body: FxHashMap::default(),
+            body_to_entity: FxHashMap::default(),
+            handle_by_raw: FxHashMap::default(),
+            tilemap_chunk_to_entity: FxHashMap::default(),
             quality_preset: PhysicsQualityPreset::Medium,
             global_ccd_enabled: false,
-            one_way_colliders: HashSet::new(),
+            one_way_colliders: FxHashSet::default(),
             collision_events: CollisionEventBuffer::new(),
             dynamic_pose_scratch: Vec::new(),
             max_linear_velocity: DEFAULT_MAX_LINEAR_VELOCITY,

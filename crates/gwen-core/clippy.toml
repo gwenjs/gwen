@@ -4,3 +4,8 @@ disallowed-methods = [
   { path = "js_sys::Date::now", reason = "wall-clock reads are forbidden in gwen-core outside tests" },
   { path = "js_sys::Math::random", reason = "rng calls are forbidden in gwen-core outside tests" },
 ]
+
+disallowed-types = [
+  { path = "std::collections::HashMap", reason = "use rustc_hash::FxHashMap/FxHashSet, the std RandomState seeds differ per map" },
+  { path = "std::collections::HashSet", reason = "use rustc_hash::FxHashMap/FxHashSet, the std RandomState seeds differ per map" },
+]

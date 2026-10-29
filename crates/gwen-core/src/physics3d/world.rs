@@ -27,7 +27,7 @@
 //! Stopped` events during the step and can also be overridden manually via
 //! [`update_sensor_state`].
 
-use std::collections::{HashMap, HashSet};
+use rustc_hash::{FxHashMap, FxHashSet};
 use std::num::NonZeroUsize;
 use std::sync::{Mutex, PoisonError};
 
@@ -260,14 +260,14 @@ pub struct PhysicsWorld3D {
     ccd_solver: CCDSolver,
     soft_bodies: SoftBodySet,
     /// Mapping from ECS entity index → Rapier handle.
-    entity_handles: HashMap<u32, RigidBodyHandle>,
+    entity_handles: FxHashMap<u32, RigidBodyHandle>,
     /// Mapping from `(entity_index, collider_id)` → [`ColliderHandle`].
     ///
     /// Populated by every `add_*_collider` call so that [`remove_collider`]
     /// can look up the handle without a linear scan of the collider set.
-    collider_handles: HashMap<(u32, u32), ColliderHandle>,
+    collider_handles: FxHashMap<(u32, u32), ColliderHandle>,
     /// Per-sensor tracking: `(entity_index, sensor_id)` → `(contact_count, is_active)`.
-    sensor_states: HashMap<(u32, u32), (u32, bool)>,
+    sensor_states: FxHashMap<(u32, u32), (u32, bool)>,
     /// When `true`, duplicate (entity_a, entity_b) pairs within the same step
     /// are coalesced into a single event before writing to the ring buffer.
     coalesce_events: bool,
@@ -276,16 +276,16 @@ pub struct PhysicsWorld3D {
     /// Monotonically increasing counter used to assign stable integer IDs to joints.
     next_joint_id: u32,
     /// Mapping from stable joint ID (u32) to Rapier ImpulseJointHandle.
-    joint_handles: HashMap<u32, ImpulseJointHandle>,
+    joint_handles: FxHashMap<u32, ImpulseJointHandle>,
     /// Mapping from ECS entity index → [`KinematicCharacterController`] instance
     /// paired with the `apply_impulses_to_dynamic` flag.
     ///
     /// Populated by [`add_character_controller`] and cleared by
     /// [`remove_character_controller`]. One controller per entity is supported;
     /// inserting a second controller for the same entity replaces the first.
-    cc_controllers: HashMap<u32, (KinematicCharacterController, bool)>,
+    cc_controllers: FxHashMap<u32, (KinematicCharacterController, bool)>,
     /// Compact slot index for each CC entity (entity_index → 0..MAX_CC_ENTITIES).
-    cc_slot_indices: HashMap<u32, u32>,
+    cc_slot_indices: FxHashMap<u32, u32>,
     /// Counter for assigning compact CC slot indices.
     next_cc_slot: u32,
     /// Recycled CC slot indices freed by [`remove_character_controller`].
@@ -298,7 +298,7 @@ pub struct PhysicsWorld3D {
     /// look-up in [`character_controller_move`].
     ///
     /// Kept in sync with [`entity_handles`] by [`add_body`] and [`remove_body`].
-    handle_to_entity: HashMap<RigidBodyHandle, u32>,
+    handle_to_entity: FxHashMap<RigidBodyHandle, u32>,
     collision_events: CollisionEventBuffer3D,
     cc_state: [f32; MAX_CC_ENTITIES * CC_STATE_STRIDE],
     nav_grid: Option<NavGrid3D>,
@@ -697,18 +697,18 @@ impl PhysicsWorld3D {
             multibody_joint_set: MultibodyJointSet::new(),
             ccd_solver: CCDSolver::new(),
             soft_bodies: SoftBodySet::new(),
-            entity_handles: HashMap::new(),
-            collider_handles: HashMap::new(),
-            sensor_states: HashMap::new(),
+            entity_handles: FxHashMap::default(),
+            collider_handles: FxHashMap::default(),
+            sensor_states: FxHashMap::default(),
             coalesce_events: false,
             quality_preset: PhysicsQualityPreset3D::Medium,
             next_joint_id: 0,
-            joint_handles: HashMap::new(),
-            cc_controllers: HashMap::new(),
-            cc_slot_indices: HashMap::new(),
+            joint_handles: FxHashMap::default(),
+            cc_controllers: FxHashMap::default(),
+            cc_slot_indices: FxHashMap::default(),
             next_cc_slot: 0,
             cc_free_slots: Vec::new(),
-            handle_to_entity: HashMap::new(),
+            handle_to_entity: FxHashMap::default(),
             collision_events: CollisionEventBuffer3D::new(),
             cc_state: [0.0; MAX_CC_ENTITIES * CC_STATE_STRIDE],
             nav_grid: None,
@@ -1908,7 +1908,7 @@ impl PhysicsWorld3D {
             ));
         }
 
-        let mut seen = HashSet::with_capacity(n);
+        let mut seen = FxHashSet::with_capacity_and_hasher(n, Default::default());
         for &slot in entity_indices {
             if self.entity_handles.contains_key(&slot) || !seen.insert(slot) {
                 return Err(Physics3DError::BodyAlreadyExists { slot });
@@ -2015,7 +2015,7 @@ impl PhysicsWorld3D {
             parts.push(compound_part(chunk, layer_bits, mask_bits)?);
         }
 
-        let mut seen = HashSet::with_capacity(parts.len());
+        let mut seen = FxHashSet::with_capacity_and_hasher(parts.len(), Default::default());
         for (_, params) in &parts {
             self.require_free_collider_id(entity_index, params.collider_id)?;
             if !seen.insert(params.collider_id) {

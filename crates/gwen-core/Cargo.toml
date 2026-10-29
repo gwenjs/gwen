@@ -13,6 +13,8 @@ wasm-bindgen = "0.2.117"
 js-sys = "0.3.94"
 web-sys = { version = "0.3.94", features = ["Window", "Document", "console"] }
 bytemuck = { version = "1", features = ["derive"] }
+# Deterministic maps. The std RandomState seeds differ per map.
+rustc-hash = "=2.1.2"
 
 # Physics — 2D (Rapier2D)
 rapier2d = { version = "0.36.1", default-features = false, features = [
