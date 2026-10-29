@@ -29,4 +29,76 @@ describe("@gwenjs/physics2d module", () => {
     await loaded.default.setup({}, recordingKit(calls));
     expect(calls).toEqual(["addPlugin", "addVitePlugin", "addAutoImports"]);
   });
+
+  it("validate reports a bad layer bit as physics2d.layers.player", async () => {
+    const { GwenApp, GwenAppConfigError } = await import("@gwenjs/app/resolve");
+    const { resolveLoadedConfig } = await import("../../app/src/config");
+    const loaded = await import("@gwenjs/physics2d/module");
+    const resolved = resolveLoadedConfig({
+      modules: ["@gwenjs/physics2d"],
+      physics2d: { layers: { player: 99 } },
+    });
+    const app = new GwenApp();
+    let issues: ReadonlyArray<{ path: string; expected: string; received: string }> = [];
+    let caughtConfig = false;
+    try {
+      await app.setupModules(resolved, async (name) => {
+        if (name !== "@gwenjs/physics2d") {
+          throw new Error(`unexpected module ${name}`);
+        }
+        return loaded.default;
+      });
+    } catch (error) {
+      if (!(error instanceof GwenAppConfigError)) throw error;
+      caughtConfig = true;
+      issues = error.issues;
+    }
+    expect(caughtConfig).toBe(true);
+    const issue = issues.find((item) => item.path === "physics2d.layers.player");
+    expect(issue?.path).toBe("physics2d.layers.player");
+    expect(issue?.expected).toBe("an integer in [0, 31]");
+    expect(issue?.received).toBe("99");
+  });
+
+  it("null layers pass setupModules", async () => {
+    const { mkdtempSync, rmSync, writeFileSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const { GwenApp } = await import("@gwenjs/app/resolve");
+    const { resolveGwenConfig } = await import("../../app/src/config");
+    const loaded = await import("@gwenjs/physics2d/module");
+    const dir = mkdtempSync(join(tmpdir(), "gwen-p61-null-layers-"));
+    let failure = "";
+    let physics: string[] = [];
+    try {
+      writeFileSync(
+        join(dir, "gwen.config.ts"),
+        "export default { modules: ['@gwenjs/physics2d'], physics2d: { layers: null } };\n",
+      );
+      const resolved = await resolveGwenConfig(dir);
+      const app = new GwenApp();
+      await app.setupModules(resolved, async (name) => {
+        if (name !== "@gwenjs/physics2d") {
+          throw new Error(`unexpected module ${name}`);
+        }
+        return loaded.default;
+      });
+      physics = app.plugins
+        .map((plugin) => plugin.name)
+        .filter((name) => name === "@gwenjs/physics2d");
+    } catch (error) {
+      failure = error instanceof Error ? `${error.name}: ${error.message}` : "unknown";
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+    expect({ failure, physics }).toEqual({ failure: "", physics: ["@gwenjs/physics2d"] });
+  });
+
+  it("module defaults are the plugin defaults", async () => {
+    const config = await import("../src/config");
+    expect(config.PHYSICS2D_DEFAULTS).toBeDefined();
+    const loaded = await import("@gwenjs/physics2d/module");
+    expect(loaded.default.defaults).toBe(config.PHYSICS2D_DEFAULTS);
+    expect(Object.isFrozen(loaded.default.defaults)).toBe(true);
+  });
 });
