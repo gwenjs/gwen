@@ -1,5 +1,3 @@
-import { fileURLToPath, pathToFileURL } from "node:url";
-
 import { describe, expect, it } from "vitest";
 
 import { unpackEntityId } from "../../src/index.js";
@@ -24,22 +22,25 @@ interface QueryChunksHost {
   query_chunks?: (this: object, query: number) => unknown;
 }
 
-function isEngineClass(value: unknown): value is { prototype: QueryChunksHost } {
+function isQueryChunksHost(value: unknown): value is QueryChunksHost {
   return (
-    typeof value === "function" && typeof value.prototype === "object" && value.prototype !== null
+    typeof value === "object" &&
+    value !== null &&
+    "query_chunks" in value &&
+    typeof value.query_chunks === "function"
   );
 }
 
-async function loadEnginePrototype(): Promise<QueryChunksHost> {
-  const jsPath = fileURLToPath(new URL("../../wasm/light/gwen_core.js", import.meta.url));
-  const glue: unknown = await import(pathToFileURL(jsPath).href);
-  if (typeof glue !== "object" || glue === null || !("Engine" in glue)) {
-    throw new Error("light wasm glue has no Engine export");
+function liveQueryChunksPrototype(engine: object): QueryChunksHost {
+  const raw: unknown = Object.getPrototypeOf(engine);
+  if (!isQueryChunksHost(raw)) {
+    const names =
+      typeof raw === "object" && raw !== null
+        ? Object.getOwnPropertyNames(raw).sort().join(", ")
+        : "";
+    throw new Error(`Engine.prototype.query_chunks is missing. Prototype: ${names}`);
   }
-  if (!isEngineClass(glue.Engine)) {
-    throw new Error("light wasm glue Engine has no prototype");
-  }
-  return glue.Engine.prototype;
+  return raw;
 }
 
 function watchQueryChunks(proto: QueryChunksHost): { calls: () => number; restore: () => void } {
@@ -73,7 +74,7 @@ describe("p65 bulk query", () => {
         engine.addComponent(id, BulkPos, { x: index, y: 0 });
       }
 
-      const watched = watchQueryChunks(await loadEnginePrototype());
+      const watched = watchQueryChunks(liveQueryChunksPrototype(handle.bridge.engine()));
       restore = watched.restore;
       const query = engine.run(() => useQuery([BulkPos]));
       const seen = new Set<number>();
