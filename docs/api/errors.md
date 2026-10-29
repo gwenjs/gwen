@@ -176,6 +176,14 @@ Cause. The module package or file could not be imported, the import has no `setu
 
 Cause. No `gwen.config.ts` (or `.js` / `.mjs` / `.cjs`) was found, or the file threw while loading. Fix. Add the config file, or fix the syntax error named in the message. When the file threw, `cause` is that error.
 
+### APP:CONFIG_INVALID {#app-config-invalid}
+
+Cause. A field does not match the expected shape. The message names the path, the expected shape, and the received value. Fix. Use a value the message names.
+
+### APP:CONFIG_CONFLICT {#app-config-conflict}
+
+Cause. An explicit `engine.variant` contradicts a physics module, two modules share one `configKey`, or a `configKey` is reserved. The message names both sides. Fix. Keep one owner, or set `engine.variant` to the variant derived from the modules.
+
 ## @gwenjs/vite
 
 ### VITE:WASM_NOT_FOUND {#vite-wasm-not-found}

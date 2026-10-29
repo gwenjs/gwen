@@ -7,6 +7,7 @@
 
 import type { GwenBuildHooks } from "@gwenjs/kit/module";
 import type { ViewportRegion } from "@gwenjs/renderer-core";
+import type { GwenEngineConfig } from "@gwenjs/schema";
 import type { GwenModuleOptions, IGwenLogProvider, GwenLogLevel, GwenPlugin } from "@gwenjs/schema";
 
 export type { GwenBuildHooks } from "@gwenjs/kit/module";
@@ -36,18 +37,6 @@ export interface GwenLoggerConfig {
    * `debug` when `engine.debug` is true, otherwise `'warn'`; when set, wins over `engine.debug`.
    */
   minLevel?: GwenLogLevel;
-}
-
-/**
- * Debug / profiling options in `gwen.config.ts`.
- */
-export interface GwenDebugConfig {
-  /**
-   * When `true`, the engine emits `engine:perf:tick`, `engine:perf:system`, and
-   * `engine:perf:plugin` hooks with timing data.
-   * @default false
-   */
-  perf?: boolean;
 }
 
 // ─── GwenModuleOptions (augmentable) ─────────────────────────────────────────
@@ -103,31 +92,14 @@ export interface GwenUserConfig extends GwenModuleOptions {
    */
   modules?: GwenModuleEntry[];
 
-  /** Core engine configuration */
-  engine?: {
-    maxEntities?: number;
-    targetFPS?: number;
-    variant?: "light" | "physics2d" | "physics3d";
-    loop?: "internal" | "external" | "fixed";
-    physicsHz?: number; // fréquence fixe, ex: 60
-    maxCatchupSteps?: number; // défaut 2
-    maxDeltaSeconds?: number;
-    /**
-     * Enable global debug mode. When `logger.minLevel` is omitted, `true` lowers
-     * the engine logger minimum level to `debug`, so `debug` and `info` are delivered.
-     * A set `logger.minLevel` wins over this flag.
-     * Per-frame sentinel checks, phase timing, and the isolation warning run only
-     * in a development build (`__GWEN_DEV__`) when this is also `true`.
-     * @default false
-     */
-    debug?: boolean;
-  };
+  /** Core engine configuration. Omitted fields keep the engine defaults. */
+  engine?: Partial<GwenEngineConfig>;
+
+  /** Initial scene name. Must match the first argument of `defineScene()`. */
+  mainScene?: string;
 
   /** Logger configuration. */
   logger?: GwenLoggerConfig;
-
-  /** Debug / profiling configuration. */
-  debug?: GwenDebugConfig;
 
   /**
    * Global CSS files to inject into every page.
@@ -201,10 +173,9 @@ export interface GwenUserConfig extends GwenModuleOptions {
 
 /** Fully resolved config (same shape as user config, with defaults filled in). */
 export type ResolvedGwenConfig = GwenUserConfig & {
-  engine: Required<NonNullable<GwenUserConfig["engine"]>>;
+  engine: GwenEngineConfig;
   modules: string[];
   logger: GwenLoggerConfig & { minLevel: GwenLogLevel };
-  debug: GwenDebugConfig & { perf: boolean };
 };
 
 /**

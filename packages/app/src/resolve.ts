@@ -13,7 +13,8 @@
  * ```
  */
 
-export { resolveConfig, resolveGwenConfig } from "./config";
+export { resolveGwenConfig } from "./config";
+export { GwenAppConfigError } from "./config-error";
 export { loadRawGwenConfig, GwenConfigLoadError } from "./config-loader";
 export type { RawGwenConfig } from "./config-loader";
 export type {

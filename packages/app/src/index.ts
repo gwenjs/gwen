@@ -27,6 +27,7 @@ export { createScreenPlugin } from "./create-screen-plugin";
 // ─── Config helpers (browser-safe) ───────────────────────────────────────────
 
 export { defineConfig } from "./types";
+export { GwenAppConfigError } from "./config-error";
 export type {
   GwenUserConfig,
   ResolvedGwenConfig,

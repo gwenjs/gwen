@@ -13,11 +13,14 @@ import type { GwenModule, GwenKit, GwenBuildHooks } from "@gwenjs/kit/module";
 import { createHooks } from "hookable";
 import { writeFileSync, mkdirSync, readFileSync, existsSync } from "node:fs";
 import { resolve, join } from "node:path";
-import type { ResolvedGwenConfig } from "./config";
+import { readConfigFile, type ResolvedGwenConfig } from "./config";
+import { GwenAppConfigError } from "./config-error";
+import { isPlainRecord, mergeLayers, recordOf } from "./merge";
 import { createViewportsPlugin } from "./viewports-plugin";
 import { createScreenPlugin } from "./create-screen-plugin";
 import { BUILT_IN_MODULES } from "./built-in-modules";
 import { GwenError } from "@gwenjs/schema";
+import { formatReceived, type GwenBaseConfig, type GwenConfigIssue } from "@gwenjs/schema";
 import { AppErrorCodes, causeText } from "./error-codes";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -27,13 +30,15 @@ const RESERVED_KEYS = new Set([
   "modules",
   "engine",
   "logger",
-  "debug",
   "vite",
   "hooks",
   "plugins",
   "viewports",
   "screen",
   "globalCss",
+  "localPluginsDir",
+  "localModulesDir",
+  "mainScene",
 ]);
 
 // ─── GwenApp ──────────────────────────────────────────────────────────────────
@@ -131,33 +136,37 @@ export class GwenApp {
     config: ResolvedGwenConfig,
     moduleLoader?: (name: string) => Promise<GwenModule>,
   ): Promise<void> {
-    await this.buildHooks.callHook("build:before");
-
-    // 1. Built-in modules — loaded first, same code path as user modules.
-    //    configKey determines the config key (e.g. "tween" → config.tween).
-    for (const mod of BUILT_IN_MODULES) {
-      const configKey = mod.meta.configKey;
-      let userOptions: Record<string, unknown> = {};
-      if (configKey) {
-        userOptions = ((config as unknown as Record<string, unknown>)[configKey] ?? {}) as Record<
-          string,
-          unknown
-        >;
-      }
-
-      const options = mergeDefaults(userOptions, (mod.defaults ?? {}) as Record<string, unknown>);
-      const kit = this._createKit(config);
-      await this.buildHooks.callHook("module:before", mod);
+    const loaded: LoadedModule[] = [];
+    for (const name of config.modules ?? []) {
+      let mod: GwenModule;
       try {
-        await mod.setup(options as Record<string, unknown>, kit);
+        mod = moduleLoader ? await moduleLoader(name) : await loadModule(name);
       } catch (cause) {
+        if (cause instanceof GwenError && cause.code === AppErrorCodes.MODULE_LOAD_FAILED) {
+          throw cause;
+        }
+        const hint =
+          cause instanceof Error && cause.message.includes("Cannot find package")
+            ? ` Hint: run 'gwen add ${name}' to install it.`
+            : "";
         throw new GwenError(
-          AppErrorCodes.MODULE_SETUP_FAILED,
-          `Built-in module "${mod.meta.name}" setup() threw: ${causeText(cause)}`,
+          AppErrorCodes.MODULE_LOAD_FAILED,
+          `Failed to load module "${name}": ${causeText(cause)}${hint}`,
           { cause },
         );
       }
-      await this.buildHooks.callHook("module:done", mod);
+      loaded.push({ name, mod });
+    }
+
+    const prepared = prepareModules(config, loaded);
+    if (prepared.issues.length > 0) {
+      throw new GwenAppConfigError(readConfigFile(config), prepared.issues);
+    }
+
+    await this.buildHooks.callHook("build:before");
+
+    for (const run of prepared.builtIn) {
+      await this.runSetup(config, run.mod, run.options, `Built-in module "${run.mod.meta.name}"`);
     }
 
     // 2. viewports + screen plugins (existing code, unchanged)
@@ -183,57 +192,8 @@ export class GwenApp {
       this._plugins.splice(viewportsIndex + 1, 0, screenPlugin);
     }
 
-    // 3. User modules
-    for (const name of config.modules ?? []) {
-      let mod: GwenModule;
-      try {
-        mod = moduleLoader ? await moduleLoader(name) : await loadModule(name);
-      } catch (cause) {
-        if (cause instanceof GwenError && cause.code === AppErrorCodes.MODULE_LOAD_FAILED) {
-          throw cause;
-        }
-        const hint =
-          cause instanceof Error && cause.message.includes("Cannot find package")
-            ? ` Hint: run 'gwen add ${name}' to install it.`
-            : "";
-        throw new GwenError(
-          AppErrorCodes.MODULE_LOAD_FAILED,
-          `Failed to load module "${name}": ${causeText(cause)}${hint}`,
-          { cause },
-        );
-      }
-
-      const configKey = mod.meta.configKey;
-      let userOptions: Record<string, unknown> = {};
-      if (configKey) {
-        if (RESERVED_KEYS.has(configKey)) {
-          // eslint-disable-next-line no-console
-          console.warn(
-            `[gwen] Module "${name}" declares configKey "${configKey}" which conflicts with a reserved GwenUserConfig key. Options will be ignored. Hint: rename the module's configKey to something other than: ${[...RESERVED_KEYS].join(", ")}.`,
-          );
-        } else {
-          userOptions = ((config as unknown as Record<string, unknown>)[configKey] ?? {}) as Record<
-            string,
-            unknown
-          >;
-        }
-      }
-
-      const options = mergeDefaults(userOptions, (mod.defaults ?? {}) as Record<string, unknown>);
-
-      const kit = this._createKit(config);
-
-      await this.buildHooks.callHook("module:before", mod);
-      try {
-        await mod.setup(options as Record<string, unknown>, kit);
-      } catch (cause) {
-        throw new GwenError(
-          AppErrorCodes.MODULE_SETUP_FAILED,
-          `Module "${name}" setup() threw: ${causeText(cause)}`,
-          { cause },
-        );
-      }
-      await this.buildHooks.callHook("module:done", mod);
+    for (const run of prepared.users) {
+      await this.runSetup(config, run.mod, run.options, `Module "${run.label}"`);
     }
 
     // Apply the user's direct `vite` config extension last.
@@ -360,58 +320,165 @@ export class GwenApp {
         app.buildHooks.hook(event, fn as never);
       },
 
-      /** The fully resolved project config. */
-      get options() {
-        return config as unknown as Record<string, unknown>;
+      get options(): GwenBaseConfig {
+        return Object.freeze({ ...config }) as GwenBaseConfig;
       },
     };
+  }
+
+  private async runSetup(
+    config: ResolvedGwenConfig,
+    mod: GwenModule,
+    options: Record<string, unknown>,
+    label: string,
+  ) {
+    const kit = this._createKit(config);
+    await this.buildHooks.callHook("module:before", mod);
+    try {
+      await mod.setup(options, kit);
+    } catch (cause) {
+      throw new GwenError(
+        AppErrorCodes.MODULE_SETUP_FAILED,
+        `${label} setup() threw: ${causeText(cause)}`,
+        { cause },
+      );
+    }
+    await this.buildHooks.callHook("module:done", mod);
   }
 }
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
-/**
- * Deep-merges `user` values on top of `defaults`.
- * User values always take precedence; plain objects are merged recursively.
- * Arrays and primitive values from `user` replace the default entirely.
- *
- * @param user - User-supplied values (higher priority).
- * @param defaults - Default values (lower priority).
- * @returns A new merged object.
- */
-function mergeDefaults(
-  user: Record<string, unknown>,
-  defaults: Record<string, unknown>,
-): Record<string, unknown> {
-  const result: Record<string, unknown> = { ...defaults };
+interface LoadedModule {
+  name: string;
+  mod: GwenModule;
+}
+interface ModuleRun {
+  mod: GwenModule;
+  options: Record<string, unknown>;
+  label: string;
+}
 
-  for (const key of Object.keys(user)) {
-    const userVal = user[key];
-    const defaultVal = defaults[key];
+function configIssue(
+  path: string,
+  expected: string,
+  received: string,
+  owner: string,
+  conflictsWith?: string,
+): GwenConfigIssue {
+  if (conflictsWith === undefined) return { path, expected, received, owner };
+  return { path, expected, received, owner, conflictsWith };
+}
 
-    if (Array.isArray(userVal) && Array.isArray(defaultVal)) {
-      // Arrays are concatenated: defaults first, then user values.
-      // This lets modules add to built-in lists (e.g. plugins, routes) without
-      // having to repeat the defaults in every consumer config.
-      result[key] = [...defaultVal, ...userVal];
-    } else if (
-      typeof userVal === "object" &&
-      userVal !== null &&
-      !Array.isArray(userVal) &&
-      typeof defaultVal === "object" &&
-      defaultVal !== null &&
-      !Array.isArray(defaultVal)
-    ) {
-      result[key] = mergeDefaults(
-        userVal as Record<string, unknown>,
-        defaultVal as Record<string, unknown>,
+function prepareModules(config: ResolvedGwenConfig, loaded: readonly LoadedModule[]) {
+  const record = recordOf(config);
+  const all: LoadedModule[] = [
+    ...BUILT_IN_MODULES.map((mod) => ({ name: mod.meta.name, mod })),
+    ...loaded,
+  ];
+  const owners = new Map<string, string>();
+  for (const { mod } of all) {
+    const key = mod.meta.configKey;
+    if (key && !RESERVED_KEYS.has(key) && !owners.has(key)) owners.set(key, mod.meta.name);
+  }
+  const issues: GwenConfigIssue[] = [];
+  for (const key of Object.keys(record)) {
+    if (RESERVED_KEYS.has(key) || owners.has(key)) continue;
+    issues.push(
+      configIssue(key, "a known top-level key", formatReceived(record[key]), "@gwenjs/app"),
+    );
+  }
+  for (const { mod } of all) {
+    const key = mod.meta.configKey;
+    if (!key) continue;
+    const name = mod.meta.name;
+    const first = owners.get(key);
+    let issue: GwenConfigIssue | undefined;
+    if (RESERVED_KEYS.has(key)) {
+      issue = configIssue(
+        key,
+        "a configKey that is not reserved by gwen.config",
+        `"${key}" declared by module "${name}"`,
+        name,
+        "@gwenjs/app",
       );
-    } else {
-      result[key] = userVal;
+    } else if (first !== undefined && first !== name) {
+      issue = configIssue(
+        key,
+        "a configKey owned by one module",
+        `declared by "${first}" and "${name}"`,
+        name,
+        first,
+      );
+    }
+    if (issue !== undefined) issues.push(issue);
+  }
+  const builtIn: ModuleRun[] = [];
+  const users: ModuleRun[] = [];
+  for (const entry of all) {
+    const run = resolveModuleRun(entry, record, owners, issues);
+    if (BUILT_IN_MODULES.includes(entry.mod)) builtIn.push(run);
+    else users.push({ ...run, label: entry.name });
+  }
+  return { issues, builtIn, users };
+}
+
+function resolveModuleRun(
+  entry: LoadedModule,
+  record: Record<string, unknown>,
+  owners: ReadonlyMap<string, string>,
+  issues: GwenConfigIssue[],
+): ModuleRun {
+  const { mod } = entry;
+  const key = mod.meta.configKey;
+  const defaults = mod.defaults ?? {};
+  const owned = key !== undefined && owners.get(key) === mod.meta.name;
+  const user = owned ? record[key] : undefined;
+  const defaultsRecord = isPlainRecord(defaults) ? defaults : {};
+  const merged =
+    user === undefined || isPlainRecord(user)
+      ? mergeLayers(defaultsRecord, isPlainRecord(user) ? user : {})
+      : user;
+  const options = isPlainRecord(merged) ? merged : {};
+  if (owned && key !== undefined) {
+    pushSerializable(merged, defaults, key, mod.meta.name, issues);
+    if (isPlainRecord(merged) && mod.validate) {
+      for (const item of mod.validate(merged)) {
+        const path = item.path.length === 0 ? key : `${key}.${item.path}`;
+        issues.push(
+          configIssue(path, item.expected, item.received, mod.meta.name, item.conflictsWith),
+        );
+      }
     }
   }
+  return { mod, options, label: mod.meta.name };
+}
 
-  return result;
+function pushSerializable(
+  value: unknown,
+  fallback: unknown,
+  path: string,
+  owner: string,
+  issues: GwenConfigIssue[],
+): void {
+  if (value === undefined || Object.is(value, fallback)) return;
+  if (value === null || typeof value === "string" || typeof value === "boolean") return;
+  if (typeof value === "number" && Number.isFinite(value)) return;
+  if (Array.isArray(value)) {
+    const items = Array.isArray(fallback) ? fallback : [];
+    for (let index = 0; index < value.length; index += 1) {
+      pushSerializable(value[index], items[index], `${path}.${index}`, owner, issues);
+    }
+    return;
+  }
+  if (isPlainRecord(value)) {
+    const base = isPlainRecord(fallback) ? fallback : {};
+    for (const child of Object.keys(value)) {
+      pushSerializable(value[child], base[child], `${path}.${child}`, owner, issues);
+    }
+    return;
+  }
+  issues.push(configIssue(path, "a JSON-serializable value", formatReceived(value), owner));
 }
 
 /**

@@ -1,16 +1,18 @@
 /**
- * @file RFC-004 — resolveConfig, resolveGwenConfig (Node.js only)
+ * @file RFC-004 — resolveGwenConfig (Node.js only)
  *
  * Browser-safe types and defineConfig live in ./types.ts.
  * This file imports c12 and must only be used in Node.js contexts.
  */
 
-import { defu } from "defu";
-
-import type { GwenUserConfig, GwenModuleEntry, ResolvedGwenConfig } from "./types";
+import { detectCoreVariant } from "@gwenjs/core/internal";
+import { checkEngineConfig, ENGINE_DEFAULTS, formatReceived } from "@gwenjs/schema";
+import type { GwenConfigIssue } from "@gwenjs/schema";
+import { GwenAppConfigError } from "./config-error";
 import { loadRawGwenConfig } from "./config-loader";
+import { mergeLayers, recordOf } from "./merge";
+import type { GwenUserConfig, ResolvedGwenConfig } from "./types";
 
-// Re-export all browser-safe types so CLI code can import from a single place
 export type {
   GwenModuleOptions,
   GwenModuleEntry,
@@ -19,77 +21,80 @@ export type {
   GwenBuildHooks,
 } from "./types";
 
-const DEFAULT_ENGINE = {
-  maxEntities: 10_000,
-  targetFPS: 60,
-  variant: "light" as const,
-  loop: "internal" as const,
-  maxDeltaSeconds: 0.1,
-  debug: false,
-  physicsHz: 0,
-  maxCatchupSteps: 2,
-};
+const CONFIG_FILE: unique symbol = Symbol("@gwenjs/app/configFile");
 
-/**
- * The resolved `minLevel` is the app-level default and is not what the engine receives
- * (the generated entry passes the raw `logger` config).
- */
 const DEFAULT_LOGGER = {
   minLevel: "warn" as const,
 };
 
-const DEFAULT_DEBUG = {
-  perf: false,
-};
-
-/**
- * Merge defaults into user config to produce a {@link ResolvedGwenConfig}.
- * Used internally by `GwenApp` and tests.
- *
- * @param config - User-supplied config (may be partial)
- */
-export function resolveConfig(config: GwenUserConfig): ResolvedGwenConfig {
-  return {
-    ...config,
-    modules: config.modules ?? [],
-    engine: { ...DEFAULT_ENGINE, ...config.engine },
-    logger: { ...DEFAULT_LOGGER, ...config.logger },
-    debug: { ...DEFAULT_DEBUG, ...config.debug },
-  };
+export function readConfigFile(config: object): string {
+  const value = (config as Record<symbol, unknown>)[CONFIG_FILE];
+  return typeof value === "string" ? value : "";
 }
 
-/**
- * Loads `gwen.config.ts` from the project root using `c12` (with `jiti` for
- * TypeScript support) and merges it with defaults.
- *
- * Called by CLI commands (`gwen dev`, `gwen build`, `gwen prepare`) and
- * the Vite plugin to resolve the project configuration at build time.
- *
- * @param rootDir - Project root directory (defaults to `process.cwd()`).
- * @returns Fully resolved configuration with all defaults applied.
- *
- * @example
- * ```typescript
- * const config = await resolveGwenConfig()
- * // config.engine.maxEntities === 10_000 (default)
- * ```
- */
-export async function resolveGwenConfig(rootDir?: string): Promise<ResolvedGwenConfig> {
-  const { config: userConfig } = await loadRawGwenConfig(rootDir ?? process.cwd());
+function attachConfigFile<T extends object>(config: T, configFile: string): T {
+  Object.defineProperty(config, CONFIG_FILE, { value: configFile, enumerable: false });
+  return config;
+}
 
-  return defu(
-    {
-      ...userConfig,
-      modules: userConfig.modules ?? [],
-      engine: userConfig.engine ?? {},
-      logger: userConfig.logger ?? {},
-      debug: userConfig.debug ?? {},
-    },
-    {
-      modules: [] as GwenModuleEntry[],
-      engine: DEFAULT_ENGINE,
-      logger: DEFAULT_LOGGER,
-      debug: DEFAULT_DEBUG,
-    },
-  ) as ResolvedGwenConfig;
+function pushTupleIssues(modules: unknown, issues: GwenConfigIssue[]): void {
+  if (modules === undefined) return;
+  const entries = Array.isArray(modules) ? modules : [modules];
+  for (let index = 0; index < entries.length; index += 1) {
+    const entry: unknown = entries[index];
+    if (Array.isArray(modules) && typeof entry === "string") continue;
+    issues.push({
+      path: Array.isArray(modules) ? `modules.${index}` : "modules",
+      expected: "a module name string",
+      received: formatReceived(Array.isArray(modules) ? entry : modules),
+      owner: "@gwenjs/app",
+    });
+  }
+}
+
+function moduleNames(modules: unknown): string[] {
+  if (!Array.isArray(modules)) return [];
+  const names: string[] = [];
+  for (const entry of modules) {
+    const name = typeof entry === "string" ? entry : Array.isArray(entry) ? entry[0] : undefined;
+    if (typeof name === "string") names.push(name);
+  }
+  return names;
+}
+
+export function resolveLoadedConfig(user: GwenUserConfig, configFile = ""): ResolvedGwenConfig {
+  const issues: GwenConfigIssue[] = [];
+  pushTupleIssues(user.modules, issues);
+
+  const names = moduleNames(user.modules);
+  const derived = detectCoreVariant({ modules: names });
+  const explicit = user.engine?.variant;
+  const physicsModule = ["@gwenjs/physics3d", "@gwenjs/physics2d"].find((name) =>
+    names.includes(name),
+  );
+  if (explicit !== undefined && physicsModule !== undefined && explicit !== derived) {
+    issues.push({
+      path: "engine.variant",
+      expected: `the variant derived from the declared modules ("${derived}")`,
+      received: formatReceived(explicit),
+      owner: "@gwenjs/app",
+      conflictsWith: physicsModule,
+    });
+  }
+
+  const base: ResolvedGwenConfig = {
+    engine: { ...ENGINE_DEFAULTS, variant: derived },
+    logger: { ...DEFAULT_LOGGER },
+    modules: [],
+  };
+  const merged = mergeLayers<ResolvedGwenConfig>(base, user);
+  const engine = recordOf(merged.engine);
+  issues.push(...checkEngineConfig(engine, "@gwenjs/app", "engine."));
+  if (issues.length > 0) throw new GwenAppConfigError(configFile, issues);
+  return attachConfigFile(merged, configFile);
+}
+
+export async function resolveGwenConfig(rootDir?: string): Promise<ResolvedGwenConfig> {
+  const { config, configFile } = await loadRawGwenConfig(rootDir ?? process.cwd());
+  return resolveLoadedConfig(config, configFile);
 }

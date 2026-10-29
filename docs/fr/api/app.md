@@ -89,12 +89,19 @@ export default defineConfig({
 **Signature:**
 ```ts
 type ResolvedGwenConfig = GwenUserConfig & {
-  engine: Required<NonNullable<GwenUserConfig['engine']>>
-  modules: GwenModuleEntry[]
+  engine: GwenEngineConfig
+  modules: string[]
+  logger: GwenLoggerConfig & { minLevel: GwenLogLevel }
 }
 ```
 
-**Description.** Configuration entièrement résolue avec tous les defaults appliqués. Utilisée en interne et transmise aux fonctions `setup()` des modules.
+**Description.** Configuration entièrement résolue, avec les défauts du moteur remplis. `engine.variant` est la valeur explicite, ou la variante dérivée de `modules`. Un module la lit sur `gwen.options`.
+
+`resolveGwenConfig` charge `gwen.config.ts`. Les objets simples fusionnent en profondeur. Un tableau de la couche haute remplace le tableau de la couche basse. `undefined` laisse la valeur basse. `null` est une valeur. Une fonction ou une instance de classe est gardée par référence.
+
+Une entrée de module est le nom du paquet, une chaîne. Un tuple, une clé top-level inconnue, ou un champ de la mauvaise forme échoue au chargement avec `APP:CONFIG_INVALID`. Le message nomme le chemin, la forme attendue et la valeur reçue. Un `engine.variant` explicite qui contredit un module de physique, un `configKey` réservé, ou deux modules qui partagent un `configKey` échoue avec `APP:CONFIG_CONFLICT`. Il n'y a pas de bloc `debug` top-level. `engine.loop` vaut `"internal"` ou `"external"`.
+
+c12 ne lit pas `.env`, les fichiers rc, `package.json`, ni les couches `$test` / `$development`.
 
 ### GwenBuildHooks
 

@@ -48,7 +48,7 @@ GWEN modules (from `@gwenjs/kit/module`'s `defineGwenModule`) can be registered 
 
 ```typescript
 export default defineConfig({
-  modules: [MyGameModule],
+  modules: ["@scope/my-game"],
 });
 ```
 
@@ -72,12 +72,12 @@ export default defineConfig({
 
 ### `.`
 
-Values: `createScreenPlugin`, `createViewportsPlugin`, `defineConfig`, `defineGwenModule`
+Values: `GwenAppConfigError`, `createScreenPlugin`, `createViewportsPlugin`, `defineConfig`, `defineGwenModule`
 
 Types: `AutoImport`, `GwenBuildHooks`, `GwenKit`, `GwenModule`, `GwenModuleDefinition`, `GwenModuleEntry`, `GwenModuleOptions`, `GwenUserConfig`, `ResolvedGwenConfig`
 
 ### `./resolve`
 
-Values: `GwenApp`, `GwenConfigLoadError`, `loadRawGwenConfig`, `resolveConfig`, `resolveGwenConfig`
+Values: `GwenApp`, `GwenAppConfigError`, `GwenConfigLoadError`, `loadRawGwenConfig`, `resolveGwenConfig`
 
 Types: `GwenBuildHooks`, `GwenModuleEntry`, `GwenModuleOptions`, `GwenUserConfig`, `RawGwenConfig`, `ResolvedGwenConfig`
