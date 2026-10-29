@@ -1,5 +1,6 @@
 /**
- * Owned-bridge dispose on stop (P-261-1). Real WASM. Dev only (`__GWEN_DEV__`).
+ * Owned-bridge dispose on stop (P-261-1) and held physics services (P-261-2).
+ * Real WASM. Dev only (`__GWEN_DEV__`).
  */
 import { describe, expect, it } from "vitest";
 import { GwenError } from "@gwenjs/schema";
@@ -9,6 +10,7 @@ import {
   createEngine,
   GwenEngineStateError,
   setupGwen,
+  unpackEntityId,
   type GwenEngine,
 } from "../../../src/index.js";
 import type { MemoryView } from "../../../src/engine/engine-memory.js";
@@ -16,6 +18,10 @@ import { WasmBridgeImpl } from "../../../src/engine/wasm-bridge.js";
 import type { CoreVariant } from "../../../src/engine/wasm-bridge-types.js";
 import { createRealEngine } from "../harness.js";
 import { forceGc, nodeArtefactUrls } from "./helpers.js";
+import "../../../../physics2d/src/augment";
+import { Physics2DPlugin } from "../../../../physics2d/src/plugin/index";
+import "../../../../physics3d/src/augment";
+import { Physics3DPlugin } from "../../../../physics3d/src/plugin/index";
 
 const DISPOSED_MESSAGE = [
   "[GWEN] The WASM bridge was disposed by engine.stop().",
@@ -79,6 +85,12 @@ function captureCreateEntity(bridge: WasmBridgeImpl): {
 function holdArray(view: MemoryView<"u8">): WeakRef<Uint8Array> {
   const array = view.array;
   return new WeakRef(array);
+}
+
+/** The glue object dies with this call. The test keeps only the WeakRef. */
+function holdPhysicsGlue(bridge: WasmBridgeImpl): WeakRef<object> {
+  const glue = bridge.getPhysicsBridge();
+  return new WeakRef(glue);
 }
 
 async function owned(
@@ -368,6 +380,143 @@ describe("bridge dispose", () => {
     } finally {
       if (handle.bridge.isActive()) handle.bridge.dispose();
       await handle.engine.stop();
+    }
+  });
+
+  it("a held physics2d service throws CORE:ENGINE_DISPOSED after stop()", async () => {
+    const { engine } = await owned("physics2d");
+    try {
+      assertGc();
+      await engine.use(Physics2DPlugin({ gravity: 0, gravityX: 0 }));
+      const physics = engine.inject("physics2d");
+      const id = engine.createEntity();
+      await engine.stop();
+      expectDisposed(capture(() => physics.addRigidBody(id, "dynamic", 1, 2)));
+      expectDisposed(capture(() => physics.addRigidBody(id, "dynamic", 1, 2)));
+    } finally {
+      await engine.stop();
+    }
+  });
+
+  it("a held physics2d read method throws CORE:ENGINE_DISPOSED after stop()", async () => {
+    const { engine } = await owned("physics2d");
+    try {
+      assertGc();
+      await engine.use(Physics2DPlugin({ gravity: 0, gravityX: 0 }));
+      const physics = engine.inject("physics2d");
+      const id = engine.createEntity();
+      physics.addRigidBody(id, "dynamic", 3, 4);
+      const before = physics.getPosition(id);
+      expect(before).not.toBeNull();
+      if (before === null) return;
+      expect(before.x).toBe(3);
+      expect(before.y).toBe(4);
+      await engine.stop();
+      expectDisposed(capture(() => physics.getPosition(id)));
+      expectDisposed(capture(() => physics.getPosition(id)));
+    } finally {
+      await engine.stop();
+    }
+  });
+
+  it("a held physics3d service throws CORE:ENGINE_DISPOSED after stop()", async () => {
+    const { engine } = await owned("physics3d");
+    try {
+      assertGc();
+      await engine.use(Physics3DPlugin({ gravity: { x: 0, y: 0, z: 0 } }));
+      const physics = engine.inject("physics3d");
+      const id = engine.createEntity();
+      physics.createBody(id, {
+        kind: "kinematic",
+        initialPosition: { x: 1, y: 2, z: 3 },
+      });
+      const slot = unpackEntityId(id).index;
+      await engine.stop();
+      const step = (): number =>
+        physics.bulkStepKinematics(
+          new Uint32Array([slot]),
+          new Float32Array([0]),
+          new Float32Array([0]),
+          new Float32Array([0]),
+          1 / 60,
+        );
+      expectDisposed(capture(step));
+      expectDisposed(capture(step));
+    } finally {
+      await engine.stop();
+    }
+  });
+
+  it("a held physics3d service returns 0 after unuse() and throws CORE:ENGINE_DISPOSED after stop()", async () => {
+    const { engine } = await owned("physics3d");
+    try {
+      assertGc();
+      await engine.use(Physics3DPlugin({ gravity: { x: 0, y: 0, z: 0 } }));
+      const physics = engine.inject("physics3d");
+      // vz is longer, so a call that reaches WASM throws instead of returning 0.
+      const step = (): number =>
+        physics.bulkStepKinematics(
+          new Uint32Array([0]),
+          new Float32Array([0]),
+          new Float32Array([0]),
+          new Float32Array([0, 0]),
+          0,
+        );
+      await engine.unuse("@gwenjs/physics3d");
+      expect(capture(step)).toBe(0);
+      await engine.stop();
+      expectDisposed(capture(step));
+    } finally {
+      await engine.stop();
+    }
+  });
+
+  it("stopping one engine leaves another engine's physics2d service working", async () => {
+    const plugin = Physics2DPlugin({ gravity: 0, gravityX: 0 });
+    const a = await owned("physics2d");
+    const b = await owned("physics2d");
+    try {
+      assertGc();
+      await a.engine.use(plugin);
+      await b.engine.use(plugin);
+      const physicsA = a.engine.inject("physics2d");
+      const physicsB = b.engine.inject("physics2d");
+      const idA = a.engine.createEntity();
+      const idB = b.engine.createEntity();
+      physicsA.addRigidBody(idA, "dynamic", 1, 2);
+      physicsB.addRigidBody(idB, "dynamic", 8, 9);
+      const seen = physicsB.getPosition(idB);
+      expect(seen).not.toBeNull();
+      if (seen === null) return;
+      expect(seen.x).toBe(8);
+      expect(seen.y).toBe(9);
+      await a.engine.stop();
+      expect(physicsB.getPosition(idB)).toEqual(seen);
+      expectDisposed(capture(() => physicsA.getPosition(idA)));
+      expectDisposed(capture(() => physicsA.getPosition(idA)));
+    } finally {
+      await a.engine.stop();
+      await b.engine.stop();
+    }
+  });
+
+  it("a held physics2d service does not keep the glue physics object after stop()", async () => {
+    const { engine, bridge } = await owned("physics2d");
+    try {
+      assertGc();
+      await engine.use(Physics2DPlugin({ gravity: 0, gravityX: 0 }));
+      const physics = engine.inject("physics2d");
+      const id = engine.createEntity();
+      physics.addRigidBody(id, "dynamic", 1, 2);
+      const glueRef = holdPhysicsGlue(bridge);
+      await engine.stop();
+      await forceGc();
+      const collected = glueRef.deref() === undefined;
+      expect(collected).toBe(true);
+      expect(typeof id).toBe("bigint");
+      expect(typeof physics.addRigidBody).toBe("function");
+    } finally {
+      await engine.stop();
     }
   });
 });
