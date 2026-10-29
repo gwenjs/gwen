@@ -4,9 +4,10 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { defineGwenModule, type GwenModule } from "@gwenjs/kit/module";
 import { checkEngineConfig, ENGINE_DEFAULTS, formatReceived } from "@gwenjs/schema";
-import type { GwenConfigIssue } from "@gwenjs/schema";
+import type { GwenConfigIssue, GwenPlugin } from "@gwenjs/schema";
 import { GwenApp } from "../src/app.js";
-import { resolveGwenConfig } from "../src/config.js";
+import { readConfigFile, resolveGwenConfig, resolveLoadedConfig } from "../src/config.js";
+import { isPlainRecord, mergeLayers } from "../src/merge.js";
 import type { ResolvedGwenConfig } from "../src/types.js";
 import * as appResolve from "../src/resolve.js";
 
@@ -236,25 +237,321 @@ describe("config layering", () => {
     expect(seen?.box).toBe(box);
     expect(seen?.onTick).toBe(onTick);
   });
-  it("a .env file and $test block are not applied", async () => {
+  it("no physics module resolves variant light", async () => {
+    expect(engineOf(await load(js(""))).variant).toBe("light");
+    expect(engineOf(await load(js("modules: []"))).variant).toBe("light");
+  });
+  it("syntax error is APP:CONFIG_LOAD_FAILED", async () => {
     expect(failure(await load("export default {\n")).code).toBe("APP:CONFIG_LOAD_FAILED");
-    const loaded = await load(js(""));
-    const empty = engineOf(loaded);
-    const keys = "maxEntities targetFPS maxDeltaSeconds loop physicsHz maxCatchupSteps debug".split(
-      " ",
+  });
+  it("deep object merge keeps sibling defaults", async () => {
+    let seen: Record<string, unknown> | undefined;
+    const mod = moduleOf("@test/deep", "deep", {
+      defaults: { nested: { a: 1, b: 2 } },
+      setup(options: Record<string, unknown>) {
+        seen = options;
+      },
+    });
+    const found = failure(
+      await boot(js('modules: ["@test/deep"], deep: { nested: { a: 9 } }'), { "@test/deep": mod }),
     );
-    for (const key of keys)
-      expect(empty[key]).toBe(ENGINE_DEFAULTS[key as keyof typeof ENGINE_DEFAULTS]);
-    const full = loaded as { modules: unknown[]; logger: { minLevel: string } };
-    expect([empty.variant, full.modules, full.logger.minLevel]).toEqual(["light", [], "warn"]);
+    expect(found.code).toBeUndefined();
+    expect(seen?.nested).toEqual({ a: 9, b: 2 });
+  });
+  it("undefined does not override a default and null does", async () => {
+    let seen: Record<string, unknown> | undefined;
+    const mod = moduleOf("@test/clear", "clear", {
+      defaults: { keep: "default", extra: "default" },
+      setup(options: Record<string, unknown>) {
+        seen = options;
+      },
+    });
+    const body = 'modules: ["@test/clear"], clear: { keep: undefined, extra: null }';
+    const found = failure(await boot(js(body), { "@test/clear": mod }));
+    expect(found.code).toBeUndefined();
+    expect(seen?.keep).toBe("default");
+    expect(seen?.extra).toBeNull();
+  });
+  it("resolveGwenConfig twice returns equal configs", async () => {
     const dir = writeConfig(js("engine: { maxEntities: 40 }"));
     expect(await resolveGwenConfig(dir)).toEqual(await resolveGwenConfig(dir));
+  });
+  it("empty config {} resolves to ENGINE_DEFAULTS", async () => {
+    const loaded = await load(js(""));
+    const empty = engineOf(loaded);
+    const full = loaded as { modules: unknown[]; logger: { minLevel: string } };
+    expect(failure(loaded).code).toBeUndefined();
+    for (const key of Object.keys(ENGINE_DEFAULTS)) {
+      expect(empty[key]).toBe(ENGINE_DEFAULTS[key as keyof typeof ENGINE_DEFAULTS]);
+    }
+    expect(full.modules).toEqual([]);
+    expect(full.logger.minLevel).toBe("warn");
+  });
+  it("two directories keep their own maxEntities", async () => {
     const left = engineOf(await load(js("engine: { maxEntities: 11 }"))).maxEntities;
     const right = engineOf(await load(js("engine: { maxEntities: 22 }"))).maxEntities;
     expect([left, right]).toEqual([11, 22]);
-    const body =
-      "engine: { maxEntities: Number(process.env.GWEN_L61_ENTITIES ?? 50) }, $test: { engine: { maxEntities: 7 } }";
-    const result = await load(js(body), "GWEN_L61_ENTITIES=9\n");
-    expect([failure(result).code, engineOf(result).maxEntities]).toEqual([undefined, 50]);
+  });
+  it("a .env file and $development block are not applied", async () => {
+    const saved = process.env.NODE_ENV;
+    process.env.NODE_ENV = "development";
+    try {
+      const body =
+        "engine: { maxEntities: Number(process.env.GWEN_L61_ENTITIES ?? 50) }, $development: { engine: { maxEntities: 7 } }";
+      const result = await load(js(body), "GWEN_L61_ENTITIES=9\n");
+      expect([failure(result).code, engineOf(result).maxEntities]).toEqual([undefined, 50]);
+    } finally {
+      if (saved === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = saved;
+    }
+  });
+  it("engine or logger that is not an object is APP:CONFIG_INVALID", async () => {
+    const samples: Array<[string, unknown]> = [
+      ["engine", null],
+      ["engine", 5],
+      ["engine", "abc"],
+      ["engine", []],
+      ["logger", null],
+      ["logger", 3],
+    ];
+    for (const [key, value] of samples) {
+      const raw = await load(js(`${key}: ${JSON.stringify(value)}`));
+      const found = failure(raw);
+      const issue = found.issues?.find((item) => item.path === key);
+      expect(found.code).toBe("APP:CONFIG_INVALID");
+      expect(issue?.expected).toBe("an object");
+      expect(issue?.received).toBe(formatReceived(value));
+      expect(issue?.owner).toBe("@gwenjs/app");
+    }
+  });
+  it("a module section that is not an object is APP:CONFIG_INVALID", async () => {
+    const samples: Array<[string, string, unknown, string]> = [
+      ["tween: 5", "tween", 5, "@gwenjs/core:tween"],
+      ["tween: []", "tween", [], "@gwenjs/core:tween"],
+      ['tween: "x"', "tween", "x", "@gwenjs/core:tween"],
+      ["tween: null", "tween", null, "@gwenjs/core:tween"],
+    ];
+    for (const [body, path, value, owner] of samples) {
+      const raw = await boot(js(body), {});
+      const found = failure(raw);
+      const issue = found.issues?.find((item) => item.path === path);
+      expect(found.code).toBe("APP:CONFIG_INVALID");
+      expect(issue?.expected).toBe("an object");
+      expect(issue?.received).toBe(formatReceived(value));
+      expect(issue?.owner).toBe(owner);
+    }
+    let speed: unknown;
+    const mod = moduleOf("@test/widget", "widget", {
+      defaults: { speed: 2 },
+      setup(options: Record<string, unknown>) {
+        speed = options.speed;
+      },
+    });
+    const found = failure(await boot(js('modules: ["@test/widget"]'), { "@test/widget": mod }));
+    expect(found.code).toBeUndefined();
+    expect(speed).toBe(2);
+  });
+  it("engine + unknown key: two throws, each with its own issues", async () => {
+    const first = failure(await load(js("engine: { targetFPS: 500 }, mystery: 1")));
+    expect(first.code).toBe("APP:CONFIG_INVALID");
+    expect(first.issues?.map((item) => item.path).join()).toBe("engine.targetFPS");
+    const second = failure(await boot(js("mystery: 1"), {}));
+    expect(second.code).toBe("APP:CONFIG_INVALID");
+    expect(second.issues?.map((item) => item.path).join()).toBe("mystery");
+  });
+  it("kit.options is one deep-frozen object", async () => {
+    let same = false;
+    let kept = 0;
+    let providerFrozen = true;
+    let hookFrozen = true;
+    let read = 0;
+    const mod = defineGwenModule({
+      meta: { name: "@test/opts" },
+      setup(_options, gwen) {
+        const first = gwen.options;
+        same = first === gwen.options;
+        const engine: unknown = Reflect.get(first, "engine");
+        if (typeof engine === "object" && engine !== null) {
+          Reflect.set(engine, "maxEntities", 1);
+          const max: unknown = Reflect.get(engine, "maxEntities");
+          kept = typeof max === "number" ? max : 0;
+        }
+        const screen: unknown = Reflect.get(first, "screen");
+        const provider: unknown =
+          typeof screen === "object" && screen !== null
+            ? Reflect.get(screen, "sizeProvider")
+            : undefined;
+        providerFrozen =
+          typeof provider === "object" && provider !== null && Object.isFrozen(provider);
+        if (typeof provider === "object" && provider !== null) read = readBox(provider);
+        const hooks: unknown = Reflect.get(first, "hooks");
+        const hook: unknown =
+          typeof hooks === "object" && hooks !== null
+            ? Reflect.get(hooks, "build:before")
+            : undefined;
+        hookFrozen = typeof hook === "function" && Object.isFrozen(hook);
+      },
+    });
+    const source = [
+      "class Box { read() { return 4; } }",
+      "const box = new Box();",
+      "export default {",
+      '  modules: ["@test/opts"],',
+      "  engine: { maxEntities: 40 },",
+      "  screen: { sizeProvider: box },",
+      '  hooks: { "build:before"() {} },',
+      "};",
+    ].join("\n");
+    const dir = writeConfig(source);
+    const loaded = await resolveGwenConfig(dir);
+    const open = async (name: string): Promise<GwenModule> =>
+      name === "@test/opts" ? mod : missing(name);
+    const found = failure(await settle(new GwenApp().setupModules(loaded, open)));
+    expect(found.code).toBeUndefined();
+    expect(loaded.engine.maxEntities).toBe(40);
+    expect(kept).toBe(40);
+    expect(same).toBe(true);
+    expect(providerFrozen).toBe(false);
+    expect(hookFrozen).toBe(false);
+    expect(read).toBe(4);
+    expect(Object.isFrozen(loaded)).toBe(false);
+  });
+  it("kit.options.plugins keeps the same plugin", async () => {
+    const somePlugin: GwenPlugin = { name: "mine", setup() {} };
+    const hooks = { "build:before"() {} };
+    const vite: Record<string, unknown> = {};
+    vite.port = 1;
+    const file = "/app/gwen.config.ts";
+    const loaded = resolveLoadedConfig(
+      {
+        modules: ["@test/ident"],
+        plugins: [somePlugin],
+        vite,
+        hooks,
+        engine: { maxEntities: 40 },
+      },
+      file,
+    );
+    let reads = 0;
+    const mergedVite = loaded.vite;
+    if (mergedVite === undefined) throw new Error("vite");
+    Object.defineProperty(mergedVite, "port", {
+      enumerable: true,
+      configurable: true,
+      get() {
+        reads += 1;
+        return 9;
+      },
+    });
+    let seen: GwenPlugin | undefined;
+    let viteSame = false;
+    let hooksSame = false;
+    let liveGetter = false;
+    let engineFrozen = false;
+    let kept = 0;
+    let fileOnView = "";
+    const mod = defineGwenModule({
+      meta: { name: "@test/ident" },
+      setup(_options, gwen) {
+        const listed: unknown = Reflect.get(gwen.options, "plugins");
+        const plugin: unknown =
+          typeof listed === "object" && listed !== null ? Reflect.get(listed, 0) : undefined;
+        if (isPlugin(plugin)) {
+          seen = plugin;
+          gwen.addPlugin(plugin);
+        }
+        viteSame = gwen.options.vite === mergedVite;
+        hooksSame = gwen.options.hooks === loaded.hooks;
+        const viewVite: unknown = gwen.options.vite;
+        if (typeof viewVite === "object" && viewVite !== null) {
+          const before = reads;
+          const port: unknown = Reflect.get(viewVite, "port");
+          liveGetter = reads === before + 1 && port === 9;
+        }
+        const engine: unknown = Reflect.get(gwen.options, "engine");
+        engineFrozen = typeof engine === "object" && engine !== null && Object.isFrozen(engine);
+        if (typeof engine === "object" && engine !== null) {
+          Reflect.set(engine, "maxEntities", 1);
+          const max: unknown = Reflect.get(engine, "maxEntities");
+          kept = typeof max === "number" ? max : 0;
+        }
+        fileOnView = readConfigFile(gwen.options);
+      },
+    });
+    const open = async (name: string): Promise<GwenModule> =>
+      name === "@test/ident" ? mod : missing(name);
+    const app = new GwenApp();
+    const found = failure(await settle(app.setupModules(loaded, open)));
+    expect(found.code).toBeUndefined();
+    expect(seen).toBe(somePlugin);
+    expect(app.plugins.find((item) => item.name === "mine")).toBe(somePlugin);
+    expect(viteSame).toBe(true);
+    expect(hooksSame).toBe(true);
+    expect(liveGetter).toBe(true);
+    expect(engineFrozen).toBe(true);
+    expect(kept).toBe(40);
+    expect(fileOnView).toBe(file);
+  });
+  it("an own __proto__ key does not change the prototype", () => {
+    const parsed: unknown = JSON.parse('{"__proto__":{"polluted":1}}');
+    if (!isPlainRecord(parsed)) throw new Error("layer");
+    try {
+      const merged = mergeLayers({ tag: "low" }, parsed);
+      expect(Object.getPrototypeOf(merged)).toBe(Object.prototype);
+      expect(Reflect.get({}, "polluted")).toBeUndefined();
+    } finally {
+      Reflect.deleteProperty(Object.prototype, "polluted");
+    }
+  });
+  it("a cyclic module section is APP:CONFIG_INVALID", async () => {
+    const mod = moduleOf("@test/data", "data");
+    const source = [
+      'const data = { name: "loop" };',
+      "data.self = data;",
+      'export default { modules: ["@test/data"], data };',
+    ].join("\n");
+    const raw = await boot(source, { "@test/data": mod });
+    const found = failure(raw);
+    const issue = found.issues?.find((item) => item.path === "data.self");
+    expect(found.code).toBe("APP:CONFIG_INVALID");
+    expect(issue?.expected).toBe("a JSON-serializable value");
+    expect(issue?.received).toBe("[circular]");
+    expect(issue?.owner).toBe("@test/data");
+  });
+  it("undefined in an array is APP:CONFIG_INVALID", async () => {
+    const mod = moduleOf("@test/data", "data");
+    const source = 'export default { modules: ["@test/data"], data: { items: [undefined] } };\n';
+    const found = failure(await boot(source, { "@test/data": mod }));
+    const issue = found.issues?.find((item) => item.path === "data.items.0");
+    expect(found.code).toBe("APP:CONFIG_INVALID");
+    expect(issue?.expected).toBe("a JSON-serializable value");
+    expect(issue?.received).toBe(formatReceived(undefined));
+    expect(issue?.owner).toBe("@test/data");
+  });
+  it("empty configFile omits the parentheses", () => {
+    const issue = {
+      path: "engine",
+      expected: "an object",
+      received: "null",
+      owner: "@gwenjs/app",
+    };
+    const empty = new appResolve.GwenAppConfigError("", [issue]);
+    const named = new appResolve.GwenAppConfigError("/app/gwen.config.ts", [issue]);
+    expect(empty.message.split("\n")[0]).toBe("[GWEN] Invalid gwen.config:");
+    expect(named.message.split("\n")[0]).toBe("[GWEN] Invalid gwen.config (/app/gwen.config.ts):");
   });
 });
+
+function isPlugin(value: unknown): value is GwenPlugin {
+  if (typeof value !== "object" || value === null) return false;
+  const name: unknown = Reflect.get(value, "name");
+  const setup: unknown = Reflect.get(value, "setup");
+  return typeof name === "string" && typeof setup === "function";
+}
+
+function readBox(value: object): number {
+  const method: unknown = Reflect.get(value, "read");
+  if (typeof method !== "function") return 0;
+  const result: unknown = Reflect.apply(method, value, []);
+  return typeof result === "number" ? result : 0;
+}
