@@ -1,32 +1,21 @@
 /**
  * @file GWEN Module for @gwenjs/renderer-core.
  *
- * Register by package name in `gwen.config.ts`. Options go at the top-level
- * `screen` key — TypeScript infers them via `GwenModuleOptions` augmentation.
+ * Register by package name in `gwen.config.ts`. The app installs the screen
+ * plugin from the `screen` key (`packages/app/src/app.ts:186`).
  *
  * ```ts
  * export default defineConfig({
  *   modules: ['@gwenjs/renderer-core'],
- *   screen: { sizeProvider: StaticSizeProvider({ width: 1920, height: 1080 }) },
  * })
  * ```
  */
 
 import { defineGwenModule } from "@gwenjs/kit/module";
-import { ScreenPlugin, type ScreenPluginOptions } from "./screen-plugin";
 
-declare module "@gwenjs/schema" {
-  interface GwenModuleOptions {
-    /** Options for `@gwenjs/renderer-core`. Configure the screen size provider. */
-    screen?: ScreenPluginOptions;
-  }
-}
-
-export default defineGwenModule<ScreenPluginOptions>({
-  meta: { name: "@gwenjs/renderer-core", configKey: "screen" },
-  async setup(options, kit) {
-    kit.addPlugin(ScreenPlugin(options));
-
+export default defineGwenModule({
+  meta: { name: "@gwenjs/renderer-core" },
+  async setup(_options, kit) {
     kit.addAutoImports([
       { name: "useScreen", from: "@gwenjs/renderer-core" },
       { name: "useCameraManager", from: "@gwenjs/renderer-core" },
