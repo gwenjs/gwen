@@ -150,6 +150,7 @@ impl Engine {
     /// `[1, 2_000_000]`. Nothing is allocated in that case.
     #[wasm_bindgen(constructor)]
     pub fn new(max_entities: u32) -> Result<Engine, CoreError> {
+        crate::install_panic_hook();
         if !(1..=MAX_ENTITIES_LIMIT).contains(&max_entities) {
             return Err(CoreError::InvalidMaxEntities {
                 value: max_entities,
