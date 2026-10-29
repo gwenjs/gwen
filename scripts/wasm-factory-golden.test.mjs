@@ -37,6 +37,16 @@ function runGolden(rootDir, args, binDir) {
 function copyFixture() {
   const dir = mkdtempSync(join(tmpdir(), "glue-shape-"));
   cpSync(fixtureRoot, dir, { recursive: true });
+  for (const variant of ["light", "physics2d", "physics3d"]) {
+    const source = join(dir, "packages/core/wasm", variant);
+    const dev = `${source}-dev`;
+    cpSync(source, dev, { recursive: true });
+    const factory = join(dev, "gwen_core_factory.js");
+    const text = readFileSync(factory, "utf8");
+    const next = text.replace('["__wbindgen_throw"]', '["__wbindgen_throw","__wbg_error_fixture"]');
+    assert.notEqual(next, text);
+    writeFileSync(factory, next);
+  }
   return dir;
 }
 
@@ -136,6 +146,46 @@ test("a changed rawExports or imports entry fails and names the field", () => {
     );
     assert.equal(
       result.stderr.includes("light.imports differs: +[__wbindgen_other] -[__wbindgen_throw]"),
+      true,
+      result.stderr,
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a dev glue whose names differ from the release golden is rejected naming light-dev", () => {
+  const dir = copyFixture();
+  try {
+    const factoryPath = join(dir, "packages/core/wasm/light-dev/gwen_core_factory.js");
+    writeFileSync(
+      factoryPath,
+      replaceContractField(readFileSync(factoryPath, "utf8"), "names", ["NewName"]),
+    );
+    const result = runGolden(dir, ["--check", "--root", dir]);
+    assert.notEqual(result.status, 0);
+    assert.equal(
+      result.stderr.includes("light-dev.names differs: +[NewName] -[Engine]"),
+      true,
+      result.stderr,
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a dev glue that lacks a release import is rejected naming light-dev.imports", () => {
+  const dir = copyFixture();
+  try {
+    const factoryPath = join(dir, "packages/core/wasm/light-dev/gwen_core_factory.js");
+    const source = replaceContractField(readFileSync(factoryPath, "utf8"), "imports", [
+      "__wbg_error_fixture",
+    ]);
+    writeFileSync(factoryPath, source);
+    const result = runGolden(dir, ["--check", "--root", dir]);
+    assert.notEqual(result.status, 0);
+    assert.equal(
+      result.stderr.includes("light-dev.imports differs: +[] -[__wbindgen_throw]"),
       true,
       result.stderr,
     );

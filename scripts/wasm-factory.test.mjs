@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import {
   copyFileSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -490,5 +491,40 @@ test("CONTRACT.buildId equals the gwen.build section", async () => {
     assert.equal(dts.includes("readonly buildId: string"), true);
   } finally {
     rmSync(outDir, { recursive: true, force: true });
+  }
+});
+test("the dev-checked glue of each variant transforms", async (t) => {
+  const variants = ["light", "physics2d", "physics3d"];
+  const wasmDir = join(repoRoot, "packages/core/wasm");
+  const glue = (name) => join(wasmDir, name, "gwen_core.js");
+  if (!existsSync(join(wasmDir, "light", "gwen_core_bg.wasm"))) {
+    process.stdout.write("skip: release artefacts absent\n");
+    t.skip("release artefacts absent");
+    return;
+  }
+  for (const variant of variants) {
+    const dir = join(wasmDir, `${variant}-dev`);
+    assert.equal(existsSync(dir), true, "run pnpm build:wasm");
+    assert.equal(existsSync(join(dir, "gwen_core_bg.wasm")), true, "run pnpm build:wasm");
+    assert.equal(existsSync(join(dir, "gwen_core.js")), true, "run pnpm build:wasm");
+    assert.equal(existsSync(join(dir, "gwen_core_factory.js")), true, "run pnpm build:wasm");
+  }
+  const transformGlue = requireTransform(await loadFactory());
+  for (const variant of variants) {
+    const source = readFileSync(glue(`${variant}-dev`), "utf8");
+    const wasm = new WebAssembly.Module(
+      readFileSync(glue(`${variant}-dev`).replace(/\.js$/, "_bg.wasm")),
+    );
+    const parts = (name) => WebAssembly.Module.customSections(wasm, name);
+    assert.equal(parts("gwen.fingerprint").length, 1, variant);
+    assert.equal(parts("gwen.build").length, 1, variant);
+    const fingerprint = new TextDecoder().decode(parts("gwen.fingerprint")[0]);
+    const buildId = new TextDecoder().decode(parts("gwen.build")[0]);
+    const glueFile = `${variant}-dev/gwen_core.js`;
+    const opts = { ...glueOpts(glueFile), variant, glueFile, buildId, fingerprint };
+    const { js, names } = readOutput(transformGlue(source, opts));
+    assert.equal(js.includes("export function createGlue()"), true, variant);
+    assert.equal(fingerprint.includes("profile=dev"), true, fingerprint);
+    assert.deepEqual(names, glueApiNames(source));
   }
 });
