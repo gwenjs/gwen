@@ -3,6 +3,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { generateEntryModule } from "../src/entry-gen.js";
+import { entryResolvedFixture } from "./entry-resolved-fixture.js";
 
 /** Argument text of the first createEngine(...) call. Empty when the call is absent. */
 function createEngineArgument(source: string): string {
@@ -23,7 +24,7 @@ function createEngineArgument(source: string): string {
 
 describe("generateEntryModule logger", () => {
   it("the generated entry passes logger to createEngine and does not assign engine.logger", () => {
-    const source = generateEntryModule(false);
+    const source = generateEntryModule(false, [], [], entryResolvedFixture);
     const argument = createEngineArgument(source);
     expect([
       source.includes("engine.logger ="),
