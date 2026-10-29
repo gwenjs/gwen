@@ -4,6 +4,13 @@ import type { Plugin, ViteDevServer } from "vite";
 import type { GwenViteOptions, LocalModulesOptions } from "../types.js";
 import { createVirtualModule } from "../shared/virtual-module.js";
 
+/** Directory scanned at `load` time. `false` disables discovery. */
+export interface LocalModulesDirOption {
+  dir?: string | false;
+  /** Project root. Read at `load` time so it can be set after construction. */
+  root?: string;
+}
+
 const { virtual: LOCAL_MODULES_VIRTUAL, resolved: RESOLVED_LOCAL_MODULES } = createVirtualModule(
   "virtual:gwen/local-modules",
 );
@@ -138,15 +145,23 @@ export function generateLocalModulesModule(files: string[], dir: string): string
  * @param options - Top-level GWEN Vite plugin options.
  * @returns Vite plugin instance.
  */
-export function gwenLocalModulesPlugin(options: GwenViteOptions): Plugin {
+export function gwenLocalModulesPlugin(options: GwenViteOptions & LocalModulesDirOption): Plugin {
   if (options.localModules === false) {
     return { name: "gwen:local-modules" };
   }
 
   const opts = options.localModules as LocalModulesOptions | undefined;
-  const modulesDir = opts?.dir ?? "src/modules";
   const hmrEnabled = opts?.hmr !== false;
   let root = process.cwd();
+
+  function scannerRoot(): string {
+    return options.root ?? root;
+  }
+
+  function selectedDir(): string | false {
+    if (options.dir !== undefined) return options.dir;
+    return opts?.dir ?? "src/modules";
+  }
 
   return {
     name: "gwen:local-modules",
@@ -161,13 +176,17 @@ export function gwenLocalModulesPlugin(options: GwenViteOptions): Plugin {
 
     load(id) {
       if (id !== RESOLVED_LOCAL_MODULES) return;
-      const absDir = resolve(root, modulesDir);
+      const dir = selectedDir();
+      if (dir === false) return "export const modules = [];\n";
+      const absDir = resolve(scannerRoot(), dir);
       return generateLocalModulesModule(scanLocalModuleFiles(absDir), absDir);
     },
 
     handleHotUpdate({ file, server }: { file: string; server: ViteDevServer }) {
       if (!hmrEnabled) return;
-      if (!file.startsWith(resolve(root, modulesDir) + sep)) return;
+      const dir = selectedDir();
+      if (dir === false) return;
+      if (!file.startsWith(resolve(scannerRoot(), dir) + sep)) return;
       const mod = server.moduleGraph.getModuleById(RESOLVED_LOCAL_MODULES);
       if (mod) {
         server.moduleGraph.invalidateModule(mod);

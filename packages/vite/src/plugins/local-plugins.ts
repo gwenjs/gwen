@@ -4,6 +4,13 @@ import type { Plugin, ViteDevServer } from "vite";
 import type { GwenViteOptions, LocalPluginsOptions } from "../types.js";
 import { createVirtualModule } from "../shared/virtual-module.js";
 
+/** Directory scanned at `load` time. `false` disables discovery. */
+export interface LocalPluginsDirOption {
+  dir?: string | false;
+  /** Project root. Read at `load` time so it can be set after construction. */
+  root?: string;
+}
+
 const { virtual: LOCAL_PLUGINS_VIRTUAL, resolved: RESOLVED_LOCAL_PLUGINS } = createVirtualModule(
   "virtual:gwen/local-plugins",
 );
@@ -80,15 +87,23 @@ export function generateLocalPluginsModule(files: string[]): string {
  * @param options - Top-level GWEN Vite plugin options.
  * @returns Vite plugin instance.
  */
-export function gwenLocalPluginsPlugin(options: GwenViteOptions): Plugin {
+export function gwenLocalPluginsPlugin(options: GwenViteOptions & LocalPluginsDirOption): Plugin {
   if (options.localPlugins === false) {
     return { name: "gwen:local-plugins" };
   }
 
   const opts = options.localPlugins as LocalPluginsOptions | undefined;
-  const pluginsDir = opts?.dir ?? "src/plugins";
   const hmrEnabled = opts?.hmr !== false;
   let root = process.cwd();
+
+  function scannerRoot(): string {
+    return options.root ?? root;
+  }
+
+  function selectedDir(): string | false {
+    if (options.dir !== undefined) return options.dir;
+    return opts?.dir ?? "src/plugins";
+  }
 
   return {
     name: "gwen:local-plugins",
@@ -103,12 +118,16 @@ export function gwenLocalPluginsPlugin(options: GwenViteOptions): Plugin {
 
     load(id) {
       if (id !== RESOLVED_LOCAL_PLUGINS) return;
-      return generateLocalPluginsModule(scanLocalPluginFiles(resolve(root, pluginsDir)));
+      const dir = selectedDir();
+      if (dir === false) return "export const plugins = [];\n";
+      return generateLocalPluginsModule(scanLocalPluginFiles(resolve(scannerRoot(), dir)));
     },
 
     handleHotUpdate({ file, server }: { file: string; server: ViteDevServer }) {
       if (!hmrEnabled) return;
-      if (!file.startsWith(resolve(root, pluginsDir) + sep)) return;
+      const dir = selectedDir();
+      if (dir === false) return;
+      if (!file.startsWith(resolve(scannerRoot(), dir) + sep)) return;
       const mod = server.moduleGraph.getModuleById(RESOLVED_LOCAL_PLUGINS);
       if (mod) {
         server.moduleGraph.invalidateModule(mod);

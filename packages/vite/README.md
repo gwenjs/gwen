@@ -263,4 +263,4 @@ no semver guarantee — framework packages and generated code only
 
 Values: `extractGlobalCssFromConfig`, `extractModuleNamesFromConfig`, `generateConfigModulesVirtualModule`, `generateEntryModule`, `generateScenesModule`
 
-Types: none
+Types: `EntryResolvedConfig`

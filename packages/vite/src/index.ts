@@ -30,19 +30,19 @@ import fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawnSync, spawn, type ChildProcess } from "node:child_process";
-import type { Plugin, ViteDevServer } from "vite";
-import { resolveGwenConfig, GwenApp } from "@gwenjs/app/resolve";
+import { mergeConfig, type Plugin, type ViteDevServer } from "vite";
+import { resolveGwenConfig, GwenApp, type ResolvedGwenConfig } from "@gwenjs/app/resolve";
 import type { PluginDeclaration, GwenModule } from "@gwenjs/schema";
-import type { AutoImport } from "@gwenjs/kit";
+import type { AutoImport, ViteUserConfig } from "@gwenjs/kit";
 import {
   gwenLocalPluginsPlugin,
   gwenLocalModulesPlugin,
   gwenAutoImportsPlugin,
   gwenDevStripPlugin,
 } from "./plugins/index.js";
+import type { LocalModulesDirOption } from "./plugins/local-modules.js";
+import type { LocalPluginsDirOption } from "./plugins/local-plugins.js";
 import {
-  extractGlobalCssFromConfig,
-  extractModuleNamesFromConfig,
   generateConfigModulesVirtualModule,
   generateEntryModule,
   generateScenesModule,
@@ -59,11 +59,6 @@ const __dirname = path.dirname(__filename);
 export type CoreVariant = "light" | "physics2d" | "physics3d";
 
 export interface GwenPluginOptions {
-  /**
-   * Core WASM variant to use.
-   * If not provided, it will be auto-detected from gwen.config.ts.
-   */
-  variant?: CoreVariant;
   /**
    * Path to the Rust crate to compile (folder containing Cargo.toml).
    * If omitted, the plugin searches for Cargo.toml in parent directories.
@@ -111,6 +106,15 @@ const RESOLVED_CONFIG_MODULES = "\0virtual:gwen/config-modules";
 // ── Plugin principal ──────────────────────────────────────────────────────────
 
 const WASM_SERVABLE_EXTENSIONS = new Set([".wasm", ".js"]);
+
+/** Adapts Vite's `mergeConfig` to `ViteUserConfig`. */
+const deepMergeVite = (config: ViteUserConfig, patch: Partial<ViteUserConfig>): ViteUserConfig =>
+  mergeConfig(config, patch);
+
+function wireConfigHooks(app: GwenApp, hooks: ResolvedGwenConfig["hooks"]): void {
+  if (hooks === undefined) return;
+  app.buildHooks.addHooks(hooks);
+}
 
 /**
  * Resolve a request file name inside `dir`, rejecting anything that escapes it
@@ -171,6 +175,12 @@ function collectWasmPluginDirs(root: string): string[] {
   return dirs;
 }
 
+// boundary: app VitePlugin is not vite's Plugin #77
+function isVitePlugin(candidate: unknown): candidate is Plugin {
+  if (typeof candidate !== "object" || candidate === null) return false;
+  return "name" in candidate && typeof candidate.name === "string";
+}
+
 export function gwen(options: GwenPluginOptions = {}): Plugin[] {
   const { wasmPublicPath = "/wasm", wasmMode = "debug", verbose = false, manifestPath } = options;
 
@@ -186,7 +196,11 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
    */
   let wasmSourceDir: string | null = null;
   let _declarations: PluginDeclaration[] = [];
-  let _modulesLoaded = false;
+  let _resolved: ResolvedGwenConfig | undefined;
+  let _app: GwenApp | undefined;
+  let _loadPromise: Promise<void> | undefined;
+  const localPluginsScan: LocalPluginsDirOption = { root: process.cwd() };
+  const localModulesScan: LocalModulesDirOption = { root: process.cwd() };
   const _sharedAutoImports: AutoImport[] = [];
 
   function log(msg: string) {
@@ -422,31 +436,36 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
     return path.join(pkgDir, entry);
   }
 
-  async function _loadModules(root: string): Promise<void> {
-    if (_modulesLoaded) return;
-    _modulesLoaded = true;
-    try {
-      const gwenConfig = await resolveGwenConfig(root);
-      const app = new GwenApp();
+  function _loadModules(root: string): Promise<void> {
+    return (_loadPromise ??= loadResolved(root));
+  }
 
-      // @gwenjs/app lives in the pnpm store with only its own deps visible.
-      // Resolve user modules (e.g. @gwenjs/physics2d) directly from the project's
-      // node_modules, handling ESM-only "exports" maps that createRequire can't resolve.
-      const moduleLoader = async (name: string): Promise<GwenModule> => {
-        const entry = resolveProjectModuleEntry(root, name);
-        const mod = (await import(pathToFileURL(entry).href)) as Record<string, unknown>;
-        return (mod.default ?? mod) as GwenModule;
-      };
+  async function loadResolved(root: string): Promise<void> {
+    const gwenConfig = await resolveGwenConfig(root);
+    _resolved = gwenConfig;
+    localPluginsScan.root = root;
+    localPluginsScan.dir = gwenConfig.localPluginsDir ?? "src/plugins";
+    localModulesScan.root = root;
+    localModulesScan.dir = gwenConfig.localModulesDir ?? "src/modules";
+    const app = new GwenApp();
+    wireConfigHooks(app, gwenConfig.hooks);
 
-      await app.setupModules(gwenConfig, moduleLoader);
-      _declarations = app.pluginDeclarations;
-      _sharedAutoImports.push(...app.autoImports);
-      _moduleVitePlugins.push(
-        ...(app.vitePlugins as unknown as Plugin[]), // boundary: app VitePlugin is not vite's Plugin #77
-      );
-    } catch (err) {
-      console.warn(`[gwen-vite] Failed to setup modules: ${err}`);
-      _declarations = [];
+    // @gwenjs/app lives in the pnpm store with only its own deps visible.
+    // Resolve user modules (e.g. @gwenjs/physics2d) directly from the project's
+    // node_modules, handling ESM-only "exports" maps that createRequire can't resolve.
+    const moduleLoader = async (name: string): Promise<GwenModule> => {
+      const entry = resolveProjectModuleEntry(root, name);
+      const mod = (await import(pathToFileURL(entry).href)) as Record<string, unknown>;
+      return (mod.default ?? mod) as GwenModule;
+    };
+
+    await app.setupModules(gwenConfig, moduleLoader);
+    _app = app;
+    _declarations = app.pluginDeclarations;
+    _sharedAutoImports.push(...app.autoImports);
+    for (const plugin of app.vitePlugins) {
+      const candidate: unknown = plugin;
+      if (isVitePlugin(candidate)) _moduleVitePlugins.push(candidate);
     }
   }
 
@@ -458,8 +477,9 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
 
     async config(userConfig) {
       const root = userConfig.root ?? process.cwd();
+      projectRoot = root;
       await _loadModules(root);
-      return {
+      const base = {
         plugins: _moduleVitePlugins.length > 0 ? _moduleVitePlugins : undefined,
         optimizeDeps: {
           include: [
@@ -480,6 +500,8 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
           dedupe: ["@gwenjs/core", "@gwenjs/kit"],
         },
       };
+      if (_app === undefined) return base;
+      return _app.resolveViteConfig(base, deepMergeVite);
     },
 
     configResolved(config) {
@@ -510,33 +532,40 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
         return `export default ${manifest};`;
       }
 
-      if (id === RESOLVED_ENTRY) {
-        const hasScenesDir = fs.existsSync(path.join(projectRoot, "src", "scenes"));
-        const configPath = path.join(projectRoot, "gwen.config.ts");
-        const cssFiles = extractGlobalCssFromConfig(configPath).map((f) =>
-          toRootRelative(f, projectRoot),
-        );
-        return generateEntryModule(hasScenesDir, _declarations, cssFiles);
-      }
+      const render = (): string | null => {
+        if (_resolved === undefined) return null;
 
-      if (id === RESOLVED_SCENES) {
-        const scenes = scanScenes(projectRoot);
-        const configPath = path.join(projectRoot, "gwen.config.ts");
-        let mainSceneFromConfig: string | undefined;
-        if (fs.existsSync(configPath)) {
-          const src = fs.readFileSync(configPath, "utf-8");
-          mainSceneFromConfig = src.match(/mainScene\s*:\s*['"]([^'"]+)['"]/)?.[1];
+        if (id === RESOLVED_ENTRY) {
+          const hasScenesDir = fs.existsSync(path.join(projectRoot, "src", "scenes"));
+          const cssFiles = (_resolved.globalCss ?? []).map((file) =>
+            toRootRelative(file, projectRoot),
+          );
+          return generateEntryModule(hasScenesDir, _declarations, cssFiles, _resolved);
         }
-        return generateScenesModule(scenes, resolveMainScene(scenes, mainSceneFromConfig));
-      }
 
-      if (id === RESOLVED_CONFIG_MODULES) {
-        const configPath = path.join(projectRoot, "gwen.config.ts");
-        const moduleNames = extractModuleNamesFromConfig(configPath);
-        return generateConfigModulesVirtualModule(moduleNames);
-      }
+        if (id === RESOLVED_SCENES) {
+          const scenes = scanScenes(projectRoot);
+          return generateScenesModule(scenes, resolveMainScene(scenes, _resolved.mainScene));
+        }
 
-      return null;
+        if (id === RESOLVED_CONFIG_MODULES) {
+          return generateConfigModulesVirtualModule(_resolved.modules);
+        }
+
+        return null;
+      };
+
+      const gwenVirtual =
+        id === RESOLVED_ENTRY || id === RESOLVED_SCENES || id === RESOLVED_CONFIG_MODULES;
+      // Entry, scenes and config-modules re-await the memoized load so a
+      // failed config() rejects with the original error (D-V4a-3).
+      if (gwenVirtual && _resolved === undefined) {
+        return (async () => {
+          await _loadModules(projectRoot);
+          return render();
+        })();
+      }
+      return render();
     },
 
     // ── Inject entry script into served HTML ────────────────────────────
@@ -691,8 +720,8 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
     mainPlugin,
     gwenDevStripPlugin(),
     gwenAutoImportsPlugin({ autoImports: _sharedAutoImports }),
-    gwenLocalPluginsPlugin({}),
-    gwenLocalModulesPlugin({}),
+    gwenLocalPluginsPlugin(localPluginsScan),
+    gwenLocalModulesPlugin(localModulesScan),
   ];
 }
 

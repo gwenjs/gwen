@@ -34,6 +34,6 @@
       "generateEntryModule",
       "generateScenesModule"
     ],
-    "types": []
+    "types": ["EntryResolvedConfig"]
   }
 }

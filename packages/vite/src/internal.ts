@@ -3,6 +3,7 @@
  * Framework packages and generated code only.
  */
 export {
+  type EntryResolvedConfig,
   generateEntryModule,
   generateScenesModule,
   generateConfigModulesVirtualModule,
