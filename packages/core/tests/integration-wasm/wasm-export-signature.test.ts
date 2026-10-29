@@ -45,15 +45,7 @@ const FREE_WASM = {
 } as const;
 
 // Free functions exported by wasm-bindgen, outside the Engine and JsEntityId classes.
-const FREE_FUNCTIONS = new Set([
-  "find_path_2d",
-  "get_collision_event_count",
-  "get_collision_events_ptr",
-  "get_path_buffer_ptr",
-  "find_path_3d",
-  "get_path_buffer_ptr_3d",
-  "gwen_abi_fingerprint",
-]);
+const FREE_FUNCTIONS = new Set(["gwen_abi_fingerprint"]);
 
 // Glue module exports that are not compiled Rust functions.
 const GLUE_RUNTIME = new Set(["Engine", "JsEntityId", "default", "initSync"]);

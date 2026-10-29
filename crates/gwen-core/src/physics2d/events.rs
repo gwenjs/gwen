@@ -1,9 +1,7 @@
 //! Per-world collision event buffer.
 //!
-//! Each `PhysicsWorld` owns one buffer. The free `wasm_bindgen` functions stay
-//! as ABI shims and no longer share state across engines.
-
-use wasm_bindgen::prelude::*;
+//! Each `PhysicsWorld` owns one buffer. Read it through
+//! `Engine::physics_get_collision_events_ptr`.
 
 /// Maximum number of collision events stored per world per step.
 pub const MAX_COLLISION_EVENTS: usize = 1024;
@@ -66,19 +64,4 @@ impl CollisionEventBuffer {
     pub fn is_empty(&self) -> bool {
         self.count == 0
     }
-}
-
-/// ABI shim. Returns a null pointer. Call `Engine::physics_get_collision_events_ptr`.
-///
-/// # Safety
-/// The returned pointer is null. The live buffer belongs to one `PhysicsWorld`.
-#[wasm_bindgen]
-pub fn get_collision_events_ptr() -> *const PhysicsCollisionEvent {
-    std::ptr::null()
-}
-
-/// ABI shim. Returns `0`. Call `Engine::physics_get_collision_event_count`.
-#[wasm_bindgen]
-pub fn get_collision_event_count() -> usize {
-    0
 }

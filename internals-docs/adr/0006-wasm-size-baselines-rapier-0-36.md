@@ -96,7 +96,7 @@ Two gaps, from arithmetic on the figures above. The 2D groups sum to 511 854 byt
 **Why the soft-body code cannot be switched off.** Not verified by a build. Read from the sources:
 
 - Rapier compiles `soft_body` once `alloc` is on (`rapier2d-0.36.1/src/dynamics/mod.rs:54-55`). It compiles `soft_constraint` unconditionally (`rapier2d-0.36.1/src/dynamics/solver/mod.rs:14`). `rapier3d-0.36.1` has the same lines (`rapier3d-0.36.1/src/dynamics/mod.rs:54-55`, `rapier3d-0.36.1/src/dynamics/solver/mod.rs:14`).
-- `PhysicsPipeline::step` takes a `SoftBodySet`. GWEN owns one and never fills it. 2D: field at `crates/gwen-core/src/physics2d/world.rs:178`, built empty at `:230`, passed to `pipeline.step` at `:860` and `:870`. 3D: field at `crates/gwen-core/src/physics3d/world.rs:259`, built empty at `:694`, passed to `pipeline.step` at `:908` and `:918`.
+- `PhysicsPipeline::step` takes a `SoftBodySet`. GWEN owns one and never fills it. 2D: field at `crates/gwen-core/src/physics2d/world.rs:178`, built empty at `:230`, passed to `pipeline.step` at `:860` and `:870`. 3D: field at `crates/gwen-core/src/physics3d/world.rs:259`, built empty at `:699`, passed to `pipeline.step` at `:919`.
 - `rapier2d-0.36.1/Cargo.toml:62` has a `block-solver` feature. No feature in `rapier2d-0.36.1/Cargo.toml` names the soft-body code (grep `soft`: only `[[test]]` targets, `:263-280`). The same grep on `rapier3d-0.36.1/Cargo.toml` also hits only `[[test]]` targets (`:384-409`).
 
 ## Levers tested

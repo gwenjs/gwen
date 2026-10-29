@@ -86,10 +86,6 @@
       "names": [
         "Engine",
         "JsEntityId",
-        "find_path_2d",
-        "get_collision_event_count",
-        "get_collision_events_ptr",
-        "get_path_buffer_ptr",
         "gwen_abi_fingerprint"
       ],
       "rawExports": [
@@ -187,10 +183,6 @@
         "engine_update_entity_archetype",
         "engine_update_transforms",
         "engine_write_component_staged",
-        "find_path_2d",
-        "get_collision_event_count",
-        "get_collision_events_ptr",
-        "get_path_buffer_ptr",
         "gwen_abi_fingerprint",
         "jsentityid_generation",
         "jsentityid_index",
@@ -209,8 +201,6 @@
       "names": [
         "Engine",
         "JsEntityId",
-        "find_path_3d",
-        "get_path_buffer_ptr_3d",
         "gwen_abi_fingerprint"
       ],
       "rawExports": [
@@ -348,8 +338,6 @@
         "engine_update_entity_archetype",
         "engine_update_transforms",
         "engine_write_component_staged",
-        "find_path_3d",
-        "get_path_buffer_ptr_3d",
         "gwen_abi_fingerprint",
         "jsentityid_generation",
         "jsentityid_index",

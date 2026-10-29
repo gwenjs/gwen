@@ -93,6 +93,16 @@ export const DebugSystem = defineSystem(() => {
 })
 ```
 
+## Engines on one instance
+
+Two engines can run on one WASM instance. Each engine owns its entities, its physics world, and its path buffers. A path written by one engine is not the path the other engine reads.
+
+They still share three things:
+
+- The linear-memory budget. One instance has one `WebAssembly.Memory`. Every engine of that instance allocates from it. `wasmMemoryBytes` is the size of that memory.
+- The allocator. One allocator serves every engine of the instance.
+- The fault domain. A trap leaves the shared instance's memory in an unknown state. Only the engine that trapped is marked poisoned. The other engines are not stopped and must not be trusted.
+
 ## Frame Stats
 
 `engine.getStats()` returns live performance metrics:

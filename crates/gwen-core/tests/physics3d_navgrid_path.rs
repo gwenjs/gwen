@@ -8,9 +8,7 @@
 #![cfg(feature = "physics3d")]
 
 use gwen_core::bindings::Engine;
-use gwen_core::physics3d::{
-    get_path_buffer_ptr_3d, PathRequestReject, Physics3DError, MAX_NAVGRID_CELLS, MAX_PATH_COORD,
-};
+use gwen_core::physics3d::{PathRequestReject, Physics3DError, MAX_NAVGRID_CELLS, MAX_PATH_COORD};
 
 type Outcome = Result<(), Physics3DError>;
 
@@ -69,12 +67,10 @@ fn upload_cells(
     )
 }
 
-/// Reads the first `count` waypoints of the calling thread's path buffer.
-fn path(count: u32) -> Vec<f32> {
-    let ptr = get_path_buffer_ptr_3d();
-    // SAFETY: the buffer holds `MAX_PATH_NODES_3D * 3` floats on this thread and every `count`
-    // in this file comes from a search that is capped at `MAX_PATH_NODES_3D`.
-    unsafe { std::slice::from_raw_parts(ptr, count as usize * 3).to_vec() }
+/// Reads the first `count` waypoints of this engine's path buffer.
+fn path(e: &Engine, count: u32) -> Result<Vec<f32>, Physics3DError> {
+    let buffer = e.physics3d_path_buffer()?;
+    Ok(buffer[..count as usize * 3].to_vec())
 }
 
 fn find(e: &mut Engine, from: [f32; 3], to: [f32; 3]) -> Result<u32, Physics3DError> {
@@ -104,6 +100,10 @@ fn init_and_find_without_a_world_return_not_initialized() -> Outcome {
         find(&mut e, [0.0; 3], [1.0; 3]),
         Err(Physics3DError::WorldNotInitialized)
     );
+    assert_eq!(
+        e.physics3d_get_path_buffer_ptr_3d(),
+        Err(Physics3DError::WorldNotInitialized)
+    );
     Ok(())
 }
 
@@ -126,7 +126,7 @@ fn zero_dimension_is_refused_and_keeps_the_previous_grid() -> Outcome {
         assert_eq!(upload(&mut e, &[0; 9], w, h, d), Err(invalid_grid(w, h, d)));
     }
     assert_eq!(find(&mut e, [1.0, 0.0, 0.0], [1.0, 0.0, 2.0]), Ok(3));
-    assert_eq!(path(3), PRIMED_PATH);
+    assert_eq!(path(&e, 3)?, PRIMED_PATH);
     Ok(())
 }
 
@@ -150,7 +150,7 @@ fn overflowing_cell_count_is_refused_and_keeps_the_previous_grid() -> Outcome {
         assert_eq!(upload(&mut e, &cells, w, h, d), Err(invalid_grid(w, h, d)));
     }
     assert_eq!(find(&mut e, [1.0, 0.0, 0.0], [1.0, 0.0, 2.0]), Ok(3));
-    assert_eq!(path(3), PRIMED_PATH);
+    assert_eq!(path(&e, 3)?, PRIMED_PATH);
     Ok(())
 }
 
@@ -161,7 +161,10 @@ fn cell_count_at_the_cap_is_accepted_and_one_above_is_refused() -> Outcome {
     let cells = vec![0u8; MAX_NAVGRID_CELLS];
     assert_eq!(upload(&mut e, &cells, cap, 1, 1), Ok(()));
     assert_eq!(find(&mut e, [0.0; 3], [2.0, 0.0, 0.0]), Ok(3));
-    assert_eq!(path(3), vec![0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 2.0, 0.0, 0.0]);
+    assert_eq!(
+        path(&e, 3)?,
+        vec![0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 2.0, 0.0, 0.0]
+    );
 
     assert_eq!(
         upload(&mut e, &cells, cap + 1, 1, 1),
@@ -212,7 +215,7 @@ fn navgrid_export_refuses_a_slice_shorter_than_the_cells() -> Outcome {
     assert_eq!(refused, Err(invalid_grid(3, 1, 3)));
     assert_eq!(message.match_indices("number of cell bytes").count(), 1);
     assert_eq!(find(&mut e, [1.0, 0.0, 0.0], [1.0, 0.0, 2.0]), Ok(3));
-    assert_eq!(path(3), PRIMED_PATH);
+    assert_eq!(path(&e, 3)?, PRIMED_PATH);
     Ok(())
 }
 
@@ -225,7 +228,7 @@ fn navgrid_export_refuses_a_slice_longer_than_the_cells() -> Outcome {
         Err(invalid_grid(3, 1, 3))
     );
     assert_eq!(find(&mut e, [1.0, 0.0, 0.0], [1.0, 0.0, 2.0]), Ok(3));
-    assert_eq!(path(3), PRIMED_PATH);
+    assert_eq!(path(&e, 3)?, PRIMED_PATH);
     Ok(())
 }
 
@@ -235,7 +238,7 @@ fn navgrid_export_refuses_an_empty_slice() -> Outcome {
     // 3 x 1 x 3 needs 9 cells. An empty slice has none.
     assert_eq!(upload(&mut e, &[], 3, 1, 3), Err(invalid_grid(3, 1, 3)));
     assert_eq!(find(&mut e, [1.0, 0.0, 0.0], [1.0, 0.0, 2.0]), Ok(3));
-    assert_eq!(path(3), PRIMED_PATH);
+    assert_eq!(path(&e, 3)?, PRIMED_PATH);
     Ok(())
 }
 
@@ -244,11 +247,11 @@ fn navgrid_export_refuses_an_empty_slice() -> Outcome {
 #[test]
 fn open_grid_path_and_blocked_grid_fallback_are_unchanged() -> Outcome {
     let mut e = primed()?;
-    assert_eq!(path(3), PRIMED_PATH);
+    assert_eq!(path(&e, 3)?, PRIMED_PATH);
     // The whole z = 1 row is solid: no route, so the two-waypoint straight fallback.
     upload(&mut e, &[0, 0, 0, 1, 1, 1, 0, 0, 0], 3, 1, 3)?;
     assert_eq!(find(&mut e, [1.0, 0.0, 0.0], [1.0, 0.0, 2.0]), Ok(2));
-    assert_eq!(path(2), vec![1.0, 0.0, 0.0, 1.0, 0.0, 2.0]);
+    assert_eq!(path(&e, 2)?, vec![1.0, 0.0, 0.0, 1.0, 0.0, 2.0]);
     Ok(())
 }
 
@@ -258,7 +261,7 @@ fn cell_size_and_origin_scale_the_waypoints() -> Outcome {
     upload_open(&mut e, [3, 1, 3], 2.0, [10.0, 0.0, 10.0])?;
     assert_eq!(find(&mut e, [10.0, 0.0, 10.0], [14.0, 0.0, 10.0]), Ok(3));
     assert_eq!(
-        path(3),
+        path(&e, 3)?,
         vec![10.0, 0.0, 10.0, 12.0, 0.0, 10.0, 14.0, 0.0, 10.0]
     );
     Ok(())
@@ -269,7 +272,10 @@ fn negative_cell_size_still_mirrors_the_grid() -> Outcome {
     let mut e = engine()?;
     upload_open(&mut e, [3, 1, 3], -1.0, [0.0; 3])?;
     assert_eq!(find(&mut e, [0.0; 3], [-2.0, 0.0, 0.0]), Ok(3));
-    assert_eq!(path(3), vec![0.0, 0.0, 0.0, -1.0, 0.0, 0.0, -2.0, 0.0, 0.0]);
+    assert_eq!(
+        path(&e, 3)?,
+        vec![0.0, 0.0, 0.0, -1.0, 0.0, 0.0, -2.0, 0.0, 0.0]
+    );
     Ok(())
 }
 
@@ -279,9 +285,9 @@ fn negative_cell_size_still_mirrors_the_grid() -> Outcome {
 fn refuse(from: [f32; 3], to: [f32; 3], reason: PathRequestReject) -> Outcome {
     let mut e = primed()?;
     assert_eq!(find(&mut e, from, to), Err(bad_request(reason)));
-    assert_eq!(path(3), PRIMED_PATH);
+    assert_eq!(path(&e, 3)?, PRIMED_PATH);
     assert_eq!(find(&mut e, [1.0, 0.0, 0.0], [1.0, 0.0, 2.0]), Ok(3));
-    assert_eq!(path(3), PRIMED_PATH);
+    assert_eq!(path(&e, 3)?, PRIMED_PATH);
     Ok(())
 }
 
@@ -336,7 +342,7 @@ fn coordinates_at_the_cell_bound_are_accepted_and_keep_the_straight_fallback() -
     for target in [[edge, 0.0, 0.0], [-edge, 0.0, 0.0], [0.0, edge, -edge]] {
         assert_eq!(find(&mut e, [1.0, 0.0, 0.0], target), Ok(2));
         assert_eq!(
-            path(2),
+            path(&e, 2)?,
             vec![1.0, 0.0, 0.0, target[0], target[1], target[2]]
         );
         assert_eq!(find(&mut e, target, [edge, edge, edge]), Ok(2));

@@ -27,12 +27,10 @@ function result(): { kind: "result" } {
 }
 
 const PHYSICS2D: Record<string, ExportRow> = {
-  find_path_2d: result(),
-  get_collision_event_count: infallible("returns 0"),
-  get_collision_events_ptr: infallible("returns a null pointer"),
-  get_path_buffer_ptr: infallible("returns the address of the static path buffer"),
   path_find_2d: result(),
-  path_get_result_ptr: infallible("returns the address of the static path buffer"),
+  path_get_result_ptr: infallible(
+    "returns the address of this engine's path buffer, allocated once in Engine::new",
+  ),
   physics2d_bulk_apply_impulse: result(),
   physics2d_bulk_sync_from_rapier: result(),
   physics2d_bulk_sync_to_rapier: result(),
@@ -77,8 +75,7 @@ const PHYSICS2D: Record<string, ExportRow> = {
   physics_update_sensor_state: infallible("the body ignores its arguments"),
 };
 
-const PHYSICS_NAME =
-  /^(?:physics_|physics2d_|path_|find_path_2d$|get_path_buffer_ptr$|get_collision_events_ptr$|get_collision_event_count$)/;
+const PHYSICS_NAME = /^(?:physics_|physics2d_|path_)/;
 
 const PLACEHOLDER_WHY = new Set(["infallible", "ok", "none", "n/a"]);
 

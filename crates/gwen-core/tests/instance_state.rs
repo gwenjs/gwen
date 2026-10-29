@@ -29,38 +29,33 @@ mod physics3d {
     use std::fmt::Debug;
 
     use gwen_core::bindings::Engine;
-    use gwen_core::CoreError;
 
     /// Pointer from the export as it is today (`u32`) and after it returns `Result`.
     trait AsPathPtr {
-        fn into_path_ptr(self) -> u32;
+        fn into_path_ptr(self) -> Result<u32, String>;
     }
 
     impl AsPathPtr for u32 {
-        fn into_path_ptr(self) -> u32 {
-            self
+        fn into_path_ptr(self) -> Result<u32, String> {
+            Ok(self)
         }
     }
 
     impl<E: Debug> AsPathPtr for Result<u32, E> {
-        #[allow(clippy::panic, reason = "a refused path pointer fails the test")]
-        fn into_path_ptr(self) -> u32 {
-            match self {
-                Ok(ptr) => ptr,
-                Err(err) => panic!("path pointer refused: {err:?}"),
-            }
+        fn into_path_ptr(self) -> Result<u32, String> {
+            self.map_err(|err| format!("path pointer refused: {err:?}"))
         }
     }
 
     #[test]
-    fn two_engines_keep_their_own_3d_path_buffer() -> Result<(), CoreError> {
-        let mut first = Engine::new(8)?;
-        let mut second = Engine::new(8)?;
+    fn two_engines_keep_their_own_3d_path_buffer() -> Result<(), String> {
+        let mut first = Engine::new(8).map_err(|err| format!("{err:?}"))?;
+        let mut second = Engine::new(8).map_err(|err| format!("{err:?}"))?;
         first.physics3d_init(0.0, 0.0, 0.0, 8);
         second.physics3d_init(0.0, 0.0, 0.0, 8);
         assert_ne!(
-            first.physics3d_get_path_buffer_ptr_3d().into_path_ptr(),
-            second.physics3d_get_path_buffer_ptr_3d().into_path_ptr(),
+            first.physics3d_get_path_buffer_ptr_3d().into_path_ptr()?,
+            second.physics3d_get_path_buffer_ptr_3d().into_path_ptr()?,
         );
         Ok(())
     }

@@ -50,13 +50,13 @@ export default defineConfig({
 
 ## Rapier 0.36
 
-Rapier clamps linear speed after each solver substep. The default cap is 400 m/s. `maxLinearVelocity` sets GWEN's cap and that Rapier cap (`crates/gwen-core/src/physics2d/world.rs:787-793`, `crates/gwen-core/src/physics3d/world.rs:799-805`). A new world starts at 400 (`crates/gwen-core/src/physics2d/world.rs:244`, `crates/gwen-core/src/physics3d/world.rs:715`). A value that is not finite, or that is zero or negative, is refused and both caps stay.
+Rapier clamps linear speed after each solver substep. The default cap is 400 m/s. `maxLinearVelocity` sets GWEN's cap and that Rapier cap (`crates/gwen-core/src/physics2d/world.rs:787-793`, `crates/gwen-core/src/physics3d/world.rs:811-812`). A new world starts at 400 (`crates/gwen-core/src/physics2d/world.rs:244`, `crates/gwen-core/src/physics3d/world.rs:716`). A value that is not finite, or that is zero or negative, is refused and both caps stay.
 
 A body falls asleep after half a second below the sleep threshold (`rapier3d-0.36.1/src/dynamics/rigid_body_components.rs:1375`, `crates/gwen-core/tests/physics3d_rapier_036.rs:333`). An island sleeps once every body in it is eligible (`crates/gwen-core/tests/physics3d_rapier_036.rs:356`).
 
 With one CCD substep, a fast dynamic box does not pass through a thin fixed wall even when its own CCD flag is off (`crates/gwen-core/tests/physics2d_rapier_036.rs:241`). The Low preset keeps that one substep (`crates/gwen-core/src/physics2d/world.rs:60-63`, `crates/gwen-core/src/physics3d/components.rs:101-104`). Zero substeps turns this CCD off, and the same box passes the wall (`crates/gwen-core/src/physics2d/world.rs:1728`).
 
-Extra solver iterations add substeps for the whole island that contains the body. In 2D, `additionalSolverIterations` is stored at 16 or below (`packages/physics2d/src/types/api.ts:71`, `crates/gwen-core/src/physics2d/world.rs:17`, `crates/gwen-core/src/physics2d/world.rs:292`). In 3D, `set_body_solver_iterations` uses the same cap of 0–16 (`crates/gwen-core/src/physics3d/world.rs:338`, `crates/gwen-core/src/physics3d/world.rs:2776-2778`). 0 adds no extra substeps. 17 and above are stored as 16. The physics3d plugin invokes `physics3d_set_body_solver_iterations` only when the mapped count is above 0 (`packages/physics3d/src/plugin/body-management.ts:276-279`).
+Extra solver iterations add substeps for the whole island that contains the body. In 2D, `additionalSolverIterations` is stored at 16 or below (`packages/physics2d/src/types/api.ts:71`, `crates/gwen-core/src/physics2d/world.rs:17`, `crates/gwen-core/src/physics2d/world.rs:292`). In 3D, `set_body_solver_iterations` uses the same cap of 0–16 (`crates/gwen-core/src/physics3d/world.rs:343`, `crates/gwen-core/src/physics3d/world.rs:2807-2809`). 0 adds no extra substeps. 17 and above are stored as 16. The physics3d plugin invokes `physics3d_set_body_solver_iterations` only when the mapped count is above 0 (`packages/physics3d/src/plugin/body-management.ts:276-279`).
 
 ## Composables
 
@@ -337,7 +337,7 @@ const isGrounded = hit !== null
 
 ### physics3d:body-disabled
 
-The plugin emits this hook after a step that disabled a body. The payload is `{ entity, reason }`. `reason` is `non-finite`, `out-of-bounds`, or `velocity`. The body stays registered. A query or `getBodyState` still answers. A dynamic body and a body Rapier quarantines are both included (`crates/gwen-core/src/physics3d/world.rs:1019`).
+The plugin emits this hook after a step that disabled a body. The payload is `{ entity, reason }`. `reason` is `non-finite`, `out-of-bounds`, or `velocity`. The body stays registered. A query or `getBodyState` still answers. A dynamic body and a body Rapier quarantines are both included (`crates/gwen-core/src/physics3d/world.rs:1023`).
 
 ```ts
 engine.hooks.hook("physics3d:body-disabled", ({ entity, reason }) => {
