@@ -254,8 +254,11 @@ export class GwenApp {
    *
    * Extenders are applied in registration order (first registered, first applied).
    * Each extender receives the accumulated config from previous extenders.
+   * The user `vite` key is already the last extender (`setupModules`).
    *
    * @param base - The starting Vite config (e.g. from `vite.config.ts`).
+   * @param merge - Combines the accumulated config with one extender result.
+   *   Defaults to a shallow spread. Pass Vite's `mergeConfig` for a deep merge.
    * @returns A new merged Vite config object.
    *
    * @example
@@ -263,8 +266,14 @@ export class GwenApp {
    * const viteConfig = app.resolveViteConfig({ root: './src', plugins: [] })
    * ```
    */
-  resolveViteConfig(base: ViteUserConfig): ViteUserConfig {
-    return this._viteConfigExtenders.reduce((cfg, fn) => ({ ...cfg, ...fn(cfg) }), base);
+  resolveViteConfig(
+    base: ViteUserConfig,
+    merge: (config: ViteUserConfig, patch: Partial<ViteUserConfig>) => ViteUserConfig = (
+      config,
+      patch,
+    ) => ({ ...config, ...patch }),
+  ): ViteUserConfig {
+    return this._viteConfigExtenders.reduce((cfg, fn) => merge(cfg, fn(cfg)), base);
   }
 
   // ── _createKit ───────────────────────────────────────────────────────────────

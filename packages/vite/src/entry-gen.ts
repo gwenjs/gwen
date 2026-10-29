@@ -27,6 +27,44 @@ import {
 } from "./oxc/index.js";
 import type { PluginDeclaration } from "@gwenjs/schema";
 
+/**
+ * Resolved config the entry inlines.
+ * Own keys other than the reserved set become `sections`.
+ * The reserved set matches `RESERVED_KEYS` in `packages/app/src/app.ts:29`.
+ */
+export interface EntryResolvedConfig {
+  readonly engine: {
+    readonly variant: string;
+    readonly loop: string;
+  };
+}
+
+/** Top-level keys that are not module sections. Same names as `packages/app/src/app.ts:29`. */
+const RESERVED_CONFIG_KEYS = new Set([
+  "modules",
+  "engine",
+  "logger",
+  "vite",
+  "hooks",
+  "plugins",
+  "viewports",
+  "screen",
+  "globalCss",
+  "localPluginsDir",
+  "localModulesDir",
+  "mainScene",
+]);
+
+function resolvedSections(resolved: EntryResolvedConfig): Record<string, unknown> {
+  const sections: Record<string, unknown> = {};
+  for (const key of Object.keys(resolved)) {
+    if (RESERVED_CONFIG_KEYS.has(key)) continue;
+    const value: unknown = Reflect.get(resolved, key);
+    if (value !== undefined) sections[key] = value;
+  }
+  return sections;
+}
+
 // ── Scan src/scenes/ ──────────────────────────────────────────────────────────
 
 interface SceneInfo {
@@ -395,11 +433,13 @@ export function generateConfigModulesVirtualModule(moduleNames: string[]): strin
  * @param hasScenesDir - Whether `src/scenes/` exists in the project.
  * @param declarations - Path-based plugin declarations collected from module setup().
  * @param cssFiles     - Root-relative CSS paths to inject as top-level imports.
+ * @param resolved     - Resolved GWEN config. Engine values and module sections are inlined.
  */
 export function generateEntryModule(
   hasScenesDir: boolean,
   declarations: PluginDeclaration[] = [],
   cssFiles: string[] = [],
+  resolved: EntryResolvedConfig,
 ): string {
   const lines: string[] = [];
 
@@ -409,7 +449,7 @@ export function generateEntryModule(
 
   lines.push(
     'import { createEngine } from "@gwenjs/core";',
-    'import { WasmBridgeImpl, detectCoreVariant } from "@gwenjs/core/internal";',
+    'import { WasmBridgeImpl } from "@gwenjs/core/internal";',
     'import { createViewportsPlugin, createScreenPlugin } from "@gwenjs/app";',
     'import gwenConfig from "/gwen.config.ts";',
     'import { configModules as _cfgModules } from "virtual:gwen/config-modules";',
@@ -430,13 +470,14 @@ export function generateEntryModule(
     }
   }
 
+  const inlined = JSON.stringify({ engine: resolved.engine, sections: resolvedSections(resolved) });
   const bootstrapLines: string[] = [
     "",
     "async function bootstrap() {",
-    "  const variant = detectCoreVariant(gwenConfig);",
+    `  const __gwenResolved = ${inlined};`,
     "  const bridge = new WasmBridgeImpl();",
-    "  await bridge.init(variant);",
-    "  const engine = await createEngine({ ...gwenConfig.engine, logger: gwenConfig.logger, variant, _bridge: bridge });",
+    "  await bridge.init(__gwenResolved.engine.variant);",
+    "  const engine = await createEngine({ ...__gwenResolved.engine, logger: gwenConfig.logger, _bridge: bridge });",
     "",
     "  await engine.use(createViewportsPlugin(gwenConfig.viewports));",
     "  await engine.use(createScreenPlugin(gwenConfig.screen));",
@@ -455,14 +496,16 @@ export function generateEntryModule(
     );
   }
 
+  const resolvedKitOptions =
+    "options: { ...__gwenResolved.sections, engine: __gwenResolved.engine }";
   bootstrapLines.push(
     "",
     "  for (const _cmMod of _cfgModules) {",
     "    const _cmPlugins = [];",
     "    const _cmDecls = [];",
-    '    const _cmKit = { addPlugin(p) { if (typeof p === "function") { _cmPlugins.push(p()); } else if (p && "src" in p) { _cmDecls.push(p); } else { _cmPlugins.push(p); } }, addAutoImports() {}, addVitePlugin() {}, extendViteConfig() {}, hook() {}, options: gwenConfig };',
+    `    const _cmKit = { addPlugin(p) { if (typeof p === "function") { _cmPlugins.push(p()); } else if (p && "src" in p) { _cmDecls.push(p); } else { _cmPlugins.push(p); } }, addAutoImports() {}, addVitePlugin() {}, extendViteConfig() {}, hook() {}, ${resolvedKitOptions} };`,
     "    const _cmKey = _cmMod.meta?.configKey;",
-    "    const _cmOpts = Object.assign({}, _cmMod.defaults ?? {}, _cmKey ? (gwenConfig[_cmKey] ?? {}) : {});",
+    "    const _cmOpts = _cmKey ? (__gwenResolved.sections[_cmKey] ?? {}) : {};",
     "    await _cmMod.setup(_cmOpts, _cmKit);",
     "    for (const p of _cmPlugins) await engine.use(p);",
     "    for (const d of _cmDecls) { const _m = await import(/* @vite-ignore */ d.src); const _f = d.export ? _m[d.export] : _m.default; await engine.use(d.options !== undefined ? _f(d.options) : _f()); }",
@@ -471,9 +514,9 @@ export function generateEntryModule(
     "  for (const mod of _localModules) {",
     "    const _lmPlugins = [];",
     "    const _lmDecls = [];",
-    '    const _lmKit = { addPlugin(p) { if (typeof p === "function") { _lmPlugins.push(p()); } else if (p && "src" in p) { _lmDecls.push(p); } else { _lmPlugins.push(p); } }, addAutoImports() {}, addVitePlugin() {}, extendViteConfig() {}, hook() {}, options: gwenConfig };',
+    `    const _lmKit = { addPlugin(p) { if (typeof p === "function") { _lmPlugins.push(p()); } else if (p && "src" in p) { _lmDecls.push(p); } else { _lmPlugins.push(p); } }, addAutoImports() {}, addVitePlugin() {}, extendViteConfig() {}, hook() {}, ${resolvedKitOptions} };`,
     "    const _lmKey = mod.meta?.configKey;",
-    "    const _lmOpts = Object.assign({}, mod.defaults ?? {}, _lmKey ? (gwenConfig[_lmKey] ?? {}) : {});",
+    "    const _lmOpts = _lmKey ? (__gwenResolved.sections[_lmKey] ?? {}) : {};",
     "    await mod.setup(_lmOpts, _lmKit);",
     "    for (const p of _lmPlugins) await engine.use(p);",
     "    for (const d of _lmDecls) { const _m = await import(/* @vite-ignore */ d.src); const _f = d.export ? _m[d.export] : _m.default; await engine.use(d.options !== undefined ? _f(d.options) : _f()); }",
@@ -503,7 +546,7 @@ export function generateEntryModule(
 
   bootstrapLines.push(
     "",
-    '  if (gwenConfig.engine?.loop === "external") {',
+    '  if (__gwenResolved.engine.loop === "external") {',
     "    await engine.startExternal();",
     "  } else {",
     "    await engine.start();",
