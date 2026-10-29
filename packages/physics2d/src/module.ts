@@ -13,6 +13,7 @@
  */
 
 import { defineGwenModule } from "@gwenjs/kit/module";
+import { PHYSICS2D_DEFAULTS, checkPhysics2DConfig } from "./config";
 import { Physics2DPlugin } from "./plugin/index";
 import { physics2dVitePlugin } from "./vite-plugin";
 import type { Physics2DConfig } from "./types";
@@ -34,10 +35,8 @@ declare module "@gwenjs/schema" {
 
 export default defineGwenModule<Physics2DConfig>({
   meta: { name: "@gwenjs/physics2d", configKey: "physics2d" },
-  defaults: {
-    gravity: -9.81,
-    gravityX: 0,
-  },
+  defaults: PHYSICS2D_DEFAULTS,
+  validate: checkPhysics2DConfig,
   async setup(options, kit) {
     kit.addPlugin(Physics2DPlugin(options));
     const viteDebug = options.vite?.debug;
