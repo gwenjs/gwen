@@ -59,6 +59,24 @@ compile_error!(
      Enable exactly one per WASM build variant. See Cargo.toml [features] for details."
 );
 
+/// Prints `[GWEN] panic:` on the browser console. Dev-checked wasm only.
+/// Release builds compile the empty function, so the text is not in the binary.
+#[cfg(all(target_arch = "wasm32", debug_assertions))]
+pub(crate) fn install_panic_hook() {
+    use std::sync::Once;
+
+    static HOOK: Once = Once::new();
+    HOOK.call_once(|| {
+        std::panic::set_hook(Box::new(|info| {
+            let line = format!("[GWEN] panic: {info}");
+            web_sys::console::error_1(&wasm_bindgen::JsValue::from(line));
+        }));
+    });
+}
+
+#[cfg(not(all(target_arch = "wasm32", debug_assertions)))]
+pub(crate) fn install_panic_hook() {}
+
 /// Shared memory layout constants re-exported for external crate consumers.
 /// These values are defined in `transform` (the canonical source of truth).
 pub mod shared_memory {
