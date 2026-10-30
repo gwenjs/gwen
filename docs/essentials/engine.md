@@ -146,18 +146,26 @@ They still share three things:
 
 `createEngine` in Node still defaults to `shared` (`packages/core/src/engine/engine-factory.ts:79`). `isolated` becomes the Node default only with `@gwenjs/core/node`, in a later ticket (#267).
 
-Browser `isolated` is not supported until the browser gate (#265).
+Browser `isolated` is supported. Three Playwright projects gate it: Chromium, Firefox and WebKit (`packages/core/playwright.config.ts:21-23`). They run `packages/core/tests/browser/isolation.pw.ts` and `packages/core/tests/browser/capacity.pw.ts`. `shared` stays the default in the browser. On iOS devices, use the default `shared` mode. iOS is not in CI.
 
 Measured capacity:
 
-| Runtime | What was measured |
-| --- | --- |
-| Chromium | About 125 WASM memories per renderer process. |
-| Firefox | About 999, then throws a value that is not an `Error`. |
-| WebKit | No stable limit. Observations of 13,575 to 14,600 instances. Those figures are observations, not limits. |
-| Node 22 | About 10 GiB of virtual memory per instance with the trap handler on. Budget with `ulimit -v`. |
+| Browser | Version | Measured limit | Date |
+| --- | --- | --- | --- |
+| Chromium | 153.0.8010.12 | 123 isolated engines created. The 124th rejects `CORE:WASM_CAPACITY_EXHAUSTED`, with one shared engine created first (`packages/core/tests/browser/capacity.pw.ts:46`). | 2026-10-30 |
+| Firefox | 155.0 | 998 isolated engines created. The 999th rejects `CORE:WASM_CAPACITY_EXHAUSTED`. The thrown value is not an `Error`; `packages/core/src/engine/wasm-instance-provider.ts:45` maps it. | 2026-10-30 |
+| WebKit | 26.6 | No limit observed up to 500 isolated engines: 500 distinct memories, no crash. The test loop stops at 500 and never probes further (`packages/core/tests/browser/capacity.pw.ts:142`). | 2026-10-30 |
+| Node 22 | — | About 10 GiB of virtual memory per instance with the trap handler on. Budget with `ulimit -v`. | — |
+
+The browser values come from CI run 41059346720 (ubuntu-latest, Playwright 1.63.0, job `Browser WASM (Playwright)`). They are measured values on one runner and one date. They are not guarantees. Browser versions change them.
+
+A manual run, not in CI, saw the WebKit page process die at about 13,575 to 14,600 instances. That is an observation, not a limit, and not a guarantee.
+
+Firefox on ARM64 Android reserves room for 75 huge memories (SpiderMonkey source); this is unmeasured.
 
 When `glue.initSync` throws a `RangeError` or a value that is not an `Error`, `initWasm` throws `CORE:WASM_CAPACITY_EXHAUSTED` (`packages/core/src/engine/wasm-instance-provider.ts:46`). The fallbacks are `wasmInstance: "shared"`, fewer engines per process, or worker threads.
+
+When the capacity code is thrown, the shared engine created first keeps working. `capacity.pw.ts` asserts that it still advances (`packages/core/tests/browser/capacity.pw.ts:74`, `:92`) and that a second shared engine initialises after the rejection (`packages/core/tests/browser/capacity.pw.ts:75`, `:93`).
 
 ```ts
 const room = await createEngine({ variant: "physics2d", wasmInstance: "isolated" });
