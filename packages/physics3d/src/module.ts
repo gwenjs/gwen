@@ -14,7 +14,6 @@
 
 import { defineGwenModule } from "@gwenjs/kit/module";
 import type { VitePlugin } from "@gwenjs/kit";
-import { Physics3DPlugin } from "./index";
 import type { Physics3DConfig } from "./types";
 import { physics3dVitePlugin, type GwenPhysics3DPluginOptions } from "./vite-plugin";
 
@@ -35,7 +34,7 @@ export default defineGwenModule<Physics3DConfig>({
     gravity: { x: 0, y: -9.81, z: 0 },
   },
   async setup(options, kit) {
-    kit.addPlugin(Physics3DPlugin(options));
+    kit.addPlugin({ src: "@gwenjs/physics3d", export: "Physics3DPlugin", options });
 
     kit.addAutoImports([
       { name: "usePhysics3D", from: "@gwenjs/physics3d" },
