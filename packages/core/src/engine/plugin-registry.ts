@@ -14,6 +14,8 @@ import {
   GwenPluginShapeError,
 } from "./engine-errors.js";
 import { popEngine, pushEngine } from "./engine-local.js";
+import type { ServiceChangeNotice } from "./service-change.js";
+import type { ServiceWriteResult } from "./service-container.js";
 import type { EngineErrorBus, GwenEngine, GwenPlugin } from "./engine-types.js";
 import {
   beginPluginSetup,
@@ -48,6 +50,18 @@ export interface PluginRegistryDeps {
    * Engine-owned keys stay. This must not check engine state.
    */
   deleteService: (key: string, expected: unknown) => boolean;
+  /** Classify and store. Does not announce. Same state gate as `ServiceContainer.provide`. */
+  writeService: (key: string, value: unknown) => ServiceWriteResult;
+  /** Isolated `service:provided` / `service:removed`. */
+  emitServiceChange: (notice: ServiceChangeNotice) => void;
+}
+
+interface QueuedProvide {
+  readonly key: string;
+  readonly value: unknown;
+  readonly previous: unknown;
+  readonly previousOwner: string | undefined;
+  readonly overwrite: boolean;
 }
 
 type PluginRegistryReceiver = Pick<GwenEngine, "hooks">;
@@ -73,6 +87,10 @@ export class PluginRegistry {
   private readonly _scopes = new Map<string, GwenScope>();
   /** Plugin name → service key → value that plugin's setup proxy provided. */
   private readonly _owned = new Map<string, Map<string, unknown>>();
+  /** Provides made during `setup`, flushed after the name is stored. */
+  private readonly _queued = new Map<string, QueuedProvide[]>();
+  /** First value a not-yet-installed plugin replaced. Restored if `setup` throws. */
+  private readonly _rollback = new Map<string, Map<string, { readonly previous: unknown }>>();
 
   constructor(private readonly deps: PluginRegistryDeps) {}
 
@@ -206,7 +224,8 @@ export class PluginRegistry {
       if (setupResult instanceof Promise) await setupResult;
     } catch (err) {
       // Roll back owned services, the plugin scope, onCleanup callbacks, and scoped hooks.
-      // A provide before the throw must not stay in the container or in `_owned`.
+      // A created key is deleted. A replaced key is restored. Nothing is announced.
+      this._queued.delete(plugin.name);
       this._dropOwned(plugin.name);
       this._scopes.delete(plugin.name);
       // A throwing onCleanup is reported. It must not replace the setup error
@@ -225,6 +244,8 @@ export class PluginRegistry {
 
     this._plugins.push(plugin);
     this._pluginNames.add(plugin.name);
+    this._rollback.delete(plugin.name);
+    this._flushProvides(plugin.name);
     await receiver.hooks.callHook("plugin:registered", plugin.name);
     if (this.deps.debug) {
       this.deps.logger.debug(`plugin registered: ${plugin.name}`);
@@ -243,13 +264,13 @@ export class PluginRegistry {
         dependents,
       });
     }
-    await this._remove(plugin, receiver);
+    await this._remove(plugin, receiver, "unuse");
   }
 
   /** Last installed first. No state check and no dependency check: `stop()` calls this. */
   async teardownAll(receiver: PluginRegistryReceiver): Promise<void> {
     for (const plugin of [...this._plugins].reverse()) {
-      await this._remove(plugin, receiver);
+      await this._remove(plugin, receiver, "stop");
     }
   }
 
@@ -273,7 +294,11 @@ export class PluginRegistry {
    * The promise is stored before the body runs, so `stop()` waits for an in-flight `unuse`.
    * A `teardown` that awaits `unuse` of its own name waits on this same promise.
    */
-  private _remove(plugin: GwenPlugin, receiver: PluginRegistryReceiver): Promise<void> {
+  private _remove(
+    plugin: GwenPlugin,
+    receiver: PluginRegistryReceiver,
+    reason: "unuse" | "stop",
+  ): Promise<void> {
     const name = plugin.name;
     const inFlight = this._removing.get(name);
     if (inFlight !== undefined) return inFlight;
@@ -285,7 +310,7 @@ export class PluginRegistry {
       rejectRun = reject;
     });
     this._removing.set(name, run);
-    void this._finishRemove(plugin, receiver).then(
+    void this._finishRemove(plugin, receiver, reason).then(
       () => {
         this._removing.delete(name);
         resolveRun();
@@ -303,9 +328,13 @@ export class PluginRegistry {
    * The disposer is inside the `try`: a throwing `onCleanup` is reported and
    * `teardown` still runs. Hook removal stays in `finally`.
    */
-  private async _finishRemove(plugin: GwenPlugin, receiver: PluginRegistryReceiver): Promise<void> {
+  private async _finishRemove(
+    plugin: GwenPlugin,
+    receiver: PluginRegistryReceiver,
+    reason: "unuse" | "stop",
+  ): Promise<void> {
     const name = plugin.name;
-    this._dropOwned(name);
+    this._dropOwned(name, reason);
     const dispose = this._pluginCleanups.get(name);
     this._pluginCleanups.delete(name);
     const scope = this._scopes.get(name);
@@ -331,15 +360,111 @@ export class PluginRegistry {
     }
   }
 
-  /** Reverse provide order. Shared by a failed `setup` and removal step (0). */
-  private _dropOwned(name: string): void {
+  /**
+   * Reverse provide order. Shared by a failed `setup` and removal step (0).
+   * Emits `service:removed` only when `delete` returns true and a reason is set.
+   * The key is already gone. `value` is the value that was removed.
+   */
+  private _dropOwned(name: string, reason?: "unuse" | "stop"): void {
     const owned = this._owned.get(name);
+    const rollback = this._rollback.get(name);
     if (owned !== undefined) {
       for (const key of [...owned.keys()].reverse()) {
-        this.deps.deleteService(key, owned.get(key));
+        const value = owned.get(key);
+        const undo = rollback?.get(key);
+        if (reason === undefined && undo !== undefined) {
+          this.deps.writeService(key, undo.previous);
+          continue;
+        }
+        const removed = this.deps.deleteService(key, value);
+        if (removed && reason !== undefined) {
+          this.deps.emitServiceChange({
+            hook: "service:removed",
+            key,
+            value,
+            owner: name,
+            reason,
+          });
+        }
       }
     }
     this._owned.delete(name);
+    this._rollback.delete(name);
+    this._queued.delete(name);
+  }
+
+  private _flushProvides(name: string): void {
+    const queued = this._queued.get(name);
+    this._queued.delete(name);
+    if (queued === undefined) return;
+    for (const item of queued) this._emitProvide(name, item);
+  }
+
+  /** `service:removed` names the owner of the value that was replaced. */
+  private _emitProvide(name: string, item: QueuedProvide): void {
+    if (item.overwrite && item.previousOwner !== undefined && item.previousOwner !== name) {
+      this._owned.get(item.previousOwner)?.delete(item.key);
+    }
+    if (item.overwrite) {
+      this.deps.emitServiceChange({
+        hook: "service:removed",
+        key: item.key,
+        value: item.previous,
+        owner: item.previousOwner,
+        reason: "overwrite",
+      });
+    }
+    this.deps.emitServiceChange({
+      hook: "service:provided",
+      key: item.key,
+      value: item.value,
+      owner: name,
+      reason: item.overwrite ? "overwrite" : "install",
+    });
+  }
+
+  /** Who held `key` before this plugin's write. Self wins when it already did. */
+  private _ownerOf(self: string, key: string): string | undefined {
+    if (this._owned.get(self)?.has(key)) return self;
+    for (const [owner, keys] of this._owned) {
+      if (owner !== self && keys.has(key)) return owner;
+    }
+    return undefined;
+  }
+
+  /** `same` does not take ownership. Engine-owned keys are stored and not announced. */
+  private _recordProvide(name: string, key: string, value: unknown): void {
+    const write = this.deps.writeService(key, value);
+    if (write.kind === "same") return;
+    const previousOwner = this._ownerOf(name, key);
+    const installed = this._pluginNames.has(name);
+    if (!installed && write.kind === "overwrite" && !this._owned.get(name)?.has(key)) {
+      let roll = this._rollback.get(name);
+      if (roll === undefined) {
+        roll = new Map<string, { readonly previous: unknown }>();
+        this._rollback.set(name, roll);
+      }
+      roll.set(key, { previous: write.previous });
+    }
+    this._ownedFor(name).set(key, value);
+    if (write.kind !== "created" && write.kind !== "overwrite") return;
+    const item: QueuedProvide = {
+      key,
+      value,
+      previous: write.kind === "overwrite" ? write.previous : undefined,
+      previousOwner: write.kind === "overwrite" ? previousOwner : undefined,
+      overwrite: write.kind === "overwrite",
+    };
+    if (this._pluginNames.has(name)) {
+      this._emitProvide(name, item);
+      return;
+    }
+    let queued = this._queued.get(name);
+    if (queued === undefined) {
+      queued = [];
+      this._queued.set(name, queued);
+    }
+    queued.push(item);
   }
 
   //
@@ -417,17 +542,13 @@ export class PluginRegistry {
     scopedHooks: Hookable<GwenRuntimeHooks>,
     receiver: PluginRegistryReceiver,
   ): PluginRegistryReceiver {
-    const owned = this._ownedFor(pluginName);
     const proxy = new Proxy(receiver, {
-      get(target, prop) {
+      get: (target, prop) => {
         if (prop === "hooks") return scopedHooks;
-        // A provide through this proxy is owned. A provide on the real engine is not.
+        // A provide through this proxy is queued. A provide on the real engine is not.
         if (prop === "provide") {
           return (key: string, value: unknown): void => {
-            const provide: unknown = Reflect.get(target, "provide");
-            if (typeof provide !== "function") return;
-            Reflect.apply(provide, target, [key, value]);
-            owned.set(key, value);
+            this._recordProvide(pluginName, key, value);
           };
         }
         return Reflect.get(target, prop);

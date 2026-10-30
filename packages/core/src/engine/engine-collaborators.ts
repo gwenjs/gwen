@@ -17,6 +17,7 @@ import { bindFailureReporter, isIsolated } from "./error-isolation.js";
 import { ScopedHooksTracker } from "./hook-tracker.js";
 import { PluginRegistry } from "./plugin-registry.js";
 import { ServiceContainer } from "./service-container.js";
+import { announceDirectWrite, emitServiceChange } from "./service-change.js";
 import { EngineEntities } from "./engine-entities.js";
 import { EngineStatsRecorder } from "./engine-stats.js";
 import { EngineStateMachine } from "./engine-state.js";
@@ -111,6 +112,9 @@ export abstract class EngineCollaborators {
     });
     this._serviceContainer = new ServiceContainer({
       assertState: (method) => this._stateMachine.assert(method),
+      onDirectWrite: (key, value, write) => {
+        announceDirectWrite(engine, String(key), value, write);
+      },
     });
     this._serviceContainer.provide("wasm:bridge", this._bridge);
     this._serviceContainer.provide("logger", this.logger);
@@ -163,6 +167,14 @@ export abstract class EngineCollaborators {
       hasService: (key) => this._serviceContainer.has(key as keyof GwenProvides),
       deleteService: (key, expected) =>
         this._serviceContainer.delete(key as keyof GwenProvides, expected),
+      writeService: (key, value) =>
+        this._serviceContainer.write(
+          key as keyof GwenProvides,
+          value as GwenProvides[keyof GwenProvides],
+        ),
+      emitServiceChange: (notice) => {
+        emitServiceChange(engine, notice);
+      },
     });
     bindFailureReporter(this, (error, target, hook) => {
       this._policy.reportCaught(error, hook, { target });

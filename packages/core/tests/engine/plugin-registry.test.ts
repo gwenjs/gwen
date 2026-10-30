@@ -93,6 +93,10 @@ function rig(over: Partial<PluginRegistryDeps> = {}) {
     deleteService() {
       return false;
     },
+    writeService() {
+      return { kind: "same" };
+    },
+    emitServiceChange() {},
     ...over,
   };
   return {
