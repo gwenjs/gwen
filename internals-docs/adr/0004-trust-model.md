@@ -20,11 +20,11 @@ On Node, `createEngine` checks that `gwen_core.js` exists (`packages/core/src/en
 `@gwenjs/core` has no `./node` export (`packages/core/package.json:15-88`).
 
 Community modules load through `loadWasmModule`.
-The core glue loads with `import()` (`packages/core/src/engine/wasm-bridge.ts:142-179`).
-The bridge does not build a script from that URL (`packages/core/src/engine/wasm-bridge.ts:127-132`).
+The core glue loads with `import()` (`packages/core/src/engine/wasm-bridge.ts:144-181`).
+The bridge does not build a script from that URL (`packages/core/src/engine/wasm-bridge.ts:129-134`).
 
 The build writes `gwen_core_factory.js` next to each browser variant (`scripts/build-wasm.sh:202`).
-The running bridge still loads `gwen_core.js` (`packages/core/src/engine/wasm-bridge.ts:320-323`).
+The running bridge still loads `gwen_core.js` (`packages/core/src/engine/wasm-bridge.ts:325-328`).
 
 No earlier document states what the engine trusts, what it checks, and what the host must do.
 
@@ -42,21 +42,21 @@ No earlier document states what the engine trusts, what it checks, and what the 
 1. Host configuration is trusted.
    That is `jsUrl`, `wasmUrl`, `cratePath`, and the Vite options.
    The engine does not sanitise them.
-   The glue URL is resolved with `new URL` and loaded with `import()` (`packages/core/src/engine/wasm-bridge.ts:152-167`).
-   A URL that does not parse, or an `import()` that rejects, throws `CORE:WASM_LOAD_ERROR` (`packages/core/src/engine/wasm-bridge.ts:157-177`).
-   The loaded module must expose `default` or `initSync`, and a constructor `Engine` (`packages/core/src/engine/wasm-bridge.ts:364-382`).
+   The glue URL is resolved with `new URL` and loaded with `import()` (`packages/core/src/engine/wasm-bridge.ts:154-169`).
+   A URL that does not parse, or an `import()` that rejects, throws `CORE:WASM_LOAD_ERROR` (`packages/core/src/engine/wasm-bridge.ts:159-179`).
+   The loaded module must expose `default` or `initSync`, and a constructor `Engine` (`packages/core/src/engine/wasm-bridge.ts:369-387`).
    A missing piece is `CORE:WASM_LOAD_ERROR`.
 
 2. The core binary is trusted.
    The developer chooses it.
    Today it arrives as `wasmUrl`, including a `data:` URL.
    The engine does not check provenance.
-   A non-OK fetch is `CORE:WASM_LOAD_ERROR` (`packages/core/src/engine/wasm-bridge.ts:344-349`).
-   A fetch aborted after 10 seconds is `CORE:WASM_TIMEOUT` (`packages/core/src/engine/wasm-bridge.ts:336-357`).
-   A `data:` payload is decoded in `bytesFromDataUrl` (`packages/core/src/engine/wasm-module-cache.ts:18-34`, called at `packages/core/src/engine/wasm-bridge.ts:332`).
-   The `initSync` fallback fetches `wasmUrl` again with no status check and no 10 s abort (`packages/core/src/engine/wasm-bridge.ts:367-369`).
-   A failure that is not a `GwenError` is wrapped as `CORE:WASM_LOAD_ERROR` (`packages/core/src/engine/wasm-bridge.ts:398-412`).
-   A trap in the `Engine` constructor is `CORE:WASM_PANIC` (`packages/core/src/engine/wasm-bridge.ts:385-389`).
+   A non-OK fetch is `CORE:WASM_LOAD_ERROR` (`packages/core/src/engine/wasm-bridge.ts:349-354`).
+   A fetch aborted after 10 seconds is `CORE:WASM_TIMEOUT` (`packages/core/src/engine/wasm-bridge.ts:341-362`).
+   A `data:` payload is decoded in `bytesFromDataUrl` (`packages/core/src/engine/wasm-module-cache.ts:18-34`, called at `packages/core/src/engine/wasm-bridge.ts:337`).
+   The `initSync` fallback fetches `wasmUrl` again with no status check and no 10 s abort (`packages/core/src/engine/wasm-bridge.ts:372-374`).
+   A failure that is not a `GwenError` is wrapped as `CORE:WASM_LOAD_ERROR` (`packages/core/src/engine/wasm-bridge.ts:403-417`).
+   A trap in the `Engine` constructor is `CORE:WASM_PANIC` (`packages/core/src/engine/wasm-bridge.ts:390-394`).
    `CORE:WASM_GLUE_MISMATCH` is planned in #260.
    It is not in `CoreErrorCodes` (`packages/core/src/engine/engine-errors.ts:58-117`).
    A search of `packages/schema/src` found no such code.
@@ -114,7 +114,7 @@ No earlier document states what the engine trusts, what it checks, and what the 
 
 ### Host duty
 
-7. Memory isolation per engine is `wasmInstance: "isolated"` (`packages/core/src/engine/wasm-bridge.ts:358`).
+7. Memory isolation per engine is `wasmInstance: "isolated"` (`packages/core/src/engine/wasm-bridge.ts:401`).
    CPU containment with workers is planned in #268.
    Workers are not an option in this tree.
    `packages/core/src` has no `worker_threads`.
@@ -135,8 +135,8 @@ No earlier document states what the engine trusts, what it checks, and what the 
 ## Consequences
 
 - This ADR owns the boundary table. Each row names the trust level, the check that exists today, and the owner.
-- The glue loads with `import()` only (`packages/core/src/engine/wasm-bridge.ts:167`).
-  The loader does not interpolate the URL into source and does not build a blob script (`packages/core/src/engine/wasm-bridge.ts:127-132`).
+- The glue loads with `import()` only (`packages/core/src/engine/wasm-bridge.ts:169`).
+  The loader does not interpolate the URL into source and does not build a blob script (`packages/core/src/engine/wasm-bridge.ts:129-134`).
   That loader change is #262, "Load the glue without building module source".
   It landed in #290.
   This ADR does not change the loader.
@@ -149,14 +149,14 @@ No earlier document states what the engine trusts, what it checks, and what the 
 
 ## Not shipped
 
-These names appear above so a later ticket can cite them. #263's instance mode is engine behaviour (`packages/core/src/engine/wasm-bridge.ts:358`). The rest is not.
+These names appear above so a later ticket can cite them. #263's instance mode is engine behaviour (`packages/core/src/engine/wasm-bridge.ts:401`). The rest is not.
 
 - #259 — the factory generator and the package export are in this tree.
   The notices file is not. #259 decided that `packages/core/THIRD-PARTY-NOTICES` will list wasm-bindgen under the Apache-2.0 option of `MIT OR Apache-2.0`.
   `git ls-files` and a root listing found no `THIRD-PARTY-NOTICES` file.
   `packages/core/package.json` `files` lists `dist`, `wasm`, `!wasm/toolchain.json`, and `LICENSE` (`:6-11`).
 - #260 — fingerprint compare and `CORE:WASM_GLUE_MISMATCH`. Planned.
-- #263 — `wasmInstance` `"shared"` (default) or `"isolated"` (one instance per engine) is in the tree (`packages/core/src/engine/wasm-bridge.ts:358`, `packages/core/src/engine/wasm-instance-provider.ts:128`). `createEngine` in Node still defaults to `shared` (`packages/core/src/engine/engine-factory.ts:79`). Browser `isolated` is not supported until #265. The browser capacity limit is not in this tree. The issue is "Add a WASM instance provider: shared or isolated instances".
+- #263 — `wasmInstance` `"shared"` (default) or `"isolated"` (one instance per engine) is in the tree (`packages/core/src/engine/wasm-bridge.ts:401`, `packages/core/src/engine/wasm-instance-provider.ts:133`). `createEngine` in Node still defaults to `shared` (`packages/core/src/engine/engine-factory.ts:79`). Browser `isolated` is not supported until #265. The browser capacity limit is not in this tree. The issue is "Add a WASM instance provider: shared or isolated instances".
 - #264 — Node capacity gate on Linux. Planned. The issue is "Gate WASM instance capacity in CI on Linux x64 and arm64".
 - #268 — workers for CPU containment. Planned. The issue is "Document and test a multi-room server on `worker_threads`".
 - #270 — community module byte cap. Planned.
@@ -166,19 +166,19 @@ These names appear above so a later ticket can cite them. #263's instance mode i
 
 Core binary, as the bridge does it today.
 
-1. Resolve `jsUrl` and `wasmUrl`. When neither `jsUrl` nor the package path resolves, init throws `CORE:WASM_LOAD_ERROR` (`packages/core/src/engine/wasm-bridge.ts:320-331`).
-2. `import()` the glue URL (`packages/core/src/engine/wasm-bridge.ts:167`).
-   The function comment says this one path is for the main thread, a worker, and Node (`packages/core/src/engine/wasm-bridge.ts:127-132`).
+1. Resolve `jsUrl` and `wasmUrl`. When neither `jsUrl` nor the package path resolves, init throws `CORE:WASM_LOAD_ERROR` (`packages/core/src/engine/wasm-bridge.ts:325-336`).
+2. `import()` the glue URL (`packages/core/src/engine/wasm-bridge.ts:169`).
+   The function comment says this one path is for the main thread, a worker, and Node (`packages/core/src/engine/wasm-bridge.ts:129-134`).
    That is the loader.
    It is not the room-worker recipe planned in #268.
-   The loaded module is cached on `globalThis` under a key derived from the URL (`:143-147`).
-3. Fetch `wasmUrl` with a 10 second abort, or decode a `data:` URL (`packages/core/src/engine/wasm-bridge.ts:336-361`).
+   The loaded module is cached on `globalThis` under a key derived from the URL (`:145-149`).
+3. Fetch `wasmUrl` with a 10 second abort, or decode a `data:` URL (`packages/core/src/engine/wasm-bridge.ts:341-366`).
    `bytesFromDataUrl` rejects a payload with no comma (`packages/core/src/engine/wasm-module-cache.ts:19-24`).
    A `;base64` payload is decoded with `atob`.
    Any other payload is `decodeURIComponent` then UTF-8 (`packages/core/src/engine/wasm-module-cache.ts:27-29`).
 4. Call `glue.default({ module_or_path })` or `glue.initSync`.
    Require `glue.Engine`.
-   Construct `new glue.Engine(maxEntities)` (`packages/core/src/engine/wasm-bridge.ts:364-389`).
+   Construct `new glue.Engine(maxEntities)` (`packages/core/src/engine/wasm-bridge.ts:369-394`).
 5. There is no compare of a fingerprint or a build id. That check is planned in #260.
 
 Community module, inside `WasmModuleRunner.load`.
@@ -200,9 +200,9 @@ Community module, inside `WasmModuleRunner.load`.
 
 | #   | Channel                                                           | Who           | Trust              | What the engine validates today                                                                                                                                                                                                                                                                                                 | Owner                                                                           |
 | --- | ----------------------------------------------------------------- | ------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| 1   | `jsUrl` glue URL                                                  | host config   | trusted            | `import()` of the absolute URL (`wasm-bridge.ts:167`). A bad URL or a rejected import is `CORE:WASM_LOAD_ERROR` (`wasm-bridge.ts:157-177`). The module must expose `default` or `initSync`, and `Engine` (`wasm-bridge.ts:364-382`). No source is built from the URL.                                                           | host; loader change is #262                                                     |
-| 2   | `wasmUrl`, including a `data:` URL                                | host config   | trusted            | HTTP status (`wasm-bridge.ts:344-349`), a 10 s abort mapped to `CORE:WASM_TIMEOUT` (`wasm-bridge.ts:336-357`), and `data:` decode (`wasm-bridge.ts:111-125`, used at `:341-342`). The `initSync` fallback fetches again with no status check and no 10 s abort (`wasm-bridge.ts:367-369`).                                           | host                                                                            |
-| 3   | core binary (bytes or a compiled module)                          | host / caller | trusted            | Today the option is `wasmUrl` only (`wasm-bridge-types.ts:1074-1081`). There is no `wasmBytes` or `wasmModule` field. A failure that is not a `GwenError` is wrapped as `CORE:WASM_LOAD_ERROR` (`wasm-bridge.ts:398-412`). A trap in the `Engine` constructor is `CORE:WASM_PANIC` (`wasm-bridge.ts:385-389`). `CORE:WASM_GLUE_MISMATCH` is absent from `CoreErrorCodes` (`engine-errors.ts:58-117`) and from `packages/schema/src`. Planned in #260. | host; mismatch check planned in #260; bytes or module option is #89, still open |
+| 1   | `jsUrl` glue URL                                                  | host config   | trusted            | `import()` of the absolute URL (`wasm-bridge.ts:169`). A bad URL or a rejected import is `CORE:WASM_LOAD_ERROR` (`wasm-bridge.ts:159-179`). The module must expose `default` or `initSync`, and `Engine` (`wasm-bridge.ts:369-387`). No source is built from the URL.                                                           | host; loader change is #262                                                     |
+| 2   | `wasmUrl`, including a `data:` URL                                | host config   | trusted            | HTTP status (`wasm-bridge.ts:349-354`), a 10 s abort mapped to `CORE:WASM_TIMEOUT` (`wasm-bridge.ts:341-362`), and `data:` decode (`wasm-bridge.ts:113-127`, used at `:346-347`). The `initSync` fallback fetches again with no status check and no 10 s abort (`wasm-bridge.ts:372-374`).                                           | host                                                                            |
+| 3   | core binary (bytes or a compiled module)                          | host / caller | trusted            | Today the option is `wasmUrl` only (`wasm-bridge-types.ts:1074-1081`). There is no `wasmBytes` or `wasmModule` field. A failure that is not a `GwenError` is wrapped as `CORE:WASM_LOAD_ERROR` (`wasm-bridge.ts:403-417`). A trap in the `Engine` constructor is `CORE:WASM_PANIC` (`wasm-bridge.ts:390-394`). `CORE:WASM_GLUE_MISMATCH` is absent from `CoreErrorCodes` (`engine-errors.ts:58-117`) and from `packages/schema/src`. Planned in #260. | host; mismatch check planned in #260; bytes or module option is #89, still open |
 | 4   | generated factory `gwen_core_factory.js`, one per browser variant | build         | trusted            | `scripts/build-wasm.sh:199` stamps `gwen.build`. `scripts/build-wasm.sh:202` writes the factory via `scripts/wasm-factory.mjs`. `readRequiredSection` requires one `gwen.build` and one `gwen.fingerprint` (`scripts/wasm-factory.mjs:405-414`). Those strings are read at `:430` and `:431`, passed at `:436` and `:437`, and stored on `CONTRACT.buildId` and `CONTRACT.fingerprint` at `:355-356`. Exported at `packages/core/package.json:69-88`. The engine source does not compare them. The runtime check is planned in #260. | #259 for the generator; check planned in #260                                   |
 | 5   | community WASM via `loadWasmModule`                               | third party   | semi-trusted       | Fetch and compile (`wasm-module-runner.ts:94-104`). ABI at `:113` and `:141`. Regions at `:306-375`, plus probe offset at `:151-157`. Traps in `stepAll` at `:242-279`. No byte cap, no `memory.grow` cap, no call timeout. Those limits are planned in #270.                                                                   | engine for ABI, regions, and traps (#92); caps planned in #270                  |
 | 6   | `{gwen}` imports handed to a module                               | engine        | engine-built       | Four numeric functions only (`wasm-module-runner.ts:84-89`). The instantiate object is `{ gwen: gwenImports }` (`:111`, `:130`).                                                                                                                                                                                                | #92                                                                             |

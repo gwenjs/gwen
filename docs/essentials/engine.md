@@ -125,7 +125,7 @@ export const DebugSystem = defineSystem(() => {
 
 ## Engines on one instance
 
-This is `wasmInstance: "shared"`, the default (`packages/core/src/engine/wasm-bridge.ts:358`). Two engines can run on one WASM instance. Each engine owns its entities, its physics world, and its path buffers. A path written by one engine is not the path the other engine reads.
+This is `wasmInstance: "shared"`, the default (`packages/core/src/engine/wasm-bridge.ts:401`). Two engines can run on one WASM instance. Each engine owns its entities, its physics world, and its path buffers. A path written by one engine is not the path the other engine reads.
 
 `jsUrl` is the URL of `gwen_core_factory.js`. `init()` with `jsUrl` or `wasmUrl` on an already initialised bridge rejects `CORE:WASM_LOAD_ERROR`.
 
@@ -133,16 +133,16 @@ They still share three things:
 
 - The linear-memory budget. One instance has one `WebAssembly.Memory`. Every engine of that instance allocates from it. `wasmMemoryBytes` is the size of that memory.
 - The allocator. One allocator serves every engine of the instance.
-- The fault domain. A trap leaves the shared instance's memory in an unknown state. Only the engine that trapped is marked poisoned. The other engines are not stopped and must not be trusted.
+- The fault domain. A trap leaves the shared instance's memory in an unknown state. A trap poisons every engine of that shared instance with `CORE:WASM_PANIC`. The next engine gets a new instance.
 
 ## Several engines per page or process
 
-`wasmInstance` selects the WASM instance (`packages/core/src/engine/wasm-bridge.ts:358`).
+`wasmInstance` selects the WASM instance (`packages/core/src/engine/wasm-bridge.ts:401`).
 
 | Mode | Behaviour |
 | --- | --- |
 | `shared` (default) | One instance per compiled module. Engines of that module share its linear memory. |
-| `isolated` | One instance per engine, with its own linear memory (`packages/core/src/engine/wasm-instance-provider.ts:128`). |
+| `isolated` | One instance per engine, with its own linear memory (`packages/core/src/engine/wasm-instance-provider.ts:133`). |
 
 `createEngine` in Node still defaults to `shared` (`packages/core/src/engine/engine-factory.ts:79`). `isolated` becomes the Node default only with `@gwenjs/core/node`, in a later ticket (#267).
 
