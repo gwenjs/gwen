@@ -25,6 +25,7 @@ const repoRoot = fileURLToPath(new URL("../../..", import.meta.url));
 
 /** Joined so this file does not hold the core hint as one literal. */
 const requirementHint = ["before the plugin that ", "requires it"].join("");
+const shapeHint = ["the hook table is ", "GWEN_PLUGIN_LIFECYCLE_HOOKS"].join("");
 
 /**
  * Real hint phrases. Each occurs once under package src and is reached
@@ -39,15 +40,15 @@ const REAL_HINTS = [
   "recompile the plugin against the current gwen-wasm-utils",
   '}" plugin via engine.use() or in gwen.config.ts.',
   requirementHint,
+  shapeHint,
 ];
 
 /**
  * Named stand-ins. These classes are not in this tree, or their hint text is
- * not a single gated phrase: GwenPluginShapeError, GwenModuleDefinitionError,
+ * not a single gated phrase: GwenModuleDefinitionError,
  * GwenEngineStateError, GwenWasmError, GwenConfigError, GwenConfigLoadError.
  */
 const STAND_IN_CLASSES = [
-  "GwenPluginShapeError",
   "GwenModuleDefinitionError",
   "GwenEngineStateError",
   "GwenWasmError",
@@ -67,6 +68,7 @@ const SENTINELS = [
   "was garbage-collected without stop()",
   "ownership transferred",
   "isolated after",
+  "is ignored.",
   "__routerName__",
   // The injector writes single quotes. Oxc reprints them as double quotes.
   '__layoutName__: "Level1"',
@@ -116,8 +118,9 @@ function gwenAlias(mode: "src" | "dist"): Plugin {
     name: "gwen-src-or-dist",
     enforce: "pre",
     resolveId(id) {
-      // The plugin-not-found hint lives in core source. Dist would hide a leak.
-      if (mode === "src" && id === "@gwenjs/core") return CORE_SRC_ENTRY;
+      // The "dist" run keeps core on source: core dist has no shape error or unknown-key warning.
+      // The node_modules run (writeFixture(dir, false)) is the published-artifact path.
+      if (id === "@gwenjs/core") return CORE_SRC_ENTRY;
       if (!id.startsWith("@gwenjs/") || id.startsWith("@gwenjs/vite")) return null;
       const rest = id.slice("@gwenjs/".length);
       const slash = rest.indexOf("/");
@@ -131,9 +134,9 @@ function gwenAlias(mode: "src" | "dist"): Plugin {
       const table = mode === "dist" ? (pkg.publishConfig?.exports ?? pkg.exports) : pkg.exports;
       const target = table ? pickExport(table[sub]) : null;
       if (!target) return null;
-      // Kit's export map points at dist. The src run bundles packages/kit/src
-      // so a context-hint edit is visible to the prod sentinel check.
-      if (mode === "src" && name === "kit" && sub === ".") {
+      // Kit src on the src run. Schema src in both modes: its dist lacks the lifecycle table.
+      const fromSource = (mode === "src" && name === "kit") || name === "schema";
+      if (fromSource && sub === ".") {
         const source = join(pkgDir, "src", "index.ts");
         if (existsSync(source)) return source;
       }
@@ -152,18 +155,26 @@ function gwenAlias(mode: "src" | "dist"): Plugin {
   GwenWasmAbiError,
   useEngine,
 } from ${JSON.stringify(dist)};
-export { GwenPluginNotFoundError, GwenPluginDependencyError } from ${JSON.stringify(errors)};
+export { GwenPluginNotFoundError, GwenPluginDependencyError, GwenPluginShapeError } from ${JSON.stringify(errors)};
+// createEngine above is dist and has no unknown-key warning. This names the source class.
+import { PluginRegistry } from ${JSON.stringify(join(repoRoot, "packages/core/src/engine/plugin-registry.ts"))};
+new PluginRegistry(undefined);
 `;
     },
   };
 }
 
-function writeFixture(dir: string): void {
+function writeFixture(dir: string, shapeError = true): void {
   mkdirSync(join(dir, "src", "layouts"), { recursive: true });
   const hintText = `${STAND_IN_TEXTS.join(" ")} __GWEN_DEV__ import.meta.env`;
+  // Published dist does not export this class, so the node_modules build omits it.
+  const shapeName = shapeError ? ", GwenPluginShapeError" : "";
+  const shapeLog = shapeError
+    ? `console.log(new GwenPluginShapeError("demo", ["onRender"]).message);\n`
+    : "";
   writeFileSync(
     join(dir, "src", "main.ts"),
-    `import { createEngine, GwenActorError, GwenContextError, GwenPluginDependencyError, GwenPluginNotFoundError, GwenWasmAbiError, useEngine } from "@gwenjs/core";
+    `import { createEngine, GwenActorError, GwenContextError, GwenPluginDependencyError, GwenPluginNotFoundError${shapeName}, GwenWasmAbiError, useEngine } from "@gwenjs/core";
 import { defineActor, PoolExhaustedError, useChildren } from "@gwenjs/core/actor";
 import { Physics3DPlugin } from "@gwenjs/physics3d";
 import "./layouts/level.ts";
@@ -179,6 +190,7 @@ try {
 
 console.log(new GwenPluginNotFoundError({ pluginName: "demo" }).message);
 console.log(new GwenPluginDependencyError({ code: "CORE:PLUGIN_DEPENDENCY_MISSING", plugin: "demo", missing: [{ kind: "plugin", name: "other" }] }).message);
+${shapeLog}
 
 export function devHints(): string | undefined {
   return __GWEN_DEV__ ? ${JSON.stringify(hintText)} : undefined;
@@ -449,7 +461,7 @@ describe("dev strip", () => {
       try {
         const dir = mkdtempSync(join(repoRoot, ".tmp-dev-strip-"));
         dirs.push(dir);
-        writeFixture(dir);
+        writeFixture(dir, false);
         installGwenDist(dir);
         const { logger, lines } = captureLogger();
         await build({

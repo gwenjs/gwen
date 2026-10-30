@@ -2,7 +2,7 @@
  * RFC-001: engine.use / engine.unuse lifecycle tests
  */
 import { afterEach, describe, it, expect, vi } from "vitest";
-import { GwenError } from "@gwenjs/schema";
+import { GwenError, type GwenLogEntry } from "@gwenjs/schema";
 import {
   createEngine as openEngine,
   GwenEngineStateError,
@@ -525,4 +525,268 @@ describe("engine.advance()", () => {
       await engine.stop();
     }
   });
+});
+
+type ShapePlugin = GwenPlugin & {
+  onBeforeUpdate?: (dt: number) => void;
+  onUpdate?: (dt: number) => void;
+  onAfterUpdate?: (dt: number) => void;
+  onRender?: () => void;
+  onStart?: () => void;
+  onStop?: () => void;
+  onDestroy?: () => void;
+  version?: number;
+  _discover?: () => void;
+  _pause?: () => void;
+  toString?: () => string;
+};
+
+const FORBIDDEN_KEYS = [
+  ["onBeforeUpdate", "engine:before-update"],
+  ["onUpdate", "engine:update"],
+  ["onAfterUpdate", "engine:after-update"],
+  ["onRender", "engine:render"],
+  ["onStart", "engine:start"],
+  ["onStop", "engine:stop"],
+  ["onDestroy", "engine:stop"],
+] as const;
+
+function firstLine(error: unknown): string {
+  return error instanceof Error ? (error.message.split("\n")[0] ?? "") : "";
+}
+
+function hintOf(error: unknown): string | undefined {
+  if (typeof error !== "object" || error === null || !("hint" in error)) return undefined;
+  const hint = error.hint;
+  return typeof hint === "string" ? hint : undefined;
+}
+
+async function rejected(engine: GwenEngine, plugin: GwenPlugin): Promise<unknown> {
+  return engine.use(plugin).then(
+    () => undefined,
+    (error: unknown) => error,
+  );
+}
+
+function warnLogger(warns: string[]) {
+  return {
+    providers: [
+      {
+        handle(entry: GwenLogEntry) {
+          if (entry.level === "warn") warns.push(entry.message);
+        },
+      },
+    ],
+  };
+}
+
+function plugged(name: string, tick: { n: number }, extra?: Partial<ShapePlugin>): ShapePlugin {
+  const plugin: ShapePlugin = {
+    name,
+    setup() {
+      tick.n += 1;
+    },
+  };
+  return Object.assign(plugin, extra);
+}
+
+const versionLine = (name: string): string =>
+  `[GWEN] plugin "${name}": unknown key "version" is ignored.`;
+
+it("use() rejects a plugin with onRender with CORE:PLUGIN_INVALID_SHAPE and calls nothing", async () => {
+  const engine = await createEngine();
+  const bus: string[] = [];
+  const registered: string[] = [];
+  engine.errors.on((event) => {
+    bus.push(event.code);
+  });
+  engine.hooks.hook("plugin:registered", (name) => {
+    registered.push(name);
+  });
+  const tick = { n: 0 };
+  const caught = await rejected(engine, plugged("x", tick, { onRender() {} }));
+  expect(caught).toMatchObject({
+    code: "CORE:PLUGIN_INVALID_SHAPE",
+    plugin: "x",
+    keys: ["onRender"],
+  });
+  expect(firstLine(caught)).toBe(
+    '[engine.use()] Plugin "x" declares onRender, which the engine never calls; in setup(), hook engine:render for onRender.',
+  );
+  expect(tick.n).toBe(0);
+  expect(bus).toEqual([]);
+  expect(registered).toEqual([]);
+  const again = { n: 0 };
+  await engine.use(plugged("x", again));
+  expect(again.n).toBe(1);
+});
+
+it("two forbidden keys give one error naming both hooks", async () => {
+  const engine = await createEngine();
+  const tick = { n: 0 };
+  const caught = await rejected(engine, plugged("both", tick, { onUpdate() {}, onDestroy() {} }));
+  expect(caught).toMatchObject({
+    code: "CORE:PLUGIN_INVALID_SHAPE",
+    keys: ["onUpdate", "onDestroy"],
+  });
+  expect(firstLine(caught)).toBe(
+    '[engine.use()] Plugin "both" declares onUpdate, onDestroy, which the engine never calls; in setup(), hook engine:update for onUpdate and engine:stop for onDestroy.',
+  );
+  expect(tick.n).toBe(0);
+});
+
+it.each(FORBIDDEN_KEYS)("each of the 7 forbidden keys is rejected", async (key, hook) => {
+  const engine = await createEngine();
+  const plugin: ShapePlugin = { name: key, setup() {} };
+  Object.assign(plugin, { [key]: () => {} });
+  const caught = await rejected(engine, plugin);
+  expect(caught).toMatchObject({ code: "CORE:PLUGIN_INVALID_SHAPE", keys: [key] });
+  expect(firstLine(caught)).toContain(hook);
+});
+
+it("a nameless plugin is reported as <anonymous>", async () => {
+  const engine = await createEngine();
+  const plugin: ShapePlugin = { name: "temp", setup() {}, onRender() {} };
+  Object.assign(plugin, { name: 1 });
+  const caught = await rejected(engine, plugin);
+  expect(caught).toMatchObject({
+    code: "CORE:PLUGIN_INVALID_SHAPE",
+    plugin: "<anonymous>",
+    keys: ["onRender"],
+  });
+});
+
+it("the shape check runs before the duplicate and requires checks", async () => {
+  const engine = await createEngine();
+  await engine.use({ name: "dup", setup() {} });
+  const late = { n: 0 };
+  const duplicateError = await rejected(engine, plugged("dup", late, { onUpdate() {} }));
+  expect(duplicateError).toMatchObject({ code: "CORE:PLUGIN_INVALID_SHAPE" });
+  expect(late.n).toBe(0);
+  const need = { n: 0 };
+  const missing = plugged("need", need, { requires: { plugins: ["missing"] }, onRender() {} });
+  const missingError = await rejected(engine, missing);
+  expect(missingError).toMatchObject({ code: "CORE:PLUGIN_INVALID_SHAPE" });
+  expect(need.n).toBe(0);
+});
+
+it("the state gate runs before the shape check", async () => {
+  const engine = await createEngine();
+  const tick = { n: 0 };
+  const plugin = plugged("late", tick, { onRender() {} });
+  const running = await rejected(engine, plugin);
+  expect(running).toMatchObject({ code: "CORE:PLUGIN_INVALID_SHAPE", keys: ["onRender"] });
+  expect(tick.n).toBe(0);
+  await engine.stop();
+  const stopped = await rejected(engine, plugin);
+  expect(stopped).toMatchObject({
+    code: "CORE:INVALID_STATE_TRANSITION",
+    from: "stopped",
+    method: "use",
+  });
+  expect(tick.n).toBe(0);
+});
+
+it("the shape check runs in prod too", async () => {
+  const warns: string[] = [];
+  const engine = await createEngine({ debug: true, logger: warnLogger(warns) });
+  const plugin: ShapePlugin = { name: "prod", setup() {}, onStart() {} };
+  const caught = await rejected(engine, plugin);
+  expect(caught).toMatchObject({
+    code: "CORE:PLUGIN_INVALID_SHAPE",
+    plugin: "prod",
+    keys: ["onStart"],
+  });
+  const phrase = ["the hook table is ", "GWEN_PLUGIN_LIFECYCLE_HOOKS"].join("");
+  if (__GWEN_DEV__) {
+    expect(hintOf(caught)).toEqual(expect.stringContaining(phrase));
+  } else {
+    expect(hintOf(caught)).toBeUndefined();
+    expect(caught instanceof Error ? caught.message : "").not.toContain("Fix:");
+    const tick = { n: 0 };
+    const before = warns.length;
+    await engine.use(plugged("ver", tick, { version: 1 }));
+    expect(warns.slice(before)).toEqual([]);
+    expect(tick.n).toBe(1);
+    const shaped: ShapePlugin = { name: "both-prod", setup() {}, version: 1, onRender() {} };
+    const shapeCaught = await rejected(engine, shaped);
+    expect(shapeCaught).toMatchObject({ code: "CORE:PLUGIN_INVALID_SHAPE", keys: ["onRender"] });
+    expect(warns).toEqual([]);
+  }
+});
+
+it.runIf(__GWEN_DEV__)("an unknown key warns once in dev with debug and installs", async () => {
+  const warns: string[] = [];
+  const engine = await createEngine({ debug: true, logger: warnLogger(warns) });
+  const tick = { n: 0 };
+  const before = warns.length;
+  await engine.use(plugged("p", tick, { version: 1 }));
+  expect(warns.slice(before)).toEqual([versionLine("p")]);
+  expect(tick.n).toBe(1);
+});
+
+it("no unknown-key warning without debug", async () => {
+  const warns: string[] = [];
+  const engine = await createEngine({ debug: false, logger: warnLogger(warns) });
+  const tick = { n: 0 };
+  const before = warns.length;
+  await engine.use(plugged("p", tick, { version: 1 }));
+  expect(warns.slice(before)).toEqual([]);
+  expect(tick.n).toBe(1);
+  if (__GWEN_DEV__) {
+    const debugWarns: string[] = [];
+    const debugEngine = await createEngine({ debug: true, logger: warnLogger(debugWarns) });
+    const debugTick = { n: 0 };
+    await debugEngine.use(plugged("p-debug", debugTick, { version: 1 }));
+    expect(debugWarns).toEqual([versionLine("p-debug")]);
+    expect(debugTick.n).toBe(1);
+  } else {
+    const shaped: ShapePlugin = { name: "p-shape", setup() {}, version: 1, onRender() {} };
+    const caught = await rejected(engine, shaped);
+    expect(caught).toMatchObject({ code: "CORE:PLUGIN_INVALID_SHAPE", keys: ["onRender"] });
+  }
+});
+
+it("_-prefixed and requires keys never warn", async () => {
+  const warns: string[] = [];
+  const engine = await createEngine({ debug: true, logger: warnLogger(warns) });
+  const tick = { n: 0 };
+  const marked = plugged("marked", tick, {
+    teardown() {},
+    onError() {},
+    requires: { plugins: [] },
+    _discover() {},
+    _pause() {},
+  });
+  const before = warns.length;
+  await engine.use(plugged("plain", tick));
+  await engine.use(marked);
+  if (__GWEN_DEV__) {
+    await engine.use(plugged("extra", tick, { version: 1 }));
+    expect(warns.slice(before)).toEqual([versionLine("extra")]);
+    expect(tick.n).toBe(3);
+  } else {
+    const shaped: ShapePlugin = { name: "extra", setup() {}, version: 1, onRender() {} };
+    const caught = await rejected(engine, shaped);
+    expect(caught).toMatchObject({ code: "CORE:PLUGIN_INVALID_SHAPE", keys: ["onRender"] });
+    expect(warns.slice(before)).toEqual([]);
+    expect(tick.n).toBe(2);
+  }
+});
+
+it("an own key named like an Object.prototype member is not a lifecycle key", async () => {
+  const warns: string[] = [];
+  const engine = await createEngine({ debug: false, logger: warnLogger(warns) });
+  const toStringTick = { n: 0 };
+  const constructorTick = { n: 0 };
+  const before = warns.length;
+  await rejected(engine, plugged("p-toString", toStringTick, { toString: () => "x" }));
+  const constructorPlugin = plugged("p-constructor", constructorTick);
+  Object.assign(constructorPlugin, { constructor: () => "y" });
+  await rejected(engine, constructorPlugin);
+  expect(toStringTick.n).toBe(1);
+  expect(constructorTick.n).toBe(1);
+  expect(warns.slice(before)).toEqual([]);
+  const caught = await rejected(engine, plugged("p-render", { n: 0 }, { onRender() {} }));
+  expect(caught).toMatchObject({ code: "CORE:PLUGIN_INVALID_SHAPE", keys: ["onRender"] });
 });

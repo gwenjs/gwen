@@ -6,6 +6,7 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
+import * as schema from "../src/index";
 import type { GwenPlugin, GwenEngineBase, HookBusBase, PluginErrorContext } from "../src/plugin";
 import type { GwenDisposable, DisposableRegistryBase } from "../src/disposable";
 import type { IGwenLogger } from "@gwenjs/schema";
@@ -153,29 +154,44 @@ describe("GwenPlugin (structural)", () => {
   });
 
   it("frame hooks are optional and receive dt in seconds", () => {
-    const onBeforeUpdate = vi.fn();
-    const onUpdate = vi.fn();
-    const onAfterUpdate = vi.fn();
-    const onRender = vi.fn();
-
+    let torn = 0;
+    let seen: unknown = null;
     const plugin: GwenPlugin = {
       name: "frame-hooks",
-      setup: vi.fn(),
-      onBeforeUpdate,
-      onUpdate,
-      onAfterUpdate,
-      onRender,
+      setup() {},
+      teardown() {
+        torn += 1;
+      },
+      onError(error) {
+        seen = error;
+      },
     };
+    plugin.teardown?.();
+    plugin.onError?.(new Error("boom"), { phase: "setup", frame: 1, recover() {} });
+    expect(plugin.name).toBe("frame-hooks");
+    expect(torn).toBe(1);
+    expect(seen).toBeInstanceOf(Error);
+    expect("onUpdate" in plugin).toBe(false);
+    expect("onRender" in plugin).toBe(false);
+  });
 
-    plugin.onBeforeUpdate!(0.016);
-    plugin.onUpdate!(0.016);
-    plugin.onAfterUpdate!(0.016);
-    plugin.onRender!();
+  it("GWEN_PLUGIN_LIFECYCLE_HOOKS maps the 7 keys to their hooks and is frozen", () => {
+    expect(schema.GWEN_PLUGIN_LIFECYCLE_HOOKS).toEqual({
+      onBeforeUpdate: "engine:before-update",
+      onUpdate: "engine:update",
+      onAfterUpdate: "engine:after-update",
+      onRender: "engine:render",
+      onStart: "engine:start",
+      onStop: "engine:stop",
+      onDestroy: "engine:stop",
+    });
+    expect(Object.keys(schema.GWEN_PLUGIN_LIFECYCLE_HOOKS)).toHaveLength(7);
+    expect(Object.isFrozen(schema.GWEN_PLUGIN_LIFECYCLE_HOOKS)).toBe(true);
+  });
 
-    expect(onBeforeUpdate).toHaveBeenCalledWith(0.016);
-    expect(onUpdate).toHaveBeenCalledWith(0.016);
-    expect(onAfterUpdate).toHaveBeenCalledWith(0.016);
-    expect(onRender).toHaveBeenCalledTimes(1);
+  it("GWEN_PLUGIN_KEYS lists the five plugin keys and is frozen", () => {
+    expect(schema.GWEN_PLUGIN_KEYS).toEqual(["name", "setup", "teardown", "onError", "requires"]);
+    expect(Object.isFrozen(schema.GWEN_PLUGIN_KEYS)).toBe(true);
   });
 
   it("onError() receives the error and a PluginErrorContext", () => {

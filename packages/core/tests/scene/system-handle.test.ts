@@ -1,26 +1,36 @@
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
+import { createEngine, type GwenEngine } from "../../src/index";
 import { createSystemHandle } from "../../src/scene/runtime/system-handle";
 import type { GwenPlugin } from "../../src/engine/engine-types.js";
 
-type FramePlugin = GwenPlugin & {
-  onUpdate?: (dt: number) => void;
+const FORBIDDEN = [
+  "onBeforeUpdate",
+  "onUpdate",
+  "onAfterUpdate",
+  "onRender",
+  "onStart",
+  "onStop",
+  "onDestroy",
+];
+
+type WidePlugin = GwenPlugin & {
   onBeforeUpdate?: (dt: number) => void;
+  onUpdate?: (dt: number) => void;
   onAfterUpdate?: (dt: number) => void;
   onRender?: () => void;
 };
 
-function framePlugin(plugin: GwenPlugin): FramePlugin {
-  return plugin as FramePlugin;
-}
+const engines: GwenEngine[] = [];
 
-function makeInnerPlugin(onUpdateSpy = vi.fn()): FramePlugin {
+afterEach(async () => {
+  const pending = engines.splice(0);
+  for (const engine of pending) await engine.stop();
+});
+
+function makeInnerPlugin(): GwenPlugin {
   return {
     name: "test-plugin",
     setup() {},
-    onUpdate: onUpdateSpy,
-    onBeforeUpdate: vi.fn(),
-    onAfterUpdate: vi.fn(),
-    onRender: vi.fn(),
   };
 }
 
@@ -75,68 +85,6 @@ describe("SystemHandle — active state", () => {
   });
 });
 
-describe("SystemHandle — frame callback gating", () => {
-  it("onUpdate fires when active", () => {
-    const spy = vi.fn();
-    const { plugin } = createSystemHandle(makeInnerPlugin(spy));
-    framePlugin(plugin).onUpdate!(0.016);
-    expect(spy).toHaveBeenCalledOnce();
-  });
-
-  it("onUpdate does NOT fire when paused", () => {
-    const spy = vi.fn();
-    const { plugin, handle } = createSystemHandle(makeInnerPlugin(spy));
-    handle.pause();
-    framePlugin(plugin).onUpdate!(0.016);
-    expect(spy).not.toHaveBeenCalled();
-  });
-
-  it("onUpdate fires again after resume", () => {
-    const spy = vi.fn();
-    const { plugin, handle } = createSystemHandle(makeInnerPlugin(spy));
-    handle.pause();
-    framePlugin(plugin).onUpdate!(0.016);
-    handle.resume();
-    framePlugin(plugin).onUpdate!(0.016);
-    expect(spy).toHaveBeenCalledOnce();
-  });
-
-  it("onUpdate does NOT fire after destroy", () => {
-    const spy = vi.fn();
-    const { plugin, handle } = createSystemHandle(makeInnerPlugin(spy));
-    handle.destroy();
-    framePlugin(plugin).onUpdate!(0.016);
-    expect(spy).not.toHaveBeenCalled();
-  });
-
-  it("onBeforeUpdate and onAfterUpdate are also gated", () => {
-    const inner = makeInnerPlugin();
-    const beforeSpy = vi.fn();
-    const afterSpy = vi.fn();
-    inner.onBeforeUpdate = beforeSpy;
-    inner.onAfterUpdate = afterSpy;
-    const { plugin, handle } = createSystemHandle(inner);
-
-    handle.pause();
-    framePlugin(plugin).onBeforeUpdate!(0.016);
-    framePlugin(plugin).onAfterUpdate!(0.016);
-
-    expect(beforeSpy).not.toHaveBeenCalled();
-    expect(afterSpy).not.toHaveBeenCalled();
-  });
-
-  it("onRender is also gated", () => {
-    const inner = makeInnerPlugin();
-    const renderSpy = vi.fn();
-    inner.onRender = renderSpy;
-    const { plugin, handle } = createSystemHandle(inner);
-
-    handle.pause();
-    framePlugin(plugin).onRender!();
-    expect(renderSpy).not.toHaveBeenCalled();
-  });
-});
-
 describe("SystemHandle — two-flag pause model (user + scene)", () => {
   it("_scenePause() deactivates the handle", () => {
     const { handle } = createSystemHandle(makeInnerPlugin());
@@ -162,34 +110,6 @@ describe("SystemHandle — two-flag pause model (user + scene)", () => {
     expect(handle.active).toBe(false);
   });
 
-  it("user-paused system ticks again only after explicit resume()", () => {
-    const spy = vi.fn();
-    const { plugin, handle } = createSystemHandle(makeInnerPlugin(spy));
-
-    handle.pause();
-    handle._scenePause();
-    handle._sceneResume();
-    framePlugin(plugin).onUpdate!(0.016);
-    expect(spy).not.toHaveBeenCalled(); // still user-paused
-
-    handle.resume();
-    framePlugin(plugin).onUpdate!(0.016);
-    expect(spy).toHaveBeenCalledOnce(); // now active
-  });
-
-  it("scene-paused system resumes when _sceneResume() is called (no user pause)", () => {
-    const spy = vi.fn();
-    const { plugin, handle } = createSystemHandle(makeInnerPlugin(spy));
-
-    handle._scenePause();
-    framePlugin(plugin).onUpdate!(0.016);
-    expect(spy).not.toHaveBeenCalled();
-
-    handle._sceneResume();
-    framePlugin(plugin).onUpdate!(0.016);
-    expect(spy).toHaveBeenCalledOnce();
-  });
-
   it("destroyed system ignores _sceneResume()", () => {
     const { handle } = createSystemHandle(makeInnerPlugin());
     handle.destroy();
@@ -207,10 +127,73 @@ describe("SystemHandle — two-flag pause model (user + scene)", () => {
     plugin.setup?.({} as never);
     expect(setupSpy).toHaveBeenCalledOnce();
   });
+});
 
-  it("plugin with no onUpdate produces wrapped plugin with no onUpdate", () => {
+describe("wrapped system shape", () => {
+  it("a wrapped system has no forbidden own key", () => {
+    const inner: WidePlugin = {
+      name: "inner",
+      setup() {},
+      onBeforeUpdate() {},
+      onUpdate() {},
+      onAfterUpdate() {},
+      onRender() {},
+    };
+    const { plugin } = createSystemHandle(inner);
+    expect(Object.keys(plugin).filter((key) => FORBIDDEN.includes(key))).toEqual([]);
+  });
+
+  it("a wrapped system omits teardown and onError when the inner has none", () => {
     const inner: GwenPlugin = { name: "bare", setup() {} };
     const { plugin } = createSystemHandle(inner);
-    expect(framePlugin(plugin).onUpdate).toBeUndefined();
+    expect(Object.keys(plugin)).toEqual(["name", "setup"]);
+  });
+
+  it("a wrapped system forwards teardown and onError to the inner plugin", () => {
+    class BoundInner implements GwenPlugin {
+      name = "cls";
+      closed = false;
+      seen: unknown = undefined;
+      setup(): void {}
+      teardown(): void {
+        this.closed = true;
+      }
+      onError(error: unknown): void {
+        this.seen = error;
+      }
+    }
+    const inner = Object.assign(new BoundInner(), { onUpdate() {} });
+    const { plugin } = createSystemHandle(inner);
+    expect(Object.keys(plugin).filter((key) => FORBIDDEN.includes(key))).toEqual([]);
+    const failure = new Error("boom");
+    try {
+      plugin.teardown?.();
+    } catch {
+      /* unbound teardown leaves closed false */
+    }
+    try {
+      plugin.onError?.(failure, { phase: "teardown", frame: 0, recover() {} });
+    } catch {
+      /* unbound onError leaves seen unset */
+    }
+    expect(inner.closed).toBe(true);
+    expect(inner.seen).toBe(failure);
+  });
+
+  it("a wrapped system installs with engine.use()", async () => {
+    const tick = { n: 0 };
+    const inner: WidePlugin = {
+      name: "wrapped",
+      setup() {
+        tick.n += 1;
+      },
+      onUpdate() {},
+    };
+    const { plugin } = createSystemHandle(inner);
+    expect(Object.keys(plugin).filter((key) => FORBIDDEN.includes(key))).toEqual([]);
+    const engine = await createEngine();
+    engines.push(engine);
+    await engine.use(plugin);
+    expect(tick.n).toBe(1);
   });
 });
