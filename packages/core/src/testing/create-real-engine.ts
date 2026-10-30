@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { createEngine } from "../engine/engine-factory.js";
+import { SceneEnginePlugin } from "../scene/engine-plugin.js";
 import type { GwenEngine } from "../engine/engine-types.js";
 import { WasmBridgeImpl } from "../engine/wasm-bridge.js";
 import type { CoreVariant } from "../engine/wasm-bridge-types.js";
@@ -24,6 +25,11 @@ export interface CreateRealEngineOptions {
   readonly debug?: boolean;
   /** Fixed-step rate forwarded to `createEngine`. Absent means the engine default. */
   readonly physicsHz?: number;
+  /**
+   * Installs `SceneEnginePlugin` the way the bootstrap does, so plugin repositories
+   * test scenes through `@gwenjs/core/testing` and never import `@gwenjs/core/internal`.
+   */
+  readonly scenes?: true;
 }
 
 function artifactPath(variant: CoreVariant, fileName: string): string {
@@ -79,6 +85,9 @@ export async function createRealEngine(
     ...(options.physicsHz !== undefined ? { physicsHz: options.physicsHz } : {}),
     _bridge: bridge,
   });
+  if (options.scenes === true) {
+    await engine.use(SceneEnginePlugin());
+  }
 
   let started = false;
   let disposed = false;
