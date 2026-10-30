@@ -892,3 +892,201 @@ describe("isolated wasm instance", () => {
     }
   }, 60_000);
 });
+
+/**
+ * Corrupt the whole linear memory, then advance until the engine traps.
+ * The loud failure matches the isolated trap test in this file.
+ */
+async function trapEngine(engine: GwenEngine): Promise<GwenWasmPanicError> {
+  const panics: unknown[] = [];
+  engine.errors.on((event) => {
+    if (event.code === CoreErrorCodes.WASM_PANIC) panics.push(event.error);
+  });
+  let rejection: unknown;
+  let steps = 0;
+  for (; steps < 60; steps += 1) {
+    try {
+      await engine.advance(1 / 60);
+    } catch (error: unknown) {
+      rejection = error;
+      break;
+    }
+    if (panics.length > 0 || engine.state === "faulted") break;
+  }
+  const trap = rejection instanceof GwenWasmPanicError ? rejection : panics[0];
+  if (!(trap instanceof GwenWasmPanicError)) {
+    const seen = rejection instanceof Error ? rejection.name : String(rejection);
+    throw new Error(
+      `A did not trap within 60 advances (state ${engine.state}, steps ${steps}, rejection ${seen}, panics ${panics.length})`,
+    );
+  }
+  return trap;
+}
+
+function sharedFaultMessage(exportName: string | undefined): string {
+  return `WASM instance shared with another engine trapped in "${exportName}"; this engine can no longer run.`;
+}
+
+/** `createEngine` after a trap can reject. The caller asserts `error` before use. */
+function openShared(engines: GwenEngine[]): Promise<{
+  engine: GwenEngine | undefined;
+  error: unknown;
+}> {
+  return createEngine({
+    variant: "physics2d",
+    wasmInstance: "shared",
+    maxEntities: 32,
+    physicsHz: 60,
+  })
+    .then(
+      (engine) => ({ engine, error: undefined }),
+      (error: unknown) => ({ engine: undefined, error }),
+    )
+    .then((opened) => {
+      if (opened.engine !== undefined) engines.push(opened.engine);
+      return opened;
+    });
+}
+
+describe("shared fault domain", () => {
+  it("shared: a trap in A poisons every engine on that instance", async () => {
+    const engines: GwenEngine[] = [];
+    try {
+      const [engineA, engineB] = await openTwo(engines, "physics2d", "shared", 60);
+      await buildScene(engineA);
+      await buildScene(engineB);
+      await engineA.startExternal();
+      await engineB.startExternal();
+      new Uint8Array(memoryOf(engineA).buffer).fill(0xff);
+      const trapA = await trapEngine(engineA);
+
+      let thrown: unknown;
+      try {
+        engineB.createEntity();
+      } catch (error: unknown) {
+        thrown = error;
+      }
+      expect(thrown).toBeInstanceOf(GwenWasmPanicError);
+      if (!(thrown instanceof GwenWasmPanicError)) return;
+      expect(thrown.code).toBe(CoreErrorCodes.WASM_PANIC);
+      expect(thrown.message).toBe(sharedFaultMessage(trapA.exportName));
+      expect(thrown.cause).toBe(trapA.cause);
+
+      const panicsB: unknown[] = [];
+      engineB.errors.on((event) => {
+        if (event.code === CoreErrorCodes.WASM_PANIC) panicsB.push(event.error);
+      });
+      // A hook rejection is reported and swallowed (`packages/core/src/engine/engine-loop.ts:241`), so `advance` resolves.
+      let rejectionB: unknown;
+      try {
+        await engineB.advance(1 / 60);
+      } catch (error: unknown) {
+        rejectionB = error;
+      }
+      const caught = rejectionB instanceof GwenWasmPanicError ? rejectionB : panicsB[0];
+      expect(caught).toBeInstanceOf(GwenWasmPanicError);
+      if (!(caught instanceof GwenWasmPanicError)) return;
+      expect(caught.code).toBe(CoreErrorCodes.WASM_PANIC);
+      expect(caught.message).toBe(sharedFaultMessage(trapA.exportName));
+      expect(caught.cause).toBe(trapA.cause);
+    } finally {
+      await stopAll(engines);
+    }
+  }, 60_000);
+
+  it("shared: after an instance trap a new engine gets a fresh instance", async () => {
+    const engines: GwenEngine[] = [];
+    try {
+      const [engineA, engineB] = await openTwo(engines, "physics2d", "shared", 60);
+      await buildScene(engineA);
+      await buildScene(engineB);
+      await engineA.startExternal();
+      await engineB.startExternal();
+      const trapped = memoryOf(engineA);
+      new Uint8Array(trapped.buffer).fill(0xff);
+      await trapEngine(engineA);
+
+      const opened = await openShared(engines);
+      expect(opened.error).toBeUndefined();
+      if (opened.engine === undefined) return;
+      const engineC = opened.engine;
+      expect(memoryOf(engineC)).not.toBe(trapped);
+      for (let n = 0; n < 3; n += 1) engineC.createEntity();
+      await engineC.startExternal();
+      for (let step = 0; step < 10; step += 1) await engineC.advance(1 / 60);
+      expect(engineC.state).toBe("running");
+      expect(bridgeOf(engineC).countEntities()).toBe(3);
+    } finally {
+      await stopAll(engines);
+    }
+  }, 60_000);
+
+  it("shared: stopping the poisoned engines does not release the fresh instance", async () => {
+    const engines: GwenEngine[] = [];
+    try {
+      const [engineA, engineB] = await openTwo(engines, "physics2d", "shared", 60);
+      await buildScene(engineA);
+      await buildScene(engineB);
+      await engineA.startExternal();
+      await engineB.startExternal();
+      new Uint8Array(memoryOf(engineA).buffer).fill(0xff);
+      await trapEngine(engineA);
+
+      const openedC = await openShared(engines);
+      expect(openedC.error).toBeUndefined();
+      if (openedC.engine === undefined) return;
+      const engineC = openedC.engine;
+      const openedD = await openShared(engines);
+      expect(openedD.error).toBeUndefined();
+      if (openedD.engine === undefined) return;
+      const engineD = openedD.engine;
+      expect(memoryOf(engineC)).toBe(memoryOf(engineD));
+
+      await engineA.stop();
+      await engineB.stop();
+
+      const openedE = await openShared(engines);
+      expect(openedE.error).toBeUndefined();
+      if (openedE.engine === undefined) return;
+      const engineE = openedE.engine;
+      expect(memoryOf(engineE)).toBe(memoryOf(engineC));
+
+      await engineC.startExternal();
+      await engineD.startExternal();
+      await engineC.advance(1 / 60);
+      await engineD.advance(1 / 60);
+      expect(engineC.state).toBe("running");
+      expect(engineD.state).toBe("running");
+    } finally {
+      await stopAll(engines);
+    }
+  }, 60_000);
+
+  it("shared: a trap reported by the frame loop names an unknown export on the other engine", async () => {
+    const engines: GwenEngine[] = [];
+    try {
+      const [engineA, engineB] = await openTwo(engines, "light", "shared");
+      await engineA.startExternal();
+      await engineB.startExternal();
+      const frameTrap = new WebAssembly.RuntimeError("frame trap");
+      engineA.hooks.hook("engine:update", () => {
+        throw frameTrap;
+      });
+      await engineA.advance(1 / 60);
+
+      let thrown: unknown;
+      try {
+        engineB.createEntity();
+      } catch (error: unknown) {
+        thrown = error;
+      }
+      expect(thrown).toBeInstanceOf(GwenWasmPanicError);
+      if (!(thrown instanceof GwenWasmPanicError)) return;
+      expect(thrown.code).toBe(CoreErrorCodes.WASM_PANIC);
+      expect(thrown.message).toBe(sharedFaultMessage("unknown"));
+      expect(thrown.cause).toBe(frameTrap);
+    } finally {
+      await stopAll(engines);
+    }
+  }, 60_000);
+});
