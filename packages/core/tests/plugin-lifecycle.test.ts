@@ -2,12 +2,15 @@
  * RFC-001: engine.use / engine.unuse lifecycle tests
  */
 import { afterEach, describe, it, expect, vi } from "vitest";
-import { GwenError, type GwenLogEntry } from "@gwenjs/schema";
+import { GwenError, type GwenLogEntry, type IGwenScope } from "@gwenjs/schema";
+import { GwenContextError, getCurrentScope, useLogger } from "@gwenjs/kit";
 import {
   createEngine as openEngine,
   GwenEngineStateError,
   GwenPluginDependencyError,
   GwenPluginNotFoundError,
+  onCleanup,
+  useHook,
   type GwenEngine,
   type GwenPlugin,
 } from "../src/index";
@@ -789,4 +792,268 @@ it("an own key named like an Object.prototype member is not a lifecycle key", as
   expect(warns.slice(before)).toEqual([]);
   const caught = await rejected(engine, plugged("p-render", { n: 0 }, { onRender() {} }));
   expect(caught).toMatchObject({ code: "CORE:PLUGIN_INVALID_SHAPE", keys: ["onRender"] });
+});
+
+function logCapture(): {
+  entries: GwenLogEntry[];
+  logger: { providers: [{ handle(entry: GwenLogEntry): void }] };
+} {
+  const entries: GwenLogEntry[] = [];
+  return {
+    entries,
+    logger: {
+      providers: [
+        {
+          handle(entry: GwenLogEntry): void {
+            entries.push(entry);
+          },
+        },
+      ],
+    },
+  };
+}
+
+describe("plugin setup scope", () => {
+  it("useLogger in sync plugin setup writes under plugin:<name>", async () => {
+    const captured = logCapture();
+    const engine = await createEngine({ debug: true, logger: captured.logger });
+    const plugin: GwenPlugin = {
+      name: "audio",
+      setup() {
+        useLogger().info("x");
+      },
+    };
+    const outcome = await rejected(engine, plugin);
+    const tagged = captured.entries.filter(
+      (entry) => entry.tag === "plugin:audio" && entry.message === "x",
+    );
+    expect(tagged).toEqual([
+      expect.objectContaining({ level: "info", tag: "plugin:audio", message: "x" }),
+    ]);
+    expect(outcome).toBeUndefined();
+  });
+
+  it("useLogger after an await in plugin setup throws GwenContextError CORE:OUTSIDE_ENGINE_CONTEXT", async () => {
+    const captured = logCapture();
+    const engine = await createEngine({ debug: true, logger: captured.logger });
+    let caught: unknown;
+    const plugin: GwenPlugin = {
+      name: "audio",
+      async setup() {
+        useLogger().info("sync");
+        await Promise.resolve();
+        try {
+          useLogger();
+        } catch (error: unknown) {
+          caught = error;
+        }
+      },
+    };
+    const outcome = await rejected(engine, plugin);
+    const tagged = captured.entries.filter(
+      (entry) => entry.tag === "plugin:audio" && entry.message === "sync",
+    );
+    expect(tagged).toEqual([
+      expect.objectContaining({ level: "info", tag: "plugin:audio", message: "sync" }),
+    ]);
+    expect(outcome).toBeUndefined();
+    expect(caught instanceof GwenContextError).toBe(true);
+    if (!(caught instanceof GwenContextError)) return;
+    expect(caught.code).toBe("CORE:OUTSIDE_ENGINE_CONTEXT");
+  });
+
+  it("debug and info from useLogger are dropped when debug is false", async () => {
+    const captured = logCapture();
+    const engine = await createEngine({ debug: false, logger: captured.logger });
+    const plugin: GwenPlugin = {
+      name: "x",
+      setup() {
+        const log = useLogger();
+        log.debug("d");
+        log.info("i");
+        log.warn("kept");
+      },
+    };
+    const outcome = await rejected(engine, plugin);
+    const tagged = captured.entries.filter((entry) => entry.tag === "plugin:x");
+    expect(tagged).toEqual([
+      expect.objectContaining({ level: "warn", tag: "plugin:x", message: "kept" }),
+    ]);
+    expect(outcome).toBeUndefined();
+  });
+
+  it("onCleanup in plugin setup runs on unuse()", async () => {
+    const engine = await createEngine();
+    const held: { scope: IGwenScope | null } = { scope: null };
+    let ran = false;
+    const outcome = await rejected(engine, {
+      name: "audio",
+      setup() {
+        held.scope = getCurrentScope();
+        onCleanup(() => {
+          ran = true;
+        });
+      },
+    });
+    expect(outcome).toBeUndefined();
+    expect(held.scope?.meta.type).toBe("plugin");
+    expect(held.scope?.meta.name).toBe("audio");
+    await engine.unuse("audio");
+    expect(ran).toBe(true);
+    expect(held.scope?.cleanupCount).toBe(0);
+  });
+
+  it("onCleanup in plugin setup runs on stop()", async () => {
+    const engine = await createEngine();
+    const held: { scope: IGwenScope | null } = { scope: null };
+    let ran = false;
+    const outcome = await rejected(engine, {
+      name: "audio",
+      setup() {
+        held.scope = getCurrentScope();
+        onCleanup(() => {
+          ran = true;
+        });
+      },
+    });
+    expect(outcome).toBeUndefined();
+    expect(held.scope?.meta.type).toBe("plugin");
+    expect(held.scope?.meta.name).toBe("audio");
+    await engine.stop();
+    expect(ran).toBe(true);
+    expect(held.scope?.cleanupCount).toBe(0);
+  });
+
+  it("useHook in plugin setup no longer fires after unuse()", async () => {
+    const engine = await createEngine();
+    const held: { scope: IGwenScope | null } = { scope: null };
+    let calls = 0;
+    const plugin: GwenPlugin = {
+      name: "audio",
+      setup() {
+        held.scope = getCurrentScope();
+        useHook("engine:update", () => {
+          calls += 1;
+        });
+      },
+    };
+    const outcome = await rejected(engine, plugin);
+    expect(outcome).toBeUndefined();
+    expect(held.scope?.meta.type).toBe("plugin");
+    expect(held.scope?.meta.name).toBe("audio");
+    expect(held.scope?.hookCount).toBe(1);
+    await engine.hooks.callHook("engine:update", 0);
+    expect(calls).toBe(1);
+    await engine.unuse("audio");
+    await engine.hooks.callHook("engine:update", 0);
+    expect(calls).toBe(1);
+  });
+
+  it("a failed setup disposes its scope", async () => {
+    const engine = await createEngine();
+    const held: { scope: IGwenScope | null } = { scope: null };
+    let ran = false;
+    const boom = new Error("setup failed");
+    const plugin: GwenPlugin = {
+      name: "audio",
+      setup() {
+        held.scope = getCurrentScope();
+        onCleanup(() => {
+          ran = true;
+        });
+        throw boom;
+      },
+    };
+    const outcome = await rejected(engine, plugin);
+    expect(outcome).toBe(boom);
+    expect(held.scope?.meta.type).toBe("plugin");
+    expect(held.scope?.meta.name).toBe("audio");
+    expect(getCurrentScope()).toBeNull();
+    expect(ran).toBe(true);
+    expect(held.scope?.cleanupCount).toBe(0);
+  });
+
+  it("a throwing onCleanup during a failed setup keeps the setup error and still removes the plugin's hooks", async () => {
+    const engine = await createEngine();
+    const held: { scope: IGwenScope | null } = { scope: null };
+    let calls = 0;
+    const boom = new Error("boom");
+    const cleanupError = new Error("e2");
+    const plugin: GwenPlugin = {
+      name: "audio",
+      setup(setupEngine) {
+        held.scope = getCurrentScope();
+        onCleanup(() => {
+          throw cleanupError;
+        });
+        setupEngine.hooks.hook("engine:update", () => {
+          calls += 1;
+        });
+        throw boom;
+      },
+    };
+    const outcome = await rejected(engine, plugin);
+    expect(outcome).toBe(boom);
+    await engine.hooks.callHook("engine:update", 0);
+    expect(calls).toBe(0);
+    expect(held.scope?.meta.type).toBe("plugin");
+  });
+
+  it("a setup that rejects after an await disposes its scope", async () => {
+    const engine = await createEngine();
+    const held: { scope: IGwenScope | null } = { scope: null };
+    let ran = false;
+    const boom = new Error("async setup failed");
+    const plugin: GwenPlugin = {
+      name: "audio",
+      async setup() {
+        held.scope = getCurrentScope();
+        onCleanup(() => {
+          ran = true;
+        });
+        await Promise.resolve();
+        throw boom;
+      },
+    };
+    const outcome = await rejected(engine, plugin);
+    expect(outcome).toBe(boom);
+    expect(ran).toBe(true);
+    expect(getCurrentScope()).toBeNull();
+    expect(held.scope?.meta.type).toBe("plugin");
+    expect(held.scope?.cleanupCount).toBe(0);
+  });
+
+  it("two engines each give their plugins their own scope", async () => {
+    const first = logCapture();
+    const second = logCapture();
+    const engineA = await createEngine({ debug: true, logger: first.logger });
+    const engineB = await createEngine({ debug: true, logger: second.logger });
+    const heldA: { scope: IGwenScope | null } = { scope: null };
+    const heldB: { scope: IGwenScope | null } = { scope: null };
+    const outcomeA = await rejected(engineA, {
+      name: "audio",
+      setup() {
+        heldA.scope = getCurrentScope();
+        useLogger().info("from-a");
+      },
+    });
+    const outcomeB = await rejected(engineB, {
+      name: "audio",
+      setup() {
+        heldB.scope = getCurrentScope();
+        useLogger().info("from-b");
+      },
+    });
+    expect(heldA.scope?.engine).not.toBe(heldB.scope?.engine);
+    expect(heldA.scope?.engine.logger).toBe(engineA.logger);
+    expect(heldB.scope?.engine.logger).toBe(engineB.logger);
+    expect(
+      first.entries.filter((entry) => entry.tag === "plugin:audio").map((entry) => entry.message),
+    ).toEqual(["from-a"]);
+    expect(
+      second.entries.filter((entry) => entry.tag === "plugin:audio").map((entry) => entry.message),
+    ).toEqual(["from-b"]);
+    expect(outcomeA).toBeUndefined();
+    expect(outcomeB).toBeUndefined();
+  });
 });

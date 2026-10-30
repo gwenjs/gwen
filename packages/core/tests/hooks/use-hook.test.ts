@@ -14,6 +14,7 @@
 import { stubComponent, stubValue } from "../helpers/stub-component";
 import { describe, it, expect, vi } from "vitest";
 import type { EntityId } from "../../src/engine/engine-api.js";
+import { getCurrentScope } from "@gwenjs/kit";
 import { createEngine, useHook, GwenContextError } from "../../src/index";
 import { definePrefab } from "../../src/actor/runtime/define-prefab";
 import { defineActor } from "../../src/actor/runtime/define-actor";
@@ -302,19 +303,27 @@ describe("useHook() in actor context — dormancy via ScopedHookable", () => {
     expect(handler).toHaveBeenCalledTimes(1);
   });
 
-  it("useHook in plugin setup (no scope) registers directly on engine.hooks", async () => {
+  it("useHook in plugin setup registers on the plugin scope and fires", async () => {
     const engine = await createEngine();
-    const handler = vi.fn();
+    const held: { scope: ReturnType<typeof getCurrentScope> } = { scope: null };
+    let calls = 0;
 
     await engine.use({
-      name: "test-no-scope",
+      name: "audio",
       setup() {
-        useHook("entity:spawn", handler);
+        held.scope = getCurrentScope();
+        useHook("engine:update", () => {
+          calls += 1;
+        });
       },
     });
 
-    await engine.hooks.callHook("entity:spawn", 1n as unknown as EntityId);
-    expect(handler).toHaveBeenCalledOnce();
+    await engine.hooks.callHook("engine:update", 0);
+    expect(calls).toBe(1);
+    expect(held.scope?.meta.type).toBe("plugin");
+    expect(held.scope?.meta.name).toBe("audio");
+    expect(held.scope?.hookCount).toBe(1);
+    await engine.stop();
   });
 });
 

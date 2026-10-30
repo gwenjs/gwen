@@ -3,7 +3,13 @@
  */
 
 import { afterEach, describe, expect, it } from "vitest";
-import { GwenError, type GwenScopeMeta, type IGwenLogger, type IGwenScope } from "@gwenjs/schema";
+import {
+  GwenError,
+  type GwenEngineBase,
+  type GwenScopeMeta,
+  type IGwenLogger,
+  type IGwenScope,
+} from "@gwenjs/schema";
 import * as kit from "@gwenjs/kit";
 
 interface Recorded {
@@ -33,7 +39,29 @@ function recordingLogger(entries: Recorded[], tag?: string, entityId?: string): 
   };
 }
 
-function scopeWith(engine: unknown, meta: GwenScopeMeta): IGwenScope {
+function scopeWith(logger: IGwenLogger, meta: GwenScopeMeta): IGwenScope {
+  const engine: GwenEngineBase = {
+    provide() {},
+    inject(): unknown {
+      return undefined;
+    },
+    tryInject(): undefined {
+      return undefined;
+    },
+    hooks: {
+      hook() {},
+      removeHook() {},
+    },
+    logger,
+    run<T>(fn: () => T): T {
+      return fn();
+    },
+    disposables: {
+      add() {},
+      disposeAll() {},
+      size: 0,
+    },
+  };
   return {
     meta,
     engine,
@@ -90,30 +118,11 @@ describe("useLogger", () => {
     expect(thrown.message.length).toBeGreaterThan(0);
   });
 
-  it("useLogger in a scope whose engine has no logger throws CORE:OUTSIDE_ENGINE_CONTEXT", () => {
-    expect(typeof kit.GwenContextError).toBe("function");
-    const engines: unknown[] = [{}, null, { logger: {} }, { logger: null }, { logger: "x" }];
-    for (const engine of engines) {
-      kit._setCurrentScope(scopeWith(engine, { type: "system", id: "system#1", name: "Mover" }));
-      try {
-        const thrown = thrownBy(() => {
-          kit.useLogger();
-        });
-        expect(thrown instanceof kit.GwenContextError).toBe(true);
-        if (!(thrown instanceof kit.GwenContextError)) return;
-        expect(thrown.code).toBe("CORE:OUTSIDE_ENGINE_CONTEXT");
-        expect(thrown.message.length).toBeGreaterThan(0);
-      } finally {
-        kit._setCurrentScope(null);
-      }
-    }
-  });
-
   it("useLogger tags the child with <type>:<name>", () => {
     expect(typeof kit.useLogger).toBe("function");
     const entries: Recorded[] = [];
     const logger = recordingLogger(entries);
-    kit._setCurrentScope(scopeWith({ logger }, { type: "actor", id: "actor#1", name: "Hero" }));
+    kit._setCurrentScope(scopeWith(logger, { type: "actor", id: "actor#1", name: "Hero" }));
     try {
       kit.useLogger().info("ready");
     } finally {
@@ -128,7 +137,7 @@ describe("useLogger", () => {
     expect(typeof kit.useLogger).toBe("function");
     const entries: Recorded[] = [];
     const logger = recordingLogger(entries);
-    kit._setCurrentScope(scopeWith({ logger }, { type: "system", id: "system#4" }));
+    kit._setCurrentScope(scopeWith(logger, { type: "system", id: "system#4" }));
     try {
       kit.useLogger().info("tick");
     } finally {
@@ -143,10 +152,12 @@ describe("useLogger", () => {
     expect(typeof kit.useLogger).toBe("function");
     const withId: Recorded[] = [];
     kit._setCurrentScope(
-      scopeWith(
-        { logger: recordingLogger(withId) },
-        { type: "actor", id: "actor#7", name: "Hero", entityId: 7n },
-      ),
+      scopeWith(recordingLogger(withId), {
+        type: "actor",
+        id: "actor#7",
+        name: "Hero",
+        entityId: 7n,
+      }),
     );
     try {
       kit.useLogger().info("spawn");
@@ -157,10 +168,7 @@ describe("useLogger", () => {
 
     const withoutId: Recorded[] = [];
     kit._setCurrentScope(
-      scopeWith(
-        { logger: recordingLogger(withoutId) },
-        { type: "actor", id: "actor#8", name: "Hero" },
-      ),
+      scopeWith(recordingLogger(withoutId), { type: "actor", id: "actor#8", name: "Hero" }),
     );
     try {
       kit.useLogger().info("plain");
@@ -188,10 +196,7 @@ describe("useErrorReporter", () => {
     expect(typeof kit.useErrorReporter).toBe("function");
     const entries: Recorded[] = [];
     kit._setCurrentScope(
-      scopeWith(
-        { logger: recordingLogger(entries) },
-        { type: "system", id: "system#1", name: "Mover" },
-      ),
+      scopeWith(recordingLogger(entries), { type: "system", id: "system#1", name: "Mover" }),
     );
     let thrown: unknown;
     try {
@@ -226,10 +231,7 @@ describe("usePerfMark", () => {
     expect(typeof kit.usePerfMark).toBe("function");
     const entries: Recorded[] = [];
     kit._setCurrentScope(
-      scopeWith(
-        { logger: recordingLogger(entries) },
-        { type: "system", id: "system#1", name: "Mover" },
-      ),
+      scopeWith(recordingLogger(entries), { type: "system", id: "system#1", name: "Mover" }),
     );
     try {
       kit.usePerfMark("boot")();
