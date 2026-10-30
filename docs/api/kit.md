@@ -24,9 +24,9 @@ import type { AutoImport, DeepPartial } from '@gwenjs/kit'
 
 `useLogger()`, `useErrorReporter()`, and `usePerfMark()` read the logger of the active scope.
 
-`useLogger()` must run inside a `defineSystem()`, `defineActor()` or `defineScene()` factory. It returns that engine's logger, tagged `<type>:<name>` (for example `system:Mover`). When the scope has no name, the tag uses the scope id.
+`useLogger()` must run inside a `defineSystem()`, `defineActor()` or `defineScene()` factory, or in a plugin `setup()`. It returns that engine's logger, tagged `<type>:<name>` (for example `system:Mover` or `plugin:audio`). When the scope has no name, the tag uses the scope id.
 
-Outside any scope, including a plugin `setup()` (no scope until #73), it throws `GwenContextError` with code `CORE:OUTSIDE_ENGINE_CONTEXT`. `useErrorReporter()` and `usePerfMark()` throw the same way.
+Outside any scope, including after an `await` in a plugin `setup()`, it throws `GwenContextError` with code `CORE:OUTSIDE_ENGINE_CONTEXT`. `useErrorReporter()` and `usePerfMark()` throw the same way.
 
 ```ts
 import { defineSystem } from '@gwenjs/core/system'
