@@ -3,6 +3,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
+const REQUIRED_PAGES = ["csp", "quote", "light", "isolated"];
+
 const browserDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "browser");
 
 // Importing build-site.mjs runs the Vite build. Parse the page list as text.
@@ -42,6 +44,10 @@ describe("browser fixture pages", () => {
   it("every site page is bundled by build-site.mjs and has a fixture entry", () => {
     const listed = bundledPages(readFileSync(path.join(browserDir, "build-site.mjs"), "utf8"));
     const problems: string[] = [];
+    for (const page of REQUIRED_PAGES) {
+      const htmlPath = path.join(browserDir, "site", page, "index.html");
+      if (!existsSync(htmlPath)) problems.push(`${page}: required page has no index.html`);
+    }
     for (const page of sitePages()) {
       if (!listed.includes(page)) problems.push(`${page}: not bundled by build-site.mjs`);
       const fixture = path.join(browserDir, "fixtures", `${page}-entry.ts`);
@@ -62,8 +68,7 @@ describe("browser fixture pages", () => {
 
   it("the page list parser reads the real file", () => {
     const listed = bundledPages(readFileSync(path.join(browserDir, "build-site.mjs"), "utf8"));
-    const required = ["csp", "quote", "light", "isolated"];
-    const missing = required.filter((page) => !listed.includes(page));
+    const missing = REQUIRED_PAGES.filter((page) => !listed.includes(page));
     expect(missing).toEqual([]);
   });
 });
