@@ -71,6 +71,23 @@ function assertPluginRejected(caught: unknown, moduleName: string): GwenError {
   return caught.cause;
 }
 
+function cyclicRecord(): object {
+  const box: { self?: object } = {};
+  box.self = box;
+  return box;
+}
+
+/** Each title keeps the kind as a literal so one `-t` selects one row. */
+const NON_JSON_OPTIONS: ReadonlyArray<readonly [string, () => unknown]> = [
+  ["NaN", () => Number.NaN],
+  ["Infinity", () => Number.POSITIVE_INFINITY],
+  ["bigint", () => 1n],
+  ["cycle", () => cyclicRecord()],
+  ["Date", () => new Date(0)],
+  ["Map", () => new Map<string, number>([["k", 1]])],
+  ["nested function", () => ({ child: { tick: () => 0 } })],
+];
+
 // ─── defineGwenModule ─────────────────────────────────────────────────────────
 
 describe("defineGwenModule", () => {
@@ -392,6 +409,66 @@ describe("GwenApp.setupModules — plugin collection", () => {
         () => undefined,
       );
     expect(listed).toEqual([SCENE_DECLARATION, TWEEN_DECLARATION, decl]);
+  });
+
+  it("addPlugin with a non-string export fails", async () => {
+    const name = "@test/bad-export";
+    for (const exportName of [() => "plugin", 1]) {
+      const { caught } = await runModule(name, (_opts, gwen) => {
+        addUnknown(gwen, { src: "x", export: exportName });
+      });
+      assertPluginRejected(caught, name);
+    }
+  });
+
+  it("addPlugin with an empty src fails", async () => {
+    const name = "@test/empty-src";
+    const { caught } = await runModule(name, (_opts, gwen) => {
+      gwen.addPlugin({ src: "" });
+    });
+    assertPluginRejected(caught, name);
+  });
+
+  it("addPlugin with options undefined is collected like no options", async () => {
+    const absent = { src: "@test/absent", export: "Bare" };
+    const explicit = { src: "@test/explicit", export: "Bare", options: undefined };
+    const { app, caught } = await runModule("@test/undef-opts", (_opts, gwen) => {
+      gwen.addPlugin(absent);
+      gwen.addPlugin(explicit);
+    });
+    expect(caught).toBeUndefined();
+    const declarations = app.pluginDeclarations.filter((item) => item.export === "Bare");
+    expect(declarations).toEqual([absent, { src: explicit.src, export: explicit.export }]);
+  });
+
+  it.each(NON_JSON_OPTIONS)("addPlugin rejects options %s", async (kind, makeOptions) => {
+    const src = "@test/not-json";
+    const name = `@test/not-json-${kind.replace(/ /g, "-")}`;
+    const { caught } = await runModule(name, (_opts, gwen) => {
+      gwen.addPlugin({ src, options: makeOptions() });
+    });
+    const cause = assertPluginRejected(caught, name);
+    expect(cause.message.split("\n")[0]).toBe(
+      `[kit.addPlugin()] Plugin declaration "${src}" has options that are not JSON-serializable.`,
+    );
+  });
+
+  it("addPlugin keeps nested plain JSON options unchanged", async () => {
+    const options = {
+      name: "hero",
+      flags: [true, false],
+      count: 0,
+      ratio: -1.5,
+      label: "ok",
+      child: { enabled: true, tags: ["a", null] },
+      empty: null,
+    };
+    const { app, caught } = await runModule("@test/json-opts", (_opts, gwen) => {
+      gwen.addPlugin({ src: "@test/json", export: "JsonPlugin", options });
+    });
+    expect(caught).toBeUndefined();
+    const found = app.pluginDeclarations.find((item) => item.src === "@test/json");
+    expect(found?.options).toEqual(options);
   });
 });
 
