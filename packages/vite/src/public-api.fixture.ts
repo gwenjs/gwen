@@ -31,9 +31,6 @@ import { generateEntryModule } from "@gwenjs/vite";
 import { generateScenesModule } from "@gwenjs/vite";
 
 // @ts-expect-error TS2305 — removed from @gwenjs/vite
-import { generateConfigModulesVirtualModule } from "@gwenjs/vite";
-
-// @ts-expect-error TS2305 — removed from @gwenjs/vite
 import { extractModuleNamesFromConfig } from "@gwenjs/vite";
 
 // @ts-expect-error TS2305 — removed from @gwenjs/vite

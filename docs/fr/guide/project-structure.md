@@ -215,7 +215,7 @@ Le framework appelle la factory sans arguments au moment de l'enregistrement. Si
 
 ### `src/modules/` — Modules locaux
 
-Les fichiers de ce répertoire sont **auto-découverts et chargés avant** `config.plugins`. Ils fonctionnent exactement comme les modules npm déclarés dans `gwen.config.ts`, mais vivent dans votre projet — pas de package à publier, pas d'entrée de config requise.
+Les fichiers de ce répertoire sont **auto-découverts**. Ils s'exécutent au **moment de la compilation**, et les plugins qu'ils déclarent s'installent après `config.plugins` et avant `src/plugins/`. Ils fonctionnent exactement comme les modules npm déclarés dans `gwen.config.ts`, mais vivent dans votre projet — pas de package à publier, pas d'entrée de config requise.
 
 Chaque fichier doit exporter une définition `defineGwenModule` comme **export par défaut** :
 
@@ -329,11 +329,12 @@ export function distance(x1: number, y1: number, x2: number, y2: number) {
 Les plugins et modules sont appliqués dans cet ordre :
 
 1. Plugins framework intégrés (viewports, screen)
-2. `config.plugins` — inclut les plugins contribués par les modules npm au moment de la compilation
-3. `src/modules/` — modules locaux (ordre alphabétique par nom de module)
-4. `src/plugins/` — plugins locaux (ordre alphabétique par nom de fichier)
+2. `gwenConfig.plugins`
+3. Plugins déclarés par les modules au moment de la compilation (modules npm, puis `src/modules/`)
+4. `src/plugins/`
+5. Systèmes de scène
 
-Les modules npm déclarés dans `gwen.config.ts → modules` et les modules locaux dans `src/modules/` s'exécutent au **moment de la compilation** dans `setupModules` (les modules locaux après les modules npm, chargés par `jiti` ; un dossier personnalisé vient de `localModulesDir`, `false` les désactive) et enregistrent leurs plugins via `gwen.addPlugin()`. Ces plugins atterrissent dans `config.plugins` et s'exécutent avant tout plugin local.
+Les modules npm déclarés dans `gwen.config.ts → modules` et les modules locaux dans `src/modules/` s'exécutent au **moment de la compilation** dans `setupModules` (les modules locaux après les modules npm, chargés par `jiti` ; un dossier personnalisé vient de `localModulesDir`, `false` les désactive) et enregistrent leurs plugins via `gwen.addPlugin()`. Le bundle navigateur n'exécute aucun `setup` de module ; il installe la liste de plugins résolue (plugins de la config, puis les plugins déclarés par les modules, puis les plugins locaux, puis les systèmes de scène) un par un et, si une installation échoue, arrête le moteur avant d'afficher l'erreur.
 
 ## Modèles de mise à l'échelle
 

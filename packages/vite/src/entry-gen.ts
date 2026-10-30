@@ -407,31 +407,14 @@ export function toRootRelative(filePath: string, projectRoot: string): string {
 }
 
 /**
- * Generates the `virtual:gwen/config-modules` virtual module source.
- *
- * Statically imports each npm module declared in `gwen.config.ts` via its
- * `/module` subpath, so the browser bootstrap can call `setup()` at runtime.
- *
- * @param moduleNames - Package names from `gwen.config.ts → modules`.
- * @returns ESM source string.
- */
-export function generateConfigModulesVirtualModule(moduleNames: string[]): string {
-  if (moduleNames.length === 0) return "export const configModules = [];\n";
-  const imports = moduleNames
-    .map((n, i) => `import _cm${i} from ${JSON.stringify(n + "/module")};`)
-    .join("\n");
-  const entries = moduleNames.map((_, i) => `  _cm${i}.default ?? _cm${i}`).join(",\n");
-  return `${imports}\nexport const configModules = [\n${entries},\n];\n`;
-}
-
-/**
  * Generates the `/@gwenjs/gwen-entry` virtual module source.
  *
  * Imports `@gwenjs/core` directly to prevent
  * esbuild from pre-bundling `@gwenjs/app` and creating duplicate `engineContext` singletons.
+ * The browser bundle does not call module `setup`. It installs the resolved plugin list.
  *
  * @param hasScenesDir - Whether `src/scenes/` exists in the project.
- * @param declarations - Path-based plugin declarations collected from module setup().
+ * @param declarations - Path-based plugin declarations collected at build time.
  * @param cssFiles     - Root-relative CSS paths to inject as top-level imports.
  * @param resolved     - Resolved GWEN config. Engine values and module sections are inlined.
  */
@@ -452,9 +435,7 @@ export function generateEntryModule(
     'import { WasmBridgeImpl } from "@gwenjs/core/internal";',
     'import { createViewportsPlugin, createScreenPlugin } from "@gwenjs/app";',
     'import gwenConfig from "/gwen.config.ts";',
-    'import { configModules as _cfgModules } from "virtual:gwen/config-modules";',
     'import { plugins as _localPlugins } from "virtual:gwen/local-plugins";',
-    'import { modules as _localModules } from "virtual:gwen/local-modules";',
   );
 
   if (hasScenesDir) {
@@ -477,7 +458,9 @@ export function generateEntryModule(
     `  const __gwenResolved = ${inlined};`,
     "  const bridge = new WasmBridgeImpl();",
     "  await bridge.init(__gwenResolved.engine.variant);",
-    "  const engine = await createEngine({ ...__gwenResolved.engine, logger: gwenConfig.logger, _bridge: bridge, _ownsBridge: true });",
+    "  let engine;",
+    "  try {",
+    "  engine = await createEngine({ ...__gwenResolved.engine, logger: gwenConfig.logger, _bridge: bridge, _ownsBridge: true });",
     "",
     "  await engine.use(createViewportsPlugin(gwenConfig.viewports));",
     "  await engine.use(createScreenPlugin(gwenConfig.screen));",
@@ -496,41 +479,15 @@ export function generateEntryModule(
     );
   }
 
-  const resolvedKitOptions =
-    "options: { ...__gwenResolved.sections, engine: __gwenResolved.engine }";
-  bootstrapLines.push(
-    "",
-    "  for (const _cmMod of _cfgModules) {",
-    "    const _cmPlugins = [];",
-    "    const _cmDecls = [];",
-    `    const _cmKit = { addPlugin(p) { if (typeof p === "function") { _cmPlugins.push(p()); } else if (p && "src" in p) { _cmDecls.push(p); } else { _cmPlugins.push(p); } }, addAutoImports() {}, addVitePlugin() {}, extendViteConfig() {}, hook() {}, ${resolvedKitOptions} };`,
-    "    const _cmKey = _cmMod.meta?.configKey;",
-    "    const _cmOpts = _cmKey ? (__gwenResolved.sections[_cmKey] ?? {}) : {};",
-    "    await _cmMod.setup(_cmOpts, _cmKit);",
-    "    for (const p of _cmPlugins) await engine.use(p);",
-    "    for (const d of _cmDecls) { const _m = await import(/* @vite-ignore */ d.src); const _f = d.export ? _m[d.export] : _m.default; await engine.use(d.options !== undefined ? _f(d.options) : _f()); }",
-    "  }",
-    "",
-    "  for (const mod of _localModules) {",
-    "    const _lmPlugins = [];",
-    "    const _lmDecls = [];",
-    `    const _lmKit = { addPlugin(p) { if (typeof p === "function") { _lmPlugins.push(p()); } else if (p && "src" in p) { _lmDecls.push(p); } else { _lmPlugins.push(p); } }, addAutoImports() {}, addVitePlugin() {}, extendViteConfig() {}, hook() {}, ${resolvedKitOptions} };`,
-    "    const _lmKey = mod.meta?.configKey;",
-    "    const _lmOpts = _lmKey ? (__gwenResolved.sections[_lmKey] ?? {}) : {};",
-    "    await mod.setup(_lmOpts, _lmKit);",
-    "    for (const p of _lmPlugins) await engine.use(p);",
-    "    for (const d of _lmDecls) { const _m = await import(/* @vite-ignore */ d.src); const _f = d.export ? _m[d.export] : _m.default; await engine.use(d.options !== undefined ? _f(d.options) : _f()); }",
-    "  }",
-    "  for (const factory of _localPlugins) await engine.use(factory());",
-  );
+  bootstrapLines.push("  for (const factory of _localPlugins) await engine.use(factory());");
 
   if (hasScenesDir) {
     bootstrapLines.push(
       "",
-      "  const _sceneUsages = [];",
+      "  const _sceneSystems = new Set();",
       "  const _sceneHandleMap = new Map();",
-      "  engine.run(() => registerScenes({ register(scene) { _sceneHandleMap.set(scene.name, scene.handles ?? []); for (const _s of scene.systems ?? []) _sceneUsages.push(engine.use(_s)); } }));",
-      "  await Promise.all(_sceneUsages);",
+      "  engine.run(() => registerScenes({ register(scene) { _sceneHandleMap.set(scene.name, scene.handles ?? []); for (const _s of scene.systems ?? []) _sceneSystems.add(_s); } }));",
+      "  for (const _s of _sceneSystems) await engine.use(_s);",
       "",
       "  // Pause systems of every scene except the initial one.",
       "  // scene:enter / scene:beforeLeave resume and pause them during transitions.",
@@ -550,6 +507,10 @@ export function generateEntryModule(
     "    await engine.startExternal();",
     "  } else {",
     "    await engine.start();",
+    "  }",
+    "  } catch (err) {",
+    "    if (engine) await engine.stop().catch(() => {});",
+    "    throw err;",
     "  }",
     "}",
     "",
