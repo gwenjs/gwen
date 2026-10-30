@@ -362,12 +362,21 @@ describe("GwenApp.setupModules — plugin collection", () => {
       );
     }
 
-    const options = { a: [1, "x", null] };
+    const options = {
+      name: "hero",
+      flags: [true, false],
+      count: 0,
+      ratio: -1.5,
+      label: "ok",
+      child: { enabled: true, tags: ["a", null] },
+      empty: null,
+    };
     const { app, caught } = await runModule("@test/ok-opts", (_opts, gwen) => {
       gwen.addPlugin({ src: "@test/ok", options });
     });
     expect(caught).toBeUndefined();
-    expect(app.pluginDeclarations).toContainEqual({ src: "@test/ok", options });
+    const found = app.pluginDeclarations.find((item) => item.src === "@test/ok");
+    expect(found?.options).toEqual(options);
   });
 
   it("a declaration is collected in module order", async () => {
@@ -438,6 +447,10 @@ describe("GwenApp.setupModules — plugin collection", () => {
     });
     expect(caught).toBeUndefined();
     const declarations = app.pluginDeclarations.filter((item) => item.export === "Bare");
+    expect(declarations).toHaveLength(2);
+    for (const row of declarations) {
+      expect("options" in row).toBe(false);
+    }
     expect(declarations).toEqual([absent, { src: explicit.src, export: explicit.export }]);
   });
 
@@ -451,24 +464,6 @@ describe("GwenApp.setupModules — plugin collection", () => {
     expect(cause.message.split("\n")[0]).toBe(
       `[kit.addPlugin()] Plugin declaration "${src}" has options that are not JSON-serializable.`,
     );
-  });
-
-  it("addPlugin keeps nested plain JSON options unchanged", async () => {
-    const options = {
-      name: "hero",
-      flags: [true, false],
-      count: 0,
-      ratio: -1.5,
-      label: "ok",
-      child: { enabled: true, tags: ["a", null] },
-      empty: null,
-    };
-    const { app, caught } = await runModule("@test/json-opts", (_opts, gwen) => {
-      gwen.addPlugin({ src: "@test/json", export: "JsonPlugin", options });
-    });
-    expect(caught).toBeUndefined();
-    const found = app.pluginDeclarations.find((item) => item.src === "@test/json");
-    expect(found?.options).toEqual(options);
   });
 });
 
