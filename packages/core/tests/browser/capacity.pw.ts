@@ -134,8 +134,8 @@ test.describe("webkit", () => {
   test.skip(({ browserName }) => browserName !== "webkit");
 
   test("webkit: 500 isolated engines, no crash, independent counts", async ({ page }) => {
-    // CI run 41059346720, webkit: 3.5 s. Timeout is 2x.
-    test.setTimeout(7_000);
+    // CI runs 41059346720 and 41061066282, webkit: 3.5 s and 8.3 s. Timeout is 2x the slower.
+    test.setTimeout(16_600);
     await openIsolated(page);
     const opened: IsolatedBatch = await page.evaluate(async () => {
       const gwen: GwenHarness = window.__gwen;
