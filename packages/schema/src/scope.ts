@@ -8,6 +8,7 @@
  * @module
  */
 
+import type { GwenEngineBase } from "./plugin.js";
 import type { GwenRuntimeHooks } from "./runtime-hooks.js";
 
 /** Discriminant for the runtime object that owns a scope. */
@@ -34,7 +35,7 @@ export interface GwenScopeMeta {
  */
 export interface IGwenScope {
   readonly meta: GwenScopeMeta;
-  readonly engine: unknown;
+  readonly engine: GwenEngineBase;
   readonly parent: IGwenScope | null;
   /** `true` when the scope's hooks are silenced (pool dormancy). */
   readonly paused: boolean;
