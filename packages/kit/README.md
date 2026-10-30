@@ -100,7 +100,7 @@ Types: `AutoImport`, `DeepPartial`, `EngineSlot`, `GwenContextBoundary`, `GwenCo
 
 ### `./plugin`
 
-Values: `createEntityId`, `definePlugin`, `satisfiesPluginContract`, `unpackEntityId`
+Values: `createEntityId`, `definePlugin`, `optionalService`, `satisfiesPluginContract`, `unpackEntityId`, `watchService`
 
 Types: `ComponentType`, `EntityId`, `GwenPlugin`, `GwenPluginFactory`, `GwenProvides`, `GwenRuntimeHooks`, `PluginErrorContext`
 
