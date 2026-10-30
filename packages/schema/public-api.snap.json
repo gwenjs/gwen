@@ -3,6 +3,8 @@
     "values": [
       "ENGINE_DEFAULTS",
       "GWEN_DOCS_BASE",
+      "GWEN_PLUGIN_KEYS",
+      "GWEN_PLUGIN_LIFECYCLE_HOOKS",
       "GwenError",
       "RENDERER_CONTRACT_VERSION",
       "RENDER_VIEW_MATRIX_LENGTH",
@@ -27,6 +29,7 @@
       "EngineErrorPayload",
       "EngineStateChangePayload",
       "EntityId",
+      "ForbiddenPluginKey",
       "GwenBaseConfig",
       "GwenBuildHooks",
       "GwenConfigIssue",

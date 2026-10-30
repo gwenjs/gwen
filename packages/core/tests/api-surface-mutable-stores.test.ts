@@ -62,7 +62,10 @@ describe("package entries", () => {
       const names = exportNames(entryModule);
       expect(names.length, `${entry} has no exports`).toBeGreaterThan(0);
       for (const name of names) {
-        const kind = storeKind(readExport(entryModule, name));
+        const value = readExport(entryModule, name);
+        const kind = storeKind(value);
+        // A frozen array cannot grow. Object.freeze does not stop Map.set or Set.add.
+        if (kind === "Array" && Object.isFrozen(value)) continue;
         if (kind !== undefined) {
           hits.push(`${entry} exports ${name} (${kind})`);
         }
