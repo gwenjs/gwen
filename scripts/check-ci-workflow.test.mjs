@@ -2109,3 +2109,11 @@ test(
     assert.equal(filesMatch(rust, [file], "some"), true);
   },
 );
+
+test("wasm-capacity is a required job", () => {
+  const block = jobBlock(readCi(), "wasm-capacity");
+  assert.notEqual(block, "");
+  assert.match(block, /ubuntu-24.04-arm/);
+  assert.match(block, /os: ubuntu-24.04\n/);
+  assert.doesNotMatch(block, /continue-on-error/);
+});
