@@ -978,7 +978,7 @@ export default { modules: ["real-mod"], globalCss: ["./kept.css"] };
     });
   });
 
-  it("two gwen instances isolate resolved config", async () => {
+  it("two gwen instances isolate resolved config and scan dirs", async () => {
     const rootA = makeTmp();
     const rootB = makeTmp();
     try {
