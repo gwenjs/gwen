@@ -596,6 +596,34 @@ test("the table and the upload still run when a bench fails", () => {
   assert.equal(upload.if, "always()");
 });
 
+test("the table step fails when the table script fails", () => {
+  const text = readFileSync(workflowPath, "utf8");
+  const table = stepsOf(text).find((step) => step.name === "Write the profile table");
+  assert.ok(table);
+  assert.equal(table.if, "always()");
+  const lines = text.split("\n");
+  const start = lines.findIndex(
+    (line) => !/^\s*#/.test(line) && line === "      - name: Write the profile table",
+  );
+  assert.ok(start !== -1);
+  let end = lines.length;
+  for (let i = start + 1; i < lines.length; i += 1) {
+    const line = lines[i] ?? "";
+    if (/^\s*#/.test(line)) continue;
+    if (/^ {6}- /.test(line)) {
+      end = i;
+      break;
+    }
+  }
+  const scripts = runScripts(lines.slice(start, end).join("\n"));
+  assert.equal(scripts.length, 1);
+  const body = stripBashComments(scripts[0] ?? "").split("\n");
+  const pipelineAt = body.findIndex((line) => line.includes("wasm-profile-table.mjs"));
+  assert.ok(pipelineAt > 0);
+  assert.match(body[pipelineAt] ?? "", /\|/);
+  assert.match(body.slice(0, pipelineAt).join("\n"), /^\s*set -(?:o|eo|euo) pipefail\s*$/m);
+});
+
 test("the matrix job is read-only and has a timeout", () => {
   const text = readFileSync(workflowPath, "utf8");
   const permissions = topBlocks(text).find((block) => block.header === "permissions:");
