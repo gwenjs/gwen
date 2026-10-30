@@ -1,7 +1,17 @@
 import type { Hookable } from "hookable";
-import type { GwenPluginRequirement, IGwenLogger } from "@gwenjs/schema";
+import {
+  GWEN_PLUGIN_KEYS,
+  GWEN_PLUGIN_LIFECYCLE_HOOKS,
+  type ForbiddenPluginKey,
+  type GwenPluginRequirement,
+  type IGwenLogger,
+} from "@gwenjs/schema";
 import { withCleanup } from "../cleanup-context.js";
-import { CoreErrorCodes, GwenPluginDependencyError } from "./engine-errors.js";
+import {
+  CoreErrorCodes,
+  GwenPluginDependencyError,
+  GwenPluginShapeError,
+} from "./engine-errors.js";
 import { popEngine, pushEngine } from "./engine-local.js";
 import type { EngineErrorBus, GwenEngine, GwenPlugin } from "./engine-types.js";
 import {
@@ -75,6 +85,7 @@ export class PluginRegistry {
   use(plugin: GwenPlugin, receiver: PluginRegistryReceiver): Promise<void> {
     try {
       this.deps.assertState("use");
+      this._assertShape(plugin);
       if (this._pluginNames.has(plugin.name)) {
         this._warnDuplicate(plugin.name);
         return Promise.resolve();
@@ -101,6 +112,21 @@ export class PluginRegistry {
       return run;
     } catch (error) {
       return Promise.reject(error);
+    }
+  }
+
+  /** Lifecycle keys throw. Other own keys warn in dev when debug is on. */
+  private _assertShape(plugin: GwenPlugin): void {
+    const found = Object.keys(plugin).filter((key): key is ForbiddenPluginKey =>
+      Object.prototype.hasOwnProperty.call(GWEN_PLUGIN_LIFECYCLE_HOOKS, key),
+    );
+    if (found.length > 0) throw new GwenPluginShapeError(plugin.name, found);
+    if (__GWEN_DEV__ && this.deps.debug) {
+      const allowed: ReadonlySet<string> = new Set(GWEN_PLUGIN_KEYS);
+      for (const key of Object.keys(plugin)) {
+        if (allowed.has(key) || key.startsWith("_")) continue;
+        this.deps.logger.warn(`[GWEN] plugin "${plugin.name}": unknown key "${key}" is ignored.`);
+      }
     }
   }
 
