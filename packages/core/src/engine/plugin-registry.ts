@@ -7,6 +7,7 @@ import {
   type IGwenLogger,
 } from "@gwenjs/schema";
 import { withCleanup } from "../cleanup-context.js";
+import { GwenScope } from "../context/scope.js";
 import {
   CoreErrorCodes,
   GwenPluginDependencyError,
@@ -68,6 +69,8 @@ export class PluginRegistry {
   private readonly _removing = new Map<string, Promise<void>>();
   /** Dispose functions collected by withCleanup() during plugin setup — keyed by plugin name. */
   private readonly _pluginCleanups = new Map<string, () => void>();
+  /** Plugin name → scope for that plugin's setup and lifetime. */
+  private readonly _scopes = new Map<string, GwenScope>();
   /** Plugin name → service key → value that plugin's setup proxy provided. */
   private readonly _owned = new Map<string, Map<string, unknown>>();
 
@@ -166,19 +169,33 @@ export class PluginRegistry {
   private async _runInstall(plugin: GwenPlugin, receiver: PluginRegistryReceiver): Promise<void> {
     const scopedHooks = this._createScopedHooks(plugin.name, receiver);
     const engineWithScopedHooks = this._withScopedHooks(plugin.name, scopedHooks, receiver);
+    // Real receiver: the object useEngine() returns during setup, and the one
+    // bindFailureReporter is bound to. useHook() guards against that object.
+    // id is the plugin name because GwenScope.hook builds the isolation target
+    // from meta, and a plugin target is looked up by target.id.
+    // scope.engine.provide(...) is not attributed to the plugin the way
+    // engine.provide on the setup parameter is. Nothing here relies on that.
+    const scope = new GwenScope(receiverEngine(receiver), {
+      type: "plugin",
+      id: plugin.name,
+      name: plugin.name,
+    });
+    this._scopes.set(plugin.name, scope);
 
     try {
-      // Run the synchronous part of setup with this engine current, then restore
-      // whoever was current. Nesting another engine is allowed (no "Context conflict").
-      // Attribution covers only the synchronous part of setup.
+      // Engine context outermost, then the plugin scope, then cleanup capture.
+      // Nesting another engine is allowed (no "Context conflict").
+      // Attribution and the scope cover only the synchronous part of setup.
       let setupResult: void | Promise<void> | undefined;
       const previousSetup = beginPluginSetup(plugin);
       const previousEngine = pushEngine(receiverEngine(receiver));
       try {
         try {
-          const [, dispose] = withCleanup(() => {
-            setupResult = plugin.setup(receiverEngine(engineWithScopedHooks));
-          });
+          const [, dispose] = scope.run(() =>
+            withCleanup(() => {
+              setupResult = plugin.setup(receiverEngine(engineWithScopedHooks));
+            }),
+          );
           this._pluginCleanups.set(plugin.name, dispose);
         } finally {
           popEngine(receiverEngine(receiver), previousEngine);
@@ -188,9 +205,17 @@ export class PluginRegistry {
       }
       if (setupResult instanceof Promise) await setupResult;
     } catch (err) {
-      // Roll back owned services, onCleanup callbacks, and scoped hooks.
+      // Roll back owned services, the plugin scope, onCleanup callbacks, and scoped hooks.
       // A provide before the throw must not stay in the container or in `_owned`.
       this._dropOwned(plugin.name);
+      this._scopes.delete(plugin.name);
+      // A throwing onCleanup is reported. It must not replace the setup error
+      // or skip the rest of this rollback.
+      try {
+        scope.dispose();
+      } catch (cleanupError: unknown) {
+        this.deps.reportTeardown(plugin, cleanupError);
+      }
       this._pluginCleanups.get(plugin.name)?.();
       this._pluginCleanups.delete(plugin.name);
       this.deps.tracker.removeAll(plugin.name, receiver.hooks);
@@ -283,9 +308,12 @@ export class PluginRegistry {
     this._dropOwned(name);
     const dispose = this._pluginCleanups.get(name);
     this._pluginCleanups.delete(name);
+    const scope = this._scopes.get(name);
+    this._scopes.delete(name);
     const previousEngine = pushEngine(receiverEngine(receiver));
     try {
       try {
+        scope?.dispose();
         dispose?.();
       } catch (cleanupError: unknown) {
         this.deps.reportTeardown(plugin, cleanupError);

@@ -92,7 +92,7 @@ Le nettoyage est automatique et dépend du contexte :
 | Dans `defineActor` | Quand l'acteur est despawné |
 | Dans `defineScene` | Quand la scène se termine |
 | Acteur en dormance de pool | Le handler est silencieux (non supprimé) jusqu'à réactivation |
-| Plugin `setup()` | Manuel — sauvegardez la fonction de désabonnement retournée et appelez-la dans `engine:stop` |
+| Plugin `setup()` | Lors de `engine.unuse(name)` ou `engine.stop()` |
 
 ## Convention de nommage
 

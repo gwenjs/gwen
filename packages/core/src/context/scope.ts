@@ -12,8 +12,7 @@
  * @module
  */
 
-import type { GwenScopeMeta, IGwenScope } from "@gwenjs/schema";
-import type { GwenRuntimeHooks } from "@gwenjs/schema";
+import type { GwenEngineBase, GwenRuntimeHooks, GwenScopeMeta, IGwenScope } from "@gwenjs/schema";
 import { getCurrentScope, _setCurrentScope } from "@gwenjs/kit";
 import { ScopedHookable } from "../hooks/scoped-hookable.js";
 import type { GwenEngine } from "../engine/engine-types.js";
@@ -39,7 +38,7 @@ let _scopeIdCounter = 0;
  */
 export class GwenScope implements IGwenScope {
   readonly meta: GwenScopeMeta;
-  readonly engine: any; // typed as GwenEngine in consuming code
+  readonly engine: GwenEngineBase;
   readonly parent: GwenScope | null;
 
   private _hookable: ScopedHookable;
@@ -76,7 +75,7 @@ export class GwenScope implements IGwenScope {
   }
 
   constructor(
-    engine: any,
+    engine: GwenEngine,
     meta: Omit<GwenScopeMeta, "id"> & { id?: string },
     parent: GwenScope | null = null,
     customHookable?: ScopedHookable,
@@ -162,7 +161,7 @@ export class GwenScope implements IGwenScope {
   }
 }
 
-/** The scope field is untyped. Keep only an object that can emit and report a frame. */
+/** `engine` is `GwenEngineBase` and has no frame counter. System hooks need one. */
 function isScopeEngine(value: unknown): value is GwenEngine {
   if (typeof value !== "object" || value === null) return false;
   const frameCount: unknown = Reflect.get(value, "frameCount");

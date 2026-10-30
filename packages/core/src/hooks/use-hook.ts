@@ -27,20 +27,19 @@ export type UnsubscribeFn = () => void;
  * (system, actor, plugin, or `engine.run()`).
  *
  * **Automatic cleanup:** when called inside an active {@link GwenScope}
- * (via `scope.run()`, or inside a `defineSystem()` / `defineActor()` /
- * `defineScene()` factory), the subscription is automatically removed when
- * the scope is disposed — no manual cleanup needed. When called outside a
- * scope (e.g. directly in a plugin `setup()` via `onCleanupIfActive`), the
- * returned unsubscribe function must be called manually.
+ * (via `scope.run()`, a `defineSystem()` / `defineActor()` / `defineScene()`
+ * factory, or a plugin `setup()`), the subscription is removed when the
+ * scope is disposed — no manual cleanup needed. Outside a scope, call the
+ * returned unsubscribe function unless a cleanup context is already active.
  *
  * **Pool dormancy:** when called inside a `defineActor()` factory for a pooled
  * actor, the handler is automatically silenced while the actor is dormant
  * (returned to the pool). No warning is emitted — dormancy is handled
  * transparently by the scope's {@link ScopedHookable}.
  *
- * **Phase 5 (GwenScope unified):** Always delegates to {@link GwenScope.current}
- * when inside any factory context. Falls back to direct hook registration for
- * plugin setup code outside factory contexts.
+ * **Phase 5 (GwenScope unified):** Delegates to {@link GwenScope.current}
+ * when a scope is active, including a plugin `setup()`. Falls back to direct
+ * hook registration outside a scope.
  *
  * Must be called inside an active engine context.
  *
@@ -83,7 +82,7 @@ export function useHook<K extends keyof GwenRuntimeHooks>(
     return gwenScope.hook(name, fn);
   }
 
-  // Synchronous plugin setup: attribute the handler to that plugin.
+  // A setup target with no GwenScope: attribute the handler to that plugin.
   // After the first await, or on raw engine.hooks, the handler stays unidentified.
   const setupTarget = currentPluginSetupTarget();
   if (setupTarget) {
@@ -98,7 +97,7 @@ export function useHook<K extends keyof GwenRuntimeHooks>(
     return unsubscribe;
   }
 
-  // Outside any scope (plugin setup via engine.run(), manual use):
+  // Outside any scope (engine.run() or a manual call with no GwenScope):
   // — register directly on engine.hooks
   // — use onCleanupIfActive so cleanup is automatic if a cleanup context is active
   // boundary: hookable's hook() rejects a typed handler that is not a subtype of its internal slot.

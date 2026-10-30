@@ -77,18 +77,16 @@ export const TrackingSystem = defineSystem(() => {
 In a **plugin setup**:
 
 ```typescript
-import { withCleanup } from '@gwenjs/core'
+import { useHook } from '@gwenjs/core'
 
 export const MyPlugin = {
+  name: 'audio',
   setup() {
-    const [, dispose] = withCleanup(() => {
-      useHook('engine:start', () => {
-        console.log('Plugin setup complete')
-      })
-      return {}
+    useHook('engine:start', () => {
+      console.log('Plugin setup complete')
     })
-    // dispose() called when plugin tears down
-  }
+    // Removed on engine.unuse('audio') or engine.stop()
+  },
 }
 ```
 
