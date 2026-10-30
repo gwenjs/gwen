@@ -57,6 +57,30 @@ describe("@gwenjs/physics3d module export", () => {
     expect(JSON.parse(JSON.stringify(declaration))).toEqual(declaration);
   });
 
+  it("the declared export exists on the package entry", async () => {
+    const entry = await import("@gwenjs/physics3d");
+    const { GwenApp } = await import("@gwenjs/app/resolve");
+    const { resolveLoadedConfig } = await import("../../app/src/config");
+    const loaded = await import("@gwenjs/physics3d/module");
+    const gravity = { x: 0, y: -9.81, z: 0 };
+    const resolved = resolveLoadedConfig({
+      modules: ["@gwenjs/physics3d"],
+      physics3d: { gravity },
+    });
+    const app = new GwenApp();
+    const declaration = await app
+      .setupModules(resolved, async (name) => {
+        if (name !== "@gwenjs/physics3d") throw new Error(`unexpected module ${name}`);
+        return loaded.default;
+      })
+      .then(
+        () => app.pluginDeclarations.find((item) => item.src === "@gwenjs/physics3d"),
+        () => undefined,
+      );
+    const exportName = declaration?.export ?? "";
+    expect(typeof Reflect.get(entry, exportName)).toBe("function");
+  });
+
   it("the module setup registers the plugin, auto-imports and vite plugin only", async () => {
     const calls: string[] = [];
     const loaded = await import("@gwenjs/physics3d/module");
