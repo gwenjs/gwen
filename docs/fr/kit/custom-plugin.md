@@ -220,6 +220,30 @@ export const MyPlugin = definePlugin(() => ({
 }))
 ```
 
+## Les callbacks de frame sont des hooks
+
+`engine.use()` rejette un plugin qui déclare un callback de frame. Le code est `CORE:PLUGIN_INVALID_SHAPE`. Enregistrez le hook dans `setup()`. Seules les clés propres sont vérifiées.
+
+| Clé | Hook |
+| --- | --- |
+| `onBeforeUpdate` | `engine:before-update` |
+| `onUpdate` | `engine:update` |
+| `onAfterUpdate` | `engine:after-update` |
+| `onRender` | `engine:render` |
+| `onStart` | `engine:start` |
+| `onStop` | `engine:stop` |
+| `onDestroy` | `engine:stop` |
+
+```ts
+setup(engine) {
+  engine.hooks.hook('engine:update', (dt) => {
+    // dt est en secondes
+  })
+}
+```
+
+Dans un build de développement avec `debug: true`, une clé propre autre que `name`, `setup`, `teardown`, `onError` ou `requires`, et qui ne commence pas par `_`, produit un avertissement et est ignorée.
+
 ## Teardown
 
 `engine.unuse(name)` et `engine.stop()` appellent `teardown()`. `stop()` l'appelle après le hook `engine:stop`, dans l'ordre inverse d'installation. Un teardown doit être idempotent avec le travail déjà fait sur `engine:stop`. Les services fournis via l'argument `engine` de `setup()` sont retirés avant `teardown()`. Un `provide` sur un moteur capturé, ou `useEngine().provide(...)` dans `setup`, n'est pas retiré. Remplacer une clé du moteur (`wasm:bridge`, `logger`, `errors`, `memory`) ne la fait pas retirer par `stop()` ou `unuse()`.

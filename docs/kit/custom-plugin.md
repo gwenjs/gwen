@@ -222,6 +222,30 @@ export const MyPlugin = definePlugin(() => ({
 }))
 ```
 
+## Frame callbacks are hooks
+
+`engine.use()` rejects a plugin that declares a frame callback. The code is `CORE:PLUGIN_INVALID_SHAPE`. Register the hook in `setup()`. Only own keys are checked.
+
+| Key | Hook |
+| --- | --- |
+| `onBeforeUpdate` | `engine:before-update` |
+| `onUpdate` | `engine:update` |
+| `onAfterUpdate` | `engine:after-update` |
+| `onRender` | `engine:render` |
+| `onStart` | `engine:start` |
+| `onStop` | `engine:stop` |
+| `onDestroy` | `engine:stop` |
+
+```ts
+setup(engine) {
+  engine.hooks.hook('engine:update', (dt) => {
+    // dt is seconds
+  })
+}
+```
+
+In a development build with `debug: true`, an own key other than `name`, `setup`, `teardown`, `onError`, or `requires`, and not starting with `_`, logs a warning and is ignored.
+
 ## Teardown
 
 `engine.unuse(name)` and `engine.stop()` call `teardown()`. `stop()` calls it after the `engine:stop` hook, in reverse install order. A teardown must be idempotent with work the plugin already did on `engine:stop`. Services provided through the `engine` argument of `setup()` are removed before `teardown()` runs. A `provide` on a captured engine, or `useEngine().provide(...)` inside `setup`, is not removed. Replacing an engine-owned key (`wasm:bridge`, `logger`, `errors`, `memory`) does not make `stop()` or `unuse()` remove that key.

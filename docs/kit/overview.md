@@ -114,7 +114,7 @@ The module package itself calls `gwen.addPlugin()` in its `setup()`. The `gwen.c
 ## When to Use Each
 
 **Use a Plugin when:**
-- You need to hook into the engine lifecycle (`setup`, `onStart`, `teardown`)
+- You need to hook into the engine lifecycle (`setup`, hooks, `teardown`)
 - You want to provide runtime services to systems
 - You're implementing game logic or rendering
 
