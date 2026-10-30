@@ -341,6 +341,11 @@ describe("plugin teardown on stop", () => {
         if (key === "a" || key === "b") return container.delete(key, expected);
         return false;
       },
+      writeService(key, value) {
+        if ((key === "a" || key === "b") && isTag(value)) container.provide(key, value);
+        return { kind: "created" };
+      },
+      emitServiceChange() {},
     };
     const registry = new PluginRegistry(deps);
     try {

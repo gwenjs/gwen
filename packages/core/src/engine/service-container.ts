@@ -1,11 +1,24 @@
 import { GwenPluginNotFoundError } from "./engine-errors.js";
 import type { GwenProvides } from "./engine-types.js";
 
+/** Result of storing one service value. `same` and `engine-owned` are not announced. */
+export type ServiceWriteResult =
+  | { readonly kind: "same" }
+  | { readonly kind: "engine-owned" }
+  | { readonly kind: "created" }
+  | { readonly kind: "overwrite"; readonly previous: unknown };
+
 /**
- * `provide` calls this before it stores. The facade passes `_assertNotFaulted`.
+ * `write` calls `assertState` before it stores.
+ * `onDirectWrite` runs only for a direct `provide` that created or replaced a key.
  */
 export interface ServiceContainerDeps {
   assertState: (method: string) => void;
+  onDirectWrite?: (
+    key: keyof GwenProvides,
+    value: GwenProvides[keyof GwenProvides],
+    write: ServiceWriteResult,
+  ) => void;
 }
 
 // boundary: one map holds every GwenProvides value; the key selects its member.
@@ -28,9 +41,32 @@ export class ServiceContainer {
 
   constructor(private readonly deps: ServiceContainerDeps) {}
 
-  provide<K extends keyof GwenProvides>(key: K, value: GwenProvides[K]): void {
+  provide<K extends keyof GwenProvides>(key: K, value: GwenProvides[K]): ServiceWriteResult {
+    const write = this.write(key, value);
+    if (write.kind === "created" || write.kind === "overwrite") {
+      this.deps.onDirectWrite?.(key, value, write);
+    }
+    return write;
+  }
+
+  /**
+   * Same state gate as {@link provide}. Does not announce.
+   * An equal value (`===`) is `same` and is not stored again.
+   */
+  write<K extends keyof GwenProvides>(key: K, value: GwenProvides[K]): ServiceWriteResult {
     this.deps.assertState("provide");
+    if (this._services.has(key) && this._services.get(key) === value) {
+      return { kind: "same" };
+    }
+    if (ENGINE_OWNED.has(key)) {
+      this._services.set(key, value);
+      return { kind: "engine-owned" };
+    }
+    const had = this._services.has(key);
+    const previous = this._services.get(key);
     this._services.set(key, value);
+    if (had) return { kind: "overwrite", previous };
+    return { kind: "created" };
   }
 
   inject<K extends keyof GwenProvides>(key: K): GwenProvides[K] {
