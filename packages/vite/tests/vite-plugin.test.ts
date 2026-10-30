@@ -12,7 +12,6 @@ import { gwen } from "../src/index";
 import {
   generateEntryModule,
   generateScenesModule,
-  generateConfigModulesVirtualModule,
   extractModuleNamesFromConfig,
 } from "../src/entry-gen.js";
 import { entryResolvedFixture } from "./entry-resolved-fixture.js";
@@ -302,23 +301,6 @@ describe("generateEntryModule — bootstrap correctness", () => {
     expect(code).toContain("createScreenPlugin");
   });
 
-  it("imports virtual:gwen/local-plugins, local-modules and config-modules", () => {
-    const code = entryModule(false);
-    expect(code).toContain('from "virtual:gwen/local-plugins"');
-    expect(code).toContain('from "virtual:gwen/local-modules"');
-    expect(code).toContain('from "virtual:gwen/config-modules"');
-  });
-
-  it("config modules: runs setup() for each npm module before local modules", () => {
-    const code = entryModule(false);
-    expect(code).toContain("_cfgModules");
-    expect(code).toContain("_cmMod.setup");
-    const cfgIdx = code.indexOf("_cfgModules");
-    const localIdx = code.indexOf("_localModules");
-    expect(cfgIdx).toBeGreaterThan(0);
-    expect(localIdx).toBeGreaterThan(cfgIdx);
-  });
-
   it("no declarations: no extra static plugin imports", () => {
     const code = entryModule(false, []);
     expect(code).not.toContain("_gwenPlugin0");
@@ -407,40 +389,93 @@ describe("generateEntryModule — bootstrap correctness", () => {
     expect(code).not.toContain("gwen-scenes");
   });
 
-  it("local module kit: handles PluginDeclaration via dynamic import", () => {
-    const code = entryModule(false);
-    expect(code).toContain("_lmDecls");
-    expect(code).toContain('"src" in p');
-    expect(code).toContain("await import(/* @vite-ignore */ d.src)");
+  it("the entry imports neither virtual:gwen/config-modules nor virtual:gwen/local-modules", () => {
+    for (const code of [entryModule(false), entryModule(true)]) {
+      expect(code).not.toContain("virtual:gwen/config-modules");
+      expect(code).not.toContain("virtual:gwen/local-modules");
+      expect(code).toContain("virtual:gwen/local-plugins");
+    }
   });
 
-  it("local module kit: handles factory function and direct plugin alongside PluginDeclaration", () => {
-    const code = entryModule(false);
-    expect(code).toContain('typeof p === "function"');
-    expect(code).toContain("_lmPlugins.push(p())");
-    expect(code).toContain("_lmPlugins.push(p)");
-    expect(code).toContain("_lmDecls.push(p)");
-  });
-});
-
-// ── generateConfigModulesVirtualModule ───────────────────────────────────────
-
-describe("generateConfigModulesVirtualModule", () => {
-  it("returns empty export for no modules", () => {
-    const code = generateConfigModulesVirtualModule([]);
-    expect(code).toBe("export const configModules = [];\n");
+  it("the entry contains no .setup( call", () => {
+    expect(entryModule(false)).not.toMatch(/\.setup\(/);
+    expect(entryModule(true)).not.toMatch(/\.setup\(/);
+    expect(entryModule(false, [{ src: "@gwenjs/audio" }])).not.toMatch(/\.setup\(/);
   });
 
-  it("generates static import for each module via /module subpath", () => {
-    const code = generateConfigModulesVirtualModule(["@gwenjs/input", "@gwenjs/physics2d"]);
-    expect(code).toContain('import _cm0 from "@gwenjs/input/module"');
-    expect(code).toContain('import _cm1 from "@gwenjs/physics2d/module"');
+  it("the entry installs scene systems one at a time", () => {
+    const code = entryModule(true);
+    expect(code).toContain("for (const _s of _sceneSystems) await engine.use(_s);");
+    expect(code).not.toContain("Promise.all");
+    expect(code).not.toContain("_sceneUsages");
   });
 
-  it("exports configModules array with .default fallback", () => {
-    const code = generateConfigModulesVirtualModule(["@gwenjs/input"]);
-    expect(code).toContain("export const configModules");
-    expect(code).toContain("_cm0.default ?? _cm0");
+  it("the entry collects scene systems in a Set so a shared system installs once", () => {
+    const code = entryModule(true);
+    expect(code).toContain("const _sceneSystems = new Set();");
+    expect(code).toContain("_sceneSystems.add(_s)");
+    const registerAt = code.indexOf("register(scene)");
+    const callback = code.slice(registerAt, code.indexOf("} }));", registerAt));
+    expect(callback).not.toContain("engine.use(_s)");
+  });
+
+  it("the entry stops the engine before rethrowing a bootstrap failure", () => {
+    for (const code of [entryModule(false), entryModule(true)]) {
+      const letIdx = code.indexOf("let engine;");
+      const tryIdx = code.indexOf("try {");
+      const createIdx = code.indexOf("engine = await createEngine(");
+      const viewportsIdx = code.indexOf("engine.use(createViewportsPlugin");
+      const startIdx = code.indexOf("await engine.start");
+      const lastUseIdx = code.lastIndexOf("engine.use(");
+      const stopIdx = code.indexOf("if (engine) await engine.stop().catch(() => {});");
+      const throwIdx = code.indexOf("throw err;");
+      const catchIdx = code.indexOf("} catch (err) {");
+      const overlayIdx = code.indexOf("bootstrap().catch(");
+      expect(code).toContain("if (engine) await engine.stop().catch(() => {});");
+      expect(stopIdx).toBeGreaterThanOrEqual(0);
+      expect(stopIdx).toBeLessThan(throwIdx);
+      expect(letIdx).toBeGreaterThanOrEqual(0);
+      expect(tryIdx).toBeGreaterThan(letIdx);
+      expect(createIdx).toBeGreaterThan(tryIdx);
+      expect(viewportsIdx).toBeGreaterThan(tryIdx);
+      expect(startIdx).toBeGreaterThanOrEqual(0);
+      expect(startIdx).toBeLessThan(catchIdx);
+      expect(lastUseIdx).toBeGreaterThanOrEqual(0);
+      expect(lastUseIdx).toBeLessThan(catchIdx);
+      expect(catchIdx).toBeGreaterThanOrEqual(0);
+      expect(overlayIdx).toBeGreaterThan(catchIdx);
+    }
+  });
+
+  it("declarations are installed after gwenConfig.plugins and before local plugins", () => {
+    const code = entryModule(true, [{ src: "@gwenjs/audio" }]);
+    const viewports = code.indexOf("engine.use(createViewportsPlugin");
+    const screen = code.indexOf("engine.use(createScreenPlugin");
+    const configPlugins = code.indexOf("gwenConfig.plugins");
+    const declared = code.indexOf("engine.use(_gwenPlugin0");
+    const local = code.indexOf("for (const factory of _localPlugins) await engine.use(factory());");
+    const scene = code.indexOf("for (const _s of _sceneSystems) await engine.use(_s);");
+    expect(viewports).toBeGreaterThanOrEqual(0);
+    expect(screen).toBeGreaterThan(viewports);
+    expect(configPlugins).toBeGreaterThan(screen);
+    expect(declared).toBeGreaterThan(configPlugins);
+    expect(local).toBeGreaterThan(declared);
+    expect(scene).toBeGreaterThan(local);
+  });
+
+  it("gwen() no longer resolves virtual:gwen/config-modules", async () => {
+    const plugin = gwenPlugin({ watch: false });
+    const resolve = plugin.resolveId as Function;
+    const load = plugin.load as Function;
+    expect(resolve("virtual:gwen/config-modules")).toBeNull();
+    const loaded: unknown = await load("\0virtual:gwen/config-modules");
+    expect(loaded ?? null).toBeNull();
+  });
+
+  it("gwen() does not register the gwen:local-modules plugin", () => {
+    const names = gwen({ watch: false }).map((plugin) => plugin.name);
+    expect(names).not.toContain("gwen:local-modules");
+    expect(names).toContain("gwen:local-plugins");
   });
 });
 
@@ -648,8 +683,6 @@ describe("gwen() WASM middleware — path traversal containment", () => {
 const serveEnv: ConfigEnv = { command: "serve", mode: "development" };
 const RESOLVED_ENTRY_ID = "\0/@gwenjs/gwen-entry";
 const RESOLVED_SCENES_ID = "\0/@gwenjs/gwen-scenes";
-const RESOLVED_CONFIG_MODULES_ID = "\0virtual:gwen/config-modules";
-const RESOLVED_LOCAL_MODULES_ID = "\0virtual:gwen/local-modules";
 const RESOLVED_LOCAL_PLUGINS_ID = "\0virtual:gwen/local-plugins";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -763,7 +796,7 @@ describe("resolved config is the build source", () => {
       await configHook(plugin)({ root }, serveEnv);
       const code = await loadHook(plugin)(RESOLVED_ENTRY_ID);
       expect(code).not.toContain("Object.assign");
-      expect(code).toContain("__gwenResolved.sections");
+      expect(code).toContain('"sections":{"score":{"n":1}}');
       expect(inlinedSections(code)).toEqual({ score: { n: 1 } });
     });
   });
@@ -855,27 +888,6 @@ describe("resolved config is the build source", () => {
     });
   });
 
-  it("a custom localModulesDir is scanned", async () => {
-    await withRoot(async (root) => {
-      const dir = path.join(root, "custom", "modules");
-      fs.mkdirSync(dir, { recursive: true });
-      fs.writeFileSync(
-        path.join(dir, "foo.ts"),
-        `export default { meta: { name: "foo" }, setup() {} }\n`,
-      );
-      writeConfig(root, `export default { modules: [], localModulesDir: "custom/modules" };\n`);
-      const plugins = gwen({ watch: false });
-      const main = plugins.find((plugin) => plugin.name === "gwen");
-      const local = plugins.find((plugin) => plugin.name === "gwen:local-modules");
-      if (!main || !local) throw new Error("missing gwen plugins");
-      await configHook(main)({ root }, serveEnv);
-      applyResolvedRoot(local, root);
-      const code = await loadHook(local)(RESOLVED_LOCAL_MODULES_ID);
-      expect(code).toContain("foo.ts");
-      expect(code).not.toContain("src/modules");
-    });
-  });
-
   it("localPluginsDir false disables the scanner", async () => {
     await withRoot(async (root) => {
       const dir = path.join(root, "src", "plugins");
@@ -943,12 +955,8 @@ export default { modules: ["real-mod"], globalCss: ["./kept.css"] };
       const plugin = pluginNamed("gwen");
       await configHook(plugin)({ root }, serveEnv);
       const entry = await loadHook(plugin)(RESOLVED_ENTRY_ID);
-      const modules = await loadHook(plugin)(RESOLVED_CONFIG_MODULES_ID);
       expect(entry).toContain("kept.css");
       expect(entry).not.toContain("ghost");
-      expect(modules).toContain("real-mod/module");
-      expect(modules).not.toContain("ghost-mod");
-      expect(modules).not.toContain("comment-mod");
     });
   });
 
@@ -970,26 +978,13 @@ export default { modules: ["real-mod"], globalCss: ["./kept.css"] };
     });
   });
 
-  it("browser kits receive the resolved options", async () => {
-    await withRoot(async (root) => {
-      writeConfig(root, `export default { modules: [], engine: { maxEntities: 10000 } };\n`);
-      const plugin = pluginNamed("gwen");
-      await configHook(plugin)({ root }, serveEnv);
-      const code = await loadHook(plugin)(RESOLVED_ENTRY_ID);
-      expect(code).not.toContain("options: gwenConfig");
-      expect(code).toContain(
-        "options: { ...__gwenResolved.sections, engine: __gwenResolved.engine }",
-      );
-    });
-  });
-
-  it("two gwen instances isolate resolved config and scan dirs", async () => {
+  it("two gwen instances isolate resolved config", async () => {
     const rootA = makeTmp();
     const rootB = makeTmp();
     try {
       const specs = [
-        { root: rootA, name: "mod-a", file: "a.ts" },
-        { root: rootB, name: "mod-b", file: "b.ts" },
+        { root: rootA, name: "mod-a" },
+        { root: rootB, name: "mod-b" },
       ];
       const packs = [];
       for (const spec of specs) {
@@ -998,36 +993,26 @@ export default { modules: ["real-mod"], globalCss: ["./kept.css"] };
           spec.name,
           `export default { meta: { name: "${spec.name}" }, setup() {} };\n`,
         );
-        fs.mkdirSync(path.join(spec.root, "mods"));
-        fs.writeFileSync(
-          path.join(spec.root, "mods", spec.file),
-          `export default { meta: { name: "${spec.file}" }, setup() {} }\n`,
-        );
+        const entities = spec.name === "mod-a" ? 11 : 22;
         writeConfig(
           spec.root,
-          `export default { modules: ["${spec.name}"], localModulesDir: "mods" };\n`,
+          `export default { modules: ["${spec.name}"], engine: { maxEntities: ${entities} } };\n`,
         );
         const plugins = gwen({ watch: false });
         const main = plugins.find((plugin) => plugin.name === "gwen");
-        const local = plugins.find((plugin) => plugin.name === "gwen:local-modules");
-        if (!main || !local) throw new Error("missing gwen plugins");
+        if (!main) throw new Error("missing gwen plugins");
         await configHook(main)({ root: spec.root }, serveEnv);
-        applyResolvedRoot(local, spec.root);
-        packs.push({ main, local });
+        packs.push({ main });
       }
       const first = packs[0];
       const second = packs[1];
       if (!first || !second) throw new Error("missing packs");
-      const modsA = await loadHook(first.main)(RESOLVED_CONFIG_MODULES_ID);
-      const modsB = await loadHook(second.main)(RESOLVED_CONFIG_MODULES_ID);
-      const scanA = await loadHook(first.local)(RESOLVED_LOCAL_MODULES_ID);
-      const scanB = await loadHook(second.local)(RESOLVED_LOCAL_MODULES_ID);
-      expect(modsA).toContain("mod-a/module");
-      expect(modsA).not.toContain("mod-b");
-      expect(modsB).toContain("mod-b/module");
-      expect(scanA).toContain("a.ts");
-      expect(scanA).not.toContain("b.ts");
-      expect(scanB).toContain("b.ts");
+      const entryA = await loadHook(first.main)(RESOLVED_ENTRY_ID);
+      const entryB = await loadHook(second.main)(RESOLVED_ENTRY_ID);
+      expect(entryA).toContain('"maxEntities":11');
+      expect(entryA).not.toContain('"maxEntities":22');
+      expect(entryB).toContain('"maxEntities":22');
+      expect(entryB).not.toContain('"maxEntities":11');
     } finally {
       fs.rmSync(rootA, { recursive: true, force: true });
       fs.rmSync(rootB, { recursive: true, force: true });
