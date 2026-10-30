@@ -1,5 +1,4 @@
 import type { GwenModule } from "@gwenjs/schema";
-import { SceneEnginePlugin } from "./engine-plugin.js";
 
 declare module "@gwenjs/schema" {
   interface GwenModuleOptions {
@@ -10,7 +9,7 @@ declare module "@gwenjs/schema" {
 export default {
   meta: { name: "@gwenjs/core:scene" },
   setup(_opts, gwen) {
-    gwen.addPlugin(SceneEnginePlugin());
+    gwen.addPlugin({ src: "@gwenjs/core/internal", export: "SceneEnginePlugin" });
     gwen.addAutoImports([
       { name: "defineScene", from: "@gwenjs/core/scene" },
       { name: "useSystem", from: "@gwenjs/core/scene" },

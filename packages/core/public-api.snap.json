@@ -271,6 +271,7 @@
       "GwenScope",
       "MAX_SAB_BYTES",
       "SENTINEL",
+      "SceneEnginePlugin",
       "SharedMemoryManager",
       "StringPool",
       "StringPoolManager",
