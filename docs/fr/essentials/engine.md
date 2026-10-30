@@ -125,7 +125,7 @@ export const DebugSystem = defineSystem(() => {
 
 ## Moteurs sur une même instance
 
-C'est `wasmInstance: "shared"`, le défaut (`packages/core/src/engine/wasm-bridge.ts:401`). Deux moteurs peuvent tourner sur une même instance WASM. Chaque moteur possède ses entités, son monde physique et ses tampons de chemin. Un chemin écrit par un moteur n'est pas le chemin que l'autre moteur lit.
+C'est `wasmInstance: "shared"`, le défaut (`packages/core/src/engine/wasm-bridge.ts:458`). Deux moteurs peuvent tourner sur une même instance WASM. Chaque moteur possède ses entités, son monde physique et ses tampons de chemin. Un chemin écrit par un moteur n'est pas le chemin que l'autre moteur lit.
 
 `jsUrl` est l'URL de `gwen_core_factory.js`. `init()` avec `jsUrl` ou `wasmUrl` sur un pont déjà initialisé rejette `CORE:WASM_LOAD_ERROR`.
 
@@ -137,7 +137,7 @@ Ils partagent encore trois choses :
 
 ## Plusieurs moteurs par page ou par processus
 
-`wasmInstance` choisit l'instance WASM (`packages/core/src/engine/wasm-bridge.ts:401`).
+`wasmInstance` choisit l'instance WASM (`packages/core/src/engine/wasm-bridge.ts:458`).
 
 | Mode | Comportement |
 | --- | --- |

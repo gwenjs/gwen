@@ -1129,6 +1129,12 @@ export interface InitWasmOptions {
   /** Optional URL to the WASM binary (gwen_core_bg.wasm). */
   wasmUrl?: string;
   /**
+   * Pre-imported glue factory: `import * as glue from "@gwenjs/core/wasm/<variant>/factory"`.
+   * When set, the bridge builds no glue URL and runs no import(). Exclusive with `jsUrl`.
+   * The binary is `wasmUrl` when given, else the factory's own `wasmUrl`.
+   */
+  glue?: GwenCoreGlueFactoryModule;
+  /**
    * `shared` (default) keeps one WASM instance per compiled module.
    * `isolated` keeps one instance per engine, with its own linear memory.
    * Browser `isolated` is not supported until the browser gate (#265).
