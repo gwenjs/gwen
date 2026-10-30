@@ -5,13 +5,16 @@ import { createEngine } from "../../../src/engine/engine-factory";
 /**
  * Boot one engine through the real `WasmBridgeImpl.init` path, then report the outcome on
  * `document.body.dataset.result` as JSON. No inline script: the page runs under a strict CSP.
+ *
+ * Pass `jsUrl` to pin that glue file and `/wasm/light/gwen_core_bg.wasm`.
+ * Omit it and both URLs stay unset.
  */
-export async function boot(jsUrl: string): Promise<void> {
+export async function boot(jsUrl?: string): Promise<void> {
   try {
     const bridge = new WasmBridgeImpl();
+    const source = jsUrl === undefined ? {} : { jsUrl, wasmUrl: "/wasm/light/gwen_core_bg.wasm" };
     await bridge.init("light", {
-      jsUrl,
-      wasmUrl: "/wasm/light/gwen_core_bg.wasm",
+      ...source,
       maxEntities: 16,
     });
     const engine = await createEngine({ _bridge: bridge });

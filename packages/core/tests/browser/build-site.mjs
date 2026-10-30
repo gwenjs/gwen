@@ -6,7 +6,7 @@ import { gwenSourceAliases } from "../../../../vitest.aliases.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
-for (const page of ["csp", "quote"]) {
+for (const page of ["csp", "quote", "light"]) {
   await build({
     configFile: false,
     logLevel: "warn",
