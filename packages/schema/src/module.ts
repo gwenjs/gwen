@@ -11,7 +11,6 @@
  * @module
  */
 
-import type { GwenPlugin } from "./plugin.js";
 import type { DeepPartial } from "./config.js";
 import type { GwenConfigIssue } from "./engine-config.js";
 
@@ -151,6 +150,7 @@ export interface GwenBaseConfig {
  * Instead of passing a runtime instance to `kit.addPlugin()`, modules declare
  * WHERE the plugin lives. `@gwenjs/vite` reads these declarations at build time
  * and generates a static `import` in the virtual entry — no esbuild duplication.
+ * An instance, a function or non-serializable options are rejected with APP:PLUGIN_NOT_DECLARATIVE.
  *
  * @example
  * ```ts
@@ -183,7 +183,7 @@ export interface PluginDeclaration {
  * export default defineGwenModule({
  *   meta: { name: '@gwenjs/physics2d' },
  *   setup(options, gwen) {
- *     gwen.addPlugin(createPhysics2DPlugin(options))
+ *     gwen.addPlugin({ src: '@gwenjs/physics2d', export: 'Physics2DPlugin', options })
  *     gwen.addAutoImports([{ name: 'usePhysics2D', from: '@gwenjs/physics2d' }])
  *   },
  * })
@@ -194,11 +194,11 @@ export interface GwenKit {
   /**
    * Registers a runtime plugin to be loaded when the engine starts.
    *
-   * @param plugin - A plugin instance or a factory function that returns one.
+   * @param plugin - A declaration of where the plugin lives: `src` is the package or file, `export` is the named factory, and `options` is JSON passed to that factory.
    * @example
-   * gwen.addPlugin(createPhysics2DPlugin(options))
+   * gwen.addPlugin({ src: '@gwenjs/physics2d', export: 'Physics2DPlugin', options })
    */
-  addPlugin(plugin: GwenPlugin | (() => GwenPlugin) | PluginDeclaration): void;
+  addPlugin(plugin: PluginDeclaration): void;
 
   /**
    * Registers composables or utilities for auto-import via the `#gwen`
