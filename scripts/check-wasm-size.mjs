@@ -52,7 +52,7 @@ function formatPct(baseline, measured) {
  * @param {Buffer} buf
  * @returns {{ raw: number, gzip: number, brotli: number }}
  */
-function measureBuffer(buf) {
+export function measureBuffer(buf) {
   return {
     raw: buf.length,
     gzip: gzipSync(buf, { level: 9 }).length,
