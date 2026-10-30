@@ -3,9 +3,9 @@
  *
  * `useLogger()`, `useErrorReporter()` and `usePerfMark()` read the logger of
  * the active scope. Call them inside a defineSystem(), defineActor() or
- * defineScene() factory. Outside any scope they throw `GwenContextError`
- * with code `CORE:OUTSIDE_ENGINE_CONTEXT`. A plugin `setup()` has no scope
- * until #73, so these composables throw there too.
+ * defineScene() factory, or in a plugin `setup()`. Outside any scope,
+ * including after an `await` in plugin `setup()`, they throw
+ * `GwenContextError` with code `CORE:OUTSIDE_ENGINE_CONTEXT`.
  *
  * @example
  * ```typescript
@@ -26,23 +26,14 @@ import { GwenError, type IGwenLogger } from "@gwenjs/schema";
 import { GwenContextError, GwenContextErrorCodes } from "./context-errors.js";
 import { getCurrentScope } from "./scope-slot.js";
 
-/** Engine object that carries the public logger. */
-function hasLogger(e: unknown): e is { logger: IGwenLogger } {
-  if (typeof e !== "object" || e === null) return false;
-  if (!("logger" in e)) return false;
-  const logger = e.logger;
-  if (typeof logger !== "object" || logger === null) return false;
-  if (!("child" in logger)) return false;
-  return typeof logger.child === "function";
-}
-
 /**
  * Returns the active scope's engine logger, tagged `<type>:<name>`.
  * When the scope has no name, the tag uses `<type>:<id>`.
  * `meta.entityId` is passed to `child()` as a string when the scope has one.
+ * A plugin `setup()` is a plugin scope, so the tag is `plugin:<name>`.
  *
  * @throws {GwenContextError} Code `CORE:OUTSIDE_ENGINE_CONTEXT` when there is
- *   no active scope, or when that scope's engine has no logger.
+ *   no active scope. An `await` inside plugin `setup()` leaves the scope.
  *
  * @example
  * ```typescript
@@ -54,9 +45,6 @@ function hasLogger(e: unknown): e is { logger: IGwenLogger } {
 export function useLogger(): IGwenLogger {
   const scope = getCurrentScope();
   if (scope === null) {
-    throw new GwenContextError(GwenContextErrorCodes.OUTSIDE_ENGINE_CONTEXT, "useLogger");
-  }
-  if (!hasLogger(scope.engine)) {
     throw new GwenContextError(GwenContextErrorCodes.OUTSIDE_ENGINE_CONTEXT, "useLogger");
   }
   return scope.engine.logger.child(

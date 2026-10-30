@@ -17,9 +17,9 @@ Système de plugins et de modules pour étendre GWEN. Fournit des utilitaires po
 
 `useLogger()`, `useErrorReporter()` et `usePerfMark()` lisent le logger du moteur du scope actif.
 
-`useLogger()` s'appelle dans une fabrique `defineSystem()`, `defineActor()` ou `defineScene()`. Il retourne le logger du moteur, étiqueté `<type>:<nom>` (par exemple `system:Mover`). Sans nom, l'étiquette utilise l'id du scope.
+`useLogger()` s'appelle dans une fabrique `defineSystem()`, `defineActor()` ou `defineScene()`, ou dans le `setup()` d'un plugin. Il retourne le logger du moteur, étiqueté `<type>:<nom>` (par exemple `system:Mover` ou `plugin:audio`). Sans nom, l'étiquette utilise l'id du scope.
 
-Hors de tout scope, y compris dans le `setup()` d'un plugin (pas de scope tant que #73 n'est pas là), il lance `GwenContextError` avec le code `CORE:OUTSIDE_ENGINE_CONTEXT`. `useErrorReporter()` et `usePerfMark()` font de même.
+Hors de tout scope, y compris après un `await` dans le `setup()` d'un plugin, il lance `GwenContextError` avec le code `CORE:OUTSIDE_ENGINE_CONTEXT`. `useErrorReporter()` et `usePerfMark()` font de même.
 
 ```ts
 import { defineSystem } from '@gwenjs/core/system'
