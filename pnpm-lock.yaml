@@ -65,6 +65,9 @@ importers:
       hookable:
         specifier: ^6.0.1
         version: 6.1.0
+      jiti:
+        specifier: 2.6.1
+        version: 2.6.1
     devDependencies:
       '@types/node':
         specifier: ^20

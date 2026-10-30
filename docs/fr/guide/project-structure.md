@@ -326,14 +326,14 @@ export function distance(x1: number, y1: number, x2: number, y2: number) {
 
 ## Ordre de chargement
 
-Au démarrage, les plugins et modules sont appliqués dans cet ordre :
+Les plugins et modules sont appliqués dans cet ordre :
 
 1. Plugins framework intégrés (viewports, screen)
 2. `config.plugins` — inclut les plugins contribués par les modules npm au moment de la compilation
 3. `src/modules/` — modules locaux (ordre alphabétique par nom de module)
 4. `src/plugins/` — plugins locaux (ordre alphabétique par nom de fichier)
 
-Les modules npm déclarés dans `gwen.config.ts → modules` s'exécutent au **moment de la compilation** et enregistrent leurs plugins via `gwen.addPlugin()`. Ces plugins atterrissent dans `config.plugins` et s'exécutent avant tout module ou plugin local.
+Les modules npm déclarés dans `gwen.config.ts → modules` et les modules locaux dans `src/modules/` s'exécutent au **moment de la compilation** dans `setupModules` (les modules locaux après les modules npm, chargés par `jiti` ; un dossier personnalisé vient de `localModulesDir`, `false` les désactive) et enregistrent leurs plugins via `gwen.addPlugin()`. Ces plugins atterrissent dans `config.plugins` et s'exécutent avant tout plugin local.
 
 ## Modèles de mise à l'échelle
 

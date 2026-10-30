@@ -859,7 +859,10 @@ describe("resolved config is the build source", () => {
     await withRoot(async (root) => {
       const dir = path.join(root, "custom", "modules");
       fs.mkdirSync(dir, { recursive: true });
-      fs.writeFileSync(path.join(dir, "foo.ts"), "export default {};\n");
+      fs.writeFileSync(
+        path.join(dir, "foo.ts"),
+        `export default { meta: { name: "foo" }, setup() {} }\n`,
+      );
       writeConfig(root, `export default { modules: [], localModulesDir: "custom/modules" };\n`);
       const plugins = gwen({ watch: false });
       const main = plugins.find((plugin) => plugin.name === "gwen");
@@ -996,7 +999,10 @@ export default { modules: ["real-mod"], globalCss: ["./kept.css"] };
           `export default { meta: { name: "${spec.name}" }, setup() {} };\n`,
         );
         fs.mkdirSync(path.join(spec.root, "mods"));
-        fs.writeFileSync(path.join(spec.root, "mods", spec.file), "export default {};\n");
+        fs.writeFileSync(
+          path.join(spec.root, "mods", spec.file),
+          `export default { meta: { name: "${spec.file}" }, setup() {} }\n`,
+        );
         writeConfig(
           spec.root,
           `export default { modules: ["${spec.name}"], localModulesDir: "mods" };\n`,

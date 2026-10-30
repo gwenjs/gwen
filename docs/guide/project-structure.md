@@ -315,14 +315,14 @@ export function distance(x1: number, y1: number, x2: number, y2: number) {
 
 ## Load Order
 
-At runtime, plugins and modules are applied in this order:
+Plugins and modules are applied in this order:
 
 1. Built-in framework plugins (viewports, screen)
 2. `config.plugins` — includes plugins contributed by npm modules at build time
 3. `src/modules/` — local modules (alphabetical by module name)
 4. `src/plugins/` — local plugins (alphabetical by filename)
 
-npm modules declared in `gwen.config.ts → modules` run at **build time** and register their plugins via `gwen.addPlugin()`. Those plugins land in `config.plugins` and execute before any local modules or plugins.
+npm modules declared in `gwen.config.ts → modules` and local modules in `src/modules/` run at **build time** inside `setupModules` (local modules after the npm modules, loaded through `jiti`; a custom directory comes from `localModulesDir`, `false` disables them) and register their plugins via `gwen.addPlugin()`. Those plugins land in `config.plugins` and execute before any local plugins.
 
 ## Scaling Patterns
 

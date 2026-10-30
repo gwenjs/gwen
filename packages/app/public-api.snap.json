@@ -24,8 +24,10 @@
       "GwenApp",
       "GwenAppConfigError",
       "GwenConfigLoadError",
+      "inferModuleName",
       "loadRawGwenConfig",
-      "resolveGwenConfig"
+      "resolveGwenConfig",
+      "scanLocalModuleFiles"
     ],
     "types": [
       "GwenBuildHooks",

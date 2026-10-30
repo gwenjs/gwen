@@ -459,7 +459,7 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
       return (mod.default ?? mod) as GwenModule;
     };
 
-    await app.setupModules(gwenConfig, moduleLoader);
+    await app.setupModules(gwenConfig, moduleLoader, { root });
     _app = app;
     _declarations = app.pluginDeclarations;
     _sharedAutoImports.push(...app.autoImports);

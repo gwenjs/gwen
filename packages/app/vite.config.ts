@@ -28,7 +28,7 @@ export default defineConfig({
       fileName: (format, entryName) => `${entryName}.${format === "es" ? "js" : "cjs"}`,
     },
     rollupOptions: {
-      external: [/^node:/, /^@gwenjs\//, "c12", "defu", "hookable"],
+      external: [/^node:/, /^@gwenjs\//, "c12", "defu", "hookable", "jiti"],
     },
   },
 });
