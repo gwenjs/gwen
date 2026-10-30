@@ -192,6 +192,7 @@ jobs:
       - name: Write the profile table
         if: always()
         run: |
+          set -o pipefail
           mkdir -p out cells lto
           node scripts/wasm-profile-table.mjs --variant "${{ matrix.variant }}" --out out --cells cells --lto lto | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Upload profile matrix artifacts
