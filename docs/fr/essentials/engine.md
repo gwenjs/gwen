@@ -146,18 +146,26 @@ Ils partagent encore trois choses :
 
 `createEngine` dans Node utilise encore `shared` par défaut (`packages/core/src/engine/engine-factory.ts:79`). `isolated` devient le défaut Node seulement avec `@gwenjs/core/node`, dans un ticket ultérieur (#267).
 
-`isolated` dans le navigateur n'est pas pris en charge avant la barrière navigateur (#265).
+`isolated` dans le navigateur est pris en charge. Trois projets Playwright le valident : Chromium, Firefox et WebKit (`packages/core/playwright.config.ts:21-23`). Ils lancent `packages/core/tests/browser/isolation.pw.ts` et `packages/core/tests/browser/capacity.pw.ts`. `shared` reste le défaut dans le navigateur. Sur les appareils iOS, utilisez le mode `shared` par défaut. iOS n'est pas dans la CI.
 
 Capacité mesurée :
 
-| Runtime | Mesure |
-| --- | --- |
-| Chromium | Environ 125 mémoires WASM par processus de rendu. |
-| Firefox | Environ 999, puis une valeur qui n'est pas une `Error`. |
-| WebKit | Pas de limite stable. Observations de 13,575 à 14,600 instances. Ces chiffres sont des observations, pas des limites. |
-| Node 22 | Environ 10 GiB de mémoire virtuelle par instance avec le gestionnaire de traps activé. Prévoir le budget avec `ulimit -v`. |
+| Navigateur | Version | Limite mesurée | Date |
+| --- | --- | --- | --- |
+| Chromium | 153.0.8010.12 | 123 moteurs isolés créés. Le 124e rejette `CORE:WASM_CAPACITY_EXHAUSTED`, avec un moteur partagé créé d'abord (`packages/core/tests/browser/capacity.pw.ts:46`). | 2026-10-30 |
+| Firefox | 155.0 | 998 moteurs isolés créés. Le 999e rejette `CORE:WASM_CAPACITY_EXHAUSTED`. La valeur levée n'est pas une `Error` ; `packages/core/src/engine/wasm-instance-provider.ts:45` la convertit. | 2026-10-30 |
+| WebKit | 26.6 | Aucune limite observée jusqu'à 500 moteurs isolés : 500 mémoires distinctes, pas de crash. La boucle du test s'arrête à 500 et ne sonde jamais plus loin (`packages/core/tests/browser/capacity.pw.ts:142`). | 2026-10-30 |
+| Node 22 | — | Environ 10 GiB de mémoire virtuelle par instance avec le gestionnaire de traps activé. Prévoir le budget avec `ulimit -v`. | — |
+
+Les valeurs navigateur viennent du run CI 41059346720 (ubuntu-latest, Playwright 1.63.0, job `Browser WASM (Playwright)`). Ce sont des valeurs mesurées sur un runner et à une date. Ce ne sont pas des garanties. Les versions des navigateurs les changent.
+
+Un run manuel, hors CI, a vu le processus de la page WebKit mourir vers 13,575 à 14,600 instances. C'est une observation, pas une limite, et pas une garantie.
+
+Firefox sur ARM64 Android réserve de la place pour 75 grandes mémoires (source SpiderMonkey) ; ce n'est pas mesuré.
 
 Quand `glue.initSync` lève un `RangeError` ou une valeur qui n'est pas une `Error`, `initWasm` lève `CORE:WASM_CAPACITY_EXHAUSTED` (`packages/core/src/engine/wasm-instance-provider.ts:46`). Les recours sont `wasmInstance: "shared"`, moins de moteurs par processus, ou des worker threads.
+
+Quand le code de capacité est levé, le moteur partagé créé d'abord continue de fonctionner. `capacity.pw.ts` vérifie qu'il avance encore (`packages/core/tests/browser/capacity.pw.ts:74`, `:92`) et qu'un second moteur partagé s'initialise après le rejet (`packages/core/tests/browser/capacity.pw.ts:75`, `:93`).
 
 ```ts
 const room = await createEngine({ variant: "physics2d", wasmInstance: "isolated" });
