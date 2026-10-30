@@ -76,7 +76,8 @@ export class GwenApp {
   // ── Getters (defensive copies) ──────────────────────────────────────────────
 
   /**
-   * Returns a snapshot of all runtime plugins registered by modules.
+   * Returns a snapshot of the plugins GwenApp installs itself
+   * (`gwen:viewports` and `gwen:screen`). Modules register declarations, not instances.
    * Each call returns a fresh array — safe to mutate.
    */
   get plugins(): GwenPlugin[] {
@@ -100,7 +101,8 @@ export class GwenApp {
   }
 
   /**
-   * Returns a snapshot of all path-based plugin declarations registered by modules.
+   * Returns a snapshot of the plugin declarations registered by modules, in setup order.
+   * Built-in scene and tween declarations come first, then config modules.
    * Each call returns a fresh array — safe to mutate.
    */
   get pluginDeclarations(): PluginDeclaration[] {
@@ -293,17 +295,24 @@ export class GwenApp {
 
     return {
       /**
-       * Registers a runtime plugin. Accepts a plugin instance or a zero-arg
-       * factory function that returns a plugin instance.
+       * Registers a plugin declaration. An instance, a factory, or non-JSON
+       * options throw `APP:PLUGIN_NOT_DECLARATIVE`.
        */
-      addPlugin(plugin: GwenPlugin | (() => GwenPlugin) | PluginDeclaration): void {
-        if (typeof plugin === "function") {
-          app._plugins.push(plugin());
-        } else if ("src" in plugin) {
-          app._pluginDeclarations.push(plugin as PluginDeclaration);
-        } else {
-          app._plugins.push(plugin as GwenPlugin);
+      addPlugin(decl: PluginDeclaration): void {
+        const value: unknown = decl;
+        if (!isPluginDeclaration(value)) {
+          throw pluginNotDeclarative(
+            "kit.addPlugin() takes a PluginDeclaration { src, export?, options? }.",
+            "Declare the package and its export instead of passing a plugin instance or factory.",
+          );
         }
+        if ("options" in value && !jsonRoundTripEquals(value.options)) {
+          throw pluginNotDeclarative(
+            `Plugin declaration "${value.src}" has options that are not JSON-serializable.`,
+            "Pass JSON data only: objects, arrays, strings, finite numbers, booleans, and null.",
+          );
+        }
+        app._pluginDeclarations.push(value);
       },
 
       /** Registers composables/utilities for auto-import. */
@@ -358,6 +367,49 @@ export class GwenApp {
     }
     await this.buildHooks.callHook("module:done", mod);
   }
+}
+
+function isPluginDeclaration(value: unknown): value is PluginDeclaration {
+  if (!isPlainRecord(value)) return false;
+  return typeof value.src === "string";
+}
+
+function pluginNotDeclarative(what: string, hint: string): GwenError {
+  return new GwenError(AppErrorCodes.PLUGIN_NOT_DECLARATIVE, what, {
+    composable: "kit.addPlugin",
+    hint: __GWEN_DEV__ ? hint : undefined,
+  });
+}
+
+function jsonRoundTripEquals(value: unknown): boolean {
+  try {
+    const encoded = JSON.stringify(value);
+    if (typeof encoded !== "string") return false;
+    const parsed: unknown = JSON.parse(encoded);
+    return sameJsonValue(parsed, value);
+  } catch {
+    return false;
+  }
+}
+
+function sameJsonValue(left: unknown, right: unknown): boolean {
+  if (left === right) return true;
+  if (Array.isArray(left) || Array.isArray(right)) {
+    if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false;
+    for (let index = 0; index < left.length; index += 1) {
+      if (!sameJsonValue(left[index], right[index])) return false;
+    }
+    return true;
+  }
+  if (!isPlainRecord(left) || !isPlainRecord(right)) return false;
+  const leftKeys = Object.keys(left);
+  const rightKeys = Object.keys(right);
+  if (leftKeys.length !== rightKeys.length) return false;
+  for (const key of leftKeys) {
+    if (!Object.prototype.hasOwnProperty.call(right, key)) return false;
+    if (!sameJsonValue(left[key], right[key])) return false;
+  }
+  return true;
 }
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
