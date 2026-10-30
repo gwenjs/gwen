@@ -106,6 +106,8 @@ test.describe("chromium", () => {
   test("chromium: isolated engines exhaust at or before 125 with CORE:WASM_CAPACITY_EXHAUSTED", async ({
     page,
   }) => {
+    // CI run 41059346720, chromium: 229 ms. Timeout is 2x.
+    test.setTimeout(460);
     await openIsolated(page);
     const result = await exhaustShared(page, 200);
     logExhausted("chromium", result);
@@ -119,6 +121,8 @@ test.describe("firefox", () => {
   test("firefox: isolated engines exhaust at or before 1000 with CORE:WASM_CAPACITY_EXHAUSTED", async ({
     page,
   }) => {
+    // CI run 41059346720, firefox: 5.2 s. Timeout is 2x.
+    test.setTimeout(10_400);
     await openIsolated(page);
     const result = await exhaustShared(page, 1100);
     logExhausted("firefox", result);
@@ -130,6 +134,8 @@ test.describe("webkit", () => {
   test.skip(({ browserName }) => browserName !== "webkit");
 
   test("webkit: 500 isolated engines, no crash, independent counts", async ({ page }) => {
+    // CI run 41059346720, webkit: 3.5 s. Timeout is 2x.
+    test.setTimeout(7_000);
     await openIsolated(page);
     const opened: IsolatedBatch = await page.evaluate(async () => {
       const gwen: GwenHarness = window.__gwen;
@@ -148,6 +154,8 @@ test.describe("webkit", () => {
   test("webkit: per-tick step time of isolated engines 9-16 against 1-8", async ({
     page,
   }, testInfo) => {
+    // CI run 41059346720, webkit: 1.2 s. Timeout is 2x.
+    test.setTimeout(2_400);
     await openIsolated(page);
     const result = await page.evaluate(async () => {
       const gwen: GwenHarness = window.__gwen;
