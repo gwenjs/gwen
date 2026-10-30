@@ -136,6 +136,8 @@ These are the engine lifecycle events you can subscribe to. All fire automatical
 | `actor:enable` | `(entityId: bigint) => void` | A pooled actor is acquired again. The first acquire does not fire it |
 | `actor:disable` | `(entityId: bigint) => void` | A pooled actor is released |
 | `plugin:registered` | `(pluginName: string) => void` | Plugin setup completes and registers |
+| `service:provided` | `(event: ServiceChangeEvent) => void` | A service value is stored. `reason` is `install` or `overwrite`. Not fired for `wasm:bridge`, `logger`, `errors`, or `memory` |
+| `service:removed` | `(event: ServiceChangeEvent) => void` | A service value is removed or replaced. `reason` is `unuse`, `stop`, or `overwrite`. `value` is the previous one |
 | `plugin:error` | `(payload: PluginErrorEvent) => void` | Plugin lifecycle hook throws and isn't recovered |
 | `prefab:instantiate` | `(entityId: EntityId, extensions: Readonly<Partial<GwenPrefabExtensions>>) => void` | After the prefab components are written, for an actor spawn, `usePrefab().spawn`, and `placePrefab`. Augment `GwenPrefabExtensions` with `declare module "@gwenjs/schema"`. |
 
