@@ -172,6 +172,10 @@ Cause. A module `setup()` threw. The `cause` is that throw. Fix. Read the cause 
 
 Cause. The module package or file could not be imported, the import has no `setup()` (the `cause` is `KIT:MODULE_INVALID`), or a custom `moduleLoader` threw. Fix. Check the name and that the package is installed. In development a missing package says to run `gwen add <name>`.
 
+### APP:PLUGIN_NOT_DECLARATIVE {#app-plugin-not-declarative}
+
+Cause. `kit.addPlugin()` received something that is not a `PluginDeclaration { src, export?, options? }` (an instance, a function, or an object without a string `src`), or the `options` are not JSON-serializable (message `Plugin declaration "<src>" has options that are not JSON-serializable.`). The failure is wrapped in `APP:MODULE_SETUP_FAILED`, whose `cause` is this error. Fix. Declare the package and its export, `kit.addPlugin({ src: "<pkg>", export: "<Factory>", options })`, and pass JSON data only.
+
 ### APP:CONFIG_LOAD_FAILED {#app-config-load-failed}
 
 Cause. No `gwen.config.ts` (or `.js` / `.mjs` / `.cjs`) was found, or the file threw while loading. Fix. Add the config file, or fix the syntax error named in the message. When the file threw, `cause` is that error.

@@ -172,6 +172,10 @@ Cause. Le `setup()` d'un module a levé une erreur. `cause` est cette erreur. Fi
 
 Cause. Le paquet ou le fichier du module n'a pas pu être importé, l'import n'a pas de `setup()` (`cause` est `KIT:MODULE_INVALID`), ou un `moduleLoader` personnalisé a levé une erreur. Fix. Vérifiez le nom et que le paquet est installé. En développement, un paquet manquant indique de lancer `gwen add <name>`.
 
+### APP:PLUGIN_NOT_DECLARATIVE {#app-plugin-not-declarative}
+
+Cause. `kit.addPlugin()` a reçu quelque chose qui n'est pas une `PluginDeclaration { src, export?, options? }` (une instance, une fonction, ou un objet sans `src` de type chaîne), ou les `options` ne sont pas sérialisables en JSON (message `Plugin declaration "<src>" has options that are not JSON-serializable.`). L'échec est enveloppé dans `APP:MODULE_SETUP_FAILED`, dont le `cause` est cette erreur. Fix. Déclarez le paquet et son export, `kit.addPlugin({ src: "<pkg>", export: "<Factory>", options })`, et ne passez que des données JSON.
+
 ### APP:CONFIG_LOAD_FAILED {#app-config-load-failed}
 
 Cause. Aucun `gwen.config.ts` (ou `.js` / `.mjs` / `.cjs`) n'a été trouvé, ou le fichier a levé une erreur au chargement. Fix. Ajoutez le fichier de config, ou corrigez l'erreur de syntaxe nommée dans le message. Quand le fichier a levé, `cause` est cette erreur.
