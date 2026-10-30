@@ -11,12 +11,11 @@
  */
 
 import { defineGwenModule } from "@gwenjs/kit/module";
-import { CameraCorePlugin } from "./camera-core-plugin";
 
 export default defineGwenModule({
   meta: { name: "@gwenjs/camera-core" },
   async setup(_options, kit) {
-    kit.addPlugin(CameraCorePlugin());
+    kit.addPlugin({ src: "@gwenjs/camera-core", export: "CameraCorePlugin" });
 
     kit.addAutoImports([
       { name: "useCamera", from: "@gwenjs/camera-core" },
