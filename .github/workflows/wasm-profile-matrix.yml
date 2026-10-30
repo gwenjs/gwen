@@ -1,0 +1,43 @@
+name: WASM profile matrix
+
+on:
+  workflow_dispatch:
+  push:
+
+permissions:
+  contents: write
+
+jobs:
+  matrix:
+    name: stub
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [light]
+    steps:
+      - name: Build L0 cells
+        run: |
+          pnpm build:ts
+          echo build
+      - name: Bench L0 cells
+        run: |
+          for r in 1 2 3; do
+            for cell in a b; do
+              pnpm exec vitest bench --run bench/simulation-wasm.bench.ts
+              pnpm exec vitest bench --run bench/shared-memory.bench.ts
+            done
+          done
+      - name: Build and bench L1 cells
+        run: |
+          for r in 1 2 3; do
+            for cell in a b; do
+              pnpm exec vitest bench --run bench/physics-step-wasm.bench.ts
+            done
+          done
+      - name: Write the profile table
+        run: echo table
+      - name: Upload profile matrix artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: profile-matrix-stub
