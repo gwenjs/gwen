@@ -295,8 +295,9 @@ export class GwenApp {
 
     return {
       /**
-       * Registers a plugin declaration. An instance, a factory, or non-JSON
-       * options throw `APP:PLUGIN_NOT_DECLARATIVE`.
+       * Registers a plugin declaration. An instance, a factory, a non-string
+       * `export`, an empty `src`, or non-JSON options throw `APP:PLUGIN_NOT_DECLARATIVE`.
+       * `options: undefined` is stored like an absent `options`.
        */
       addPlugin(decl: PluginDeclaration): void {
         const value: unknown = decl;
@@ -306,13 +307,17 @@ export class GwenApp {
             "Declare the package and its export instead of passing a plugin instance or factory.",
           );
         }
-        if ("options" in value && !jsonRoundTripEquals(value.options)) {
+        if (
+          "options" in value &&
+          value.options !== undefined &&
+          !jsonRoundTripEquals(value.options)
+        ) {
           throw pluginNotDeclarative(
             `Plugin declaration "${value.src}" has options that are not JSON-serializable.`,
             "Pass JSON data only: objects, arrays, strings, finite numbers, booleans, and null.",
           );
         }
-        app._pluginDeclarations.push(value);
+        app._pluginDeclarations.push(storedPluginDeclaration(value));
       },
 
       /** Registers composables/utilities for auto-import. */
@@ -371,7 +376,18 @@ export class GwenApp {
 
 function isPluginDeclaration(value: unknown): value is PluginDeclaration {
   if (!isPlainRecord(value)) return false;
-  return typeof value.src === "string";
+  if (typeof value.src !== "string") return false;
+  if (value.src.length === 0) return false;
+  if ("export" in value && typeof value.export !== "string") return false;
+  return true;
+}
+
+/** Drops an explicit `options: undefined` so the stored row matches an absent field. */
+function storedPluginDeclaration(value: PluginDeclaration): PluginDeclaration {
+  if (value.options !== undefined) return value;
+  const stored: PluginDeclaration = { src: value.src };
+  if (typeof value.export === "string") stored.export = value.export;
+  return stored;
 }
 
 function pluginNotDeclarative(what: string, hint: string): GwenError {
