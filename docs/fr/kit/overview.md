@@ -118,7 +118,7 @@ Le package module lui-même appelle `gwen.addPlugin()` dans son `setup()`. L'ent
 ## Quand utiliser l'un ou l'autre
 
 **Utilisez un Plugin lorsque :**
-- Vous devez vous accrocher au cycle de vie du moteur (`setup`, `onStart`, `teardown`)
+- Vous devez vous accrocher au cycle de vie du moteur (`setup`, hooks, `teardown`)
 - Vous voulez fournir des services runtime aux systèmes
 - Vous implémentez une logique de jeu ou un rendu
 
