@@ -92,7 +92,7 @@ Cleanup is automatic and depends on context:
 | Inside `defineActor` | When the actor is despawned |
 | Inside `defineScene` | When the scene exits |
 | Pool-dormant actor | Handler is silenced (not removed) until re-enabled |
-| Plugin `setup()` | Manual — save the returned unsubscribe fn and call it in `engine:stop` |
+| Plugin `setup()` | On `engine.unuse(name)` or `engine.stop()` |
 
 ## Naming Convention
 

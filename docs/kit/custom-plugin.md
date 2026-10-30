@@ -331,12 +331,12 @@ export function useParticles(): ParticleHandle {
 
 ### How `onCleanup` works
 
-`onCleanup` registers a callback on the nearest active **cleanup context** — a stack-based scope established by `withCleanup`. The callback fires when that scope ends (actor despawn, scene exit, plugin teardown…).
+`onCleanup` registers a callback on the active GwenScope when one is current. In a plugin `setup()`, that plugin scope runs the callbacks in LIFO order on `engine.unuse(name)` and on `engine.stop()`. Outside a GwenScope, `onCleanup` uses the stack established by `withCleanup`.
 
 | Scope | Cleanup trigger |
 |---|---|
 | `defineActor()` factory | Actor despawned |
-| `definePlugin()` setup | Engine destroyed |
+| `definePlugin()` setup | On `engine.unuse(name)` or `engine.stop()` (LIFO) |
 | `withCleanup(() => { ... })` | Manual `dispose()` call |
 
 If no cleanup context is active, `onCleanup` is a **silent no-op** — safe to call unconditionally.
@@ -374,7 +374,7 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
 
 ### Using `withCleanup` directly
 
-If you need to manage a resource outside an actor (e.g. in a plugin's `setup`), use `withCleanup` to establish the scope manually:
+A plugin `setup()` already runs in a plugin scope. `onCleanup` there runs on `engine.unuse(name)` and `engine.stop()`, in LIFO order, without `withCleanup`. Use `withCleanup` only outside a GwenScope:
 
 ```ts
 import { withCleanup, onCleanup } from '@gwenjs/core'
