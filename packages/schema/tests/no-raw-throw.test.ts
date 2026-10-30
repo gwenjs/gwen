@@ -437,7 +437,10 @@ function located(rule: RuleId): string[] {
     .map((finding) => `${finding.file}:${finding.line}`);
 }
 
-describe("package throws", () => {
+/** Scan alone ~0.4 s, 6.1-7.9 s at 16x CPU oversubscription (default 5 s flaked in CI 2026-10-27): 3x the worst. */
+const PACKAGE_THROWS_TIMEOUT_MS = 25000;
+
+describe("package throws", { timeout: PACKAGE_THROWS_TIMEOUT_MS }, () => {
   it("throws GwenError instead of Error, TypeError, or RangeError", () => {
     expect(located("R1")).toEqual([]);
   });
