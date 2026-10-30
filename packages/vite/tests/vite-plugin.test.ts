@@ -816,6 +816,27 @@ describe("resolved config is the build source", () => {
     });
   });
 
+  it("a module that adds a plugin instance makes config() reject with APP:PLUGIN_NOT_DECLARATIVE", async () => {
+    await withRoot(async (root) => {
+      writeModule(
+        root,
+        "instance-mod",
+        `export default { meta: { name: "instance-mod" }, setup(_options, gwen) { gwen.addPlugin({ name: "x", setup() {} }); } };\n`,
+      );
+      writeConfig(root, `export default { modules: ["instance-mod"] };\n`);
+      const plugin = pluginNamed("gwen");
+      const caught: unknown = await configHook(plugin)({ root }, serveEnv).then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+      expect(caught).toMatchObject({
+        code: "APP:MODULE_SETUP_FAILED",
+        cause: { code: "APP:PLUGIN_NOT_DECLARATIVE" },
+      });
+      expect(caught instanceof Error ? caught.message : "").toContain("instance-mod");
+    });
+  });
+
   it("a module that throws in setup rejects config() with the module name", async () => {
     await withRoot(async (root) => {
       writeModule(
