@@ -24,15 +24,15 @@ interface SharedEntry {
   glue: GwenCoreGlueInstance;
   exports: { memory: WebAssembly.Memory };
   refs: number;
+  poisoned: WebAssembly.RuntimeError | null;
+  bridges: Set<WeakHandle<SharedBridgePoison>>;
+  module: WebAssembly.Module;
 }
 
 const byModule = new WeakMap<WebAssembly.Module, SharedEntry>();
-const byGlue = new Map<GwenCoreGlueInstance, WebAssembly.Module>();
+const byGlue = new Map<GwenCoreGlueInstance, SharedEntry>();
 
-/**
- * Cached shared modules.
- * One per successful insert. This matches `byGlue.size` when each module has its own glue.
- */
+/** One per live shared instance. Decremented once, when that entry's refs hit zero. */
 let sharedLive = 0;
 
 /**
@@ -80,7 +80,7 @@ function instantiate(
 
 /**
  * One glue and one memory per compiled Module, for the whole process.
- * The entry is stored only after `initSync` succeeds, and removed at zero refs.
+ * Stored after `initSync`. A trap drops the module cache. Zero refs drops the count.
  */
 export const sharedProvider: WasmInstanceProvider = {
   mode: "shared",
@@ -92,20 +92,25 @@ export const sharedProvider: WasmInstanceProvider = {
     }
     const glue = factory.createGlue();
     const exports = instantiate(glue, module, "shared", sharedLive);
-    const entry: SharedEntry = { glue, exports, refs: 1 };
+    const entry: SharedEntry = {
+      glue,
+      exports,
+      refs: 1,
+      poisoned: null,
+      bridges: new Set(),
+      module,
+    };
     byModule.set(module, entry);
-    byGlue.set(glue, module);
+    byGlue.set(glue, entry);
     sharedLive += 1;
     return { glue, exports };
   },
   release(glue) {
-    const module = byGlue.get(glue);
-    if (module === undefined) return;
-    const entry = byModule.get(module);
+    const entry = byGlue.get(glue);
     if (entry === undefined) return;
     entry.refs -= 1;
     if (entry.refs > 0) return;
-    byModule.delete(module);
+    if (byModule.get(entry.module) === entry) byModule.delete(entry.module);
     byGlue.delete(glue);
     sharedLive -= 1;
   },
@@ -141,3 +146,86 @@ export const isolatedProvider: WasmInstanceProvider = {
     isolatedLive -= 1;
   },
 };
+
+/** `deref` is `undefined` once the target is collected. */
+export interface WeakHandle<T extends object> {
+  deref(): T | undefined;
+}
+
+interface WeakHandleConstructor {
+  new <T extends object>(target: T): WeakHandle<T>;
+}
+
+function isWeakHandleConstructor(value: unknown): value is WeakHandleConstructor {
+  return typeof value === "function";
+}
+
+/**
+ * Build a weak handle for `target` from the host `WeakRef`.
+ * `deref` is `undefined` after the target is collected, and the entry skips it.
+ * When the host has no `WeakRef`, `deref` returns `target` for the life of the handle.
+ * The shared entry then keeps the bridge alive, so a collected bridge is not skipped.
+ */
+export function weakHandle<T extends object>(target: T): WeakHandle<T> {
+  const ctor: unknown = Reflect.get(globalThis, "WeakRef");
+  if (isWeakHandleConstructor(ctor)) {
+    return new ctor(target);
+  }
+  return {
+    deref(): T | undefined {
+      return target;
+    },
+  };
+}
+
+/** Callback a shared entry holds by a weak handle. The bridge poisons itself and does not call back. */
+export type SharedBridgePoison = (
+  cause: WebAssembly.RuntimeError,
+  exportName: string | undefined,
+) => void;
+
+/**
+ * Record a weak handle on the entry that owns `glue`.
+ * A missing entry does nothing. The bridge unregisters the same handle before release.
+ */
+export function registerSharedBridge(
+  glue: GwenCoreGlueInstance,
+  poison: WeakHandle<SharedBridgePoison>,
+): void {
+  const entry = byGlue.get(glue);
+  if (entry === undefined) return;
+  entry.bridges.add(poison);
+}
+
+/** Drop one weak handle from its entry. A missing entry does nothing. */
+export function unregisterSharedBridge(
+  glue: GwenCoreGlueInstance,
+  poison: WeakHandle<SharedBridgePoison>,
+): void {
+  const entry = byGlue.get(glue);
+  if (entry === undefined) return;
+  entry.bridges.delete(poison);
+}
+
+/**
+ * Poison every bridge on `glue`'s entry except `origin`, and drop the module cache.
+ * The origin is already poisoned. A second call keeps the first cause.
+ * A bridge poisoned here must not call this again.
+ * A cleared handle is skipped. `cause` is the trap, not a bridge.
+ */
+export function poisonInstance(
+  glue: GwenCoreGlueInstance,
+  cause: WebAssembly.RuntimeError,
+  exportName: string | undefined,
+  origin: SharedBridgePoison,
+): void {
+  const entry = byGlue.get(glue);
+  if (entry === undefined || entry.poisoned !== null) return;
+  entry.poisoned = cause;
+  byModule.delete(entry.module);
+  for (const ref of entry.bridges) {
+    const bridge = ref.deref();
+    if (bridge === undefined || bridge === origin) continue;
+    bridge(cause, exportName);
+  }
+}
