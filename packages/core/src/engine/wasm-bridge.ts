@@ -41,7 +41,16 @@ import {
 } from "./entity-trace.js";
 import { getWasmModule } from "./wasm-module-cache.js";
 import { checkGwenModule } from "./wasm-contract.js";
-import { isolatedProvider, sharedProvider } from "./wasm-instance-provider.js";
+import {
+  isolatedProvider,
+  poisonInstance,
+  registerSharedBridge,
+  sharedProvider,
+  unregisterSharedBridge,
+  weakHandle,
+  type SharedBridgePoison,
+  type WeakHandle,
+} from "./wasm-instance-provider.js";
 
 // ─── Re-exports from the type module ────────────────────────────────────────
 // Public types live in ./wasm-bridge-types.ts. Re-export them so
@@ -167,6 +176,9 @@ async function loadGlueFactory(jsUrl: string): Promise<GwenCoreGlueFactoryModule
 
 // #region WasmBridge implementation (hot path — do not split) ─────────────────
 
+/** Export name recorded when {@link toGwenWasmError} sees a trap. */
+const trapExports = new WeakMap<WebAssembly.RuntimeError, string>();
+
 /**
  * Map an export failure onto a typed error.
  * Internal: not on {@link WasmBridge} and not a method of {@link WasmBridgeImpl}.
@@ -181,6 +193,7 @@ export function toGwenWasmError(
   accepts?: (code: unknown) => code is string,
 ): unknown {
   if (err instanceof WebAssembly.RuntimeError) {
+    trapExports.set(err, exportName);
     poison(err);
     return new GwenWasmPanicError(exportName, err);
   }
@@ -207,6 +220,22 @@ export function poisonWasmBridge(bridge: object, cause: WebAssembly.RuntimeError
 }
 
 /**
+ * Panic on a bridge that did not trap.
+ * {@link GwenWasmPanicError} builds `.message` from `cause.message`, so the
+ * carrier holds the shared-instance sentence. `.cause` is then the original trap.
+ */
+class SharedInstancePanicError extends GwenWasmPanicError {
+  override readonly cause: WebAssembly.RuntimeError;
+
+  constructor(exportName: string | undefined, origin: WebAssembly.RuntimeError) {
+    const what = `WASM instance shared with another engine trapped in "${exportName}"; this engine can no longer run.`;
+    super(exportName, new WebAssembly.RuntimeError(what));
+    this.cause = origin;
+    this.message = what;
+  }
+}
+
+/**
  * Concrete implementation of `WasmBridge`.
  *
  * Every public method delegates to the `_wasmEngine` instance via
@@ -214,8 +243,8 @@ export function poisonWasmBridge(bridge: object, cause: WebAssembly.RuntimeError
  * All type conversions (e.g. `number[] → Uint32Array`, packed EntityId
  * reconstruction) happen here so callers never touch raw Rust types.
  *
- * All WASM state is stored as instance fields — multiple independent bridge
- * instances are fully isolated from each other.
+ * WASM state is stored on the instance. In `shared` mode the glue and the
+ * fault domain are common to every bridge on that instance.
  *
  * @internal — Obtain via `getWasmBridge()` or `new WasmBridgeImpl()`.
  */
@@ -230,10 +259,18 @@ export class WasmBridgeImpl implements WasmBridge {
   /** Set after a core trap. Later calls throw without entering WASM. */
   private _poisoned = false;
   private _panicCause: WebAssembly.RuntimeError | null = null;
+  /** Set when another bridge on the same shared instance trapped. */
+  private _fromInstance = false;
+  private _sharedExport: string | undefined;
+  /** Shared glue, or null in isolated mode and before acquire. */
+  private _sharedGlue: GwenCoreGlueInstance | null = null;
   /** Set by {@link dispose}. A call that reaches WASM throws `CORE:ENGINE_DISPOSED`. */
   private _disposed = false;
   /** Drops this bridge's ref on the shared glue. Null until acquire. */
   private _release: (() => void) | null = null;
+  private readonly _instancePoisoner: SharedBridgePoison;
+  /** Same callback. The shared entry stores this handle, not the bridge. */
+  private readonly _instancePoisonerRef: WeakHandle<SharedBridgePoison>;
 
   /** Track the last seen ArrayBuffer to detect memory.grow() events. */
   private _lastMemoryBuffer: ArrayBuffer | null = null;
@@ -245,6 +282,10 @@ export class WasmBridgeImpl implements WasmBridge {
   private _typeIdBuffer = new Uint32Array(16);
 
   constructor() {
+    this._instancePoisoner = (cause, exportName) => {
+      this._poisonFromInstance(cause, exportName);
+    };
+    this._instancePoisonerRef = weakHandle(this._instancePoisoner);
     bridgePoisoners.set(this, (cause) => {
       this._poison(cause);
     });
@@ -316,6 +357,8 @@ export class WasmBridgeImpl implements WasmBridge {
     }
     this._poisoned = false;
     this._panicCause = null;
+    this._fromInstance = false;
+    this._sharedExport = undefined;
 
     const { maxEntities = 10_000, jsUrl, wasmUrl } = options;
 
@@ -357,7 +400,12 @@ export class WasmBridgeImpl implements WasmBridge {
       checkGwenModule(wasmModule, factory.CONTRACT);
       const provider = options.wasmInstance === "isolated" ? isolatedProvider : sharedProvider;
       const acquired = provider.acquire(wasmModule, factory);
+      const sharedGlue = provider === sharedProvider ? acquired.glue : null;
+      this._sharedGlue = sharedGlue;
+      if (sharedGlue !== null) registerSharedBridge(sharedGlue, this._instancePoisonerRef);
       this._release = () => {
+        if (sharedGlue !== null) unregisterSharedBridge(sharedGlue, this._instancePoisonerRef);
+        this._sharedGlue = null;
         provider.release(acquired.glue);
       };
       this._wasmModule = acquired.glue;
@@ -416,6 +464,9 @@ export class WasmBridgeImpl implements WasmBridge {
   private _requireWasm(): WasmEngine {
     if (this._disposed) this._throwDisposed();
     if (this._poisoned && this._panicCause) {
+      if (this._fromInstance) {
+        throw new SharedInstancePanicError(this._sharedExport, this._panicCause);
+      }
       throw new GwenWasmPanicError(undefined, this._panicCause);
     }
     if (!this._wasmEngine) {
@@ -433,8 +484,27 @@ export class WasmBridgeImpl implements WasmBridge {
   }
 
   private _poison(cause: WebAssembly.RuntimeError): void {
+    if (this._poisoned) return;
     this._poisoned = true;
     this._panicCause = cause;
+    if (this._fromInstance || this._sharedGlue === null) return;
+    poisonInstance(
+      this._sharedGlue,
+      cause,
+      trapExports.get(cause) ?? "unknown",
+      this._instancePoisoner,
+    );
+  }
+
+  /** Instance poison. Does not call {@link poisonInstance}, so the origin keeps its cause. */
+  private _poisonFromInstance(
+    cause: WebAssembly.RuntimeError,
+    exportName: string | undefined,
+  ): void {
+    if (this._poisoned) return;
+    this._fromInstance = true;
+    this._sharedExport = exportName;
+    this._poison(cause);
   }
 
   private _throwDisposed(): never {
@@ -475,6 +545,8 @@ export class WasmBridgeImpl implements WasmBridge {
     this._initPromise = null;
     this._poisoned = false;
     this._panicCause = null;
+    this._fromInstance = false;
+    this._sharedExport = undefined;
     this._lastMemoryBuffer = null;
     this._queryResultView = null;
     this._maxEntities = 10_000;
