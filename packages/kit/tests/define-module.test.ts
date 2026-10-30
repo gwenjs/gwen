@@ -104,13 +104,14 @@ describe("defineGwenModule() — setup() call contract", () => {
     const mod = defineGwenModule({
       meta: { name: "@test/module" },
       setup(_opts, gwen) {
-        gwen.addPlugin({ name: "TestPlugin", setup: vi.fn() });
+        gwen.addPlugin({ src: "@test/module", export: "TestPlugin" });
       },
     });
 
     const kit = mockKit();
     mod.setup({}, kit);
     expect(kit.addPlugin).toHaveBeenCalledTimes(1);
+    expect(kit.addPlugin).toHaveBeenCalledWith({ src: "@test/module", export: "TestPlugin" });
   });
 
   it("setup() can call gwen.addAutoImports without throwing", () => {

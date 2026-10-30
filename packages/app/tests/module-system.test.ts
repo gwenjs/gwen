@@ -10,7 +10,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { defineGwenModule } from "@gwenjs/kit/module";
 import type { GwenModule } from "@gwenjs/kit/module";
 import type { AutoImport } from "@gwenjs/kit";
-import type { GwenPlugin } from "@gwenjs/core";
+import { GwenError } from "@gwenjs/schema";
+import type { GwenKit, PluginDeclaration } from "@gwenjs/schema";
 import { GwenApp } from "../src/app.js";
 import { BUILT_IN_MODULES } from "../src/built-in-modules.js";
 import { resolveLoadedConfig as resolveConfig } from "../src/config.js";
@@ -28,6 +29,46 @@ function makeLoader(registry: Record<string, GwenModule>): (name: string) => Pro
     if (!mod) throw new Error(`[test] Unknown module: ${name}`);
     return mod;
   };
+}
+
+function addUnknown(gwen: GwenKit, value: unknown): void {
+  Reflect.apply(gwen.addPlugin, gwen, [value]);
+}
+
+const SCENE_DECLARATION: PluginDeclaration = {
+  src: "@gwenjs/core/internal",
+  export: "SceneEnginePlugin",
+};
+const TWEEN_DECLARATION: PluginDeclaration = {
+  src: "@gwenjs/core/internal",
+  export: "TweenPlugin",
+  options: { poolSize: 256 },
+};
+
+async function runModule(
+  name: string,
+  setup: GwenModule["setup"],
+): Promise<{ app: GwenApp; caught: unknown }> {
+  const mod = defineGwenModule({ meta: { name }, setup });
+  const app = new GwenApp();
+  const caught = await app
+    .setupModules(resolveConfig({ modules: [name] }), makeLoader({ [name]: mod }))
+    .then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+  return { app, caught };
+}
+
+function assertPluginRejected(caught: unknown, moduleName: string): GwenError {
+  expect(caught).toBeInstanceOf(GwenError);
+  if (!(caught instanceof GwenError)) throw new Error("expected GwenError");
+  expect(caught.code).toBe("APP:MODULE_SETUP_FAILED");
+  expect(caught.message).toContain(`Module "${moduleName}"`);
+  expect(caught.cause).toBeInstanceOf(GwenError);
+  if (!(caught.cause instanceof GwenError)) throw new Error("expected cause");
+  expect(caught.cause.code).toBe("APP:PLUGIN_NOT_DECLARATIVE");
+  return caught.cause;
 }
 
 // ─── defineGwenModule ─────────────────────────────────────────────────────────
@@ -189,10 +230,9 @@ describe("GwenApp.setupModules — options merging via configKey", () => {
     const app = new GwenApp();
     await app.setupModules(config, makeLoader({ "@test/decl-mod": mod }));
 
-    expect(app.pluginDeclarations).toHaveLength(1);
-    expect(app.pluginDeclarations[0]).toEqual(decl);
-    // Runtime plugins count unchanged — decl does NOT go into _plugins
-    expect(app.plugins.find((p) => p.name === "test-decl-runtime")).toBeUndefined();
+    expect(app.pluginDeclarations).toEqual([SCENE_DECLARATION, TWEEN_DECLARATION, decl]);
+    // The declaration does not become a runtime plugin. GwenApp still installs viewports and screen.
+    expect(app.plugins.map((plugin) => plugin.name)).toEqual(["gwen:viewports", "gwen:screen"]);
   });
 });
 
@@ -271,66 +311,87 @@ describe("GwenApp.setupModules — a module runs once", () => {
 // ─── GwenApp — plugin collection ──────────────────────────────────────────────
 
 describe("GwenApp.setupModules — plugin collection", () => {
-  it("collects plugins registered via gwen.addPlugin()", async () => {
-    const fakePlugin = { name: "test-plugin" as const };
-    const mod = defineGwenModule({
-      meta: { name: "@test/plugin-mod" },
-      setup(_opts, gwen) {
-        gwen.addPlugin(fakePlugin as GwenPlugin);
-      },
+  it("addPlugin with a plugin instance fails the build naming the module", async () => {
+    const name = "@test/instance-mod";
+    const { caught } = await runModule(name, (_opts, gwen) => {
+      addUnknown(gwen, { name: "x", setup() {} });
     });
-
-    const config = resolveConfig({ modules: ["@test/plugin-mod"] });
-    const app = new GwenApp();
-    await app.setupModules(config, makeLoader({ "@test/plugin-mod": mod }));
-
-    expect(app.plugins).toHaveLength(5);
-    expect(app.plugins.find((p) => p.name === "test-plugin")).toBe(fakePlugin);
+    const cause = assertPluginRejected(caught, name);
+    expect(
+      cause.message.startsWith("[kit.addPlugin()] kit.addPlugin() takes a PluginDeclaration"),
+    ).toBe(true);
   });
 
-  it("collects plugins from multiple modules in order", async () => {
-    const pluginA = { name: "plugin-a" as const };
-    const pluginB = { name: "plugin-b" as const };
+  it("addPlugin with a factory function fails the same way", async () => {
+    const name = "@test/factory-mod";
+    const { caught } = await runModule(name, (_opts, gwen) => {
+      addUnknown(gwen, () => ({ name: "x", setup() {} }));
+    });
+    const cause = assertPluginRejected(caught, name);
+    expect(
+      cause.message.startsWith("[kit.addPlugin()] kit.addPlugin() takes a PluginDeclaration"),
+    ).toBe(true);
+  });
 
+  it("addPlugin with non-serializable options fails", async () => {
+    const src = "@test/serial";
+    for (const options of [{ cb: () => 1 }, { a: { cb: () => 1 } }]) {
+      const { caught } = await runModule("@test/serial-mod", (_opts, gwen) => {
+        gwen.addPlugin({ src, options });
+      });
+      const cause = assertPluginRejected(caught, "@test/serial-mod");
+      expect(cause.message).toContain(
+        `Plugin declaration "${src}" has options that are not JSON-serializable.`,
+      );
+    }
+
+    const options = { a: [1, "x", null] };
+    const { app, caught } = await runModule("@test/ok-opts", (_opts, gwen) => {
+      gwen.addPlugin({ src: "@test/ok", options });
+    });
+    expect(caught).toBeUndefined();
+    expect(app.pluginDeclarations).toContainEqual({ src: "@test/ok", options });
+  });
+
+  it("a declaration is collected in module order", async () => {
+    const declA = { src: "@test/a", export: "A" };
+    const declB = { src: "@test/b", export: "B" };
     const modA = defineGwenModule({
       meta: { name: "@test/mod-a" },
       setup(_opts, gwen) {
-        gwen.addPlugin(pluginA as GwenPlugin);
+        gwen.addPlugin(declA);
       },
     });
     const modB = defineGwenModule({
       meta: { name: "@test/mod-b" },
       setup(_opts, gwen) {
-        gwen.addPlugin(pluginB as GwenPlugin);
+        gwen.addPlugin(declB);
       },
     });
-
-    const config = resolveConfig({ modules: ["@test/mod-a", "@test/mod-b"] });
     const app = new GwenApp();
-    await app.setupModules(config, makeLoader({ "@test/mod-a": modA, "@test/mod-b": modB }));
-
-    expect(app.plugins).toHaveLength(6);
-    expect(app.plugins.find((p) => p.name === "plugin-a")).toBe(pluginA);
-    expect(app.plugins.find((p) => p.name === "plugin-b")).toBe(pluginB);
+    await app.setupModules(
+      resolveConfig({ modules: ["@test/mod-a", "@test/mod-b"] }),
+      makeLoader({ "@test/mod-a": modA, "@test/mod-b": modB }),
+    );
+    expect(app.pluginDeclarations).toEqual([SCENE_DECLARATION, TWEEN_DECLARATION, declA, declB]);
   });
 
-  it("unwraps factory functions passed to addPlugin()", async () => {
-    const fakePlugin = { name: "factory-plugin" as const };
-    const factory = vi.fn(() => fakePlugin);
-
+  it("addPlugin with a declaration without export and without options is collected", async () => {
+    const decl = { src: "@test/x" };
     const mod = defineGwenModule({
-      meta: { name: "@test/factory-mod" },
+      meta: { name: "@test/bare" },
       setup(_opts, gwen) {
-        gwen.addPlugin(factory as unknown as GwenPlugin);
+        gwen.addPlugin(decl);
       },
     });
-
-    const config = resolveConfig({ modules: ["@test/factory-mod"] });
     const app = new GwenApp();
-    await app.setupModules(config, makeLoader({ "@test/factory-mod": mod }));
-
-    expect(factory).toHaveBeenCalledOnce();
-    expect(app.plugins.find((p) => p.name === "factory-plugin")).toBe(fakePlugin);
+    const listed = await app
+      .setupModules(resolveConfig({ modules: ["@test/bare"] }), makeLoader({ "@test/bare": mod }))
+      .then(
+        () => app.pluginDeclarations,
+        () => undefined,
+      );
+    expect(listed).toEqual([SCENE_DECLARATION, TWEEN_DECLARATION, decl]);
   });
 });
 
@@ -692,28 +753,15 @@ describe("GwenApp.setupModules — Vite plugin collection", () => {
 
 describe("GwenApp — getter immutability", () => {
   it("plugins getter returns a defensive copy", async () => {
-    const plugin = { name: "immutable-test" as const };
-
-    const mod = defineGwenModule({
-      meta: { name: "@test/immut" },
-      setup(_opts, gwen) {
-        gwen.addPlugin(plugin as GwenPlugin);
-      },
-    });
-
-    const config = resolveConfig({ modules: ["@test/immut"] });
     const app = new GwenApp();
-    await app.setupModules(config, makeLoader({ "@test/immut": mod }));
+    await app.setupModules(resolveConfig({}));
 
     const snap1 = app.plugins;
-    snap1.push({ name: "injected" as const } as unknown as GwenPlugin);
+    snap1.push({ name: "injected", setup() {} });
 
-    // The internal array should NOT have been mutated
-    // Built-in modules (scene + tween) = 2 plugins
-    // + gwen:viewports + gwen:screen = 2 plugins
-    // + test plugin = 1 plugin
-    // Total = 5 plugins
-    expect(app.plugins).toHaveLength(5);
+    // gwen:viewports + gwen:screen. Module plugins are declarations.
+    expect(app.plugins).toHaveLength(2);
+    expect(app.plugins.map((plugin) => plugin.name)).toEqual(["gwen:viewports", "gwen:screen"]);
   });
 });
 

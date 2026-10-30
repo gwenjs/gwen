@@ -18,20 +18,25 @@ describe("GwenApp.setupModules — built-in modules", () => {
     expect(names).toContain("useSceneRouter");
   });
 
-  it("registers SceneEnginePlugin via the scene module", async () => {
+  it("declares SceneEnginePlugin via the scene module", async () => {
     const app = new GwenApp();
     await app.setupModules(resolveLoadedConfig({}));
 
-    const scenePlugin = app.plugins.find((p) => p.name === "gwen:scene");
-    expect(scenePlugin).toBeDefined();
+    expect(app.pluginDeclarations).toContainEqual({
+      src: "@gwenjs/core/internal",
+      export: "SceneEnginePlugin",
+    });
   });
 
-  it("registers TweenPlugin via the tween module", async () => {
+  it("declares TweenPlugin via the tween module", async () => {
     const app = new GwenApp();
     await app.setupModules(resolveLoadedConfig({}));
 
-    const tweenPlugin = app.plugins.find((p) => p.name === "gwen:tween");
-    expect(tweenPlugin).toBeDefined();
+    expect(app.pluginDeclarations).toContainEqual({
+      src: "@gwenjs/core/internal",
+      export: "TweenPlugin",
+      options: { poolSize: 256 },
+    });
   });
 
   it("forwards tween poolSize to TweenPlugin via configKey", async () => {
@@ -39,10 +44,13 @@ describe("GwenApp.setupModules — built-in modules", () => {
     await app.setupModules(
       resolveLoadedConfig({
         tween: { poolSize: 512 },
-      } as Record<string, unknown>),
+      }),
     );
 
-    const tweenPlugin = app.plugins.find((p) => p.name === "gwen:tween");
-    expect(tweenPlugin).toBeDefined();
+    expect(app.pluginDeclarations).toContainEqual({
+      src: "@gwenjs/core/internal",
+      export: "TweenPlugin",
+      options: { poolSize: 512 },
+    });
   });
 });

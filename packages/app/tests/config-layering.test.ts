@@ -465,10 +465,7 @@ describe("config layering", () => {
         const listed: unknown = Reflect.get(gwen.options, "plugins");
         const plugin: unknown =
           typeof listed === "object" && listed !== null ? Reflect.get(listed, 0) : undefined;
-        if (isPlugin(plugin)) {
-          seen = plugin;
-          gwen.addPlugin(plugin);
-        }
+        if (isPlugin(plugin)) seen = plugin;
         viteSame = gwen.options.vite === mergedVite;
         hooksSame = gwen.options.hooks === loaded.hooks;
         const viewVite: unknown = gwen.options.vite;
@@ -485,15 +482,17 @@ describe("config layering", () => {
           kept = typeof max === "number" ? max : 0;
         }
         fileOnView = readConfigFile(gwen.options);
+        if (isPlugin(plugin)) Reflect.apply(gwen.addPlugin, gwen, [plugin]);
       },
     });
     const open = async (name: string): Promise<GwenModule> =>
       name === "@test/ident" ? mod : missing(name);
     const app = new GwenApp();
     const found = failure(await settle(app.setupModules(loaded, open)));
-    expect(found.code).toBeUndefined();
+    expect(found.code).toBe("APP:MODULE_SETUP_FAILED");
+    expect(causeCode(found)).toBe("APP:PLUGIN_NOT_DECLARATIVE");
     expect(seen).toBe(somePlugin);
-    expect(app.plugins.find((item) => item.name === "mine")).toBe(somePlugin);
+    expect(app.plugins.find((item) => item.name === "mine")).toBeUndefined();
     expect(viteSame).toBe(true);
     expect(hooksSame).toBe(true);
     expect(liveGetter).toBe(true);
@@ -550,6 +549,14 @@ describe("config layering", () => {
     expect(named.message.split("\n")[0]).toBe("[GWEN] Invalid gwen.config (/app/gwen.config.ts):");
   });
 });
+
+function causeCode(value: unknown): string | undefined {
+  if (typeof value !== "object" || value === null) return undefined;
+  const cause: unknown = Reflect.get(value, "cause");
+  if (typeof cause !== "object" || cause === null) return undefined;
+  const code: unknown = Reflect.get(cause, "code");
+  return typeof code === "string" ? code : undefined;
+}
 
 function isPlugin(value: unknown): value is GwenPlugin {
   if (typeof value !== "object" || value === null) return false;

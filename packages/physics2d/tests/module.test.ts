@@ -69,7 +69,7 @@ describe("@gwenjs/physics2d module", () => {
     const loaded = await import("@gwenjs/physics2d/module");
     const dir = mkdtempSync(join(tmpdir(), "gwen-p61-null-layers-"));
     let failure = "";
-    let physics: string[] = [];
+    let declared = 0;
     try {
       writeFileSync(
         join(dir, "gwen.config.ts"),
@@ -83,15 +83,41 @@ describe("@gwenjs/physics2d module", () => {
         }
         return loaded.default;
       });
-      physics = app.plugins
-        .map((plugin) => plugin.name)
-        .filter((name) => name === "@gwenjs/physics2d");
+      declared = app.pluginDeclarations.filter(
+        (item) => item.src === "@gwenjs/physics2d" && item.export === "Physics2DPlugin",
+      ).length;
     } catch (error) {
       failure = error instanceof Error ? `${error.name}: ${error.message}` : "unknown";
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
-    expect({ failure, physics }).toEqual({ failure: "", physics: ["@gwenjs/physics2d"] });
+    expect({ failure, declared }).toEqual({ failure: "", declared: 1 });
+  });
+
+  it("setup declares Physics2DPlugin with JSON-serializable options", async () => {
+    const { GwenApp } = await import("@gwenjs/app/resolve");
+    const { resolveLoadedConfig } = await import("../../app/src/config");
+    const loaded = await import("@gwenjs/physics2d/module");
+    const resolved = resolveLoadedConfig({
+      modules: ["@gwenjs/physics2d"],
+      physics2d: { gravity: -9.81 },
+    });
+    const app = new GwenApp();
+    const declaration = await app
+      .setupModules(resolved, async (name) => {
+        if (name !== "@gwenjs/physics2d") throw new Error(`unexpected module ${name}`);
+        return loaded.default;
+      })
+      .then(
+        () => app.pluginDeclarations.find((item) => item.src === "@gwenjs/physics2d"),
+        () => undefined,
+      );
+    expect(declaration).toMatchObject({
+      src: "@gwenjs/physics2d",
+      export: "Physics2DPlugin",
+      options: { gravity: -9.81 },
+    });
+    expect(JSON.parse(JSON.stringify(declaration))).toEqual(declaration);
   });
 
   it("module defaults are the plugin defaults", async () => {
