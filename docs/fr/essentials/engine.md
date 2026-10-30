@@ -125,7 +125,7 @@ export const DebugSystem = defineSystem(() => {
 
 ## Moteurs sur une même instance
 
-C'est `wasmInstance: "shared"`, le défaut (`packages/core/src/engine/wasm-bridge.ts:358`). Deux moteurs peuvent tourner sur une même instance WASM. Chaque moteur possède ses entités, son monde physique et ses tampons de chemin. Un chemin écrit par un moteur n'est pas le chemin que l'autre moteur lit.
+C'est `wasmInstance: "shared"`, le défaut (`packages/core/src/engine/wasm-bridge.ts:401`). Deux moteurs peuvent tourner sur une même instance WASM. Chaque moteur possède ses entités, son monde physique et ses tampons de chemin. Un chemin écrit par un moteur n'est pas le chemin que l'autre moteur lit.
 
 `jsUrl` est l'URL de `gwen_core_factory.js`. `init()` avec `jsUrl` ou `wasmUrl` sur un pont déjà initialisé rejette `CORE:WASM_LOAD_ERROR`.
 
@@ -133,16 +133,16 @@ Ils partagent encore trois choses :
 
 - Le budget de mémoire linéaire. Une instance a une seule `WebAssembly.Memory`. Tous les moteurs de cette instance y allouent. `wasmMemoryBytes` est la taille de cette mémoire.
 - L'allocateur. Un seul allocateur sert tous les moteurs de l'instance.
-- Le domaine de faute. Un trap laisse la mémoire de l'instance partagée dans un état inconnu. Seul le moteur qui a levé le trap est marqué empoisonné. Les autres moteurs ne sont pas arrêtés et ne doivent pas être tenus pour fiables.
+- Le domaine de faute. Un trap laisse la mémoire de l'instance partagée dans un état inconnu. Un trap empoisonne chaque moteur de cette instance partagée avec `CORE:WASM_PANIC`. Le moteur suivant obtient une nouvelle instance.
 
 ## Plusieurs moteurs par page ou par processus
 
-`wasmInstance` choisit l'instance WASM (`packages/core/src/engine/wasm-bridge.ts:358`).
+`wasmInstance` choisit l'instance WASM (`packages/core/src/engine/wasm-bridge.ts:401`).
 
 | Mode | Comportement |
 | --- | --- |
 | `shared` (défaut) | Une instance par module compilé. Les moteurs de ce module partagent sa mémoire linéaire. |
-| `isolated` | Une instance par moteur, avec sa propre mémoire linéaire (`packages/core/src/engine/wasm-instance-provider.ts:128`). |
+| `isolated` | Une instance par moteur, avec sa propre mémoire linéaire (`packages/core/src/engine/wasm-instance-provider.ts:133`). |
 
 `createEngine` dans Node utilise encore `shared` par défaut (`packages/core/src/engine/engine-factory.ts:79`). `isolated` devient le défaut Node seulement avec `@gwenjs/core/node`, dans un ticket ultérieur (#267).
 
