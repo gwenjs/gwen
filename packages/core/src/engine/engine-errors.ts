@@ -5,7 +5,13 @@
  * engine dependencies. Safe to import without pulling in the full engine module.
  */
 
-import { GwenError, type GwenErrorOptions, type GwenPluginRequirement } from "@gwenjs/schema";
+import {
+  GWEN_PLUGIN_LIFECYCLE_HOOKS,
+  GwenError,
+  type ForbiddenPluginKey,
+  type GwenErrorOptions,
+  type GwenPluginRequirement,
+} from "@gwenjs/schema";
 import { GwenContextErrorCodes } from "@gwenjs/kit";
 import type { GwenEngineState } from "./engine-types.js";
 
@@ -97,6 +103,32 @@ export class GwenPluginDependencyError extends GwenError {
   }
 }
 
+/**
+ * `engine.use` rejected a plugin that declares a lifecycle key.
+ * The engine never calls these keys. Register the hook from `setup()`.
+ */
+export class GwenPluginShapeError extends GwenError {
+  override readonly code = CoreErrorCodes.PLUGIN_INVALID_SHAPE;
+  readonly plugin: string;
+  readonly keys: readonly ForbiddenPluginKey[];
+
+  constructor(name: unknown, badKeys: readonly ForbiddenPluginKey[]) {
+    const plugin = typeof name === "string" ? name : "<anonymous>";
+    const keys = Object.freeze([...badKeys]);
+    const pairs = keys.map((key) => `${GWEN_PLUGIN_LIFECYCLE_HOOKS[key]} for ${key}`).join(" and ");
+    const what = `Plugin "${plugin}" declares ${keys.join(", ")}, which the engine never calls; in setup(), hook ${pairs}.`;
+    super(CoreErrorCodes.PLUGIN_INVALID_SHAPE, what, {
+      composable: "engine.use",
+      hint: __GWEN_DEV__
+        ? "Move each frame callback into setup() as engine.hooks.hook(<hook>, fn); the hook table is GWEN_PLUGIN_LIFECYCLE_HOOKS."
+        : undefined,
+    });
+    this.name = "GwenPluginShapeError";
+    this.plugin = plugin;
+    this.keys = keys;
+  }
+}
+
 // ─── Error codes ────────────────────────────────────────────────────────────
 
 /** Error codes emitted by the GWEN core engine. */
@@ -172,6 +204,8 @@ export const CoreErrorCodes = {
   INVALID_CONFIG: "CORE:INVALID_CONFIG",
   /** Thrown by `GwenPluginNotFoundError`. */
   PLUGIN_NOT_FOUND: "CORE:PLUGIN_NOT_FOUND",
+  /** Thrown by `GwenPluginShapeError`. */
+  PLUGIN_INVALID_SHAPE: "CORE:PLUGIN_INVALID_SHAPE",
   /** `engine.use` rejected because a required plugin or service is not installed. */
   PLUGIN_DEPENDENCY_MISSING: "CORE:PLUGIN_DEPENDENCY_MISSING",
   /** `engine.unuse` rejected: an installed plugin still requires this plugin or one of its services. */

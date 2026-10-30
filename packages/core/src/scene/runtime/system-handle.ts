@@ -2,15 +2,15 @@
  * @file SystemHandle — lifecycle control for a single system within a scene.
  *
  * `createSystemHandle()` wraps a `GwenPlugin` produced by a `defineSystem()`
- * factory call. The wrapped plugin gates all frame callbacks behind two
- * independent boolean flags:
+ * factory call. Frame callbacks are hooks registered in `setup`. Pause and
+ * resume flip two independent boolean flags:
  *
  * - `_userPaused` — controlled by the developer via `pause()` / `resume()`.
  * - `_scenePaused` — controlled by the `SceneRuntime` during overlay transitions.
  *
- * A system ticks only when **both** flags are `false`. This guarantees that a
- * system the developer intentionally paused is never silently reactivated by a
- * scene-level resume (e.g. returning from a pause-menu overlay).
+ * `active` is true only when both pause flags are false, the handle is not
+ * destroyed, and it is not isolated. Inner hooks move only when the plugin
+ * exposes `_pause`. A developer pause survives a scene resume.
  *
  * @example
  * ```typescript
@@ -33,7 +33,7 @@
 import type { GwenPlugin } from "../../engine/engine-types";
 import type { DiscoverablePlugin } from "../../system/runtime/define-system";
 
-/** Duck-typed check — true when the plugin exposes ScopedHookable-level pause/resume. */
+/** Duck-typed check — true when `_pause` is a function. */
 function isScopedPlugin(p: GwenPlugin): p is DiscoverablePlugin {
   return typeof (p as DiscoverablePlugin)._pause === "function";
 }
@@ -44,33 +44,27 @@ function isScopedPlugin(p: GwenPlugin): p is DiscoverablePlugin {
  * Handle returned by `useSystem()`. Provides runtime lifecycle control over a
  * single system within its parent scene.
  *
- * Frame callbacks (`onUpdate`, `onBeforeUpdate`, `onAfterUpdate`, `onRender`)
- * are gated behind two independent pause flags. See {@link createSystemHandle}
+ * Frame callbacks are hooks registered in `setup`. See {@link createSystemHandle}
  * for the full two-flag pause model.
  */
 export interface SystemHandle {
   /**
-   * Stop all frame callbacks (`onUpdate`, `onBeforeUpdate`, `onAfterUpdate`,
-   * `onRender`). System state (queries, captured references) is preserved.
-   * Call `resume()` to restart callbacks without re-initialisation.
+   * Set the developer pause flag. Calls `inner._pause()` only when the
+   * inner plugin exposes `_pause`. State is preserved.
+   * Call `resume()` to clear the flag.
    */
   pause(): void;
 
   /**
-   * Restart frame callbacks after a developer-initiated `pause()`.
-   *
-   * Has no immediate visible effect if the scene is currently frozen by a
-   * scene-level pause (overlay): the system will begin ticking again once
-   * the scene itself is unfrozen.
+   * Clear the developer pause flag. Calls `inner._resume()` only when the
+   * plugin exposes `_pause` and the handle is then active.
+   * A scene pause keeps it inactive until `_sceneResume()`.
    */
   resume(): void;
 
   /**
-   * Permanently remove this system from the frame loop.
-   *
-   * After `destroy()`, the system never ticks again regardless of subsequent
-   * `pause()` / `resume()` calls. In Phase 2, `destroy()` will also remove
-   * the plugin from the `SceneRuntime` registry.
+   * Set `_destroyed`. `active` stays false afterwards.
+   * `resume()` and `_sceneResume()` do not clear the flag.
    */
   destroy(): void;
 
@@ -110,12 +104,12 @@ export interface SystemHandle {
 // ─── Implementation ───────────────────────────────────────────────────────────
 
 /**
- * Wraps a `GwenPlugin` with a `SystemHandle` that gates all frame callbacks
- * behind two independent pause flags.
+ * Wraps a `GwenPlugin` with a `SystemHandle`. Frame callbacks are hooks the
+ * inner plugin registers in `setup`. This wrapper does not declare them.
  *
  * The **wrapped plugin** is what gets passed to `engine.use()` during the
- * scene bootstrap. Its frame callbacks (`onUpdate`, `onBeforeUpdate`, etc.)
- * delegate to the original plugin only when the handle is active.
+ * scene bootstrap. `pause()` and `resume()` call the inner plugin when it
+ * exposes `_pause`.
  *
  * The **handle** is returned to the developer by `useSystem()` and exposes
  * `pause()`, `resume()`, and `destroy()`.
@@ -187,46 +181,17 @@ export function createSystemHandle(inner: GwenPlugin): {
     },
   };
 
-  // Frame-phase methods are forwarded and gated behind isActive().
-  // They are not part of the GwenPlugin schema contract (which uses hooks internally)
-  // but remain present for backward compatibility and testing.
-  const plugin = {
+  const plugin: GwenPlugin = {
     name: inner.name,
-
     setup: (engine: Parameters<GwenPlugin["setup"]>[0]) => inner.setup(engine),
-
-    teardown: inner.teardown ? () => inner.teardown!() : undefined,
-
-    onBeforeUpdate: (inner as unknown as { onBeforeUpdate?: (dt: number) => void }).onBeforeUpdate
-      ? (dt: number): void => {
-          if (isActive())
-            (inner as unknown as { onBeforeUpdate: (dt: number) => void }).onBeforeUpdate(dt);
+    ...(inner.teardown !== undefined ? { teardown: () => inner.teardown?.() } : {}),
+    ...(inner.onError !== undefined
+      ? {
+          onError: (...args: Parameters<NonNullable<GwenPlugin["onError"]>>) =>
+            inner.onError?.(...args),
         }
-      : undefined,
-
-    onUpdate: (inner as unknown as { onUpdate?: (dt: number) => void }).onUpdate
-      ? (dt: number): void => {
-          if (isActive()) (inner as unknown as { onUpdate: (dt: number) => void }).onUpdate(dt);
-        }
-      : undefined,
-
-    onAfterUpdate: (inner as unknown as { onAfterUpdate?: (dt: number) => void }).onAfterUpdate
-      ? (dt: number): void => {
-          if (isActive())
-            (inner as unknown as { onAfterUpdate: (dt: number) => void }).onAfterUpdate(dt);
-        }
-      : undefined,
-
-    onRender: (inner as unknown as { onRender?: () => void }).onRender
-      ? (): void => {
-          if (isActive()) (inner as unknown as { onRender: () => void }).onRender();
-        }
-      : undefined,
-
-    onError: inner.onError
-      ? (...args: Parameters<NonNullable<GwenPlugin["onError"]>>) => inner.onError!(...args)
-      : undefined,
-  } as GwenPlugin;
+      : {}),
+  };
 
   return { plugin, handle };
 }

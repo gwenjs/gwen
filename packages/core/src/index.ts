@@ -37,6 +37,7 @@ export { createEngine, setupGwen } from "./engine/engine-factory";
 export {
   GwenPluginNotFoundError,
   GwenPluginDependencyError,
+  GwenPluginShapeError,
   CoreErrorCodes,
   GwenWasmError,
   GwenWasmAbiError,
