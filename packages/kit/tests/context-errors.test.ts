@@ -3,14 +3,48 @@
  */
 
 import { describe, expect, it } from "vitest";
-import type { IGwenScope } from "@gwenjs/schema";
+import type { GwenEngineBase, IGwenLogger, IGwenScope } from "@gwenjs/schema";
 import * as kit from "@gwenjs/kit";
 import * as schema from "@gwenjs/schema";
+
+function plainEngine(): GwenEngineBase {
+  const logger: IGwenLogger = {
+    debug() {},
+    info() {},
+    warn() {},
+    error() {},
+    child() {
+      return logger;
+    },
+  };
+  return {
+    provide() {},
+    inject(): unknown {
+      return undefined;
+    },
+    tryInject(): undefined {
+      return undefined;
+    },
+    hooks: {
+      hook() {},
+      removeHook() {},
+    },
+    logger,
+    run<T>(fn: () => T): T {
+      return fn();
+    },
+    disposables: {
+      add() {},
+      disposeAll() {},
+      size: 0,
+    },
+  };
+}
 
 function foreignScope(): IGwenScope {
   return {
     meta: { type: "plugin", id: "foreign" },
-    engine: null,
+    engine: plainEngine(),
     parent: null,
     paused: false,
     hookCount: 0,

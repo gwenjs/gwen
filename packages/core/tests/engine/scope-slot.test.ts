@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createEngine } from "@gwenjs/core";
 import { defineActor, definePrefab } from "@gwenjs/core/actor";
 import { defineSystem } from "@gwenjs/core/system";
-import type { IGwenScope } from "@gwenjs/schema";
+import type { GwenEngineBase, IGwenLogger, IGwenScope } from "@gwenjs/schema";
 import * as kit from "@gwenjs/kit";
 import { GwenScope } from "../../src/context/scope.js";
 
@@ -18,10 +18,44 @@ afterEach(async () => {
   for (const engine of pending) await engine.stop();
 });
 
+function plainEngine(): GwenEngineBase {
+  const logger: IGwenLogger = {
+    debug() {},
+    info() {},
+    warn() {},
+    error() {},
+    child() {
+      return logger;
+    },
+  };
+  return {
+    provide() {},
+    inject(): unknown {
+      return undefined;
+    },
+    tryInject(): undefined {
+      return undefined;
+    },
+    hooks: {
+      hook() {},
+      removeHook() {},
+    },
+    logger,
+    run<T>(fn: () => T): T {
+      return fn();
+    },
+    disposables: {
+      add() {},
+      disposeAll() {},
+      size: 0,
+    },
+  };
+}
+
 function foreignScope(): IGwenScope {
   return {
     meta: { type: "plugin", id: "foreign" },
-    engine: null,
+    engine: plainEngine(),
     parent: null,
     paused: false,
     hookCount: 0,
