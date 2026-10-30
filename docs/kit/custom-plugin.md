@@ -248,7 +248,7 @@ In a development build with `debug: true`, an own key other than `name`, `setup`
 
 ## Teardown
 
-`engine.unuse(name)` and `engine.stop()` call `teardown()`. `stop()` calls it after the `engine:stop` hook, in reverse install order. A teardown must be idempotent with work the plugin already did on `engine:stop`. Services provided through the `engine` argument of `setup()` are removed before `teardown()` runs. A `provide` on a captured engine, or `useEngine().provide(...)` inside `setup`, is not removed. Replacing an engine-owned key (`wasm:bridge`, `logger`, `errors`, `memory`) does not make `stop()` or `unuse()` remove that key.
+`engine.unuse(name)` and `engine.stop()` call `teardown()`. `stop()` calls it after the `engine:stop` hook, in reverse install order. A teardown must be idempotent with work the plugin already did on `engine:stop`. Services provided through the `engine` argument of `setup()`, including after `setup()` resolves, are removed before `teardown()` runs. `useEngine().provide(...)` is not removed. Replacing an engine-owned key (`wasm:bridge`, `logger`, `errors`, `memory`) does not make `stop()` or `unuse()` remove that key.
 
 ## Requirements
 
@@ -270,6 +270,24 @@ export const GamePlugin = definePlugin(() => ({
 `plugins` are checked first, then `services`, each in the order written. A service the engine already provides (`wasm:bridge`, `logger`, `errors`, `memory`) counts as installed. A plugin whose `setup()` is still running does not.
 
 When a name is missing, `engine.use()` rejects `GwenPluginDependencyError` with code `CORE:PLUGIN_DEPENDENCY_MISSING` and does not call `setup()`. Calling `use()` again with a name that is already installed resolves. In a development build with `debug: true` it also logs a warning.
+
+`optional` names services that may be absent. `use()` does not check them. `unuse()` does not count them as dependents.
+
+## Optional services
+
+Read an optional service with `tryInject` or `optionalService`. Neither throws when the key is absent.
+
+```ts run
+import assert from "node:assert/strict";
+import { optionalService } from "@gwenjs/kit/plugin";
+
+const logger = optionalService(engine, "logger");
+assert.equal(typeof logger.current?.warn, "function");
+```
+
+`watchService(key, onChange)` subscribes during `setup()` and calls `onChange` with the current value. A replacement calls `onChange` with the value still stored. A removal calls `onChange(undefined)`. The function it returns stops the subscription. Removing the plugin does too.
+
+`service:provided` and `service:removed` carry `{ key, value, owner, reason }`. `reason` is `install`, `unuse`, `stop`, or `overwrite`. On a replacement, `service:removed` names the previous owner and `service:provided` names the plugin that stored the new value. Engine-owned keys (`wasm:bridge`, `logger`, `errors`, `memory`) do not fire these hooks. A plugin's `provide` calls during `setup()` are announced after `setup()` resolves and before `plugin:registered`. A `provide` after `setup()` has resolved is announced then.
 
 ## Providing Services
 

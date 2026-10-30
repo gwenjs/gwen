@@ -121,6 +121,8 @@ Ce sont les événements du cycle de vie du moteur auxquels vous pouvez vous abo
 | `actor:enable` | `(entityId: bigint) => void` | Un acteur du pool est acquis à nouveau. La première acquisition ne le déclenche pas |
 | `actor:disable` | `(entityId: bigint) => void` | Un acteur du pool est relâché |
 | `plugin:registered` | `(pluginName: string) => void` | La configuration du plugin se termine et s'enregistre |
+| `service:provided` | `(event: ServiceChangeEvent) => void` | Une valeur de service est enregistrée. `reason` vaut `install` ou `overwrite`. Pas pour `wasm:bridge`, `logger`, `errors`, `memory` |
+| `service:removed` | `(event: ServiceChangeEvent) => void` | Une valeur de service est retirée ou remplacée. `reason` vaut `unuse`, `stop` ou `overwrite`. `value` est l'ancienne |
 | `plugin:error` | `(payload: PluginErrorEvent) => void` | Le hook de cycle de vie du plugin lance et n'est pas récupéré |
 | `prefab:instantiate` | `(entityId: EntityId, extensions: Readonly<Partial<GwenPrefabExtensions>>) => void` | Après l'écriture des composants, pour un acteur, `usePrefab().spawn` et `placePrefab`. Augmenter `GwenPrefabExtensions` avec `declare module "@gwenjs/schema"`. |
 

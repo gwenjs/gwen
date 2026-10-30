@@ -246,7 +246,7 @@ Dans un build de développement avec `debug: true`, une clé propre autre que `n
 
 ## Teardown
 
-`engine.unuse(name)` et `engine.stop()` appellent `teardown()`. `stop()` l'appelle après le hook `engine:stop`, dans l'ordre inverse d'installation. Un teardown doit être idempotent avec le travail déjà fait sur `engine:stop`. Les services fournis via l'argument `engine` de `setup()` sont retirés avant `teardown()`. Un `provide` sur un moteur capturé, ou `useEngine().provide(...)` dans `setup`, n'est pas retiré. Remplacer une clé du moteur (`wasm:bridge`, `logger`, `errors`, `memory`) ne la fait pas retirer par `stop()` ou `unuse()`.
+`engine.unuse(name)` et `engine.stop()` appellent `teardown()`. `stop()` l'appelle après le hook `engine:stop`, dans l'ordre inverse d'installation. Un teardown doit être idempotent avec le travail déjà fait sur `engine:stop`. Les services fournis via l'argument `engine` de `setup()`, y compris après la résolution de `setup()`, sont retirés avant `teardown()`. `useEngine().provide(...)` n'est pas retiré. Remplacer une clé du moteur (`wasm:bridge`, `logger`, `errors`, `memory`) ne la fait pas retirer par `stop()` ou `unuse()`.
 
 ## Requirements
 
@@ -268,6 +268,23 @@ export const GamePlugin = definePlugin(() => ({
 Les `plugins` sont vérifiés d'abord, puis les `services`, chacun dans l'ordre écrit. Un service que le moteur fournit déjà (`wasm:bridge`, `logger`, `errors`, `memory`) compte comme installé. Un plugin dont `setup()` est encore en cours ne compte pas.
 
 Si un nom manque, `engine.use()` rejette `GwenPluginDependencyError` avec le code `CORE:PLUGIN_DEPENDENCY_MISSING` et n'appelle pas `setup()`. Appeler `use()` une seconde fois avec un nom déjà installé réussit. Dans un build de développement avec `debug: true`, un avertissement est aussi écrit.
+
+`optional` nomme des services qui peuvent être absents. `use()` ne les vérifie pas. `unuse()` ne les compte pas comme dépendants.
+
+## Services optionnels
+
+Lisez un service optionnel avec `tryInject` ou `optionalService`. Aucun des deux ne lance si la clé est absente.
+
+```ts
+import { optionalService } from "@gwenjs/kit/plugin";
+
+const logger = optionalService(engine, "logger");
+logger.current?.warn("prêt");
+```
+
+`watchService(key, onChange)` s'abonne pendant `setup()` et appelle `onChange` avec la valeur actuelle. Un remplacement appelle `onChange` avec la valeur encore stockée. Un retrait appelle `onChange(undefined)`. La fonction renvoyée arrête l'abonnement. Retirer le plugin l'arrête aussi.
+
+`service:provided` et `service:removed` portent `{ key, value, owner, reason }`. `reason` vaut `install`, `unuse`, `stop` ou `overwrite`. Lors d'un remplacement, `service:removed` nomme l'ancien propriétaire et `service:provided` nomme le plugin qui a stocké la nouvelle valeur. Les clés du moteur (`wasm:bridge`, `logger`, `errors`, `memory`) ne déclenchent pas ces hooks. Les `provide` du plugin pendant `setup()` sont annoncés après la résolution de `setup()` et avant `plugin:registered`. Un `provide` après la résolution de `setup()` est annoncé tout de suite.
 
 ## Fournir des services
 
