@@ -155,7 +155,7 @@ export default defineGwenModule<InputOptions>({
   meta: { configKey: 'input' }, // nom inféré depuis le fichier → 'local:input'
   defaults: { repeatDelay: 50, preventDefault: [] },
   setup(options, gwen) {
-    gwen.addPlugin({ src: "./src/plugins/input", export: "InputPlugin", options })
+    gwen.addPlugin({ src: "./src/plugins/input", options })
   },
 })
 ```
