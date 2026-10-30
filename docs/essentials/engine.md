@@ -125,7 +125,7 @@ export const DebugSystem = defineSystem(() => {
 
 ## Engines on one instance
 
-This is `wasmInstance: "shared"`, the default (`packages/core/src/engine/wasm-bridge.ts:401`). Two engines can run on one WASM instance. Each engine owns its entities, its physics world, and its path buffers. A path written by one engine is not the path the other engine reads.
+This is `wasmInstance: "shared"`, the default (`packages/core/src/engine/wasm-bridge.ts:458`). Two engines can run on one WASM instance. Each engine owns its entities, its physics world, and its path buffers. A path written by one engine is not the path the other engine reads.
 
 `jsUrl` is the URL of `gwen_core_factory.js`. `init()` with `jsUrl` or `wasmUrl` on an already initialised bridge rejects `CORE:WASM_LOAD_ERROR`.
 
@@ -137,7 +137,7 @@ They still share three things:
 
 ## Several engines per page or process
 
-`wasmInstance` selects the WASM instance (`packages/core/src/engine/wasm-bridge.ts:401`).
+`wasmInstance` selects the WASM instance (`packages/core/src/engine/wasm-bridge.ts:458`).
 
 | Mode | Behaviour |
 | --- | --- |

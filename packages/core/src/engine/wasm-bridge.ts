@@ -90,7 +90,7 @@ import type {
  *  1. In browser: /wasm/ relative to current origin.
  *     @gwenjs/vite serves this via middleware (dev)
  *     and CLI copies it to dist/wasm/ (build).
- *  2. In Node (SSR/tests): null — initWasm() must receive explicit URL.
+ *  2. In Node (SSR/tests): null — without `glue`, initWasm() must receive an explicit URL.
  *
  * We avoid new URL('../wasm/', import.meta.url) because in Vite dev mode
  * it produces an @fs/.../.../engine-core/wasm path without trailing slash,
@@ -108,9 +108,9 @@ const _pkgWasmBase: string | null = (() => {
 
 // InitWasmOptions — extracted to ./wasm-bridge-types.ts
 
-/** `jsUrl` or `wasmUrl` is an explicit source. Later tickets add fields here. */
+/** `glue`, `jsUrl`, or `wasmUrl` is an explicit source. Later tickets add fields here. */
 function hasSource(options: InitWasmOptions): boolean {
-  return options.jsUrl !== undefined || options.wasmUrl !== undefined;
+  return options.glue !== undefined || options.jsUrl !== undefined || options.wasmUrl !== undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -120,6 +120,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function isGlueFactory(value: unknown): value is GwenCoreGlueFactoryModule {
   if (!isRecord(value)) return false;
   return typeof value.createGlue === "function";
+}
+
+/** Caller-supplied `glue`. A bad shape is `CORE:WASM_LOAD_ERROR`, not a TypeError. */
+function isProvidedGlue(value: unknown): value is GwenCoreGlueFactoryModule {
+  if (isRecord(value) === false) return false;
+  if (typeof value.createGlue !== "function") return false;
+  if (typeof value.CONTRACT !== "object" || value.CONTRACT === null) return false;
+  return value.wasmUrl instanceof URL;
 }
 
 /**
@@ -330,12 +338,14 @@ export class WasmBridgeImpl implements WasmBridge {
    * Load and initialize the gwen_core WASM module for this bridge instance.
    *
    * @param variant The core variant to load ('light', 'physics2d', 'physics3d')
-   * @param options Initialization options (urls, max entities, `wasmInstance`).
+   * @param options Initialization options (`glue`, urls, max entities, `wasmInstance`).
    *   `wasmInstance: "isolated"` uses one instance per engine. The default is `"shared"`.
    * @throws {GwenError} `CORE:ENGINE_DISPOSED` when this bridge was disposed.
-   * @throws {GwenError} `CORE:WASM_LOAD_ERROR` when `jsUrl` or `wasmUrl` is passed again
-   *   after init has started. A call with neither returns the init already running.
+   * @throws {GwenError} `CORE:WASM_LOAD_ERROR` when `glue`, `jsUrl`, or `wasmUrl` is passed again
+   *   after init has started. A call with none of them returns the init already running.
+   *   `glue` together with `jsUrl`, or a `glue` value that is not a factory module, uses this code.
    *   `WebAssembly.LinkError` and `WebAssembly.CompileError` from `initSync` use this code.
+   * @throws {GwenError} `CORE:WASM_VARIANT_MISMATCH` when `glue` names a different variant.
    * @throws {GwenError} `CORE:WASM_CAPACITY_EXHAUSTED` when `initSync` throws a `RangeError`
    *   or a value that is not an `Error`. The dev hint names the fallbacks.
    * @throws {GwenError} If WASM cannot be loaded or has invalid format
@@ -355,35 +365,82 @@ export class WasmBridgeImpl implements WasmBridge {
       if (this._wasmEngine !== null) return;
       if (this._initPromise !== null) return this._initPromise;
     }
+
+    const { maxEntities = 10_000, jsUrl, wasmUrl, glue } = options;
+
+    if (glue !== undefined && jsUrl !== undefined) {
+      throw new GwenError(
+        CoreErrorCodes.WASM_LOAD_ERROR,
+        `glue and jsUrl were both passed for variant "${variant}".`,
+        {
+          composable: "initWasm",
+          hint: __GWEN_DEV__
+            ? "Pass glue (the module @gwenjs/core/wasm/<variant>/factory) or jsUrl (the URL of gwen_core_factory.js), not both."
+            : undefined,
+        },
+      );
+    }
+
+    if (glue !== undefined && !isProvidedGlue(glue)) {
+      throw new GwenError(
+        CoreErrorCodes.WASM_LOAD_ERROR,
+        "glue is not a GWEN glue factory module.",
+        {
+          composable: "initWasm",
+          hint: __GWEN_DEV__
+            ? "Pass the module itself: import * as glue from @gwenjs/core/wasm/<variant>/factory."
+            : undefined,
+        },
+      );
+    }
+
+    const provided = glue;
+    if (provided !== undefined) {
+      const matched = /;variant=([a-z0-9]+);/.exec(provided.CONTRACT.fingerprint);
+      if (matched !== null && matched[1] !== variant) {
+        throw new GwenError(
+          CoreErrorCodes.WASM_VARIANT_MISMATCH,
+          `glue is for variant "${matched[1]}" but init was called for "${variant}".`,
+          { composable: "initWasm" },
+        );
+      }
+    }
+
     this._poisoned = false;
     this._panicCause = null;
     this._fromInstance = false;
     this._sharedExport = undefined;
 
-    const { maxEntities = 10_000, jsUrl, wasmUrl } = options;
-
     this._maxEntities = maxEntities;
     this._activeVariant = variant;
 
     const variantPath = `${variant}/`;
-    const resolvedJsUrl =
-      jsUrl ?? (_pkgWasmBase ? `${_pkgWasmBase}${variantPath}gwen_core_factory.js` : null);
-    const resolvedWasmUrl =
-      wasmUrl ?? (_pkgWasmBase ? `${_pkgWasmBase}${variantPath}gwen_core_bg.wasm` : null);
-
-    if (!resolvedJsUrl) {
-      throw new GwenError(
-        CoreErrorCodes.WASM_LOAD_ERROR,
-        `Unable to resolve the WASM URL for variant "${variant}".`,
-        {
-          composable: "initWasm",
-          hint: __GWEN_DEV__ ? "Make sure @gwenjs/core is correctly installed." : undefined,
-        },
-      );
+    let resolvedWasmUrl: string | null;
+    let readFactory: () => Promise<GwenCoreGlueFactoryModule>;
+    if (provided !== undefined) {
+      const moduleGlue = provided;
+      readFactory = () => Promise.resolve(moduleGlue);
+      resolvedWasmUrl = wasmUrl ?? moduleGlue.wasmUrl.href;
+    } else {
+      const resolvedJsUrl =
+        jsUrl ?? (_pkgWasmBase ? `${_pkgWasmBase}${variantPath}gwen_core_factory.js` : null);
+      resolvedWasmUrl =
+        wasmUrl ?? (_pkgWasmBase ? `${_pkgWasmBase}${variantPath}gwen_core_bg.wasm` : null);
+      if (!resolvedJsUrl) {
+        throw new GwenError(
+          CoreErrorCodes.WASM_LOAD_ERROR,
+          `Unable to resolve the WASM URL for variant "${variant}".`,
+          {
+            composable: "initWasm",
+            hint: __GWEN_DEV__ ? "Make sure @gwenjs/core is correctly installed." : undefined,
+          },
+        );
+      }
+      readFactory = () => loadGlueFactory(resolvedJsUrl);
     }
 
     this._initPromise = (async () => {
-      const factory = await loadGlueFactory(resolvedJsUrl);
+      const factory = await readFactory();
       if (this._disposed) this._throwDisposed();
       if (resolvedWasmUrl === null) {
         throw new GwenError(
