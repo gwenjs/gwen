@@ -25,3 +25,4 @@ export type {
   GwenBuildHooks,
 } from "./types";
 export { GwenApp } from "./app";
+export { inferModuleName, scanLocalModuleFiles } from "./local-modules";

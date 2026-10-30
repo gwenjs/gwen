@@ -11,8 +11,10 @@ import type { GwenPlugin, PluginDeclaration } from "@gwenjs/schema";
 import type { AutoImport, VitePlugin, ViteUserConfig } from "@gwenjs/kit";
 import type { GwenModule, GwenKit, GwenBuildHooks } from "@gwenjs/kit/module";
 import { createHooks } from "hookable";
+import { createJiti } from "jiti";
 import { writeFileSync, mkdirSync, readFileSync, existsSync } from "node:fs";
 import { resolve, join } from "node:path";
+import { inferModuleName, scanLocalModuleFiles } from "./local-modules";
 import { readConfigFile, type ResolvedGwenConfig } from "./config";
 import { GwenAppConfigError } from "./config-error";
 import { isPlainRecord, mergeLayers, recordOf } from "./merge";
@@ -102,7 +104,9 @@ export class GwenApp {
 
   /**
    * Returns a snapshot of the plugin declarations registered by modules, in setup order.
-   * Built-in scene and tween declarations come first, then config modules.
+   * Built-in scene and tween declarations come first, then config modules, then local
+   * `src/modules` loaded through jiti after the config modules (`options.root` on
+   * {@link setupModules}).
    * Each call returns a fresh array — safe to mutate.
    */
   get pluginDeclarations(): PluginDeclaration[] {
@@ -112,10 +116,12 @@ export class GwenApp {
   // ── setupModules ─────────────────────────────────────────────────────────────
 
   /**
-   * Processes all modules listed in the resolved config.
+   * Processes all modules listed in the resolved config, then local `src/modules`.
    *
-   * For each module entry:
-   * 1. Resolves the module (via `moduleLoader` or dynamic `import()`).
+   * For each config module entry, then each local file (loaded through jiti after
+   * the config modules, from `options.root`):
+   * 1. Resolves the module (via `moduleLoader` or dynamic `import()` for a config
+   *    module; jiti for a local file).
    * 2. Deep-merges user options with module defaults (user values win).
    * 3. Fires `module:before`, calls `mod.setup(options, kit)`, fires `module:done`.
    *
@@ -125,6 +131,9 @@ export class GwenApp {
    * @param config - Fully resolved project configuration.
    * @param moduleLoader - Optional loader for test injection / CLI override.
    *   Receives the module name string and must return a `GwenModule`.
+   * @param options - `root` is the project root for local modules.
+   *   Defaults to `process.cwd()`, same as {@link GwenApp.prepare}.
+   *   `config.localModulesDir === false` disables local modules.
    *
    * @throws {GwenError} If a module cannot be resolved or has no `setup` function.
    *
@@ -137,6 +146,7 @@ export class GwenApp {
   async setupModules(
     config: ResolvedGwenConfig,
     moduleLoader?: (name: string) => Promise<GwenModule>,
+    options?: { root?: string },
   ): Promise<void> {
     const loaded: LoadedModule[] = [];
     for (const name of config.modules ?? []) {
@@ -158,6 +168,27 @@ export class GwenApp {
         );
       }
       loaded.push({ name, mod });
+    }
+
+    const root = options?.root ?? process.cwd();
+    if (config.localModulesDir !== false) {
+      const dir = resolve(root, config.localModulesDir ?? "src/modules");
+      const files = scanLocalModuleFiles(dir);
+      if (files.length > 0) {
+        const jiti = createJiti(root, { fsCache: false, moduleCache: false });
+        for (const file of files) {
+          const inferred = inferModuleName(file, dir);
+          const loadedMod = await loadModule(
+            inferred,
+            () => jiti.import(file, { default: true }),
+            file,
+          );
+          const explicit = loadedMod.meta?.name;
+          const name = typeof explicit === "string" && explicit !== "" ? explicit : inferred;
+          const named: GwenModule = { ...loadedMod, meta: { ...loadedMod.meta, name } };
+          loaded.push({ name: named.meta.name, mod: named });
+        }
+      }
     }
 
     const prepared = prepareModules(config, loaded);
@@ -639,18 +670,35 @@ function freezeResolved(config: ResolvedGwenConfig): Readonly<ResolvedGwenConfig
  * Dynamically imports a module by name.
  * Works in Node.js environments with standard ESM or via `jiti` in the CLI.
  *
- * @param name - The npm package name or file path to import.
+ * @param name - Npm package name, or the inferred `local:<slug>` when `read` loads a local file.
+ * @param read - When set, loads that file instead of `import(name)`.
+ * @param file - Absolute path of the local file. Set together with `read`.
  * @returns The resolved `GwenModule` exported as `default` or as the module object.
  *
+ * @throws {GwenError} `APP:MODULE_LOAD_FAILED` when the import throws.
+ *   A local file names `file` and does not suggest installing a package.
  * @throws {GwenError} `KIT:MODULE_INVALID` when the imported value has no `setup` function.
  *   In development the hint says to export the object from `defineGwenModule()`.
+ *   A local file also names `file`.
  */
-async function loadModule(name: string): Promise<GwenModule> {
+async function loadModule(
+  name: string,
+  read?: () => Promise<unknown>,
+  file?: string,
+): Promise<GwenModule> {
   let imported: { default?: unknown } & Record<string, unknown>;
 
   try {
-    imported = (await import(/* @vite-ignore */ name)) as typeof imported;
+    const value: unknown = read ? await read() : await import(/* @vite-ignore */ name);
+    imported = value as typeof imported;
   } catch (cause) {
+    if (read !== undefined) {
+      throw new GwenError(
+        AppErrorCodes.MODULE_LOAD_FAILED,
+        `Failed to load local module "${name}" from ${file}. Cause: ${causeText(cause)}`,
+        { cause },
+      );
+    }
     const missing = cause instanceof Error && cause.message.includes("Cannot find package");
     throw new GwenError(
       AppErrorCodes.MODULE_LOAD_FAILED,
@@ -671,15 +719,15 @@ async function loadModule(name: string): Promise<GwenModule> {
   const definition: unknown = imported.default ?? imported;
 
   if (!definition || typeof (definition as Record<string, unknown>)["setup"] !== "function") {
-    throw new GwenError(
-      AppErrorCodes.MODULE_INVALID,
-      `Module "${name}" does not export a valid GwenModule (missing setup function).`,
-      {
-        hint: __GWEN_DEV__
-          ? "Ensure the module exports a default object created with defineGwenModule()."
-          : undefined,
-      },
-    );
+    const what =
+      read !== undefined
+        ? `Module "${name}" from ${file} does not export a valid GwenModule (missing setup function).`
+        : `Module "${name}" does not export a valid GwenModule (missing setup function).`;
+    throw new GwenError(AppErrorCodes.MODULE_INVALID, what, {
+      hint: __GWEN_DEV__
+        ? "Ensure the module exports a default object created with defineGwenModule()."
+        : undefined,
+    });
   }
 
   return definition as GwenModule;
