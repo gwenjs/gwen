@@ -6,7 +6,10 @@
  * `moduleLoader` parameter of `setupModules()`.
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { defineGwenModule } from "@gwenjs/kit/module";
 import type { GwenModule } from "@gwenjs/kit/module";
 import type { AutoImport } from "@gwenjs/kit";
@@ -865,6 +868,201 @@ describe("resolveConfig", () => {
   it("preserves user-provided modules array", () => {
     const cfg = resolveConfig({ modules: ["@test/mod-a", "@test/mod-b"] });
     expect(cfg.modules).toHaveLength(2);
+  });
+});
+
+describe("GwenApp.setupModules — local modules", () => {
+  const roots: string[] = [];
+
+  afterEach(() => {
+    while (roots.length > 0) {
+      const root = roots.pop();
+      if (root !== undefined) rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  function makeRoot(): string {
+    const root = mkdtempSync(join(tmpdir(), "gwen-local-mod-"));
+    roots.push(root);
+    return root;
+  }
+
+  function writeModule(root: string, rel: string, source: string): void {
+    const file = join(root, rel);
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, source);
+  }
+
+  function declarationSrcs(app: GwenApp): string[] {
+    return app.pluginDeclarations.map((item) => item.src);
+  }
+
+  it("local src/modules run in setupModules", async () => {
+    const root = makeRoot();
+    writeModule(
+      root,
+      "src/modules/score.ts",
+      `export default { meta: {}, setup(_options, gwen) { gwen.addPlugin({ src: "local-score" }); } }\n`,
+    );
+    writeModule(
+      root,
+      "src/modules/hud/index.ts",
+      `export default { meta: {}, setup(_options, gwen) { gwen.addPlugin({ src: "local-hud" }); } }\n`,
+    );
+    const cfg = defineGwenModule({
+      meta: { name: "cfg" },
+      setup(_options, gwen) {
+        gwen.addPlugin({ src: "cfg-plugin" });
+      },
+    });
+    const app = new GwenApp();
+    const before: string[] = [];
+    const done: string[] = [];
+    app.buildHooks.hook("module:before", (mod) => {
+      before.push(mod.meta.name);
+    });
+    app.buildHooks.hook("module:done", (mod) => {
+      done.push(mod.meta.name);
+    });
+    await app.setupModules(resolveConfig({ modules: ["cfg"] }), makeLoader({ cfg }), { root });
+
+    expect(declarationSrcs(app).slice(-3)).toEqual(["cfg-plugin", "local-hud", "local-score"]);
+    expect(before.slice(-2)).toEqual(["local:hud", "local:score"]);
+    expect(done.slice(-2)).toEqual(["local:hud", "local:score"]);
+
+    const empty = makeRoot();
+    const bare = new GwenApp();
+    await bare.setupModules(resolveConfig({ modules: [] }), makeLoader({}), { root: empty });
+    expect(declarationSrcs(bare).filter((src) => src.startsWith("local-"))).toEqual([]);
+  });
+
+  it("a local module that throws fails the load naming local:<name>", async () => {
+    const root = makeRoot();
+    writeModule(
+      root,
+      "src/modules/boom.ts",
+      `export default { meta: {}, setup() { throw new Error("kaput"); } }\n`,
+    );
+    const app = new GwenApp();
+    let caught: unknown;
+    try {
+      await app.setupModules(resolveConfig({ modules: [] }), makeLoader({}), { root });
+      caught = undefined;
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(GwenError);
+    if (!(caught instanceof GwenError)) throw new Error("expected GwenError");
+    expect(caught.code).toBe("APP:MODULE_SETUP_FAILED");
+    expect(caught.message).toContain('Module "local:boom"');
+    expect(caught.message).toContain("kaput");
+  });
+
+  it("a custom localModulesDir is honoured", async () => {
+    const root = makeRoot();
+    writeModule(
+      root,
+      "custom/mods/alpha.ts",
+      `export default { meta: {}, setup(_options, gwen) { gwen.addPlugin({ src: "local-alpha" }); } }\n`,
+    );
+    writeModule(
+      root,
+      "src/modules/decoy.ts",
+      `export default { meta: {}, setup(_options, gwen) { gwen.addPlugin({ src: "local-decoy" }); } }\n`,
+    );
+    const app = new GwenApp();
+    await app.setupModules(
+      resolveConfig({ modules: [], localModulesDir: "custom/mods" }),
+      makeLoader({}),
+      { root },
+    );
+    const srcs = declarationSrcs(app);
+    expect(srcs).toContain("local-alpha");
+    expect(srcs).not.toContain("local-decoy");
+
+    const disabled = makeRoot();
+    writeModule(
+      disabled,
+      "src/modules/decoy.ts",
+      `export default { meta: {}, setup(_options, gwen) { gwen.addPlugin({ src: "local-decoy" }); } }\n`,
+    );
+    const off = new GwenApp();
+    await off.setupModules(resolveConfig({ modules: [], localModulesDir: false }), makeLoader({}), {
+      root: disabled,
+    });
+    expect(declarationSrcs(off).filter((src) => src.startsWith("local-"))).toEqual([]);
+  });
+
+  it("a local module name is local:<name> and an explicit meta.name wins", async () => {
+    const root = makeRoot();
+    writeModule(
+      root,
+      "src/modules/named.ts",
+      `export default { meta: { name: "my-own-name" }, setup() {} }\n`,
+    );
+    writeModule(root, "src/modules/anon.ts", `export default { meta: {}, setup() {} }\n`);
+    const app = new GwenApp();
+    const before: string[] = [];
+    app.buildHooks.hook("module:before", (mod) => {
+      before.push(mod.meta.name);
+    });
+    await app.setupModules(resolveConfig({ modules: [] }), makeLoader({}), { root });
+    expect(before.filter((name) => !name.startsWith("@"))).toEqual(["local:anon", "my-own-name"]);
+  });
+
+  it("a local module that cannot be loaded fails with APP:MODULE_LOAD_FAILED naming its file", async () => {
+    const root = makeRoot();
+    const file = join(root, "src", "modules", "broken.ts");
+    writeModule(root, "src/modules/broken.ts", "export default {\n");
+    const app = new GwenApp();
+    let caught: unknown;
+    try {
+      await app.setupModules(resolveConfig({ modules: [] }), makeLoader({}), { root });
+      caught = undefined;
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(GwenError);
+    if (!(caught instanceof GwenError)) throw new Error("expected GwenError");
+    expect(caught.code).toBe("APP:MODULE_LOAD_FAILED");
+    expect(caught.message).toContain("local:broken");
+    expect(caught.message).toContain(file);
+    expect(caught.message).not.toContain("package is installed");
+    expect(caught.message).not.toContain("gwen add");
+  });
+
+  it("a local module without setup fails with KIT:MODULE_INVALID naming its file", async () => {
+    const root = makeRoot();
+    const file = join(root, "src", "modules", "plain.ts");
+    writeModule(root, "src/modules/plain.ts", "export default {}\n");
+    const app = new GwenApp();
+    let caught: unknown;
+    try {
+      await app.setupModules(resolveConfig({ modules: [] }), makeLoader({}), { root });
+      caught = undefined;
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(GwenError);
+    if (!(caught instanceof GwenError)) throw new Error("expected GwenError");
+    expect(caught.code).toBe("KIT:MODULE_INVALID");
+    expect(caught.message).toContain(file);
+  });
+
+  it("a local module with an empty meta.name gets the inferred name", async () => {
+    const root = makeRoot();
+    writeModule(
+      root,
+      "src/modules/blank.ts",
+      `export default { meta: { name: "" }, setup() {} }\n`,
+    );
+    const app = new GwenApp();
+    const before: string[] = [];
+    app.buildHooks.hook("module:before", (mod) => {
+      before.push(mod.meta.name);
+    });
+    await app.setupModules(resolveConfig({ modules: [] }), makeLoader({}), { root });
+    expect(before.filter((name) => !name.startsWith("@"))).toEqual(["local:blank"]);
   });
 });
 
