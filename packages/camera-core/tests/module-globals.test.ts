@@ -23,6 +23,25 @@ describe("camera-core module", () => {
       export: "CameraCorePlugin",
     });
   });
+
+  it("the declared export exists on the package entry", async () => {
+    const { GwenApp } = await import("@gwenjs/app/resolve");
+    const { resolveLoadedConfig } = await import("../../app/src/config");
+    const loaded = await import("@gwenjs/camera-core/module");
+    const resolved = resolveLoadedConfig({ modules: ["@gwenjs/camera-core"] });
+    const app = new GwenApp();
+    const declaration = await app
+      .setupModules(resolved, async (name) => {
+        if (name !== "@gwenjs/camera-core") throw new Error(`unexpected module ${name}`);
+        return loaded.default;
+      })
+      .then(
+        () => app.pluginDeclarations.find((item) => item.src === "@gwenjs/camera-core"),
+        () => undefined,
+      );
+    const exportName = declaration?.export ?? "";
+    expect(typeof Reflect.get(cameraCore, exportName)).toBe("function");
+  });
 });
 
 describe("camera-core module globals (#59)", () => {
