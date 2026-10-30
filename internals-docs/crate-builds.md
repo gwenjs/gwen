@@ -157,6 +157,30 @@ The dev build uses `CARGO_TARGET_DIR` `target/dev-checked`, so it does not reuse
 `wasm-opt` runs at `-O1` and keeps the same `--enable-*` list as the release binaries.
 `scripts/build-wasm.sh` overrides `RUSTFLAGS` and `CARGO_TARGET_DIR` from the environment for each build.
 
+## Profile matrix
+
+Run it by hand. It is not a `ci-status` job (`.github/workflows/ci.yml:884`). Ticket `#93`.
+
+```bash
+gh workflow run wasm-profile-matrix.yml --ref <branch>
+```
+
+`.github/workflows/wasm-profile-matrix.yml:4` is `workflow_dispatch` only. `permissions` is `contents: read` (`.github/workflows/wasm-profile-matrix.yml:7`). The job sets `timeout-minutes: 360` (`.github/workflows/wasm-profile-matrix.yml:14`).
+
+The benches load wasm glue, not `dist` (`packages/core/bench/simulation-wasm.bench.ts:30`, `packages/core/bench/shared-memory.bench.ts:51`). The physics bench builds its scene in `setup` (`packages/core/bench/physics-step-wasm.bench.ts:28`) and loads that variant's factory then (`packages/core/bench/fixtures/physics-step-scene.ts:129`). The job does not compile TypeScript (`.github/workflows/wasm-profile-matrix.yml:60`).
+
+`--cell` accepts `P1:S0`, `P1:S1`, `P1:S1R`, `P2:S0`, `P2:S1`, `P2:S1R`, `P3:S0`, `P3:S1` and `P3:S1R` (`scripts/build-wasm.sh:419`). L0 for `light` is `P1:S0 P1:S1 P2:S0 P2:S1 P3:S0 P3:S1` (`.github/workflows/wasm-profile-matrix.yml:66`). `physics2d` and `physics3d` add `P2:S1R` and `P3:S1R` (`.github/workflows/wasm-profile-matrix.yml:68`).
+
+Runs are interleaved: `for r in 1 2 3` encloses the cell loop (`.github/workflows/wasm-profile-matrix.yml:88`, `.github/workflows/wasm-profile-matrix.yml:168`). Before the bench the job compares the saved `gwen_core.js` with `cmp -s` (`.github/workflows/wasm-profile-matrix.yml:92`) and logs the sha256 of the swapped `gwen_core_bg.wasm` (`.github/workflows/wasm-profile-matrix.yml:97`). Each `vitest bench` call passes `--project prod` (`.github/workflows/wasm-profile-matrix.yml:102`).
+
+The cell metric is the sum of the medians of the included rows (`scripts/wasm-profile-table.mjs:5`, `scripts/wasm-profile-table.mjs:257`). A row is one file, one group and one bench name (`scripts/wasm-profile-table.mjs:136`). Rows whose file, group or name contains `Flat JS Float32Array` are excluded (`scripts/wasm-profile-table.mjs:35`, `scripts/wasm-profile-table.mjs:134`). That label is the pure JS path (`packages/core/bench/shared-memory.bench.ts:154`, `packages/core/bench/shared-memory.bench.ts:175`).
+
+Each variant job (`.github/workflows/wasm-profile-matrix.yml:18`) builds L1 for the winning profile at S0 and at S1 (`.github/workflows/wasm-profile-matrix.yml:125`). That is six L1 cells. Each one runs `cargo build -v --lib` into its own log (`.github/workflows/wasm-profile-matrix.yml:149`). `[profile.release]` sets `lto = true` (`Cargo.toml:15`). That setting is inert while `crate-type` is `cdylib` and `rlib` (`Cargo.toml:31`, `crates/gwen-core/Cargo.toml:9`). The L1 step rewrites `crate-type` to `["cdylib"]` (`.github/workflows/wasm-profile-matrix.yml:132`). An L1 row is void unless the log matches `-C lto` or `-C lto=fat` (`scripts/wasm-profile-table.mjs:38`, `scripts/wasm-profile-table.mjs:74`). Light uses `--no-default-features` (`crates/gwen-core/Cargo.toml:72`, `.github/workflows/wasm-profile-matrix.yml:149`). A non-empty feature list replaces that with `--features` (`scripts/build-wasm.sh:322`). S1 adds `-C target-feature=+simd128` (`scripts/build-wasm.sh:193`). S1R is the only simd feature (`scripts/build-wasm.sh:351`). L1 does not build S1R (`.github/workflows/wasm-profile-matrix.yml:125`).
+
+The table shows median ns/op, p99 ns, spread %, raw, gzip and brotli (`scripts/wasm-profile-table.mjs:396`). ns/op is the vitest median in milliseconds times 1e6 (`scripts/wasm-profile-table.mjs:12`, `scripts/wasm-profile-table.mjs:169`). Byte counts come from `measureBuffer` (`scripts/check-wasm-size.mjs:55`, `scripts/wasm-profile-table.mjs:239`). Report mode exits 0 (`scripts/wasm-profile-table.mjs:6`). A missing cell is a `missing` row and `winner: incomplete` (`scripts/wasm-profile-table.mjs:405`, `scripts/wasm-profile-table.mjs:441`). `--winner` exits 1 when a needed L0 row, its wasm file, or a finite median is missing (`scripts/wasm-profile-table.mjs:7`, `scripts/wasm-profile-table.mjs:445`). Malformed JSON exits 1 (`scripts/wasm-profile-table.mjs:8`, `scripts/wasm-profile-table.mjs:189`). The table step and the upload use `if: always()` (`.github/workflows/wasm-profile-matrix.yml:193`, `.github/workflows/wasm-profile-matrix.yml:198`).
+
+P3 replaces P1 when bench ≤ 0.90× (`scripts/wasm-profile-table.mjs:20`) and brotli ≤ 1.15× (`scripts/wasm-profile-table.mjs:21`) inside `replaces` (`scripts/wasm-profile-table.mjs:85`, `scripts/wasm-profile-table.mjs:286`). P2 replaces P3 only (`scripts/wasm-profile-table.mjs:287`), when bench ≤ 0.95× (`scripts/wasm-profile-table.mjs:24`) and brotli ≤ 1.10× (`scripts/wasm-profile-table.mjs:25`). S1 stays when bench ≤ 0.90× (`scripts/wasm-profile-table.mjs:22`) and brotli ≤ 1.03× (`scripts/wasm-profile-table.mjs:23`). S1R stays when bench ≤ 0.95× (`scripts/wasm-profile-table.mjs:26`) and brotli ≤ 1.05× (`scripts/wasm-profile-table.mjs:27`), and never for `light` (`scripts/wasm-profile-table.mjs:292`). An equal median keeps the smaller brotli (`scripts/wasm-profile-table.mjs:86`). Spread above 5% is the flag `re-run` (`scripts/wasm-profile-table.mjs:66`).
+
 ## Troubleshooting
 
 ### "WASM file not found"
