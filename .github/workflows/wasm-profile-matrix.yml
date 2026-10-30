@@ -2,42 +2,206 @@ name: WASM profile matrix
 
 on:
   workflow_dispatch:
-  push:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   matrix:
-    name: stub
+    name: ${{ matrix.variant }}
     runs-on: ubuntu-latest
+    # Every L0 cell, then the winning profile at S0 and S1, three bench passes.
+    timeout-minutes: 360
     strategy:
       fail-fast: false
       matrix:
-        variant: [light]
+        variant: [light, physics2d, physics3d]
     steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
+        with:
+          toolchain: "1.99.0"
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: ". -> target"
+      - name: Install pinned wasm-pack
+        run: |
+          version=$(python3 -c 'import json; print(json.load(open("wasm-size.json"))["toolchain"]["wasmPack"])')
+          cargo install wasm-pack --version "$version" --locked
+      - name: Install pinned wasm-opt
+        run: |
+          version=$(python3 -c 'import json; print(json.load(open("wasm-size.json"))["toolchain"]["wasmOpt"])')
+          url=$(python3 -c 'import json; print(json.load(open("wasm-size.json"))["binaryen"]["linux-x86_64"]["url"])')
+          sha=$(python3 -c 'import json; print(json.load(open("wasm-size.json"))["binaryen"]["linux-x86_64"]["sha256"])')
+          case "$url" in
+            *"/version_${version}/binaryen-version_${version}-x86_64-linux.tar.gz") ;;
+            *) echo "binaryen url does not match wasm-opt ${version}" >&2; exit 1 ;;
+          esac
+          curl -fsSL -o /tmp/binaryen.tar.gz "$url"
+          echo "$sha  /tmp/binaryen.tar.gz" | sha256sum -c
+          dest="${RUNNER_TEMP}/binaryen"
+          mkdir -p "$dest"
+          tar -xzf /tmp/binaryen.tar.gz -C "$dest" --strip-components=1
+          echo "$dest/bin" >> "$GITHUB_PATH"
+          export PATH="$dest/bin:$PATH"
+          wasm-opt --version
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
+        with:
+          version: "10"
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
       - name: Build L0 cells
         run: |
-          pnpm build:ts
-          echo build
+          # The benches load wasm glue, not dist output, so this job does not compile TypeScript.
+          # packages/core/bench/simulation-wasm.bench.ts:30
+          # packages/core/bench/shared-memory.bench.ts:51
+          # packages/core/bench/physics-step-wasm.bench.ts imports the fixture, which loads one factory.
+          variant="${{ matrix.variant }}"
+          if [ "$variant" = light ]; then
+            cells="P1:S0 P1:S1 P2:S0 P2:S1 P3:S0 P3:S1"
+          else
+            cells="P1:S0 P1:S1 P2:S0 P2:S1 P2:S1R P3:S0 P3:S1 P3:S1R"
+          fi
+          mkdir -p cells out lto
+          set -- $cells
+          while [ "$#" -gt 0 ]; do
+            cell="$1"
+            shift
+            ./scripts/build-wasm.sh --cell "$cell" --only "$variant"
+            token="${cell/:/-}"
+            cp "packages/core/wasm/$variant/gwen_core_bg.wasm" "cells/${token}.wasm"
+            cp "packages/core/wasm/$variant/gwen_core.js" "cells/${token}.js"
+          done
       - name: Bench L0 cells
         run: |
+          variant="${{ matrix.variant }}"
+          if [ "$variant" = light ]; then
+            cells="P1:S0 P1:S1 P2:S0 P2:S1 P3:S0 P3:S1"
+          else
+            cells="P1:S0 P1:S1 P2:S0 P2:S1 P2:S1R P3:S0 P3:S1 P3:S1R"
+          fi
           for r in 1 2 3; do
-            for cell in a b; do
-              pnpm exec vitest bench --run bench/simulation-wasm.bench.ts
-              pnpm exec vitest bench --run bench/shared-memory.bench.ts
+            for cell in $cells; do
+              token="${cell/:/-}"
+              cp "cells/${token}.wasm" "packages/core/wasm/$variant/gwen_core_bg.wasm"
+              if ! cmp -s "cells/${token}.js" "packages/core/wasm/$variant/gwen_core.js"; then
+                echo "gwen_core.js for ${token} differs from the glue in use" >&2
+                exit 1
+              fi
+              if command -v sha256sum >/dev/null 2>&1; then
+                sha256sum "packages/core/wasm/$variant/gwen_core_bg.wasm"
+              else
+                shasum -a 256 "packages/core/wasm/$variant/gwen_core_bg.wasm"
+              fi
+              if [ "$variant" = light ]; then
+                pnpm --filter @gwenjs/core exec vitest bench --run --project prod bench/simulation-wasm.bench.ts --outputJson "$PWD/out/${token}-sim-r${r}.json"
+                pnpm --filter @gwenjs/core exec vitest bench --run --project prod bench/shared-memory.bench.ts --outputJson "$PWD/out/${token}-shared-r${r}.json"
+                if [ -f packages/core/bench/system-iteration.bench.ts ]; then
+                  pnpm --filter @gwenjs/core exec vitest bench --run --project prod bench/system-iteration.bench.ts --outputJson "$PWD/out/${token}-iter-r${r}.json"
+                fi
+              else
+                pnpm --filter @gwenjs/core exec vitest bench --run --project prod bench/physics-step-wasm.bench.ts -t "$variant" --outputJson "$PWD/out/${token}-r${r}.json"
+              fi
             done
           done
       - name: Build and bench L1 cells
         run: |
+          variant="${{ matrix.variant }}"
+          toml="crates/gwen-core/Cargo.toml"
+          restore_toml() {
+            if [ -f "$toml.profile-matrix-bak" ]; then
+              cp "$toml.profile-matrix-bak" "$toml"
+              rm -f "$toml.profile-matrix-bak"
+            fi
+          }
+          trap restore_toml EXIT
+          winner=$(node scripts/wasm-profile-table.mjs --variant "$variant" --out out --cells cells --lto lto --winner)
+          profile="${winner%%:*}"
+          l1_cells="${profile}:S0 ${profile}:S1"
+          cp "$toml" "$toml.profile-matrix-bak"
+          python3 - "$toml" <<'PY'
+          import pathlib, sys
+          path = pathlib.Path(sys.argv[1])
+          text = path.read_text()
+          old = 'crate-type = ["cdylib", "rlib"]'
+          new = 'crate-type = ["cdylib"]'
+          if old not in text:
+              raise SystemExit("crate-type line missing")
+          path.write_text(text.replace(old, new, 1))
+          PY
+          for cell in $l1_cells; do
+            token="${cell/:/-}"
+            simd="${cell#*:}"
+            # Features match scripts/build-wasm.sh:321. Light is --no-default-features.
+            # S1 does not add the rapier simd feature (scripts/build-wasm.sh:351). That feature is S1R.
+            unset RUSTFLAGS
+            if [ "$simd" = "S1" ]; then
+              RUSTFLAGS="-C target-feature=+simd128"
+              export RUSTFLAGS
+            fi
+            case "$variant" in
+              light)
+                cargo build -v --release --lib --target wasm32-unknown-unknown -p gwen-core --no-default-features > "lto/${token}-L1.log" 2>&1
+                ;;
+              physics2d)
+                cargo build -v --release --lib --target wasm32-unknown-unknown -p gwen-core --features physics2d > "lto/${token}-L1.log" 2>&1
+                ;;
+              physics3d)
+                cargo build -v --release --lib --target wasm32-unknown-unknown -p gwen-core --features physics3d > "lto/${token}-L1.log" 2>&1
+                ;;
+              *)
+                echo "unknown variant ${variant}" >&2
+                exit 1
+                ;;
+            esac
+            unset RUSTFLAGS
+            ./scripts/build-wasm.sh --cell "$cell" --only "$variant"
+            cp "packages/core/wasm/$variant/gwen_core_bg.wasm" "cells/${token}-L1.wasm"
+            cp "packages/core/wasm/$variant/gwen_core.js" "cells/${token}-L1.js"
+          done
+          restore_toml
           for r in 1 2 3; do
-            for cell in a b; do
-              pnpm exec vitest bench --run bench/physics-step-wasm.bench.ts
+            for cell in $l1_cells; do
+              token="${cell/:/-}"
+              cp "cells/${token}-L1.wasm" "packages/core/wasm/$variant/gwen_core_bg.wasm"
+              if ! cmp -s "cells/${token}-L1.js" "packages/core/wasm/$variant/gwen_core.js"; then
+                echo "gwen_core.js for ${token}-L1 differs from the glue in use" >&2
+                exit 1
+              fi
+              if command -v sha256sum >/dev/null 2>&1; then
+                sha256sum "packages/core/wasm/$variant/gwen_core_bg.wasm"
+              else
+                shasum -a 256 "packages/core/wasm/$variant/gwen_core_bg.wasm"
+              fi
+              if [ "$variant" = light ]; then
+                pnpm --filter @gwenjs/core exec vitest bench --run --project prod bench/simulation-wasm.bench.ts --outputJson "$PWD/out/${token}-L1-sim-r${r}.json"
+                pnpm --filter @gwenjs/core exec vitest bench --run --project prod bench/shared-memory.bench.ts --outputJson "$PWD/out/${token}-L1-shared-r${r}.json"
+                if [ -f packages/core/bench/system-iteration.bench.ts ]; then
+                  pnpm --filter @gwenjs/core exec vitest bench --run --project prod bench/system-iteration.bench.ts --outputJson "$PWD/out/${token}-L1-iter-r${r}.json"
+                fi
+              else
+                pnpm --filter @gwenjs/core exec vitest bench --run --project prod bench/physics-step-wasm.bench.ts -t "$variant" --outputJson "$PWD/out/${token}-L1-r${r}.json"
+              fi
             done
           done
       - name: Write the profile table
-        run: echo table
+        if: always()
+        run: |
+          mkdir -p out cells lto
+          node scripts/wasm-profile-table.mjs --variant "${{ matrix.variant }}" --out out --cells cells --lto lto | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Upload profile matrix artifacts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: profile-matrix-stub
+          name: profile-matrix-${{ matrix.variant }}
+          path: |
+            out/
+            cells/
+            lto/
+          retention-days: 7
+          if-no-files-found: warn
