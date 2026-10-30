@@ -36,14 +36,11 @@ import type { PluginDeclaration, GwenModule } from "@gwenjs/schema";
 import type { AutoImport, ViteUserConfig } from "@gwenjs/kit";
 import {
   gwenLocalPluginsPlugin,
-  gwenLocalModulesPlugin,
   gwenAutoImportsPlugin,
   gwenDevStripPlugin,
 } from "./plugins/index.js";
-import type { LocalModulesDirOption } from "./plugins/local-modules.js";
 import type { LocalPluginsDirOption } from "./plugins/local-plugins.js";
 import {
-  generateConfigModulesVirtualModule,
   generateEntryModule,
   generateScenesModule,
   resolveMainScene,
@@ -100,8 +97,6 @@ const GWEN_ENTRY_ID = "/@gwenjs/gwen-entry";
 const GWEN_SCENES_ID = "/@gwenjs/gwen-scenes";
 const RESOLVED_ENTRY = "\0/@gwenjs/gwen-entry";
 const RESOLVED_SCENES = "\0/@gwenjs/gwen-scenes";
-const CONFIG_MODULES_VIRTUAL = "virtual:gwen/config-modules";
-const RESOLVED_CONFIG_MODULES = "\0virtual:gwen/config-modules";
 
 // ── Plugin principal ──────────────────────────────────────────────────────────
 
@@ -200,7 +195,6 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
   let _app: GwenApp | undefined;
   let _loadPromise: Promise<void> | undefined;
   const localPluginsScan: LocalPluginsDirOption = { root: process.cwd() };
-  const localModulesScan: LocalModulesDirOption = { root: process.cwd() };
   const _sharedAutoImports: AutoImport[] = [];
 
   function log(msg: string) {
@@ -445,8 +439,6 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
     _resolved = gwenConfig;
     localPluginsScan.root = root;
     localPluginsScan.dir = gwenConfig.localPluginsDir ?? "src/plugins";
-    localModulesScan.root = root;
-    localModulesScan.dir = gwenConfig.localModulesDir ?? "src/modules";
     const app = new GwenApp();
     wireConfigHooks(app, gwenConfig.hooks);
 
@@ -522,7 +514,6 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
       if (id === VIRTUAL_MANIFEST_ID) return RESOLVED_VIRTUAL_MANIFEST;
       if (id === GWEN_ENTRY_ID) return RESOLVED_ENTRY;
       if (id === GWEN_SCENES_ID) return RESOLVED_SCENES;
-      if (id === CONFIG_MODULES_VIRTUAL) return RESOLVED_CONFIG_MODULES;
       return null;
     },
 
@@ -548,16 +539,11 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
           return generateScenesModule(scenes, resolveMainScene(scenes, _resolved.mainScene));
         }
 
-        if (id === RESOLVED_CONFIG_MODULES) {
-          return generateConfigModulesVirtualModule(_resolved.modules);
-        }
-
         return null;
       };
 
-      const gwenVirtual =
-        id === RESOLVED_ENTRY || id === RESOLVED_SCENES || id === RESOLVED_CONFIG_MODULES;
-      // Entry, scenes and config-modules re-await the memoized load so a
+      const gwenVirtual = id === RESOLVED_ENTRY || id === RESOLVED_SCENES;
+      // Entry and scenes re-await the memoized load so a
       // failed config() rejects with the original error (D-V4a-3).
       if (gwenVirtual && _resolved === undefined) {
         return (async () => {
@@ -721,7 +707,6 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
     gwenDevStripPlugin(),
     gwenAutoImportsPlugin({ autoImports: _sharedAutoImports }),
     gwenLocalPluginsPlugin(localPluginsScan),
-    gwenLocalModulesPlugin(localModulesScan),
   ];
 }
 

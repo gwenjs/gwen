@@ -215,7 +215,7 @@ The framework calls the factory with no arguments at registration time. If your 
 
 ### `src/modules/` — Local Modules
 
-Files in this directory are **auto-discovered and loaded before** `config.plugins`. They work exactly like npm modules declared in `gwen.config.ts`, but live in your project — no package to publish, no config entry required.
+Files in this directory are **auto-discovered**. They run at **build time**, and the plugins they declare install after `config.plugins` and before `src/plugins/`. They work exactly like npm modules declared in `gwen.config.ts`, but live in your project — no package to publish, no config entry required.
 
 Each file must export a `defineGwenModule` definition as its **default export**.
 
@@ -318,11 +318,12 @@ export function distance(x1: number, y1: number, x2: number, y2: number) {
 Plugins and modules are applied in this order:
 
 1. Built-in framework plugins (viewports, screen)
-2. `config.plugins` — includes plugins contributed by npm modules at build time
-3. `src/modules/` — local modules (alphabetical by module name)
-4. `src/plugins/` — local plugins (alphabetical by filename)
+2. `gwenConfig.plugins`
+3. Plugins declared by modules at build time (npm modules, then `src/modules/`)
+4. `src/plugins/`
+5. Scene systems
 
-npm modules declared in `gwen.config.ts → modules` and local modules in `src/modules/` run at **build time** inside `setupModules` (local modules after the npm modules, loaded through `jiti`; a custom directory comes from `localModulesDir`, `false` disables them) and register their plugins via `gwen.addPlugin()`. Those plugins land in `config.plugins` and execute before any local plugins.
+npm modules declared in `gwen.config.ts → modules` and local modules in `src/modules/` run at **build time** inside `setupModules` (local modules after the npm modules, loaded through `jiti`; a custom directory comes from `localModulesDir`, `false` disables them) and register their plugins via `gwen.addPlugin()`. The browser bundle runs no module `setup`; it installs the resolved plugin list (config plugins, then the plugins declared by modules, then local plugins, then scene systems) one at a time and, if an install fails, stops the engine before showing the error.
 
 ## Scaling Patterns
 

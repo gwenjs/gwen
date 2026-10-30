@@ -30,7 +30,6 @@
     "values": [
       "extractGlobalCssFromConfig",
       "extractModuleNamesFromConfig",
-      "generateConfigModulesVirtualModule",
       "generateEntryModule",
       "generateScenesModule"
     ],
