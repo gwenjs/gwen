@@ -120,6 +120,26 @@ describe("@gwenjs/physics2d module", () => {
     expect(JSON.parse(JSON.stringify(declaration))).toEqual(declaration);
   });
 
+  it("the declared export exists on the package entry", async () => {
+    const entry = await import("@gwenjs/physics2d");
+    const { GwenApp } = await import("@gwenjs/app/resolve");
+    const { resolveLoadedConfig } = await import("../../app/src/config");
+    const loaded = await import("@gwenjs/physics2d/module");
+    const resolved = resolveLoadedConfig({ modules: ["@gwenjs/physics2d"] });
+    const app = new GwenApp();
+    const declaration = await app
+      .setupModules(resolved, async (name) => {
+        if (name !== "@gwenjs/physics2d") throw new Error(`unexpected module ${name}`);
+        return loaded.default;
+      })
+      .then(
+        () => app.pluginDeclarations.find((item) => item.src === "@gwenjs/physics2d"),
+        () => undefined,
+      );
+    const exportName = declaration?.export ?? "";
+    expect(typeof Reflect.get(entry, exportName)).toBe("function");
+  });
+
   it("module defaults are the plugin defaults", async () => {
     const config = await import("../src/config");
     expect(config.PHYSICS2D_DEFAULTS).toBeDefined();
