@@ -28,7 +28,14 @@
     ]
   },
   "./plugin": {
-    "values": ["createEntityId", "definePlugin", "satisfiesPluginContract", "unpackEntityId"],
+    "values": [
+      "createEntityId",
+      "definePlugin",
+      "optionalService",
+      "satisfiesPluginContract",
+      "unpackEntityId",
+      "watchService"
+    ],
     "types": [
       "ComponentType",
       "EntityId",

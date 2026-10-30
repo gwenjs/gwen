@@ -2,6 +2,8 @@
 export { definePlugin } from "../define-plugin.js";
 export type { GwenPluginFactory } from "../define-plugin.js";
 
+export { optionalService, watchService } from "./watch-service.js";
+
 export { satisfiesPluginContract } from "../plugin-types.js";
 
 // Type and value re-exports from @gwenjs/schema — everything a plugin author needs
