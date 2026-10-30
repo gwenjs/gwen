@@ -2,7 +2,21 @@ import type { EntityId } from "./entity.js";
 import type { EngineStateChangePayload } from "./engine-state.js";
 import type { GwenErrorTarget } from "./errors.js";
 import type { GwenPrefabExtensions } from "./extensions.js";
+import type { GwenProvides } from "./plugin.js";
 import type { ViewportRegion } from "./renderer.js";
+
+/** Why a service value was stored or removed. */
+export type ServiceChangeReason = "install" | "unuse" | "stop" | "overwrite";
+
+/** One service change. `value` on `service:removed` is the value that was removed. */
+export type ServiceChangeEvent = {
+  [K in keyof GwenProvides]: {
+    readonly key: K;
+    readonly value: GwenProvides[K];
+    readonly owner: string | undefined;
+    readonly reason: ServiceChangeReason;
+  };
+}[keyof GwenProvides];
 
 /**
  * Payload emitted with the `engine:error` hook when the frame loop catches an error.
@@ -76,6 +90,10 @@ export interface GwenRuntimeHooks {
   "engine:state-change": (payload: EngineStateChangePayload) => void;
   /** Fired after a plugin completes its `setup()` and is registered in the engine. */
   "plugin:registered": (pluginName: string) => void;
+  /** Fired after a service value is stored. Not fired for an engine-owned key or an unchanged value. */
+  "service:provided": (event: ServiceChangeEvent) => void;
+  /** Fired after a service value is removed. `event.value` is the previous value. */
+  "service:removed": (event: ServiceChangeEvent) => void;
   /** Fired at the start of every tick, before any phase runs. */
   "engine:tick": (dt: number) => void;
   /**

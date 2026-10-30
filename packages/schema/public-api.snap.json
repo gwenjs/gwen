@@ -79,6 +79,8 @@
       "RendererStats",
       "RendererStatsCollector",
       "ScreenInfoStore",
+      "ServiceChangeEvent",
+      "ServiceChangeReason",
       "SurfaceRendererService",
       "TransformReader2D",
       "TransformRef2D",
