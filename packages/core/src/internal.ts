@@ -63,6 +63,7 @@ export { EASING_MAP } from "./tween/runtime/easing";
 export { TweenPool } from "./tween/runtime/tween-pool";
 export type { TweenSlot, TweenPoolPolicy } from "./tween/runtime/tween-pool";
 export { TweenManager, getTweenManager } from "./tween/runtime/tween-manager";
+export { SceneEnginePlugin } from "./scene/engine-plugin";
 export { TweenPlugin } from "./tween/engine-plugin";
 export type { TweenPluginOptions } from "./tween/engine-plugin";
 
