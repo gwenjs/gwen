@@ -45,7 +45,7 @@ import type { GwenModuleDefinition, GwenModule } from "@gwenjs/schema";
  *   meta: { name: '@gwenjs/physics2d', configKey: 'physics2d' },
  *   defaults: { gravity: 9.81, iterations: 8 },
  *   async setup(options, gwen) {
- *     gwen.addPlugin(createPhysics2DPlugin(options))
+ *     gwen.addPlugin({ src: '@gwenjs/physics2d', export: 'Physics2DPlugin', options })
  *     gwen.addAutoImports([{ name: 'usePhysics2D', from: '@gwenjs/physics2d' }])
  *   },
  * })
