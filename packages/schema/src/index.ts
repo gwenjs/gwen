@@ -65,7 +65,13 @@ export type { GwenPrefabExtensions, GwenSceneExtensions, GwenUIExtensions } from
 // ─── Hook map ────────────────────────────────────────────────────────────────
 
 export type { HookHandlerMap, InferHooks } from "./hook-types";
-export type { EngineErrorPayload, GwenRuntimeHooks, PluginErrorEvent } from "./runtime-hooks";
+export type {
+  EngineErrorPayload,
+  GwenRuntimeHooks,
+  PluginErrorEvent,
+  ServiceChangeEvent,
+  ServiceChangeReason,
+} from "./runtime-hooks";
 
 // ─── Renderer contract ───────────────────────────────────────────────────────
 

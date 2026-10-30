@@ -45,6 +45,8 @@ type _0 = [
   Root.PluginDeclaration,
   Root.PluginErrorContext,
   Root.PluginErrorEvent,
+  Root.ServiceChangeEvent,
+  Root.ServiceChangeReason,
   Root.TransformReader2D,
   Root.TransformRef2D,
   Root.TransformSample2D,

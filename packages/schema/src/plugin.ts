@@ -204,12 +204,15 @@ export interface PluginErrorContext {
 }
 
 /**
- * Plugins and services that must already be installed.
- * `engine.use()` checks this before `setup()`. Names are strings.
+ * Plugins and services that must already be installed, plus optional services.
+ * `engine.use()` checks `plugins` and `services` before `setup()`.
+ * `optional` is not checked and does not block `unuse()`. Names are strings.
  */
 export interface GwenPluginRequires {
   readonly plugins?: readonly string[];
   readonly services?: readonly string[];
+  /** Services that may be absent. `use()` does not check them. */
+  readonly optional?: readonly string[];
 }
 
 /** One unmet plugin or service named by {@link GwenPluginRequires}. */
@@ -266,6 +269,7 @@ export interface GwenPlugin {
   /**
    * Plugins and services that must be installed before this plugin.
    * Checked by `engine.use()` before `setup()`.
+   * `requires.optional` is not checked.
    */
   requires?: GwenPluginRequires;
 
