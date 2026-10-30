@@ -103,7 +103,7 @@ export default defineGwenModule<{ volume?: number }>({
   meta: { name: '@my-org/audio', configKey: 'audio' },
   defaults: { volume: 1 },
   setup(options, gwen) {
-    gwen.addPlugin(AudioPlugin({ volume: options.volume }))
+    gwen.addPlugin({ src: "@my-org/audio", export: "AudioPlugin", options: { volume: options.volume } })
     gwen.addAutoImports([{ name: 'useAudio', from: '@my-org/audio' }])
   },
 })

@@ -277,7 +277,7 @@ import { definePlugin } from '@gwenjs/kit/plugin'
 import { InputPlugin } from './input'
 import { Physics2DPlugin } from './physics'
 
-const GamePlugin = definePlugin(() => ({
+export const GamePlugin = definePlugin(() => ({
   name: 'game',
   setup(engine) {
     engine.use(InputPlugin())
@@ -291,7 +291,7 @@ export default defineGwenModule({
     configKey: 'gameFramework',
   },
   setup(options, gwen) {
-    gwen.addPlugin(GamePlugin())
+    gwen.addPlugin({ src: "@my-scope/game-framework", export: "GamePlugin" })
     gwen.addAutoImports([
       { name: 'useInput', from: '@my-scope/game-framework' },
       { name: 'usePhysics2D', from: '@my-scope/game-framework' },

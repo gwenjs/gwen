@@ -139,7 +139,6 @@ export default definePlugin(() => ({
 ```ts
 // src/modules/input.ts
 import { defineGwenModule } from '@gwenjs/kit/module'
-import { InputPlugin } from '../plugins/input'
 
 interface InputOptions {
   repeatDelay?: number
@@ -156,7 +155,7 @@ export default defineGwenModule<InputOptions>({
   meta: { configKey: 'input' }, // nom inféré depuis le fichier → 'local:input'
   defaults: { repeatDelay: 50, preventDefault: [] },
   setup(options, gwen) {
-    gwen.addPlugin(InputPlugin(options))
+    gwen.addPlugin({ src: "./src/plugins/input", export: "InputPlugin", options })
   },
 })
 ```
@@ -468,7 +467,7 @@ export default defineGwenModule({
   meta: { name: '@gwenjs/audio', configKey: 'audio' },
   defaults: { volume: 0.8 },
   setup(options, gwen) {
-    gwen.addPlugin(AudioPlugin(options))
+    gwen.addPlugin({ src: "@gwenjs/audio", export: "AudioPlugin", options })
     gwen.addAutoImports([
       { name: 'useAudio', from: '@gwenjs/audio' },
     ])

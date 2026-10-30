@@ -37,7 +37,7 @@ La plupart des modules enregistrent un ou plusieurs plugins runtime :
 import { defineGwenModule } from '@gwenjs/kit/module'
 import { definePlugin } from '@gwenjs/kit/plugin'
 
-const MyPlugin = definePlugin(() => ({
+export const MyPlugin = definePlugin(() => ({
   name: 'my-plugin',
   setup(engine) {
     engine.provide('myService', {
@@ -49,8 +49,7 @@ const MyPlugin = definePlugin(() => ({
 export default defineGwenModule({
   meta: { name: '@my-scope/my-module', configKey: 'myModule' },
   setup(options, gwen) {
-    // Export the plugin to be registered at runtime
-    gwen.addPlugin(MyPlugin())
+    gwen.addPlugin({ src: "@my-scope/my-module", export: "MyPlugin" })
   },
 })
 ```
@@ -103,7 +102,7 @@ Pour les modules spécifiques au projet, déposez un fichier dans `src/modules/`
 import { defineGwenModule } from '@gwenjs/kit/module'
 import { definePlugin } from '@gwenjs/kit/plugin'
 
-const ScorePlugin = definePlugin<{ maxScore?: number }>((opts = {}) => ({
+export const ScorePlugin = definePlugin<{ maxScore?: number }>((opts = {}) => ({
   name: 'score',
   setup(engine) {
     let score = 0
@@ -119,7 +118,7 @@ export default defineGwenModule({
   meta: { configKey: 'score' }, // nom inféré → 'local:score'
   defaults: { maxScore: 999 },
   setup(options, gwen) {
-    gwen.addPlugin(ScorePlugin(options))
+    gwen.addPlugin({ src: "./src/modules/score", export: "ScorePlugin", options })
   },
 })
 ```
@@ -156,7 +155,7 @@ declare module '@gwenjs/schema' {
   }
 }
 
-const ScorePlugin = definePlugin<ScoreOptions>((opts = {}) => ({
+export const ScorePlugin = definePlugin<ScoreOptions>((opts = {}) => ({
   name: 'score',
   setup(engine) {
     let score = opts.initialScore ?? 0
@@ -172,7 +171,7 @@ export default defineGwenModule<ScoreOptions>({
   meta: { configKey: 'score' },
   defaults: { initialScore: 0, maxScore: 999 },
   setup(options, gwen) {
-    gwen.addPlugin(ScorePlugin(options))
+    gwen.addPlugin({ src: "./src/modules/score", export: "ScorePlugin", options })
   },
 })
 ```
@@ -220,8 +219,10 @@ Le paramètre `gwen` passé à `setup()` est l'API à la compilation. Utilisez-l
 Enregistrez les plugins runtime à charger :
 
 ```ts
-gwen.addPlugin(MyPlugin())
+gwen.addPlugin({ src: "@my-scope/my-module", export: "MyPlugin" })
 ```
+
+`addPlugin` ne prend que des déclarations. `options` doit être sérialisable en JSON. Une instance, une fabrique ou des options non sérialisables lèvent `APP:PLUGIN_NOT_DECLARATIVE`. Migration : `kit.addPlugin({ src: "<pkg>", export: "<Factory>", options })`.
 
 ### Auto-imports
 
@@ -299,7 +300,7 @@ interface ScoreModuleOptions {
 }
 
 // Runtime plugin
-const ScorePlugin = definePlugin<ScoreModuleOptions>((opts = {}) => ({
+export const ScorePlugin = definePlugin<ScoreModuleOptions>((opts = {}) => ({
   name: 'score',
   setup(engine) {
     let score = opts.initialScore ?? 0
@@ -331,7 +332,7 @@ export default defineGwenModule<ScoreModuleOptions>({
     maxScore: 999999,
   },
   setup(options, gwen) {
-    gwen.addPlugin(ScorePlugin(options))
+    gwen.addPlugin({ src: "@my-scope/score", export: "ScorePlugin", options })
 
     gwen.addAutoImports([
       { name: 'useScore', from: '@my-scope/score' },
@@ -428,7 +429,7 @@ export default defineGwenModule<Options>({
 
 | Méthode | But |
 |---------|-----|
-| `addPlugin(plugin)` | Enregistrez un plugin runtime |
+| `addPlugin(declaration)` | Déclarez un plugin runtime : { src, export?, options? } |
 | `addAutoImports(imports)` | Déclarez les utilitaires auto-importés |
 | `addVitePlugin(plugin)` | Ajoutez un plugin Vite à la compilation |
 | `extendViteConfig(extender)` | Étendez la configuration Vite |

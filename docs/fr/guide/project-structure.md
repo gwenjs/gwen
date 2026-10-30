@@ -224,7 +224,7 @@ Chaque fichier doit exporter une définition `defineGwenModule` comme **export p
 import { defineGwenModule } from '@gwenjs/kit/module'
 import { definePlugin } from '@gwenjs/kit/plugin'
 
-const ScorePlugin = definePlugin<{ maxScore?: number }>((opts = {}) => ({
+export const ScorePlugin = definePlugin<{ maxScore?: number }>((opts = {}) => ({
   name: 'score',
   setup(engine) {
     let score = 0
@@ -240,7 +240,7 @@ export default defineGwenModule({
   meta: { configKey: 'score' }, // nom inféré → 'local:score'
   defaults: { maxScore: 999 },
   setup(options, gwen) {
-    gwen.addPlugin(ScorePlugin(options))
+    gwen.addPlugin({ src: "./src/modules/score", export: "ScorePlugin", options })
   },
 })
 ```
@@ -271,7 +271,7 @@ export default defineGwenModule<ScoreOptions>({
   meta: { configKey: 'score' },
   defaults: { maxScore: 999 },
   setup(options, gwen) {
-    gwen.addPlugin(ScorePlugin(options))
+    gwen.addPlugin({ src: "./src/modules/score", export: "ScorePlugin", options })
   },
 })
 ```
