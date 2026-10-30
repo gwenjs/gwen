@@ -51,7 +51,7 @@ export const InputPlugin = definePlugin(() => ({
 ```
 
 ::: info Named vs default export
-This named-export form is used when a module registers the plugin via `gwen.addPlugin(InputPlugin())`. For `src/plugins/` auto-discovery, use `export default definePlugin(...)` instead — see [Register in Project](#register-in-project) below.
+This named-export form is used when a module registers the plugin via `gwen.addPlugin({ src: "@my-scope/input", export: "InputPlugin" })`. For `src/plugins/` auto-discovery, use `export default definePlugin(...)` instead — see [Register in Project](#register-in-project) below.
 :::
 
 ### Module
@@ -64,7 +64,7 @@ import { defineGwenModule } from '@gwenjs/kit/module'
 export default defineGwenModule({
   meta: { name: '@my-scope/input', configKey: 'input' },
   setup(options, gwen) {
-    gwen.addPlugin(InputPlugin())
+    gwen.addPlugin({ src: "@my-scope/input", export: "InputPlugin" })
     gwen.addAutoImports([
       { name: 'useInput', from: '@my-scope/input' },
     ])

@@ -316,7 +316,6 @@ Create `src/module.ts`:
 
 ```ts
 import { defineGwenModule } from '@gwenjs/kit/module'
-import { MyTechRendererPlugin } from './mytech-plugin.js'
 import type { MyTechRendererOptions } from './mytech-plugin.js'
 
 export default defineGwenModule<MyTechRendererOptions>({
@@ -328,7 +327,7 @@ export default defineGwenModule<MyTechRendererOptions>({
     layers: { main: { order: 0 } },
   },
   setup(options, gwen) {
-    gwen.addPlugin(MyTechRendererPlugin(options))
+    gwen.addPlugin({ src: "@gwenjs/renderer-mytech", export: "MyTechRendererPlugin", options })
     gwen.addAutoImports([
       { name: 'useMyTech', from: '@gwenjs/renderer-mytech' },
     ])

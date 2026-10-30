@@ -244,7 +244,7 @@ declare module '@gwenjs/schema' {
   }
 }
 
-const ScorePlugin = definePlugin<ScoreOptions>((opts = {}) => ({
+export const ScorePlugin = definePlugin<ScoreOptions>((opts = {}) => ({
   name: 'score',
   setup(engine) {
     let score = 0
@@ -260,7 +260,7 @@ export default defineGwenModule<ScoreOptions>({
   meta: { configKey: 'score' },
   defaults: { maxScore: 999 },
   setup(options, gwen) {
-    gwen.addPlugin(ScorePlugin(options))
+    gwen.addPlugin({ src: "./src/modules/score", export: "ScorePlugin", options })
   },
 })
 ```

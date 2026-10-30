@@ -117,7 +117,7 @@ export default defineGwenModule<{ volume?: number }>({
   },
   defaults: { volume: 0.8 },
   setup(options, gwen) {
-    gwen.addPlugin(AudioPlugin(options))
+    gwen.addPlugin({ src: "@my-scope/audio", export: "AudioPlugin", options })
     gwen.addAutoImports([
       { name: 'useAudio', from: '@my-scope/audio' },
     ])
@@ -147,7 +147,7 @@ The build-time API passed to `setup()`:
 
 | Method | Purpose |
 |--------|---------|
-| `addPlugin(plugin)` | Register a runtime plugin |
+| `addPlugin(declaration)` | Declare a runtime plugin: { src, export?, options? } |
 | `addAutoImports(imports)` | Declare auto-imported utilities |
 | `addVitePlugin(plugin)` | Add a Vite plugin to the build |
 | `extendViteConfig(fn)` | Extend Vite configuration |
