@@ -125,7 +125,7 @@ export const InputPlugin = definePlugin(() => ({
 ```ts
 import { definePlugin } from '@gwenjs/kit/plugin'
 
-export const Physics2DPlugin = definePlugin<{ gravity?: number }>((opts = {}) => ({
+export const Physics2DPlugin = definePlugin((opts: { gravity?: number } = {}) => ({
   name: 'physics2d',
   setup(engine) {
     const gravity = opts.gravity ?? 9.81
@@ -382,8 +382,8 @@ export default defineConfig({
 | `use(plugin)` | Enregistrez un plugin lors de la configuration d'un autre plugin |
 | `get(key)` | Récupérez un service enregistré (retourne `undefined` s'il n'est pas trouvé) |
 | `provide(key, service)` | Enregistrez un service |
-| `onStart(cb)` | Hook appelé après le chargement de WASM |
-| `onDestroy(cb)` | Hook appelé avant l'arrêt |
+| `hooks.hook('engine:start', cb)` | Enregistre un callback après le chargement de WASM |
+| `hooks.hook('engine:stop', cb)` | Enregistre un callback avant l'arrêt |
 
 ### Ordre d'enregistrement des plugins
 

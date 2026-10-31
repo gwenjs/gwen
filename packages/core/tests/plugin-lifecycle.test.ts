@@ -2,8 +2,14 @@
  * RFC-001: engine.use / engine.unuse lifecycle tests
  */
 import { afterEach, describe, it, expect, vi } from "vitest";
-import { GwenError, type GwenLogEntry, type IGwenScope } from "@gwenjs/schema";
-import { GwenContextError, getCurrentScope, useLogger } from "@gwenjs/kit";
+import {
+  GwenError,
+  type GwenErrorPayload,
+  type GwenLogEntry,
+  type IGwenScope,
+} from "@gwenjs/schema";
+import { GwenContextError, getCurrentScope, useErrorReporter, useLogger } from "@gwenjs/kit";
+import { definePlugin } from "@gwenjs/kit/plugin";
 import {
   createEngine as openEngine,
   GwenEngineStateError,
@@ -1055,5 +1061,48 @@ describe("plugin setup scope", () => {
     ).toEqual(["from-b"]);
     expect(outcomeA).toBeUndefined();
     expect(outcomeB).toBeUndefined();
+  });
+
+  it("a definePlugin setup error reaches the bus once as itself", async () => {
+    const engine = await createEngine();
+    const cause = new Error("x");
+    const events: GwenErrorPayload[] = [];
+    engine.errors.on((event) => {
+      events.push(event);
+    });
+    const plugin = definePlugin(() => ({
+      name: "boom",
+      setup() {
+        throw cause;
+      },
+    }))();
+    const thrown = await rejected(engine, plugin);
+    expect(thrown).toBe(cause);
+    const setupEvents = events.filter((event) => event.code === "CORE:PLUGIN_SETUP_ERROR");
+    expect(setupEvents).toHaveLength(1);
+    expect(setupEvents[0]?.error).toBe(cause);
+    expect(events.some((event) => event.code === "engine:plugin-setup-failed")).toBe(false);
+  });
+
+  it("useErrorReporter().report inside setup rejects use() with that GwenError", async () => {
+    const engine = await createEngine();
+    const cause = new Error("missing");
+    const events: GwenErrorPayload[] = [];
+    engine.errors.on((event) => {
+      events.push(event);
+    });
+    const plugin = definePlugin(() => ({
+      name: "Reporter",
+      setup() {
+        useErrorReporter().report("KIT:X", "Missing API key.", cause);
+      },
+    }))();
+    const thrown = await rejected(engine, plugin);
+    expect(thrown).toBeInstanceOf(GwenError);
+    if (!(thrown instanceof GwenError)) return;
+    expect(thrown.code).toBe("KIT:X");
+    expect(thrown.cause).toBe(cause);
+    expect(events.map((event) => event.code)).toEqual(["CORE:PLUGIN_SETUP_ERROR"]);
+    expect(events[0]?.error).toBe(thrown);
   });
 });

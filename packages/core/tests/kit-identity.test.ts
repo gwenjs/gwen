@@ -3,7 +3,6 @@
  */
 
 import { afterEach, describe, expect, it } from "vitest";
-import { GwenError } from "@gwenjs/schema";
 import { CoreErrorCodes, createEngine, useEngine } from "@gwenjs/core";
 import { definePlugin } from "@gwenjs/kit/plugin";
 import * as core from "@gwenjs/core";
@@ -57,13 +56,14 @@ describe("core re-exports kit context errors", () => {
     }
   });
 
-  it("a failing plugin setup rejects with KIT:PLUGIN_SETUP_FAILED and keeps the cause", async () => {
+  it("a failing plugin setup rejects with the original error", async () => {
     const engine = await createEngine({ maxEntities: 64 });
     engines.push(engine);
+    const cause = new Error("x");
     const plugin = definePlugin(() => ({
       name: "boom",
       setup() {
-        throw new Error("x");
+        throw cause;
       },
     }))();
     let thrown: unknown;
@@ -72,13 +72,6 @@ describe("core re-exports kit context errors", () => {
     } catch (error) {
       thrown = error;
     }
-    expect(thrown).toBeInstanceOf(GwenError);
-    if (!(thrown instanceof GwenError)) return;
-    expect(thrown.code).toBe("KIT:PLUGIN_SETUP_FAILED");
-    expect(thrown.composable).toBe("definePlugin");
-    expect(thrown.message).toContain('Plugin "boom" setup failed.');
-    expect(thrown.cause).toBeInstanceOf(Error);
-    if (!(thrown.cause instanceof Error)) return;
-    expect(thrown.cause.message).toBe("x");
+    expect(thrown).toBe(cause);
   });
 });

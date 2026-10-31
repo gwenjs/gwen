@@ -35,10 +35,10 @@ import { LayerManager } from "./layer-manager.js";
  * import { definePlugin } from '@gwenjs/kit/plugin'
  * import { getOrCreateLayerManager } from '@gwenjs/renderer-core'
  *
- * export const CanvasRendererPlugin = definePlugin<{ container?: HTMLElement }>((opts) => ({
+ * export const CanvasRendererPlugin = definePlugin((opts?: { container?: HTMLElement }) => ({
  *   name: 'renderer:canvas',
  *   setup(engine) {
- *     const manager = getOrCreateLayerManager(engine, opts.container ?? document.body)
+ *     const manager = getOrCreateLayerManager(engine, opts?.container ?? document.body)
  *     manager.register(canvasService)
  *     engine.hooks.hook('engine:init', () => manager.mount())
  *     engine.hooks.hook('engine:stop', () => manager.unregister('renderer:canvas'))

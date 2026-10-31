@@ -13,18 +13,17 @@ describe("definePlugin", () => {
 
   it("creates plugin with correct name", () => {
     const Factory = definePlugin(() => ({ name: "Noop", setup() {} }));
-    const plugin = new Factory() as { name: string };
+    const plugin = Factory();
     expect(plugin.name).toBe("Noop");
   });
 
   it("passes options to closure", () => {
-    const Factory = definePlugin((opts: { value: number }) => ({
-      name: "WithOpts",
+    const Factory = definePlugin((opts: { value?: number } = {}) => ({
+      name: `WithOpts-${String(opts.value)}`,
       setup() {},
-      provides: { result: opts.value } as unknown as Record<string, unknown>,
     }));
-    const plugin = new Factory({ value: 42 }) as { provides: Record<string, unknown> };
-    expect(plugin.provides?.["result"]).toBe(42);
+    const plugin = Factory({ value: 42 });
+    expect(plugin.name).toBe("WithOpts-42");
   });
 });
 
