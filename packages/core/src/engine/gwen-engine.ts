@@ -341,11 +341,15 @@ export class GwenEngineImpl extends EngineCollaborators implements GwenEngine {
   // ─── WASM modules (RFC-008) ────────────────────────────────────────────────
 
   /**
-   * Fetch and instantiate a WASM binary, then register it under `options.name`.
-   * If a module with the same name is already loaded, returns the existing handle.
+   * Load a WASM binary from exactly one of `url` (fetched), `bytes` or `module`
+   * (no fetch), instantiate it, then register it under `options.name`.
+   * If a module with the same name is already loaded, returns the existing handle,
+   * after the source-count check.
    *
-   * @param options - Load options: name, URL, and optional per-frame step.
+   * @param options - Load options: name, one of url / bytes / module, and optional per-frame step.
    * @returns The typed {@link WasmModuleHandle}.
+   * @throws {GwenError} `CORE:WASM_LOAD_ERROR` when zero or several of url, bytes,
+   *   module are given (checked before the name lookup).
    * @throws {GwenError} `CORE:WASM_LOAD_ERROR` when fetch, compile, the probe
    *   instantiate or the second instantiate fails.
    * @throws {GwenError} `CORE:WASM_NOT_INITIALIZED` when `transformRegion` is
