@@ -174,7 +174,7 @@ describe("service change hooks", () => {
     expect(leftHits).toBe(1);
     expect(rightHits).toBe(0);
   });
-  it("provided keys come before plugin:registered; a thrown setup emits nothing", async () => {
+  it("provided keys come before plugin:registered; a thrown setup emits nothing and rejects with the original error", async () => {
     const engine = await open();
     const first = { n: 1 };
     const log: string[] = [];
@@ -188,7 +188,7 @@ describe("service change hooks", () => {
         host.provide("p72:alpha", { n: 2 });
         throw new Error("setup-boom");
       }),
-    ).rejects.toThrow(/setup failed/);
+    ).rejects.toThrow(/setup-boom/);
     expect(log).toEqual([]);
     expect(engine.tryInject("p72:alpha")).toBe(first);
     await engine.unuse("kept");

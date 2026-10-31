@@ -2,6 +2,7 @@
  * Tests for Physics3D systems.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { GwenError } from "@gwenjs/schema";
 import { createHooks } from "hookable";
 
 const physics3dInit = vi.fn();
@@ -149,15 +150,16 @@ describe("createPhysicsKinematicSyncSystem", () => {
     expect(seen).toEqual(["physics3d"]);
   });
 
-  it("setup rejects when physics3d is not registered", async () => {
+  it("setup rejects with the original error when physics3d is not registered", async () => {
     const factory = createPhysicsKinematicSyncSystem({ positionComponent: position });
     const instance = factory();
     const engine = createMockEngine();
-    await expect(Promise.resolve(instance.setup(engine))).rejects.toMatchObject({
-      code: "KIT:PLUGIN_SETUP_FAILED",
-      composable: "definePlugin",
-      cause: expect.objectContaining({ message: "No service: physics3d" }),
-    });
+    const run = async () => {
+      await instance.setup(engine);
+    };
+
+    await expect(run()).rejects.toThrow("No service: physics3d");
+    await expect(run()).rejects.not.toBeInstanceOf(GwenError);
   });
 
   it("syncs kinematic entity positions on engine:before-update", () => {

@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "skipLibCheck": true,
+    "types": ["vitest/globals"]
+  },
+  "include": ["src", "tests"],
+  "exclude": [
+    "tests/exports-map.test.ts",
+    "tests/kit-surface.test.ts",
+    "tests/package-deps.test.ts",
+    "tests/public-api.test.ts"
+  ]
+}

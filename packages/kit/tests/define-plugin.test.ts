@@ -2,15 +2,13 @@
  * @gwenjs/kit — definePlugin() unit tests (RFC-002).
  *
  * Tests the factory-function API: `definePlugin(factory)` returns a typed
- * `PluginFactory` function. Calling that factory (with or without options)
- * produces a plain plugin object conforming to the RFC-001 `GwenPlugin`
- * interface (`setup(engine)` / `teardown()` / `onUpdate(dt)` …).
+ * factory. Calling that factory (with or without options) produces a plain
+ * plugin object conforming to `GwenPlugin`.
  */
 
 import { describe, it, expect, vi } from "vitest";
-import { GwenError } from "@gwenjs/schema";
 import { definePlugin } from "../src/plugin";
-import type { GwenEngineBase as GwenEngine } from "@gwenjs/schema";
+import type { GwenEngineBase as GwenEngine, IGwenLogger } from "@gwenjs/schema";
 
 // ─── Test helpers ─────────────────────────────────────────────────────────────
 
@@ -27,6 +25,40 @@ function mockEngine(): GwenEngine {
     unuse: vi.fn(),
     hooks: { hook: vi.fn(), callHook: vi.fn() },
   } as unknown as GwenEngine;
+}
+
+function plainEngine(): GwenEngine {
+  const logger: IGwenLogger = {
+    debug() {},
+    info() {},
+    warn() {},
+    error() {},
+    child() {
+      return logger;
+    },
+  };
+  return {
+    provide() {},
+    inject(): undefined {
+      return undefined;
+    },
+    tryInject(): undefined {
+      return undefined;
+    },
+    hooks: {
+      hook() {},
+      removeHook() {},
+    },
+    logger,
+    run<T>(fn: () => T): T {
+      return fn();
+    },
+    disposables: {
+      add() {},
+      disposeAll() {},
+      size: 0,
+    },
+  };
 }
 
 // ─── TS-only plugin ───────────────────────────────────────────────────────────
@@ -48,14 +80,9 @@ describe("definePlugin() — TS-only plugin", () => {
     expect(p.name).toBe("MyPlugin");
   });
 
-  it("version field is forwarded", () => {
-    const P = definePlugin(() => ({ name: "P", version: "1.2.3", setup: vi.fn() }));
-    expect(P().version).toBe("1.2.3");
-  });
-
   it("plugin has no wasm property", () => {
     const P = definePlugin(() => ({ name: "P", setup: vi.fn() }));
-    expect((P() as any).wasm).toBeUndefined();
+    expect((P() as { wasm?: unknown }).wasm).toBeUndefined();
   });
 
   it("setup() is called with the engine argument", () => {
@@ -86,27 +113,6 @@ describe("definePlugin() — TS-only plugin", () => {
     expect(teardown).toHaveBeenCalledTimes(1);
   });
 
-  it("onUpdate() receives the dt argument (no api param)", () => {
-    const onUpdate = vi.fn();
-    const P = definePlugin(() => ({ name: "P", setup: vi.fn(), onUpdate }));
-    P().onUpdate!(0.016);
-    expect(onUpdate).toHaveBeenCalledWith(0.016);
-  });
-
-  it("onAfterUpdate() receives the dt argument", () => {
-    const onAfterUpdate = vi.fn();
-    const P = definePlugin(() => ({ name: "P", setup: vi.fn(), onAfterUpdate }));
-    P().onAfterUpdate!(0.033);
-    expect(onAfterUpdate).toHaveBeenCalledWith(0.033);
-  });
-
-  it("onRender() is called with no arguments", () => {
-    const onRender = vi.fn();
-    const P = definePlugin(() => ({ name: "P", setup: vi.fn(), onRender }));
-    P().onRender!();
-    expect(onRender).toHaveBeenCalledTimes(1);
-  });
-
   it("options are forwarded to the factory", () => {
     let captured: { volume?: number } = {};
     const P = definePlugin((opts: { volume?: number } = {}) => {
@@ -118,30 +124,25 @@ describe("definePlugin() — TS-only plugin", () => {
   });
 
   it("each factory call produces independent closure state", () => {
+    const seen: number[] = [];
     const P = definePlugin(() => {
       let count = 0;
       return {
         name: "Counter",
-        setup: vi.fn(),
-        onUpdate() {
-          count++;
-        },
-        getCount() {
-          return count;
+        setup(_engine: GwenEngine) {
+          count += 1;
+          seen.push(count);
         },
       };
     });
 
     const p1 = P();
     const p2 = P();
+    p1.setup(plainEngine());
+    p1.setup(plainEngine());
+    p2.setup(plainEngine());
 
-    p1.onUpdate!(0.016);
-    p1.onUpdate!(0.016);
-    p2.onUpdate!(0.016);
-
-    // TypeScript: p1 and p2 are the inferred return types with getCount()
-    expect((p1 as typeof p1 & { getCount(): number }).getCount()).toBe(2);
-    expect((p2 as typeof p2 & { getCount(): number }).getCount()).toBe(1);
+    expect(seen).toEqual([1, 2, 1]);
   });
 
   it("setup closure state persists across lifecycle calls", () => {
@@ -151,76 +152,42 @@ describe("definePlugin() — TS-only plugin", () => {
       setup(_e: GwenEngine) {
         log.push("setup");
       },
-      onUpdate(_dt: number) {
-        log.push("update");
-      },
       teardown() {
         log.push("teardown");
       },
     }));
 
     const p = P();
-    p.setup(mockEngine());
-    p.onUpdate!(0.016);
+    p.setup(plainEngine());
     p.teardown!();
 
-    expect(log).toEqual(["setup", "update", "teardown"]);
+    expect(log).toEqual(["setup", "teardown"]);
   });
 });
 
-// ─── Error reporting ──────────────────────────────────────────────────────────
+describe("definePlugin() — setup", () => {
+  it("the factory returns the factory object unchanged", () => {
+    const setup = (): void => {};
+    const plugin = { name: "P", setup };
+    const P = definePlugin(() => plugin);
+    expect(P().setup).toBe(setup);
+  });
 
-describe("definePlugin() — setup error reporting", () => {
-  it("a failing setup rejects with KIT:PLUGIN_SETUP_FAILED and keeps the cause", async () => {
+  it("a throwing setup propagates the same error instance", async () => {
     const cause = new Error("x");
     const P = definePlugin(() => ({
       name: "Broken",
-      setup() {
+      setup(_engine: GwenEngine) {
         throw cause;
       },
     }));
     let thrown: unknown;
     try {
-      await P().setup(mockEngine());
+      await P().setup(plainEngine());
     } catch (error) {
       thrown = error;
     }
-    expect(thrown).toBeInstanceOf(GwenError);
-    if (!(thrown instanceof GwenError)) return;
-    expect(thrown.code).toBe("KIT:PLUGIN_SETUP_FAILED");
-    expect(thrown.composable).toBe("definePlugin");
-    expect(thrown.cause).toBe(cause);
-  });
-
-  it("re-throws — does not swallow setup errors", async () => {
-    const P = definePlugin(() => ({
-      name: "Broken",
-      setup() {
-        throw new Error("boom");
-      },
-    }));
-    await expect(P().setup(mockEngine())).rejects.toThrow();
-  });
-
-  it("error message includes plugin name and original message", async () => {
-    const P = definePlugin(() => ({
-      name: "Broken",
-      setup() {
-        throw new Error("original cause");
-      },
-    }));
-    await expect(P().setup(mockEngine())).rejects.toThrow(/Plugin "Broken" setup failed\./);
-    let thrown: unknown;
-    try {
-      await P().setup(mockEngine());
-    } catch (error) {
-      thrown = error;
-    }
-    expect(thrown).toBeInstanceOf(GwenError);
-    if (!(thrown instanceof GwenError)) return;
-    expect(thrown.cause).toBeInstanceOf(Error);
-    if (!(thrown.cause instanceof Error)) return;
-    expect(thrown.cause.message).toBe("original cause");
+    expect(thrown).toBe(cause);
   });
 });
 
@@ -245,21 +212,21 @@ describe("definePlugin() — options variants", () => {
   });
 
   it("required options — Plugin(opts) passes values to factory", () => {
-    const P = definePlugin((opts: { speed: number }) => ({
+    let seen: number | undefined;
+    const P = definePlugin((opts: { speed?: number } = {}) => ({
       name: "Mover",
-      setup: vi.fn(),
-      getSpeed() {
-        return opts.speed;
+      setup(_engine: GwenEngine) {
+        seen = opts.speed;
       },
     }));
-    const p = P({ speed: 5 });
-    expect((p as typeof p & { getSpeed(): number }).getSpeed()).toBe(5);
+    P({ speed: 5 }).setup(plainEngine());
+    expect(seen).toBe(5);
   });
 
   it("multiple independent instances from same factory", () => {
-    const P = definePlugin((opts: { id: string }) => ({
-      name: `Plugin-${opts.id}`,
-      setup: vi.fn(),
+    const P = definePlugin((opts: { id?: string } = {}) => ({
+      name: `Plugin-${opts.id ?? ""}`,
+      setup() {},
     }));
     const p1 = P({ id: "alpha" });
     const p2 = P({ id: "beta" });

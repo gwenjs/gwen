@@ -211,9 +211,11 @@ describe("Physics2DPlugin", () => {
     expect(plugin.name).toBe("@gwenjs/physics2d");
   });
 
-  it("has a provides.physics key", () => {
+  it("does not declare provides, providesHooks, or extensions", () => {
     const plugin = Physics2DPlugin();
-    expect(plugin.provides).toHaveProperty("physics");
+    expect("provides" in plugin).toBe(false);
+    expect("providesHooks" in plugin).toBe(false);
+    expect("extensions" in plugin).toBe(false);
   });
 
   // ── physics2D() helper ────────────────────────────────────────────────────
