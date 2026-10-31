@@ -1126,12 +1126,24 @@ export interface InitWasmOptions {
   maxEntities?: number;
   /** URL of `gwen_core_factory.js`. */
   jsUrl?: string;
-  /** Optional URL to the WASM binary (gwen_core_bg.wasm). */
+  /**
+   * Optional URL to the WASM binary (gwen_core_bg.wasm).
+   * Excludes `wasmBytes` and `wasmModule`.
+   */
   wasmUrl?: string;
+  /**
+   * WASM bytes. Never fetched. Compiled once for this init, not cached.
+   */
+  wasmBytes?: BufferSource;
+  /**
+   * A compiled module. Never fetched. One Module serves any number of engines and workers.
+   */
+  wasmModule?: WebAssembly.Module;
   /**
    * Pre-imported glue factory: `import * as glue from "@gwenjs/core/wasm/<variant>/factory"`.
    * When set, the bridge builds no glue URL and runs no import(). Exclusive with `jsUrl`.
-   * The binary is `wasmUrl` when given, else the factory's own `wasmUrl`.
+   * The binary is `wasmBytes`, `wasmModule` or `wasmUrl` when one is given, else the factory's own `wasmUrl`.
+   * A `file:` factory `wasmUrl` is never fetched: init rejects with the missing-source error.
    */
   glue?: GwenCoreGlueFactoryModule;
   /**

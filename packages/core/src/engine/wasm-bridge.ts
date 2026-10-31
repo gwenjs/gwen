@@ -108,9 +108,35 @@ const _pkgWasmBase: string | null = (() => {
 
 // InitWasmOptions — extracted to ./wasm-bridge-types.ts
 
-/** `glue`, `jsUrl`, or `wasmUrl` is an explicit source. Later tickets add fields here. */
+/** `glue`, `jsUrl`, `wasmUrl`, `wasmBytes`, or `wasmModule` is an explicit source. */
 function hasSource(options: InitWasmOptions): boolean {
-  return options.glue !== undefined || options.jsUrl !== undefined || options.wasmUrl !== undefined;
+  return (
+    options.glue !== undefined ||
+    options.jsUrl !== undefined ||
+    options.wasmUrl !== undefined ||
+    options.wasmBytes !== undefined ||
+    options.wasmModule !== undefined
+  );
+}
+
+/** `URL.protocol`, or `""` when `url` has no scheme. A Node factory URL is `file:`. */
+function wasmUrlProtocol(url: string): string {
+  const scheme = url.indexOf(":");
+  if (scheme <= 0) return "";
+  return url.slice(0, scheme + 1);
+}
+
+function missingSource(variant: CoreVariant): GwenError {
+  return new GwenError(
+    CoreErrorCodes.WASM_LOAD_ERROR,
+    `No WASM source for variant "${variant}": pass glue or jsUrl, and wasmBytes, wasmModule or wasmUrl.`,
+    {
+      composable: "initWasm",
+      hint: __GWEN_DEV__
+        ? 'In Node: setupGwen({ variant, glue, wasmBytes }) with glue = await import("@gwenjs/core/wasm/<variant>/factory").'
+        : undefined,
+    },
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -338,13 +364,17 @@ export class WasmBridgeImpl implements WasmBridge {
    * Load and initialize the gwen_core WASM module for this bridge instance.
    *
    * @param variant The core variant to load ('light', 'physics2d', 'physics3d')
-   * @param options Initialization options (`glue`, urls, max entities, `wasmInstance`).
+   * @param options Initialization options (`glue`, bytes, a module, urls, max entities, `wasmInstance`).
    *   `wasmInstance: "isolated"` uses one instance per engine. The default is `"shared"`.
    * @throws {GwenError} `CORE:ENGINE_DISPOSED` when this bridge was disposed.
-   * @throws {GwenError} `CORE:WASM_LOAD_ERROR` when `glue`, `jsUrl`, or `wasmUrl` is passed again
+   * @throws {GwenError} `CORE:WASM_LOAD_ERROR` when `glue`, `jsUrl`, `wasmUrl`, `wasmBytes`, or `wasmModule` is passed again
    *   after init has started. A call with none of them returns the init already running.
    *   `glue` together with `jsUrl`, or a `glue` value that is not a factory module, uses this code.
-   *   `WebAssembly.LinkError` and `WebAssembly.CompileError` from `initSync` use this code.
+   *   More than one of `wasmUrl`, `wasmBytes`, or `wasmModule` uses this code, thrown before any await.
+   *   No source uses this code with the missing-source message.
+   *   `WebAssembly.LinkError` and `WebAssembly.CompileError` from `initSync`, and `WebAssembly.CompileError`
+   *   from `WebAssembly.compile(wasmBytes)`, use this code. For `wasmBytes` that do not compile, `cause` is
+   *   `WebAssembly.CompileError`.
    * @throws {GwenError} `CORE:WASM_VARIANT_MISMATCH` when `glue` names a different variant.
    * @throws {GwenError} `CORE:WASM_CAPACITY_EXHAUSTED` when `initSync` throws a `RangeError`
    *   or a value that is not an `Error`. The dev hint names the fallbacks.
@@ -366,7 +396,14 @@ export class WasmBridgeImpl implements WasmBridge {
       if (this._initPromise !== null) return this._initPromise;
     }
 
-    const { maxEntities = 10_000, jsUrl, wasmUrl, glue } = options;
+    const {
+      maxEntities = 10_000,
+      jsUrl,
+      wasmUrl,
+      glue,
+      wasmBytes,
+      wasmModule: passedModule,
+    } = options;
 
     if (glue !== undefined && jsUrl !== undefined) {
       throw new GwenError(
@@ -406,6 +443,20 @@ export class WasmBridgeImpl implements WasmBridge {
       }
     }
 
+    const given = (["wasmUrl", "wasmBytes", "wasmModule"] as const).filter(
+      (key) => options[key] !== undefined,
+    );
+    if (given.length > 1) {
+      throw new GwenError(
+        CoreErrorCodes.WASM_LOAD_ERROR,
+        `More than one WASM binary source was passed for variant "${variant}": ${given.join(", ")}.`,
+        {
+          composable: "initWasm",
+          hint: __GWEN_DEV__ ? "Pass exactly one of wasmBytes, wasmModule or wasmUrl." : undefined,
+        },
+      );
+    }
+
     this._poisoned = false;
     this._panicCause = null;
     this._fromInstance = false;
@@ -415,26 +466,24 @@ export class WasmBridgeImpl implements WasmBridge {
     this._activeVariant = variant;
 
     const variantPath = `${variant}/`;
-    let resolvedWasmUrl: string | null;
+    let resolvedWasmUrl: string | null = null;
     let readFactory: () => Promise<GwenCoreGlueFactoryModule>;
+    const binaryGiven = passedModule !== undefined || wasmBytes !== undefined;
     if (provided !== undefined) {
       const moduleGlue = provided;
       readFactory = () => Promise.resolve(moduleGlue);
-      resolvedWasmUrl = wasmUrl ?? moduleGlue.wasmUrl.href;
+      if (binaryGiven === false) {
+        resolvedWasmUrl = wasmUrl ?? moduleGlue.wasmUrl.href;
+      }
     } else {
       const resolvedJsUrl =
         jsUrl ?? (_pkgWasmBase ? `${_pkgWasmBase}${variantPath}gwen_core_factory.js` : null);
-      resolvedWasmUrl =
-        wasmUrl ?? (_pkgWasmBase ? `${_pkgWasmBase}${variantPath}gwen_core_bg.wasm` : null);
+      if (binaryGiven === false) {
+        resolvedWasmUrl =
+          wasmUrl ?? (_pkgWasmBase ? `${_pkgWasmBase}${variantPath}gwen_core_bg.wasm` : null);
+      }
       if (!resolvedJsUrl) {
-        throw new GwenError(
-          CoreErrorCodes.WASM_LOAD_ERROR,
-          `Unable to resolve the WASM URL for variant "${variant}".`,
-          {
-            composable: "initWasm",
-            hint: __GWEN_DEV__ ? "Make sure @gwenjs/core is correctly installed." : undefined,
-          },
-        );
+        throw missingSource(variant);
       }
       readFactory = () => loadGlueFactory(resolvedJsUrl);
     }
@@ -442,21 +491,23 @@ export class WasmBridgeImpl implements WasmBridge {
     this._initPromise = (async () => {
       const factory = await readFactory();
       if (this._disposed) this._throwDisposed();
-      if (resolvedWasmUrl === null) {
-        throw new GwenError(
-          CoreErrorCodes.WASM_LOAD_ERROR,
-          `Unable to resolve the WASM URL for variant "${variant}".`,
-          {
-            composable: "initWasm",
-            hint: __GWEN_DEV__ ? "Make sure @gwenjs/core is correctly installed." : undefined,
-          },
-        );
+      let compiled: WebAssembly.Module;
+      if (passedModule !== undefined) {
+        compiled = passedModule;
+      } else if (wasmBytes !== undefined) {
+        compiled = await WebAssembly.compile(wasmBytes);
+      } else if (
+        resolvedWasmUrl === null ||
+        (wasmUrl === undefined && wasmUrlProtocol(resolvedWasmUrl) === "file:")
+      ) {
+        throw missingSource(variant);
+      } else {
+        compiled = await getWasmModule(resolvedWasmUrl);
       }
-      const wasmModule = await getWasmModule(resolvedWasmUrl);
       if (this._disposed) this._throwDisposed();
-      checkGwenModule(wasmModule, factory.CONTRACT);
+      checkGwenModule(compiled, factory.CONTRACT);
       const provider = options.wasmInstance === "isolated" ? isolatedProvider : sharedProvider;
-      const acquired = provider.acquire(wasmModule, factory);
+      const acquired = provider.acquire(compiled, factory);
       const sharedGlue = provider === sharedProvider ? acquired.glue : null;
       this._sharedGlue = sharedGlue;
       if (sharedGlue !== null) registerSharedBridge(sharedGlue, this._instancePoisonerRef);
@@ -490,6 +541,15 @@ export class WasmBridgeImpl implements WasmBridge {
       this._wasmExports = null;
       if (err instanceof GwenError) {
         throw err;
+      }
+      if (err instanceof WebAssembly.CompileError) {
+        throw new GwenError(CoreErrorCodes.WASM_LOAD_ERROR, toSentence(err.message), {
+          composable: "initWasm",
+          cause: err,
+          hint: __GWEN_DEV__
+            ? "On a runtime that forbids code generation, pass a precompiled wasmModule."
+            : undefined,
+        });
       }
       const message = err instanceof Error ? err.message : String(err);
       throw new GwenError(

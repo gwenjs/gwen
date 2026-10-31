@@ -51,14 +51,32 @@ async function nodeWasmUrls(variant: CoreVariant): Promise<{ jsUrl?: string; was
 }
 
 // `glue` is the factory. Node still supplies the package binary, and does not add `jsUrl`.
+// `wasmBytes` or `wasmModule` skips that package `wasmUrl`. Without `glue`, Node still adds `jsUrl`.
 function nodeInitOptions(
   opts: GwenEngineOptions & InitWasmOptions,
   urls: { jsUrl?: string; wasmUrl?: string },
 ): InitWasmOptions {
+  if (opts.wasmBytes !== undefined || opts.wasmModule !== undefined) {
+    if (opts.glue !== undefined || urls.jsUrl === undefined) return opts;
+    return { ...opts, jsUrl: urls.jsUrl };
+  }
   if (opts.glue === undefined) return { ...opts, ...urls };
   const wasmUrl = opts.wasmUrl ?? urls.wasmUrl;
   if (wasmUrl === undefined) return opts;
   return { ...opts, wasmUrl };
+}
+
+function engineFieldsOf(opts: GwenEngineOptions & InitWasmOptions): GwenEngineOptions {
+  const {
+    glue: _glue,
+    jsUrl: _jsUrl,
+    wasmUrl: _wasmUrl,
+    wasmBytes: _wasmBytes,
+    wasmModule: _wasmModule,
+    wasmInstance: _wasmInstance,
+    ...engine
+  } = opts;
+  return engine;
 }
 
 /**
@@ -66,7 +84,8 @@ function nodeInitOptions(
  *
  * @param options - Engine configuration. All fields optional.
  *   In Node, when the package `wasm/` directory is found and `glue` is omitted, its URLs replace `jsUrl` and `wasmUrl`; when `glue` is set, only the package `wasmUrl` is added, and a caller `wasmUrl` wins.
- *   The other fields, including `wasmInstance`, go through as given. Omitted `wasmInstance` stays `"shared"` (#267).
+ *   `wasmBytes` or `wasmModule` skips that package `wasmUrl`. Without `glue`, Node still adds `jsUrl`.
+ *   Init fields are not stored on the engine. Omitted `wasmInstance` stays `"shared"` (#267).
  * @returns The engine. When `options._bridge` is omitted, the light bridge is loaded first.
  * The engine owns that bridge, so `stop()` disposes it. A caller that passes `_bridge`
  * calls `bridge.dispose()` after `stop()`.
@@ -83,12 +102,12 @@ export async function createEngine(
 ): Promise<GwenEngine> {
   validateEngineConfig(options ?? {});
   const opts = options ?? {};
-  if (opts._bridge !== undefined) return new GwenEngineImpl(opts);
+  if (opts._bridge !== undefined) return new GwenEngineImpl(engineFieldsOf(opts));
   const bridge = new WasmBridgeImpl();
   const variant = opts.variant ?? "light";
   const urls = await nodeWasmUrls(variant);
   await bridge.init(variant, nodeInitOptions(opts, urls));
-  return new GwenEngineImpl({ ...opts, _bridge: bridge, _ownsBridge: true });
+  return new GwenEngineImpl(engineFieldsOf({ ...opts, _bridge: bridge, _ownsBridge: true }));
 }
 
 /**
@@ -105,8 +124,7 @@ export async function createEngine(
  * must be mocked, call {@link createEngine} directly and pass a pre-configured
  * `WasmBridgeImpl` via the `_bridge` option (e.g. `createEngine({ _bridge: myBridge })`).
  *
- * @param options - Engine configuration. `variant` and `wasmInstance` are forwarded to `bridge.init`.
- *   An omitted `wasmInstance` stays `"shared"`.
+ * @param options - Engine configuration. The init fields (`glue`, `jsUrl`, `wasmUrl`, `wasmBytes`, `wasmModule`, `wasmInstance`) and `variant`/`maxEntities` are forwarded to `bridge.init`; the init fields are not stored on the engine.
  * @returns A fully initialised {@link GwenEngine} with WASM ready.
  *
  * @example
