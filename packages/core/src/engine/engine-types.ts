@@ -42,6 +42,7 @@ export type { GwenProvides } from "@gwenjs/schema";
 
 /**
  * Options for loading a community WASM module via {@link GwenEngine.loadWasmModule}.
+ * Pass exactly one of `url`, `bytes` or `module`.
  *
  * @template Exports - Shape of the module's exported functions/memories.
  *
@@ -53,12 +54,21 @@ export type { GwenProvides } from "@gwenjs/schema";
  *   step: (h, dt) => (h.exports as { step: (dt: number) => void }).step(dt),
  * })
  * ```
+ *
+ * @example
+ * ```typescript
+ * const handle = await engine.loadWasmModule({ name: 'myMod', bytes: wasmBytes })
+ * ```
  */
 export interface WasmModuleOptions<Exports extends WebAssembly.Exports = WebAssembly.Exports> {
   /** Unique name used to retrieve the module later via {@link GwenEngine.getWasmModule}. */
   readonly name: string;
   /** URL of the `.wasm` binary. Accepts a `URL` object or a string. */
-  readonly url: URL | string;
+  readonly url?: URL | string | undefined;
+  /** Raw WASM bytes. Compiled in process, with no fetch. */
+  readonly bytes?: BufferSource | undefined;
+  /** Already compiled module. Instantiated with no fetch and no compile. */
+  readonly module?: WebAssembly.Module | undefined;
   /**
    * Named memory regions to expose via `handle.region(name)`.
    * Each region creates a {@link WasmRegionView} backed by WASM linear memory.
