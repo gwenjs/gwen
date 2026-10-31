@@ -145,7 +145,9 @@ it("without glue the same Node call rejects; with glue it resolves", async () =>
       await settled(() => bridgeA.init("light", { wasmUrl: dataUrl("light") })),
     );
     expect(rejected.code).toBe("CORE:WASM_LOAD_ERROR");
-    expect(rejected.message).toContain('Unable to resolve the WASM URL for variant "light".');
+    expect(rejected.message).toContain(
+      'No WASM source for variant "light": pass glue or jsUrl, and wasmBytes, wasmModule or wasmUrl.',
+    );
     expect(bridgeA.isActive()).toBe(false);
 
     const booted = await settled(() =>
@@ -347,17 +349,17 @@ it("createEngine with glue in Node boots and adds no jsUrl", async () => {
 it("init with glue and no wasmUrl reads the binary from the factory wasmUrl", async () => {
   const bridge = new WasmBridgeImpl();
   const seen: string[] = [];
+  const factoryWasmUrl = new URL("https://wasm.example.test/light/gwen_core_bg.wasm");
+  const glue = openGlue({ ...light, wasmUrl: factoryWasmUrl });
   try {
     globalThis.fetch = function fetchBinary(input: string | URL | Request): Promise<Response> {
       seen.push(fetchInputUrl(input));
       throw new Error("wasm fetch blocked");
     };
-    const rejected = asGwenError(
-      await settled(() => bridge.init("light", { glue: openGlue(light) })),
-    );
+    const rejected = asGwenError(await settled(() => bridge.init("light", { glue })));
     expect(rejected.code).toBe("CORE:WASM_LOAD_ERROR");
     expect(rejected.message).toContain("wasm fetch blocked.");
-    expect(seen).toEqual([light.wasmUrl.href]);
+    expect(seen).toEqual([factoryWasmUrl.href]);
   } finally {
     bridge.dispose();
     globalThis.fetch = realFetch;

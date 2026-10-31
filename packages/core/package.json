@@ -110,6 +110,9 @@
       "types": "./wasm/physics3d-dev/gwen_core_factory.d.ts",
       "import": "./wasm/physics3d-dev/gwen_core_factory.js"
     },
+    "./wasm/light.wasm": "./wasm/light/gwen_core_bg.wasm",
+    "./wasm/physics2d.wasm": "./wasm/physics2d/gwen_core_bg.wasm",
+    "./wasm/physics3d.wasm": "./wasm/physics3d/gwen_core_bg.wasm",
     "./package.json": "./package.json"
   },
   "scripts": {

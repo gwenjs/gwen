@@ -1,0 +1,3 @@
+{
+  "excludeEntrypoints": ["./wasm/light.wasm", "./wasm/physics2d.wasm", "./wasm/physics3d.wasm"]
+}
