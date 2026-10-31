@@ -331,7 +331,7 @@ Networked play is not part of GWEN 1.0. Transport, prediction, and interest mana
 
 These are 1.0 targets. A line marked Target is not true on this tree.
 
-1. Target (#89): the engine starts in Node with no DOM globals, from bytes or a compiled module, for the light, 2D, and 3D variants.
+1. The engine starts in Node with no DOM globals, from bytes or a compiled module, for the light, 2D, and 3D variants.
 2. `startExternal()` plus one `advance(1 / physicsHz)` runs one fixed step and one render. `engine:afterTick` runs once per step, and `frameCount` counts those steps. `advance(dt)` accumulates on the same clock as `start()`.
 3. With `physicsHz === 0`, `advance(dt)` runs one step. Its `dt` is the caller value, capped by `maxDeltaSeconds` and scaled by `timeScale`, and it does not come from the wall clock. With `physicsHz > 0`, the capped caller value is added to the accumulator and each step uses `1 / physicsHz` scaled by `timeScale`.
 4. Target (#59): several engines in one process share no runtime state, and `stop()` on one engine leaves the others running. The bridge does not store a glue module on `globalThis`.
@@ -342,6 +342,38 @@ These are 1.0 targets. A line marked Target is not true on this tree.
 
 1.0 does not provide lockstep, rollback, a world snapshot, tick-indexed input, or an `advance(dt, inputs)` overload. Two peers on different platforms may diverge.
 :::
+
+## Headless / server
+
+The engine runs in Node with no DOM. The only supported server loop is `startExternal()`, then `advance(dt)` once per tick, then `stop()`. The Multiplayer (1.0) note above names the same loop.
+
+Read the `.wasm` bytes from the packaged binary. Pass them with the pre-imported glue. Nothing is fetched.
+
+```ts check
+import { readFile } from "node:fs/promises";
+import { setupGwen } from "@gwenjs/core";
+import type { GwenCoreGlueFactoryModule } from "@gwenjs/core/internal";
+
+async function runServer(glue: GwenCoreGlueFactoryModule): Promise<number> {
+  const wasmBytes = await readFile(glue.wasmUrl);
+  const engine = await setupGwen({ variant: "light", glue, wasmBytes, wasmInstance: "isolated" });
+  try {
+    await engine.startExternal();
+    for (let i = 0; i < 10; i++) await engine.advance(1 / 60);
+    return engine.frameCount;
+  } finally {
+    await engine.stop();
+  }
+}
+```
+
+The `GwenCoreGlueFactoryModule` import only types the helper. Real code passes `import * as glue from "@gwenjs/core/wasm/light/factory"` directly.
+
+`wasmInstance: "isolated"` gives each engine its own WASM instance and linear memory. To compile once and share the result, pass `wasmModule: await WebAssembly.compile(wasmBytes)` instead of `wasmBytes`. Use `variant: "physics2d"` or `"physics3d"` with the matching `@gwenjs/core/wasm/<variant>/factory` import.
+
+`engine.loadWasmModule({ name, bytes })` loads a community module in a server with no fetch. Pass `module` for a compiled `WebAssembly.Module`. Pass exactly one of `url`, `bytes` or `module`. Zero or several, or invalid bytes, reject with `CORE:WASM_LOAD_ERROR`.
+
+The suite runs on Node 22. Bun and Deno are untested.
 
 ## API Summary
 

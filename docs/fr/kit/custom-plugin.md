@@ -606,12 +606,22 @@ export const PhysicsPlugin = definePlugin(() => ({
 }))
 ```
 
+Donnez le binaire par `url`, `bytes` ou `module`, exactement un des trois. `bytes` et `module` ne font aucun téléchargement, ce qui convient à Node :
+
+```typescript
+import { readFile } from 'node:fs/promises'
+
+const handle = await engine.loadWasmModule({ name: 'my-physics', bytes: await readFile('./my-physics.wasm') })
+```
+
 ### WasmModuleOptions
 
 | Champ | Type | Description |
 |---|---|---|
 | `name` | `string` | Identifiant unique — utilisez avec `useWasmModule('name')` dans les systèmes |
-| `url` | `URL \| string` | Chemin vers le binaire `.wasm` |
+| `url` | `URL \| string` | Chemin vers le binaire `.wasm`. Téléchargé. Exactement un parmi `url`, `bytes`, `module` |
+| `bytes` | `BufferSource` | Octets `.wasm` bruts. Compilés dans le processus, sans téléchargement |
+| `module` | `WebAssembly.Module` | Module déjà compilé. Ni téléchargement ni compilation |
 | `memory.regions` | `WasmMemoryRegion[]` | Tranches nommées de la mémoire linéaire WASM |
 | `channels` | `WasmChannelOptions[]` | Ring buffers pour l'échange de messages TS↔WASM |
 | `transformRegion` | `string` | Nom optionnel d'une entrée de `memory.regions` qui reçoit la copie des transforms à chaque image |

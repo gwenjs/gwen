@@ -292,7 +292,7 @@ Le jeu en réseau ne fait pas partie de GWEN 1.0. Le transport, la prédiction e
 
 Ce sont des cibles 1.0. Une ligne marquée Cible n'est pas vraie dans le code actuel.
 
-1. Cible (#89) : le moteur démarre dans Node sans globaux DOM, depuis des octets ou un module compilé, pour les variantes light, 2D et 3D.
+1. Le moteur démarre dans Node sans globaux DOM, depuis des octets ou un module compilé, pour les variantes light, 2D et 3D.
 2. `startExternal()` plus un `advance(1 / physicsHz)` exécute un pas fixe et un rendu. `engine:afterTick` s'exécute une fois par pas, et `frameCount` compte ces pas. `advance(dt)` accumule sur la même horloge que `start()`.
 3. Avec `physicsHz === 0`, `advance(dt)` exécute un pas. Son `dt` est la valeur de l'appelant, plafonnée par `maxDeltaSeconds` et multipliée par `timeScale`. Il ne vient pas de l'horloge murale. Avec `physicsHz > 0`, la valeur plafonnée est ajoutée à l'accumulateur et chaque pas utilise `1 / physicsHz` multiplié par `timeScale`.
 4. Cible (#59) : plusieurs moteurs dans un même processus ne partagent pas d'état d'exécution, et `stop()` sur un moteur laisse les autres tourner. Le pont ne garde pas de module glue sur `globalThis`.
@@ -303,6 +303,38 @@ Ce sont des cibles 1.0. Une ligne marquée Cible n'est pas vraie dans le code ac
 
 La 1.0 ne fournit ni lockstep, ni rollback, ni snapshot du monde, ni entrée indexée par tick, ni surcharge `advance(dt, inputs)`. Deux pairs sur des plateformes différentes peuvent diverger.
 :::
+
+## Sans affichage / serveur
+
+Le moteur tourne dans Node sans DOM. La seule boucle serveur prise en charge est `startExternal()`, puis `advance(dt)` une fois par tick, puis `stop()`. La note Multijoueur (1.0) plus haut nomme la même boucle.
+
+Lisez les octets `.wasm` depuis le binaire livré dans le paquet. Passez-les avec le glue importé à l'avance. Rien n'est téléchargé.
+
+```ts check
+import { readFile } from "node:fs/promises";
+import { setupGwen } from "@gwenjs/core";
+import type { GwenCoreGlueFactoryModule } from "@gwenjs/core/internal";
+
+async function runServer(glue: GwenCoreGlueFactoryModule): Promise<number> {
+  const wasmBytes = await readFile(glue.wasmUrl);
+  const engine = await setupGwen({ variant: "light", glue, wasmBytes, wasmInstance: "isolated" });
+  try {
+    await engine.startExternal();
+    for (let i = 0; i < 10; i++) await engine.advance(1 / 60);
+    return engine.frameCount;
+  } finally {
+    await engine.stop();
+  }
+}
+```
+
+L'import `GwenCoreGlueFactoryModule` ne sert qu'à typer la fonction. Le vrai code passe directement `import * as glue from "@gwenjs/core/wasm/light/factory"`.
+
+`wasmInstance: "isolated"` donne à chaque moteur sa propre instance WASM et sa propre mémoire linéaire. Pour compiler une fois et partager le résultat, passez `wasmModule: await WebAssembly.compile(wasmBytes)` à la place de `wasmBytes`. Utilisez `variant: "physics2d"` ou `"physics3d"` avec l'import `@gwenjs/core/wasm/<variant>/factory` correspondant.
+
+`engine.loadWasmModule({ name, bytes })` charge un module communautaire sur un serveur sans téléchargement. Passez `module` pour un `WebAssembly.Module` déjà compilé. Passez exactement un parmi `url`, `bytes` ou `module`. Zéro ou plusieurs, ou des octets invalides, rejettent avec `CORE:WASM_LOAD_ERROR`.
+
+La suite tourne sur Node 22. Bun et Deno ne sont pas testés.
 
 ## Résumé de l'API
 
