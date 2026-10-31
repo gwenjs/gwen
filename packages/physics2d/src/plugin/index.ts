@@ -21,7 +21,6 @@ import type {
   Physics2DConfig,
   Physics2DAPI,
   Physics2DPrefabExtension,
-  Physics2DPluginHooks,
   CollisionContact,
   InternalCollisionEvent,
   InternalCollisionEventsBatch,
@@ -792,9 +791,6 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
 
   return {
     name: "@gwenjs/physics2d",
-    provides: { physics: {} as Physics2DAPI },
-    providesHooks: {} as Physics2DPluginHooks,
-    extensions: { prefab: {} as Physics2DPrefabExtension },
 
     // ── Lifecycle ──────────────────────────────────────────────────────
 
