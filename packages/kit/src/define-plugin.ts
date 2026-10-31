@@ -8,7 +8,7 @@
  * ```typescript
  * import { definePlugin } from '@gwenjs/kit'
  *
- * export const AudioPlugin = definePlugin((config: AudioConfig) => ({
+ * export const AudioPlugin = definePlugin((config: AudioConfig = {}) => ({
  *   name: 'AudioPlugin',
  *   setup(engine) {
  *     const manager = new AudioManager(config)
@@ -23,8 +23,11 @@
  * ```
  */
 
-import { GwenError, type GwenEngineBase, type GwenPlugin } from "@gwenjs/schema";
-import { KitErrorCodes } from "./error-codes.js";
+import {
+  GWEN_PLUGIN_LIFECYCLE_HOOKS,
+  type ForbiddenPluginKey,
+  type GwenPlugin,
+} from "@gwenjs/schema";
 
 /**
  * A typed factory function returned by {@link definePlugin}.
@@ -41,12 +44,28 @@ export type GwenPluginFactory<Options, P extends GwenPlugin> = [Options] extends
   : (options?: Options) => P;
 
 /**
+ * Compile-time message for a key `definePlugin` does not accept.
+ * A lifecycle key names the hook to register inside `setup`.
+ * Any other extra key names the keys a plugin object may declare.
+ */
+export type PluginKeyError<K extends PropertyKey> = K extends ForbiddenPluginKey
+  ? `"${K}" is never called by the engine. In setup(), use engine.hooks.hook("${(typeof GWEN_PLUGIN_LIFECYCLE_HOOKS)[K]}", …)`
+  : `"${K & string}" is not a GwenPlugin key (allowed: name, setup, teardown, onError, requires)`;
+
+/**
+ * `TPlugin` with every key outside {@link GwenPlugin} replaced by {@link PluginKeyError}.
+ * The factory return is checked against this, so those keys fail at compile time.
+ */
+export type ExactPlugin<P extends GwenPlugin> = P & {
+  [K in Exclude<keyof P, keyof GwenPlugin>]: PluginKeyError<K>;
+};
+
+/**
  * Define a GWEN plugin via a factory function.
  *
  * The factory receives optional options and returns a plain object conforming
- * to the {@link GwenPlugin} interface. `definePlugin` wraps the factory and
- * returns a typed factory function. Plugin setup errors are automatically
- * caught, logged, and re-thrown as {@link GwenError} with `KIT:PLUGIN_SETUP_FAILED`.
+ * to the {@link GwenPlugin} interface. `definePlugin` returns that object
+ * unchanged. A `setup` failure reaches the caller as the original throw.
  *
  * @typeParam TOptions - The type of options the factory accepts. Inferred from
  *   the factory parameter — leave it unspecified for automatic inference.
@@ -57,6 +76,8 @@ export type GwenPluginFactory<Options, P extends GwenPlugin> = [Options] extends
  *   is invoked, giving every plugin instance its own closure state.
  * @returns A typed {@link GwenPluginFactory}. Call it (with options if required)
  *   to get a plugin instance ready for `engine.use()`.
+ *   Keys the engine never calls (`onUpdate`, `onRender`, …) are a type error.
+ *   Register that work with `engine.hooks.hook` inside `setup`.
  *
  * @example
  * ```typescript
@@ -83,30 +104,10 @@ export type GwenPluginFactory<Options, P extends GwenPlugin> = [Options] extends
  * ```
  */
 export function definePlugin<TOptions, TPlugin extends GwenPlugin>(
-  factory: (options?: TOptions) => TPlugin,
+  factory: (options?: TOptions) => ExactPlugin<TPlugin>,
 ): GwenPluginFactory<TOptions extends undefined ? void : TOptions, TPlugin> {
   function PluginFactory(options?: TOptions): TPlugin {
-    const plugin = factory(options);
-
-    const originalSetup = plugin.setup;
-    if (originalSetup) {
-      // eslint-disable-next-line @typescript-eslint/no-misused-promises
-      plugin.setup = async (engine: GwenEngineBase) => {
-        const log = engine.logger?.child?.(`plugin:${plugin.name}`) ?? null;
-        try {
-          await originalSetup.call(plugin, engine);
-        } catch (err) {
-          log?.error("Plugin setup failed", { cause: String(err) });
-          throw new GwenError(
-            KitErrorCodes.PLUGIN_SETUP_FAILED,
-            `Plugin "${plugin.name}" setup failed.`,
-            { composable: "definePlugin", cause: err },
-          );
-        }
-      };
-    }
-
-    return plugin;
+    return factory(options);
   }
 
   return PluginFactory as unknown as GwenPluginFactory<

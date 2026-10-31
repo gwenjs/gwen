@@ -1,10 +1,11 @@
 /**
  * @file Observability composables.
  *
- * `useLogger()`, `useErrorReporter()` and `usePerfMark()` read the logger of
- * the active scope. Call them inside a defineSystem(), defineActor() or
- * defineScene() factory, or in a plugin `setup()`. Outside any scope,
- * including after an `await` in plugin `setup()`, they throw
+ * `useLogger()` and `usePerfMark()` read the logger of the active scope.
+ * `useErrorReporter().report` throws a `GwenError` (code `NAMESPACE:REASON`,
+ * optional cause) and writes no log. Call them inside a defineSystem(),
+ * defineActor() or defineScene() factory, or in a plugin `setup()`. Outside
+ * any scope, including after an `await` in plugin `setup()`, they throw
  * `GwenContextError` with code `CORE:OUTSIDE_ENGINE_CONTEXT`.
  *
  * @example
@@ -54,7 +55,7 @@ export function useLogger(): IGwenLogger {
 }
 
 /**
- * Reports a typed error on the scope-tagged logger, then throws `GwenError`.
+ * Throws a typed `GwenError`. Does not write a log entry.
  *
  * Throws `GwenContextError` (`CORE:OUTSIDE_ENGINE_CONTEXT`) outside any scope,
  * same as {@link useLogger}.
@@ -63,24 +64,24 @@ export function useLogger(): IGwenLogger {
  * ```typescript
  * const report = useErrorReporter()
  * if (!config.apiKey) {
- *   report.report('CONFIG_ERROR', 'Missing API key')
+ *   report.report('APP:CONFIG', 'Missing API key')
  * }
  * ```
  */
 export function useErrorReporter() {
-  const log = useLogger();
+  // Throws outside a scope. report() writes no log.
+  useLogger();
   return {
     /**
-     * Report an error with a code and message.
-     * Always throws after logging.
+     * Throw a typed error. Does not log.
      *
-     * @param code - Error code (e.g., 'CONFIG_ERROR', 'VALIDATION_ERROR')
-     * @param message - Human-readable error message
-     * @throws {GwenError} Always throws with the structured error message
+     * @param code - `NAMESPACE:REASON` code.
+     * @param message - Human-readable error message.
+     * @param cause - Original thrown value, when there is one.
+     * @throws {GwenError} Always.
      */
-    report(code: string, message: string): never {
-      log.error(`[${code}] ${message}`);
-      throw new GwenError(code, message, { composable: "useErrorReporter" });
+    report(code: `${string}:${string}`, message: string, cause?: unknown): never {
+      throw new GwenError(code, message, { composable: "useErrorReporter", cause });
     },
   };
 }
