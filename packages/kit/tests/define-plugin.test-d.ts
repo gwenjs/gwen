@@ -1,5 +1,6 @@
 import { describe, expectTypeOf, it } from "vitest";
 import { definePlugin } from "@gwenjs/kit/plugin";
+import type { PluginKeyError } from "../src/define-plugin.js";
 
 describe("definePlugin", () => {
   it("rejects onBeforeUpdate", () => {
@@ -98,5 +99,14 @@ describe("definePlugin", () => {
     expectTypeOf(withOptions).toBeCallableWith();
     expectTypeOf(withOptions).toBeCallableWith({ n: 1 });
     expectTypeOf(withOptions({ n: 1 }).name).toEqualTypeOf<string>();
+  });
+
+  it("PluginKeyError names the hook and the bad key", () => {
+    expectTypeOf<
+      PluginKeyError<"onRender">
+    >().toEqualTypeOf<`"onRender" is never called by the engine. In setup(), use engine.hooks.hook("engine:render", …)`>();
+    expectTypeOf<
+      PluginKeyError<"version">
+    >().toEqualTypeOf<`"version" is not a GwenPlugin key (allowed: name, setup, teardown, onError, requires)`>();
   });
 });

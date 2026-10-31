@@ -10,35 +10,30 @@ npm install @gwenjs/kit
 
 ## definePlugin
 
-`definePlugin` creates a self-contained, reusable game system. Plugins declare lifecycle hooks (`onSetup`, `onUpdate`, `onDestroy`) and expose a typed service API accessible to actors and other plugins.
+`definePlugin` creates a self-contained, reusable game system. A plugin has a `name`, a `setup(engine)`, and an optional `teardown`. Register frame work with `engine.hooks.hook` inside `setup`.
 
 ```typescript
 import { definePlugin } from "@gwenjs/kit/plugin";
 
-export const MyPlugin = definePlugin((config: MyConfig = {}) => {
+export const MyPlugin = definePlugin((config: { debug?: boolean } = {}) => {
   let score = 0;
 
   return {
-    id: "my-plugin",
+    name: "my-plugin",
 
-    onSetup(engine) {
-      // Called once when the plugin is registered
+    setup(engine) {
+      engine.provide("my-plugin", {
+        add(amount: number) {
+          score += amount;
+        },
+      });
+      engine.hooks.hook("engine:update", () => {
+        if (config.debug) score += 1;
+      });
     },
 
-    onUpdate(engine, delta) {
-      // Called every frame — delta is in seconds
-    },
-
-    onDestroy() {
+    teardown() {
       score = 0;
-    },
-
-    // Public API exposed to actors via useMyPlugin()
-    api: {
-      getScore: () => score,
-      addScore: (n: number) => {
-        score += n;
-      },
     },
   };
 });
@@ -60,24 +55,24 @@ export const MyModule = defineGwenModule({
 
 ## Plugin lifecycle
 
-| Hook                      | When                  | Typical use                             |
-| ------------------------- | --------------------- | --------------------------------------- |
-| `onSetup(engine)`         | Once, after WASM init | Register components, allocate resources |
-| `onUpdate(engine, delta)` | Every frame           | Sync physics, update state machines     |
-| `onDestroy()`             | Scene teardown        | Free resources, cancel subscriptions    |
+| Piece                                    | When                                   | Typical use                          |
+| ---------------------------------------- | -------------------------------------- | ------------------------------------ |
+| `setup(engine)`                          | Once, when the plugin is registered    | Register services and hook listeners |
+| `engine.hooks.hook("engine:update", fn)` | Every frame, registered inside `setup` | Sync physics, update state machines  |
+| `teardown()`                             | `engine.unuse` or `engine.stop`        | Free resources, cancel subscriptions |
 
 ## Accessing plugin services from actors
 
-Plugins that expose an `api` object can be accessed in actors via `usePlugin`:
+Register a service in `setup` with `engine.provide`. Actors read it with `useService`. A typed key augments `GwenProvides` (`packages/schema/src/plugin.ts`).
 
 ```typescript
-import type { MyPluginAPI } from "./my-plugin";
+import { onUpdate, useService } from "@gwenjs/core/system";
 
 const PlayerActor = defineActor(PlayerPrefab, () => {
-  const my = usePlugin<MyPluginAPI>("my-plugin");
+  const score = useService("my-plugin");
 
   onUpdate(() => {
-    my.addScore(1);
+    score.add(1);
   });
 });
 ```
