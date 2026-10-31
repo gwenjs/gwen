@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "file": "packages/kit/tests/define-plugin.test-d.ts",
+    "rule": "ts-expect-error",
+    "reason": "A compile-time test: each of the 7 lifecycle keys and `version` must be a type error, so the test needs one expect-error directive per key. An unused directive fails the typecheck run.",
+    "ticket": "#73"
+  }
+]
