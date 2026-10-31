@@ -51,21 +51,47 @@ interface WasmModuleEntry {
 
 function wasmLoadError(
   name: string,
-  url: URL | string,
+  source: string,
   stage: "load" | "instantiate",
   cause: unknown,
 ): GwenError {
-  const shown = String(url);
   const detail = cause instanceof Error ? cause.message : String(cause);
   const lead =
     stage === "load"
-      ? `Failed to load WASM module "${name}" from "${shown}": ${detail}`
-      : `Failed to instantiate WASM module "${name}" from "${shown}": ${detail}`;
+      ? `Failed to load WASM module "${name}" from ${source}: ${detail}`
+      : `Failed to instantiate WASM module "${name}" from ${source}: ${detail}`;
   const what = toSentence(lead);
   return new GwenError(CoreErrorCodes.WASM_LOAD_ERROR, what, {
     composable: "engine.loadWasmModule",
     cause,
   });
+}
+
+/** Quoted for a URL. Bytes and a precompiled module stay unquoted. */
+function sourceLabel<Exports extends WebAssembly.Exports>(
+  options: WasmModuleOptions<Exports>,
+): string {
+  if (options.url !== undefined) return `"${String(options.url)}"`;
+  if (options.bytes !== undefined) return `bytes (${options.bytes.byteLength} bytes)`;
+  if (options.module !== undefined) return "a precompiled module";
+  return String(options.url);
+}
+
+async function fetchBytes<Exports extends WebAssembly.Exports>(
+  options: WasmModuleOptions<Exports>,
+): Promise<ArrayBuffer> {
+  const url = options.url;
+  // The count check guarantees a url. `String` only fills the type hole.
+  const target = url instanceof URL ? url.toString() : typeof url === "string" ? url : String(url);
+  const response = await fetch(target);
+  if (!response.ok) {
+    throw new GwenError(
+      CoreErrorCodes.WASM_LOAD_ERROR,
+      `Fetch of WASM module "${options.name}" from ${sourceLabel(options)} failed with status ${response.status} ${response.statusText}.`,
+      { composable: "engine.loadWasmModule" },
+    );
+  }
+  return response.arrayBuffer();
 }
 
 function transformRegionWhat(moduleName: string, regionName: string, detail: string): string {
@@ -87,6 +113,16 @@ export class WasmModuleRunner {
     options: WasmModuleOptions<Exports>,
   ): Promise<WasmModuleHandle<Exports>> {
     this.deps.assertState("loadWasmModule");
+    const given = [options.url, options.bytes, options.module].filter(
+      (source) => source !== undefined,
+    ).length;
+    if (given !== 1) {
+      throw new GwenError(
+        CoreErrorCodes.WASM_LOAD_ERROR,
+        `loadWasmModule("${options.name}") needs exactly one of url, bytes or module; got ${given}.`,
+        { composable: "engine.loadWasmModule" },
+      );
+    }
     const existing = this._wasmModules.get(options.name);
     if (existing) {
       return existing.handle as WasmModuleHandle<Exports>;
@@ -109,18 +145,8 @@ export class WasmModuleRunner {
     let wasmModule: WebAssembly.Module;
     let probeOffset: number | undefined;
     try {
-      const response = await fetch(
-        options.url instanceof URL ? options.url.toString() : options.url,
-      );
-      if (!response.ok) {
-        throw new GwenError(
-          CoreErrorCodes.WASM_LOAD_ERROR,
-          `Fetch of WASM module "${options.name}" from "${String(options.url)}" failed with status ${response.status} ${response.statusText}.`,
-          { composable: "engine.loadWasmModule" },
-        );
-      }
-      const buffer = await response.arrayBuffer();
-      wasmModule = await WebAssembly.compile(buffer);
+      wasmModule =
+        options.module ?? (await WebAssembly.compile(options.bytes ?? (await fetchBytes(options))));
       if (declared) {
         const exportName = `gwen_${declared.name}_ptr`;
         const hasPtrExport = WebAssembly.Module.exports(wasmModule).some(
@@ -137,14 +163,14 @@ export class WasmModuleRunner {
       }
     } catch (err) {
       if (err instanceof GwenError) throw err;
-      throw wasmLoadError(options.name, options.url, "load", err);
+      throw wasmLoadError(options.name, sourceLabel(options), "load", err);
     }
 
     let instance: WebAssembly.Instance;
     try {
       instance = await WebAssembly.instantiate(wasmModule, { gwen: gwenImports });
     } catch (err) {
-      throw wasmLoadError(options.name, options.url, "instantiate", err);
+      throw wasmLoadError(options.name, sourceLabel(options), "instantiate", err);
     }
 
     // Plugin ABI version before any resolved-region check. Outside both
