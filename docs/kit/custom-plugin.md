@@ -609,12 +609,22 @@ export const PhysicsPlugin = definePlugin(() => ({
 }))
 ```
 
+Give the binary as `url`, `bytes` or `module`, exactly one of the three. `bytes` and `module` do no fetch, which suits Node:
+
+```typescript
+import { readFile } from 'node:fs/promises'
+
+const handle = await engine.loadWasmModule({ name: 'my-physics', bytes: await readFile('./my-physics.wasm') })
+```
+
 ### WasmModuleOptions
 
 | Field | Type | Description |
 |---|---|---|
 | `name` | `string` | Unique identifier — use with `useWasmModule('name')` in systems |
-| `url` | `URL \| string` | Path to the `.wasm` binary |
+| `url` | `URL \| string` | Path to the `.wasm` binary. Fetched. Exactly one of `url`, `bytes`, `module` |
+| `bytes` | `BufferSource` | Raw `.wasm` bytes. Compiled in process, no fetch |
+| `module` | `WebAssembly.Module` | Already compiled module. No fetch, no compile |
 | `memory.regions` | `WasmMemoryRegion[]` | Named slices of WASM linear memory |
 | `channels` | `WasmChannelOptions[]` | Ring buffers for TS↔WASM message passing |
 | `transformRegion` | `string` | Optional name of a `memory.regions` entry that receives the per-frame transform copy |
