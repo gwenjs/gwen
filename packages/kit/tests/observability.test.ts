@@ -192,27 +192,30 @@ describe("useErrorReporter", () => {
     expect(thrown.code).toBe("CORE:OUTSIDE_ENGINE_CONTEXT");
   });
 
-  it("useErrorReporter reports a typed error on the scope-tagged logger", () => {
+  it("report throws GwenError and writes no log entry", () => {
     expect(typeof kit.useErrorReporter).toBe("function");
     const entries: Recorded[] = [];
+    const cause = new Error("missing");
     kit._setCurrentScope(
       scopeWith(recordingLogger(entries), { type: "system", id: "system#1", name: "Mover" }),
     );
     let thrown: unknown;
     try {
-      const report = kit.useErrorReporter();
+      const reporter: {
+        report: (code: `${string}:${string}`, message: string, cause?: unknown) => never;
+      } = kit.useErrorReporter();
       thrown = thrownBy(() => {
-        report.report("X", "m");
+        reporter.report("KIT:X", "m", cause);
       });
     } finally {
       kit._setCurrentScope(null);
     }
-    expect(entries).toEqual([
-      { level: "error", message: "[X] m", tag: "system:Mover", entityId: undefined },
-    ]);
+    expect(entries).toEqual([]);
     expect(thrown instanceof GwenError).toBe(true);
     if (!(thrown instanceof GwenError)) return;
-    expect(thrown.code).toBe("X");
+    expect(thrown.code).toBe("KIT:X");
+    expect(thrown.composable).toBe("useErrorReporter");
+    expect(thrown.cause).toBe(cause);
   });
 });
 

@@ -48,12 +48,6 @@ function head(error: GwenError): string {
   return error.message.split("\n")[0] ?? "";
 }
 
-function causeOf(error: unknown): unknown {
-  expect(error).toBeInstanceOf(GwenError);
-  if (!(error instanceof GwenError)) return undefined;
-  return error.cause;
-}
-
 async function open() {
   const engine = await createEngine({ variant: "physics3d", maxEntities: 8 });
   engines.push(engine);
@@ -139,11 +133,10 @@ describe("physics3d error messages", () => {
     ],
   ] as const)("%s names itself", async (name, call) => {
     const error = await caught(call);
-    const context = name.endsWith(".setup") ? causeOf(error) : error;
-    expect(context).toBeInstanceOf(GwenContextError);
-    if (!(context instanceof GwenContextError)) return;
-    expect(context.code).toBe("CORE:OUTSIDE_ENGINE_CONTEXT");
-    expect(context.composable).toBe(name);
-    expect(context.message.startsWith(`[${name}()]`)).toBe(true);
+    expect(error).toBeInstanceOf(GwenContextError);
+    if (!(error instanceof GwenContextError)) return;
+    expect(error.code).toBe("CORE:OUTSIDE_ENGINE_CONTEXT");
+    expect(error.composable).toBe(name);
+    expect(error.message.startsWith(`[${name}()]`)).toBe(true);
   });
 });
