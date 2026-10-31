@@ -244,7 +244,7 @@ declare module '@gwenjs/schema' {
   }
 }
 
-export const ScorePlugin = definePlugin<ScoreOptions>((opts = {}) => ({
+export const ScorePlugin = definePlugin((opts: ScoreOptions = {}) => ({
   name: 'score',
   setup(engine) {
     let score = 0

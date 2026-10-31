@@ -224,7 +224,7 @@ Chaque fichier doit exporter une définition `defineGwenModule` comme **export p
 import { defineGwenModule } from '@gwenjs/kit/module'
 import { definePlugin } from '@gwenjs/kit/plugin'
 
-export const ScorePlugin = definePlugin<{ maxScore?: number }>((opts = {}) => ({
+export const ScorePlugin = definePlugin((opts: { maxScore?: number } = {}) => ({
   name: 'score',
   setup(engine) {
     let score = 0

@@ -46,7 +46,7 @@ interface InputOptions {
   preventDefault?: string[] // Keys to prevent default on
 }
 
-export const InputPlugin = definePlugin<InputOptions>((opts = {}) => {
+export const InputPlugin = definePlugin((opts: InputOptions = {}) => {
   const { repeatDelay = 50, preventDefault = [] } = opts
   const keys = new Set<string>()
   const lastRepeat = new Map<string, number>()
@@ -491,7 +491,7 @@ class AudioManager {
   }
 }
 
-export const AudioPlugin = definePlugin<AudioOptions>((opts = {}) => ({
+export const AudioPlugin = definePlugin((opts: AudioOptions = {}) => ({
   name: 'audio',
   setup(engine) {
     const manager = new AudioManager(opts.volume)
@@ -540,7 +540,7 @@ export const SoundEffectSystem = defineSystem(function SoundEffectSystem() {
 Fonction factory pour créer un plugin :
 
 ```ts
-const MyPlugin = definePlugin<Options>((opts?: Options) => ({
+const MyPlugin = definePlugin((opts?: Options) => ({
   name: string
   setup(engine: GwenEngine): void
   teardown?(): void
@@ -555,7 +555,7 @@ L'API moteur disponible dans `setup()` :
 | Méthode | But |
 |---------|-----|
 | `provide(key, service)` | Enregistrez un service pour que les systèmes y accèdent |
-| `onStart(callback)` | Hook appelé après le chargement de WASM |
+| `hooks.hook('engine:start', callback)` | Enregistre un callback après le chargement de WASM |
 | `use(plugin)` | Enregistrez un autre plugin (pour composer les plugins) |
 
 ### Error Context

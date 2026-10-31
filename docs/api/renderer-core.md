@@ -436,7 +436,7 @@ Use this inside `definePlugin`'s `setup(engine)` — not in systems or actors.
 import { getOrCreateViewportManager } from '@gwenjs/renderer-core'
 import { definePlugin } from '@gwenjs/kit/plugin'
 
-export const MyRendererPlugin = definePlugin<{ container: HTMLElement }>((opts) => ({
+export const MyRendererPlugin = definePlugin((opts?: { container?: HTMLElement }) => ({
   name: 'renderer:my',
   setup(engine) {
     const viewports = getOrCreateViewportManager(engine)

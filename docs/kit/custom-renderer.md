@@ -233,7 +233,7 @@ export interface MyTechRendererPluginOptions {
   container?: HTMLElement
 }
 
-export const MyTechRendererPlugin = definePlugin<MyTechRendererPluginOptions>((opts) => {
+export const MyTechRendererPlugin = definePlugin((opts: MyTechRendererPluginOptions = { layers: {} }) => {
   const service = MyTechRenderer({ layers: opts.layers })
 
   return {
@@ -248,11 +248,10 @@ export const MyTechRendererPlugin = definePlugin<MyTechRendererPluginOptions>((o
       manager.register(service)
 
       engine.hooks.hook('engine:init', () => manager.mount())
+      engine.hooks.hook('engine:render', () => {
+        service.flush()
+      })
       engine.hooks.hook('engine:stop', () => manager.unregister('renderer:mytech'))
-    },
-
-    onRender() {
-      service.flush()
     },
   }
 })

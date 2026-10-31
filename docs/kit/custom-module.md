@@ -102,7 +102,7 @@ For project-specific modules, drop a file in `src/modules/`. GWEN discovers all 
 import { defineGwenModule } from '@gwenjs/kit/module'
 import { definePlugin } from '@gwenjs/kit/plugin'
 
-export const ScorePlugin = definePlugin<{ maxScore?: number }>((opts = {}) => ({
+export const ScorePlugin = definePlugin((opts: { maxScore?: number } = {}) => ({
   name: 'score',
   setup(engine) {
     let score = 0
@@ -155,7 +155,7 @@ declare module '@gwenjs/schema' {
   }
 }
 
-export const ScorePlugin = definePlugin<ScoreOptions>((opts = {}) => ({
+export const ScorePlugin = definePlugin((opts: ScoreOptions = {}) => ({
   name: 'score',
   setup(engine) {
     let score = opts.initialScore ?? 0
@@ -300,7 +300,7 @@ interface ScoreModuleOptions {
 }
 
 // Runtime plugin
-export const ScorePlugin = definePlugin<ScoreModuleOptions>((opts = {}) => ({
+export const ScorePlugin = definePlugin((opts: ScoreModuleOptions = {}) => ({
   name: 'score',
   setup(engine) {
     let score = opts.initialScore ?? 0
