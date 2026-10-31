@@ -22,7 +22,7 @@ import type { AutoImport, DeepPartial } from '@gwenjs/kit'
 
 ## Observability composables
 
-`useLogger()`, `useErrorReporter()`, and `usePerfMark()` read the logger of the active scope.
+`useLogger()` and `usePerfMark()` read the logger of the active scope. `useErrorReporter().report` throws a `GwenError` (code `NAMESPACE:REASON`, optional cause) and writes no log.
 
 `useLogger()` must run inside a `defineSystem()`, `defineActor()` or `defineScene()` factory, or in a plugin `setup()`. It returns that engine's logger, tagged `<type>:<name>` (for example `system:Mover` or `plugin:audio`). When the scope has no name, the tag uses the scope id.
 
@@ -55,16 +55,16 @@ import type { GwenEngineBase } from '@gwenjs/schema'
 
 **Signature:**
 ```ts
-function definePlugin<T = any>(
-  factory: (opts?: T) => PluginDef
-): GwenPluginFactory<T>
+function definePlugin<TOptions, TPlugin extends GwenPlugin>(
+  factory: (options?: TOptions) => ExactPlugin<TPlugin>
+): GwenPluginFactory<TOptions extends undefined ? void : TOptions, TPlugin>
 ```
 
 **Description.** Creates a reusable plugin factory. The factory function receives options and returns a plugin definition with a `name` and a `setup(engine)` function.
 
 **Example:**
 ```ts
-export const InputPlugin = definePlugin<{ deadzone?: number }>((opts = {}) => ({
+export const InputPlugin = definePlugin((opts: { deadzone?: number } = {}) => ({
   name: 'input',
   setup(engine) {
     const keys = new Set<string>()

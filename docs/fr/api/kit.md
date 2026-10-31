@@ -15,7 +15,7 @@ Système de plugins et de modules pour étendre GWEN. Fournit des utilitaires po
 
 ## Composables d'observabilité
 
-`useLogger()`, `useErrorReporter()` et `usePerfMark()` lisent le logger du moteur du scope actif.
+`useLogger()` et `usePerfMark()` lisent le logger du moteur du scope actif. `useErrorReporter().report` lance une `GwenError` (code `NAMESPACE:REASON`, cause facultative) et n'écrit aucun log.
 
 `useLogger()` s'appelle dans une fabrique `defineSystem()`, `defineActor()` ou `defineScene()`, ou dans le `setup()` d'un plugin. Il retourne le logger du moteur, étiqueté `<type>:<nom>` (par exemple `system:Mover` ou `plugin:audio`). Sans nom, l'étiquette utilise l'id du scope.
 
@@ -37,27 +37,19 @@ export const mover = defineSystem('Mover', () => {
 
 **Signature:**
 ```ts
-function definePlugin<T = any>(
-  factory: (opts?: T) => PluginDef | ((opts?: T) => PluginDef)
-): PluginFactory<T>
+function definePlugin<TOptions, TPlugin extends GwenPlugin>(
+  factory: (options?: TOptions) => ExactPlugin<TPlugin>
+): GwenPluginFactory<TOptions extends undefined ? void : TOptions, TPlugin>
 ```
 
-**Description.** Définit un plugin qui peut être chargé dans une app GWEN. La fabrique peut retourner un `PluginDef` directement ou une fonction qui retourne un `PluginDef`.
-
-**Paramètres:**
-| Paramètre | Type | Description |
-|---|---|---|
-| factory | `function` | Fonction de fabrique de plugin ou définition |
-
-**Retourne:** `PluginFactory<T>` — une fabrique de plugin prête à enregistrer.
+**Description.** Crée une fabrique de plugin. La fabrique reçoit des options et retourne un plugin avec un `name` et un `setup(engine)`.
 
 **Exemple:**
 ```ts
-export const MyPlugin = definePlugin((opts = {}) => ({
+export const MyPlugin = definePlugin((opts: { debug?: boolean } = {}) => ({
   name: 'my-plugin',
-  version: '1.0.0',
   async setup(engine) {
-    console.log('MyPlugin loaded');
+    if (opts.debug) console.log('MyPlugin loaded');
   }
 }));
 

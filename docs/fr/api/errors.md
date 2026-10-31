@@ -151,7 +151,7 @@ Cause. L'appel est hors de `defineActor()`, `plugin setup()` ou `withCleanup()`.
 ## @gwenjs/kit
 
 - `KIT:MODULE_INVALID` {#kit-module-invalid}
-- `KIT:PLUGIN_SETUP_FAILED` {#kit-plugin-setup-failed}
+- `KIT:PLUGIN_SETUP_FAILED` {#kit-plugin-setup-failed} Cause. Plus rien dans @gwenjs/kit ne lève ce code ; `definePlugin` n'enveloppe plus `setup`, et un échec de setup est `CORE:PLUGIN_SETUP_ERROR` (ancre #core-plugin-setup-error).
 
 ## @gwenjs/schema
 

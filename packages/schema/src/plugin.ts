@@ -90,7 +90,7 @@ export interface HookBusBase {
  * ```ts
  * import { definePlugin } from '@gwenjs/kit'
  *
- * export const AudioPlugin = definePlugin((opts: AudioOptions) => ({
+ * export const AudioPlugin = definePlugin((opts: AudioOptions = {}) => ({
  *   name: 'AudioPlugin',
  *   setup(engine: GwenEngineBase) {
  *     const log = engine.logger.child('AudioPlugin')
