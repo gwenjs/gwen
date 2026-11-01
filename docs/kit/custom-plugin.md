@@ -206,7 +206,7 @@ export const MyPlugin = definePlugin(() => ({
     // Register services, event listeners, etc.
 
     engine.hooks.hook('engine:init', () => {
-      // Called after WASM module is loaded
+      // Called by engine.start(), after every plugin is set up
       // Safe to use engine features here
     })
 
@@ -246,6 +246,8 @@ setup(engine) {
 
 In a development build with `debug: true`, an own key other than `name`, `setup`, `teardown`, `onError`, or `requires`, and not starting with `_`, logs a warning and is ignored.
 
+The same keys fail at compile time. `definePlugin` replaces every key outside `name`, `setup`, `teardown`, `onError` and `requires` with a `PluginKeyError` message, so an extra key in the returned object is a type error. Pass the options type through the parameter, `definePlugin((opts: Options) => ...)`. `definePlugin<Options>(...)` with one type argument is an error, because the plugin type is the second argument.
+
 ## Teardown
 
 `engine.unuse(name)` and `engine.stop()` call `teardown()`. `stop()` calls it after the `engine:stop` hook, in reverse install order. A teardown must be idempotent with work the plugin already did on `engine:stop`. Services provided through the `engine` argument of `setup()`, including after `setup()` resolves, are removed before `teardown()` runs. `useEngine().provide(...)` is not removed. Replacing an engine-owned key (`wasm:bridge`, `logger`, `errors`, `memory`) does not make `stop()` or `unuse()` remove that key.
@@ -275,7 +277,7 @@ When a name is missing, `engine.use()` rejects `GwenPluginDependencyError` with 
 
 ## Optional services
 
-Read an optional service with `tryInject` or `optionalService`. Neither throws when the key is absent.
+Read an optional service with `optionalService`, typed through `GwenProvides`, or with `tryInject`, which returns `unknown`. Neither throws when the key is absent.
 
 ```ts run
 import assert from "node:assert/strict";
@@ -299,6 +301,18 @@ engine.provide('myService', {
   setData(val) { /* ... */ },
 })
 ```
+
+To type the key, merge it into `GwenProvides`:
+
+```ts
+declare module '@gwenjs/schema' {
+  interface GwenProvides {
+    myService: { getData(): unknown; setData(val: unknown): void }
+  }
+}
+```
+
+A custom hook name is typed the same way, by merging into `GwenRuntimeHooks`. Both interfaces come from `@gwenjs/schema`.
 
 Access the service in a system using `useService()`:
 
@@ -427,28 +441,70 @@ export function logIfRunning(message: string): void {
 
 ## Error Handling
 
-Handle errors that occur in your plugin:
+`onError` runs when this plugin's `setup()`, `teardown()` or a hook handler it registered before the first `await` in `setup()` throws:
 
 ```ts
 export const MyPlugin = definePlugin(() => ({
   name: 'my-plugin',
-  setup(engine) { /* ... */ },
+  setup(engine) {
+    engine.hooks.hook('engine:render', () => { /* ... */ })
+  },
 
   onError(error, context) {
-    if (context.phase === 'onRender') {
-      // Render errors are non-fatal — suppress them
+    if (context.hook === 'engine:render') {
+      // This plugin treats a render error as harmless: skip isolation and the bus event
       context.recover()
-    } else {
-      // Other errors are fatal — let them propagate
-      console.error(`[my-plugin] ${error.message}`)
+      return
     }
+    // Not recovered: the plugin is isolated and the error is published on the error bus
+    if (error instanceof Error) console.error(`[my-plugin] ${error.message}`)
   },
 }))
 ```
 
-The `context` object provides:
-- `phase` — Which lifecycle phase errored (e.g., `'onRender'`, `'onUpdate'`)
-- `recover()` — Suppress the error and continue (only for non-fatal phases)
+`error` is `unknown`. The `context` object provides:
+- `phase` — `'setup'`, `'teardown'`, `'onBeforeUpdate'`, `'onUpdate'`, `'onAfterUpdate'`, `'onRender'`, or `'hook'` for any other hook. `engine:render` maps to `'onRender'`
+- `hook` — The hook name, when a hook handler threw
+- `frame` — The frame index at the time of the error
+- `recover()` — Mark the error as handled. The target is not isolated and no bus event is published
+
+`onError` is not called for a WebAssembly trap, so `recover()` cannot handle one. A handler registered after an `await`, or for `engine:memory-grow`, never reaches `onError`. `recover()` does not make `engine.use()` resolve either: a `setup()` that threw still rejects.
+
+## Single error path
+
+A plugin error takes one path, whether it comes from `setup()`, `teardown()` or a hook.
+
+- `setup()` throws: the bus receives `CORE:PLUGIN_SETUP_ERROR`, then `engine.use()` rejects with the original error, not wrapped.
+- `teardown()` or a hook handler throws: the bus receives `CORE:PLUGIN_RUNTIME_ERROR`, and the `plugin:error` hook fires.
+
+Listen with `engine.errors.on` (see [Error Bus](/advanced/error-bus)) or hook `plugin:error`. Neither sees an error that `recover()` handled. `plugin:error` does not fire for a `setup()` error. A WebAssembly trap publishes `CORE:WASM_PANIC` instead.
+
+## Scope-bound composables
+
+Three composables read the scope the engine opens around `setup()`. Import them from `@gwenjs/kit`, the root entry, not `@gwenjs/kit/plugin`.
+
+| Composable | Returns |
+|---|---|
+| `useLogger()` | The engine logger, tagged `plugin:<name>` in a plugin |
+| `useErrorReporter()` | `{ report(code, message, cause?) }`. `report` throws a `GwenError` and logs nothing. `code` is `NAMESPACE:REASON` |
+| `usePerfMark(label)` | A stop function that logs the elapsed time at debug level and returns it in milliseconds |
+
+```ts
+import { definePlugin } from '@gwenjs/kit/plugin'
+import { useLogger, useErrorReporter } from '@gwenjs/kit'
+
+export const MyPlugin = definePlugin(() => ({
+  name: 'my-plugin',
+  setup() {
+    const log = useLogger()
+    const { report } = useErrorReporter()
+    log.info('ready')
+    // Later, in a closure: report('MY_PLUGIN:BAD_CONFIG', 'Missing key')
+  },
+}))
+```
+
+Call them before the first `await` in `setup()`. After an `await`, or outside a scope, they throw `GwenContextError` with code `CORE:OUTSIDE_ENGINE_CONTEXT`. Capture the logger in a variable and use it from the closure.
 
 ## In Practice
 
@@ -545,27 +601,29 @@ Factory function to create a plugin:
 ```ts
 const MyPlugin = definePlugin((opts?: Options) => ({
   name: string
-  setup(engine: GwenEngine): void
-  teardown?(): void
-  onError?(error: Error, context: ErrorContext): void
+  requires?: { plugins?: string[]; services?: string[]; optional?: string[] }
+  setup(engine: GwenEngineBase): void | Promise<void>
+  teardown?(): void | Promise<void>
+  onError?(error: unknown, context: PluginErrorContext): void
 }))
 ```
 
-### GwenEngine
+### GwenEngineBase
 
 The engine API available in `setup()`:
 
 | Method | Purpose |
 |--------|---------|
 | `provide(key, service)` | Register a service for systems to access |
-| `hooks.hook('engine:start', callback)` | Register a callback after WASM loads |
-| `use(plugin)` | Register another plugin (for composing plugins) |
+| `hooks.hook(name, callback)` | Register frame work or a lifecycle callback. `engine:init` fires at `engine.start()` after every plugin is set up. `engine:start` fires when the loop begins |
 
-### Error Context
+### PluginErrorContext
 
 ```ts
-interface ErrorContext {
-  phase: 'setup' \| 'teardown' \| 'onBeforeUpdate' \| 'onUpdate' \| 'onAfterUpdate' \| 'onRender' \| 'hook'
+interface PluginErrorContext {
+  phase: 'setup' | 'teardown' | 'onBeforeUpdate' | 'onUpdate' | 'onAfterUpdate' | 'onRender' | 'hook'
+  hook?: string
+  frame: number
   recover(): void
 }
 ```

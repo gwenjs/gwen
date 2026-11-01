@@ -204,7 +204,7 @@ export const MyPlugin = definePlugin(() => ({
     // Register services, event listeners, etc.
 
     engine.hooks.hook('engine:init', () => {
-      // Called after WASM module is loaded
+      // Called by engine.start(), after every plugin is set up
       // Safe to use engine features here
     })
 
@@ -244,6 +244,8 @@ setup(engine) {
 
 Dans un build de développement avec `debug: true`, une clé propre autre que `name`, `setup`, `teardown`, `onError` ou `requires`, et qui ne commence pas par `_`, produit un avertissement et est ignorée.
 
+Les mêmes clés échouent à la compilation. `definePlugin` remplace chaque clé hors `name`, `setup`, `teardown`, `onError` et `requires` par un message `PluginKeyError`. Une clé en trop dans l'objet retourné est donc une erreur de type. Passez le type des options par le paramètre, `definePlugin((opts: Options) => ...)`. `definePlugin<Options>(...)` avec un seul argument de type est une erreur, car le type du plugin est le deuxième argument.
+
 ## Teardown
 
 `engine.unuse(name)` et `engine.stop()` appellent `teardown()`. `stop()` l'appelle après le hook `engine:stop`, dans l'ordre inverse d'installation. Un teardown doit être idempotent avec le travail déjà fait sur `engine:stop`. Les services fournis via l'argument `engine` de `setup()`, y compris après la résolution de `setup()`, sont retirés avant `teardown()`. `useEngine().provide(...)` n'est pas retiré. Remplacer une clé du moteur (`wasm:bridge`, `logger`, `errors`, `memory`) ne la fait pas retirer par `stop()` ou `unuse()`.
@@ -273,7 +275,7 @@ Si un nom manque, `engine.use()` rejette `GwenPluginDependencyError` avec le cod
 
 ## Services optionnels
 
-Lisez un service optionnel avec `tryInject` ou `optionalService`. Aucun des deux ne lance si la clé est absente.
+Lisez un service optionnel avec `optionalService`, typé par `GwenProvides`, ou avec `tryInject`, qui renvoie `unknown`. Aucun des deux ne lance si la clé est absente.
 
 ```ts
 import { optionalService } from "@gwenjs/kit/plugin";
@@ -296,6 +298,18 @@ engine.provide('myService', {
   setData(val) { /* ... */ },
 })
 ```
+
+Pour typer la clé, fusionnez-la dans `GwenProvides` :
+
+```ts
+declare module '@gwenjs/schema' {
+  interface GwenProvides {
+    myService: { getData(): unknown; setData(val: unknown): void }
+  }
+}
+```
+
+Un nom de hook personnalisé se type de la même façon, en fusionnant dans `GwenRuntimeHooks`. Les deux interfaces viennent de `@gwenjs/schema`.
 
 Accédez au service dans un système en utilisant `useService()` :
 
@@ -424,28 +438,70 @@ export function logIfRunning(message: string): void {
 
 ## Gestion des erreurs
 
-Gérez les erreurs qui se produisent dans votre plugin :
+`onError` s'exécute quand le `setup()` ou le `teardown()` de ce plugin, ou un handler de hook qu'il a enregistré avant le premier `await` de `setup()`, lève une erreur :
 
 ```ts
 export const MyPlugin = definePlugin(() => ({
   name: 'my-plugin',
-  setup(engine) { /* ... */ },
+  setup(engine) {
+    engine.hooks.hook('engine:render', () => { /* ... */ })
+  },
 
   onError(error, context) {
-    if (context.phase === 'onRender') {
-      // Render errors are non-fatal — suppress them
+    if (context.hook === 'engine:render') {
+      // Ce plugin juge une erreur de rendu sans gravité : pas d'isolation, pas d'événement sur le bus
       context.recover()
-    } else {
-      // Other errors are fatal — let them propagate
-      console.error(`[my-plugin] ${error.message}`)
+      return
     }
+    // Non récupérée : le plugin est isolé et l'erreur est publiée sur le bus d'erreurs
+    if (error instanceof Error) console.error(`[my-plugin] ${error.message}`)
   },
 }))
 ```
 
-L'objet `context` fournit :
-- `phase` — Quelle phase du cycle de vie a généré l'erreur (par exemple, `'onRender'`, `'onUpdate'`)
-- `recover()` — Supprimez l'erreur et continuez (uniquement pour les phases non fatales)
+`error` est de type `unknown`. L'objet `context` fournit :
+- `phase` — `'setup'`, `'teardown'`, `'onBeforeUpdate'`, `'onUpdate'`, `'onAfterUpdate'`, `'onRender'`, ou `'hook'` pour tout autre hook. `engine:render` correspond à `'onRender'`
+- `hook` — Le nom du hook, quand un handler de hook a levé l'erreur
+- `frame` — L'index de frame au moment de l'erreur
+- `recover()` — Marque l'erreur comme traitée. La cible n'est pas isolée et aucun événement n'est publié sur le bus
+
+`onError` n'est pas appelé pour un trap WebAssembly, donc `recover()` ne peut pas en traiter un. Un handler enregistré après un `await`, ou pour `engine:memory-grow`, n'atteint jamais `onError`. `recover()` ne fait pas non plus résoudre `engine.use()` : un `setup()` qui a levé une erreur est toujours rejeté.
+
+## Chemin d'erreur unique
+
+Une erreur de plugin suit un seul chemin, qu'elle vienne de `setup()`, de `teardown()` ou d'un hook.
+
+- `setup()` lève : le bus reçoit `CORE:PLUGIN_SETUP_ERROR`, puis `engine.use()` rejette avec l'erreur d'origine, sans enveloppe.
+- `teardown()` ou un handler de hook lève : le bus reçoit `CORE:PLUGIN_RUNTIME_ERROR`, et le hook `plugin:error` se déclenche.
+
+Écoutez avec `engine.errors.on` (voir [Bus d'erreurs](/fr/advanced/error-bus)) ou le hook `plugin:error`. Aucun des deux ne voit une erreur traitée par `recover()`. `plugin:error` ne se déclenche pas pour une erreur de `setup()`. Un trap WebAssembly publie `CORE:WASM_PANIC` à la place.
+
+## Composables liés au scope
+
+Trois composables lisent le scope que le moteur ouvre autour de `setup()`. Importez-les depuis `@gwenjs/kit`, l'entrée racine, pas depuis `@gwenjs/kit/plugin`.
+
+| Composable | Retourne |
+|---|---|
+| `useLogger()` | Le logger du moteur, étiqueté `plugin:<name>` dans un plugin |
+| `useErrorReporter()` | `{ report(code, message, cause?) }`. `report` lève une `GwenError` et n'écrit aucun log. `code` vaut `NAMESPACE:REASON` |
+| `usePerfMark(label)` | Une fonction d'arrêt qui journalise la durée au niveau debug et la retourne en millisecondes |
+
+```ts
+import { definePlugin } from '@gwenjs/kit/plugin'
+import { useLogger, useErrorReporter } from '@gwenjs/kit'
+
+export const MyPlugin = definePlugin(() => ({
+  name: 'my-plugin',
+  setup() {
+    const log = useLogger()
+    const { report } = useErrorReporter()
+    log.info('ready')
+    // Plus tard, dans une closure : report('MY_PLUGIN:BAD_CONFIG', 'Missing key')
+  },
+}))
+```
+
+Appelez-les avant le premier `await` de `setup()`. Après un `await`, ou hors d'un scope, ils lèvent `GwenContextError` avec le code `CORE:OUTSIDE_ENGINE_CONTEXT`. Capturez le logger dans une variable et utilisez-le depuis la closure.
 
 ## En pratique
 
@@ -542,27 +598,29 @@ Fonction factory pour créer un plugin :
 ```ts
 const MyPlugin = definePlugin((opts?: Options) => ({
   name: string
-  setup(engine: GwenEngine): void
-  teardown?(): void
-  onError?(error: Error, context: ErrorContext): void
+  requires?: { plugins?: string[]; services?: string[]; optional?: string[] }
+  setup(engine: GwenEngineBase): void | Promise<void>
+  teardown?(): void | Promise<void>
+  onError?(error: unknown, context: PluginErrorContext): void
 }))
 ```
 
-### GwenEngine
+### GwenEngineBase
 
 L'API moteur disponible dans `setup()` :
 
 | Méthode | But |
 |---------|-----|
 | `provide(key, service)` | Enregistrez un service pour que les systèmes y accèdent |
-| `hooks.hook('engine:start', callback)` | Enregistre un callback après le chargement de WASM |
-| `use(plugin)` | Enregistrez un autre plugin (pour composer les plugins) |
+| `hooks.hook(name, callback)` | Enregistre du travail de frame ou un callback de cycle de vie. `engine:init` se déclenche à `engine.start()` une fois tous les plugins installés. `engine:start` se déclenche au début de la boucle |
 
-### Error Context
+### PluginErrorContext
 
 ```ts
-interface ErrorContext {
-  phase: 'setup' \| 'teardown' \| 'onBeforeUpdate' \| 'onUpdate' \| 'onAfterUpdate' \| 'onRender' \| 'hook'
+interface PluginErrorContext {
+  phase: 'setup' | 'teardown' | 'onBeforeUpdate' | 'onUpdate' | 'onAfterUpdate' | 'onRender' | 'hook'
+  hook?: string
+  frame: number
   recover(): void
 }
 ```

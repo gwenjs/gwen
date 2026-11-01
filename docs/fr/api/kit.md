@@ -9,7 +9,7 @@ description: "Référence API pour @gwenjs/kit."
 
 Système de plugins et de modules pour étendre GWEN. Fournit des utilitaires pour créer des modules réutilisables, des auto-imports et des intégrations au moment du build.
 
-`@gwenjs/kit` exporte aussi `getCurrentScope`, `tryUseEngine`, `EngineSlot`, `GwenContextError`, `KitErrorCodes`, `GwenContextErrorCodes`, `GWEN_CONTEXT_BOUNDARIES` et `GwenContextBoundary`.
+`@gwenjs/kit` exporte aussi `getCurrentScope`, `useCurrentScope`, `useLogger`, `useErrorReporter`, `usePerfMark`, `GwenModuleDefinitionError`, `tryUseEngine`, `EngineSlot`, `GwenContextError`, `KitErrorCodes`, `GwenContextErrorCodes`, `GWEN_CONTEXT_BOUNDARIES` et `GwenContextBoundary`.
 
 `GwenContextError(code, composable, options?)` nomme le composable et `validContexts`. `GWEN_CONTEXT_BOUNDARIES` associe chaque code à ces sites d'appel. `tryUseEngine()` retourne le moteur que `useEngine()` retourne, ou `undefined` là où cet appel lance `CORE:OUTSIDE_ENGINE_CONTEXT`. Il ne lance jamais.
 
@@ -42,7 +42,7 @@ function definePlugin<TOptions, TPlugin extends GwenPlugin>(
 ): GwenPluginFactory<TOptions extends undefined ? void : TOptions, TPlugin>
 ```
 
-**Description.** Crée une fabrique de plugin. La fabrique reçoit des options et retourne un plugin avec un `name` et un `setup(engine)`.
+**Description.** Crée une fabrique de plugin. La fabrique reçoit des options et retourne une définition de plugin. Les seules clés sont `name`, `setup(engine)`, `teardown`, `onError` et `requires`. Toute autre clé est une erreur de type, et `engine.use()` rejette un callback de frame comme `onUpdate` avec `CORE:PLUGIN_INVALID_SHAPE`. Enregistrez le travail de frame avec `engine.hooks.hook` dans `setup`. Une erreur de `setup()` n'est pas enveloppée : elle est publiée en `CORE:PLUGIN_SETUP_ERROR`, puis `engine.use()` rejette avec l'erreur d'origine. `optionalService` et `watchService` s'importent aussi depuis `@gwenjs/kit/plugin`.
 
 **Exemple:**
 ```ts
@@ -130,20 +130,15 @@ interface GwenModule {
 
 **Signature:**
 ```ts
-interface GwenModuleDefinition {
-  exports: Record<string, string>;
-  hooks?: GwenBuildHooks;
-  auto?: AutoImport[];
+interface GwenModuleDefinition<Options extends object = Record<string, unknown>> {
+  meta: { name: string; configKey?: string; version?: string }
+  defaults?: DeepPartial<Options>
+  setup(options: Options, gwen: GwenKit): void | Promise<void>
+  validate?(options: Options): readonly GwenConfigIssue[]
 }
 ```
 
-**Description.** Définition d'un module GWEN pour les auto-imports et l'intégration du système de build.
-
-| Propriété | Type | Description |
-|---|---|---|
-| `exports` | `object` | Carte des noms d'exports aux chemins de fichiers |
-| `hooks` | `GwenBuildHooks` | Hooks de build à enregistrer |
-| `auto` | `AutoImport[]` | Règles d'auto-import (optionnel) |
+**Description.** Définition passée à `defineGwenModule()`. `validate` est facultatif.
 
 ### GwenKit
 
