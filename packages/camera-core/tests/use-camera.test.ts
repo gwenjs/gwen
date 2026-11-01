@@ -1,6 +1,6 @@
 // packages/camera-core/tests/use-camera.test.ts
 import { describe, it, expect } from "vitest";
-import { createEngine } from "@gwenjs/core";
+import { createEngine } from "@gwenjs/core/node";
 import { defineActor, useActor } from "@gwenjs/core/actor";
 import { Camera, CameraBounds, CameraShake } from "../src/components.js";
 import { getCameraStores } from "../src/camera-stores.js";

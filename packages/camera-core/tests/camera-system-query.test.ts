@@ -1,6 +1,6 @@
 // packages/camera-core/tests/camera-system-query.test.ts
 import { afterEach, describe, it, expect, vi } from "vitest";
-import { createEngine } from "@gwenjs/core";
+import { createEngine } from "@gwenjs/core/node";
 import type { EntityId, GwenEngine } from "@gwenjs/core";
 import { getOrCreateCameraManager, getOrCreateViewportManager } from "@gwenjs/renderer-core";
 import { Camera, CameraBounds } from "../src/components.js";

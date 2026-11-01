@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createEngine } from "@gwenjs/core";
+import { createEngine } from "@gwenjs/core/node";
 import { getOrCreateCameraManager, getOrCreateScreenService } from "@gwenjs/renderer-core";
 import { createOrthoBoundsProvider } from "../../src/camera-core-plugin.js";
 import type { CameraState } from "@gwenjs/renderer-core";
