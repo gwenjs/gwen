@@ -13,7 +13,7 @@
 
 import type { IGwenLogger } from "./logger-structured.js";
 import type { DisposableRegistryBase } from "./disposable.js";
-import type { GwenRuntimeHooks } from "./runtime-hooks.js";
+import type { GwenRuntimeHookName, GwenRuntimeHooks } from "./runtime-hooks.js";
 import type { CameraStateStore, LayerHost, ScreenInfoStore, ViewportStore } from "./renderer.js";
 import type { TransformReader2D } from "./transforms.js";
 
@@ -64,10 +64,10 @@ export interface GwenProvides {
  */
 export interface HookBusBase {
   /** Register a typed listener for a declared hook event. */
-  hook<K extends keyof GwenRuntimeHooks>(event: K, fn: GwenRuntimeHooks[K]): void;
+  hook<K extends GwenRuntimeHookName>(event: K, fn: GwenRuntimeHooks[K]): void;
 
   /** Remove a typed listener for a declared hook event. */
-  removeHook<K extends keyof GwenRuntimeHooks>(event: K, fn: GwenRuntimeHooks[K]): void;
+  removeHook<K extends GwenRuntimeHookName>(event: K, fn: GwenRuntimeHooks[K]): void;
 }
 
 /**
