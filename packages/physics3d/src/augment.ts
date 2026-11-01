@@ -7,7 +7,6 @@
  */
 
 import type { Physics3DAPI, Physics3DPluginHooks } from "./types";
-import type { EntityId } from "@gwenjs/schema";
 
 declare module "@gwenjs/schema" {
   /**
@@ -25,21 +24,14 @@ declare module "@gwenjs/schema" {
 
   /**
    * Physics 3D runtime hooks augmenting the engine hook bus.
-   * Includes lifecycle hooks and all physics3d plugin hooks.
+   * The names are the hooks the plugin fires.
    *
    * @example
    * ```typescript
    * engine.hooks.hook('physics3d:body-disabled', ({ entity, reason }) => { … })
    * ```
    */
-  interface GwenRuntimeHooks extends Physics3DPluginHooks {
-    /** Fired after the physics step completes. */
-    "physics3d:step": (stepDt: number) => void;
-    /** Fired when a collision begins between two entities. */
-    "physics3d:collisionStart": (entityA: EntityId, entityB: EntityId) => void;
-    /** Fired when a collision ends between two entities. */
-    "physics3d:collisionEnd": (entityA: EntityId, entityB: EntityId) => void;
-  }
+  interface GwenRuntimeHooks extends Physics3DPluginHooks {}
 }
 
 export {};
