@@ -1147,12 +1147,13 @@ export interface InitWasmOptions {
    */
   glue?: GwenCoreGlueFactoryModule;
   /**
-   * `shared` (default) keeps one WASM instance per compiled module.
+   * `auto` (default) puts the first engine of a module on the shared pool, then
+   * one isolated instance per later engine while fewer than `wasmIsolatedBudget`
+   * are live (16 when omitted). Past that budget the engine joins the pool.
+   * `shared` keeps one WASM instance per compiled module.
    * `isolated` keeps one instance per engine, with its own linear memory.
-   * Browser `isolated` is not supported until the browser gate (#265).
-   * `auto` keeps the first engine on that pool, then isolated instances while
-   * fewer than `wasmIsolatedBudget` are live (16 when the budget is omitted).
-   * @default "shared"
+   * `@gwenjs/core/node` defaults to `isolated`.
+   * @default "auto"
    */
   wasmInstance?: WasmInstanceMode;
   /** Isolated-instance budget for `wasmInstance: "auto"`. Other modes ignore it. */
