@@ -675,6 +675,8 @@ import { readFile } from 'node:fs/promises'
 const handle = await engine.loadWasmModule({ name: 'my-physics', bytes: await readFile('./my-physics.wasm') })
 ```
 
+`maxBytes` caps a `url` or `bytes` source before compile (default `16 MiB`, `16777216` bytes). A `module` source is already compiled and is not checked (`packages/core/src/engine/engine-types.ts:74`).
+
 ### WasmModuleOptions
 
 | Field | Type | Description |
@@ -683,6 +685,7 @@ const handle = await engine.loadWasmModule({ name: 'my-physics', bytes: await re
 | `url` | `URL \| string` | Path to the `.wasm` binary. Fetched. Exactly one of `url`, `bytes`, `module` |
 | `bytes` | `BufferSource` | Raw `.wasm` bytes. Compiled in process, no fetch |
 | `module` | `WebAssembly.Module` | Already compiled module. No fetch, no compile |
+| `maxBytes` | `number` | Byte cap for `url`/`bytes` before compile; default 16 MiB. Not checked for `module` |
 | `memory.regions` | `WasmMemoryRegion[]` | Named slices of WASM linear memory |
 | `channels` | `WasmChannelOptions[]` | Ring buffers for TS↔WASM message passing |
 | `transformRegion` | `string` | Optional name of a `memory.regions` entry that receives the per-frame transform copy |

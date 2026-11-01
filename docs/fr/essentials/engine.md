@@ -420,6 +420,16 @@ Une room qui ne rend jamais la main bloque toutes les rooms de son propre worker
 
 Pour savoir combien de moteurs isolés un processus peut contenir, voir [Plusieurs moteurs par page ou par processus](#plusieurs-moteurs-par-page-ou-par-processus).
 
+### Limites que l'hôte doit faire respecter
+
+`loadWasmModule` refuse une source `url` ou `bytes` au-dessus de `maxBytes` avant `WebAssembly.compile` (`packages/core/src/engine/wasm-module-runner.ts:223`, `packages/core/src/engine/wasm-module-runner.ts:250`). La valeur par défaut est `16 MiB`, soit `16777216` octets (`packages/core/src/engine/wasm-module-runner.ts:81`). Une source `module` est déjà compilée et n'est pas vérifiée (`packages/core/src/engine/engine-types.ts:74`).
+
+GWEN ne plafonne pas `memory.grow`. Le chargement vérifie la taille, puis compile (`packages/core/src/engine/wasm-module-runner.ts:223`, `packages/core/src/engine/wasm-module-runner.ts:250`). Il ne limite pas la croissance ultérieure de la mémoire du module.
+
+GWEN ne peut pas interrompre un appel qui ne revient pas sur le thread principal. Le `step` d'un module s'exécute directement sur ce thread (`packages/core/src/engine/wasm-module-runner.ts:420`).
+
+Exécutez un module auquel vous ne faites pas confiance dans un worker, et appelez `worker.terminate()` dessus. Voir [Plusieurs rooms sur des worker threads](#plusieurs-rooms-sur-des-worker-threads).
+
 ## Résumé de l'API
 
 | | |
