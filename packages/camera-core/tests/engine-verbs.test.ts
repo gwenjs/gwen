@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { createEngine } from "@gwenjs/core";
+import { createEngine } from "@gwenjs/core/node";
 import type { GwenEngine } from "@gwenjs/core";
 import { getCameraStores } from "../src/camera-stores.js";
 import { CameraEmptyPathError } from "../src/errors.js";
