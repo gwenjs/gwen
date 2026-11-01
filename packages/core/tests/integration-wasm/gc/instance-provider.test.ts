@@ -1,13 +1,14 @@
 /**
  * Isolated instance collection (P-263-2). Real WASM. The gc project sets `__GWEN_DEV__`.
  */
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { GwenError } from "@gwenjs/schema";
 
 import { CoreErrorCodes, type GwenEngine } from "../../../src/index.js";
 import { createEngine } from "../../../src/node.js";
 import type { MemoryView } from "../../../src/engine/engine-memory.js";
 import { forceGc } from "./helpers.js";
+import { resetAutoFallbackLog } from "../../../src/testing.js";
 import "../../../../physics2d/src/augment";
 import { Physics2DPlugin } from "../../../../physics2d/src/plugin/index";
 import type { Physics2DAPI } from "../../../../physics2d/src/types/api";
@@ -154,4 +155,31 @@ describe("isolated wasm instance gc", () => {
       await engineB.stop();
     }
   }, 120_000);
+});
+
+describe("wasmInstance auto", () => {
+  afterEach(resetAutoFallbackLog);
+
+  it("auto: the pool is collectable after its last engine stops", async () => {
+    expect(typeof Reflect.get(globalThis, "gc")).toBe("function");
+    const opts = {
+      variant: "light" as const,
+      wasmInstance: "auto" as const,
+      wasmIsolatedBudget: 0,
+      maxEntities: 32,
+    };
+    const ref = await (async () => {
+      const engines: GwenEngine[] = [];
+      try {
+        engines.push(await createEngine(opts), await createEngine(opts));
+        const memory = engines[0]?.inject("wasm:bridge").getLinearMemory();
+        if (!(memory instanceof WebAssembly.Memory)) throw new Error("no linear memory");
+        return new WeakRef(memory);
+      } finally {
+        for (const engine of engines) await engine.stop();
+      }
+    })();
+    await forceGc();
+    expect(ref.deref()).toBeUndefined();
+  }, 60_000);
 });

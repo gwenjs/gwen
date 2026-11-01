@@ -261,7 +261,7 @@
     "types": []
   },
   "./testing": {
-    "values": ["createRealEngine"],
+    "values": ["createRealEngine", "resetAutoFallbackLog"],
     "types": ["CreateRealEngineOptions", "RealEngineHandle"]
   },
   "./internal": {
@@ -286,6 +286,7 @@
       "WasmBridgeImpl",
       "_getActorContext",
       "_getActorEntityId",
+      "autoProvider",
       "buildTransformImports",
       "createDisposable",
       "createGwenHooks",

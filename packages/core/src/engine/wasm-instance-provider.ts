@@ -9,14 +9,22 @@ import { GwenError } from "@gwenjs/schema";
 import { CoreErrorCodes, toSentence } from "./engine-errors.js";
 import type { GwenCoreGlueFactoryModule, GwenCoreGlueInstance } from "./wasm-bridge-types.js";
 
-export type WasmInstanceMode = "shared" | "isolated";
+export type WasmInstanceMode = "shared" | "isolated" | "auto";
+
+interface WasmInstanceAcquire {
+  glue: GwenCoreGlueInstance;
+  exports: { memory: WebAssembly.Memory };
+  placement: "shared" | "isolated";
+  fallback?: {
+    reason: "capacity" | "budget";
+    isolatedLive: number;
+    cause?: unknown;
+  };
+}
 
 export interface WasmInstanceProvider {
   readonly mode: WasmInstanceMode;
-  acquire(
-    module: WebAssembly.Module,
-    factory: GwenCoreGlueFactoryModule,
-  ): { glue: GwenCoreGlueInstance; exports: { memory: WebAssembly.Memory } };
+  acquire(module: WebAssembly.Module, factory: GwenCoreGlueFactoryModule): WasmInstanceAcquire;
   release(glue: GwenCoreGlueInstance): void;
 }
 
@@ -88,7 +96,7 @@ export const sharedProvider: WasmInstanceProvider = {
     const hit = byModule.get(module);
     if (hit !== undefined) {
       hit.refs += 1;
-      return { glue: hit.glue, exports: hit.exports };
+      return { glue: hit.glue, exports: hit.exports, placement: "shared" };
     }
     const glue = factory.createGlue();
     const exports = instantiate(glue, module, "shared", sharedLive);
@@ -103,7 +111,7 @@ export const sharedProvider: WasmInstanceProvider = {
     byModule.set(module, entry);
     byGlue.set(glue, entry);
     sharedLive += 1;
-    return { glue, exports };
+    return { glue, exports, placement: "shared" };
   },
   release(glue) {
     const entry = byGlue.get(glue);
@@ -135,10 +143,10 @@ export const isolatedProvider: WasmInstanceProvider = {
   acquire(module, factory) {
     const glue = factory.createGlue();
     const exports = instantiate(glue, module, "isolated", isolatedLive);
-    if (liveGlues.has(glue)) return { glue, exports };
+    if (liveGlues.has(glue)) return { glue, exports, placement: "isolated" };
     isolatedLive += 1;
     liveGlues.add(glue);
-    return { glue, exports };
+    return { glue, exports, placement: "isolated" };
   },
   release(glue) {
     if (!liveGlues.has(glue)) return;
@@ -146,6 +154,12 @@ export const isolatedProvider: WasmInstanceProvider = {
     isolatedLive -= 1;
   },
 };
+
+/** Routes every acquire to the shared pool. `budget` is unused until placement lands. */
+export function autoProvider(budget: number): WasmInstanceProvider {
+  void budget;
+  return sharedProvider;
+}
 
 /** `deref` is `undefined` once the target is collected. */
 export interface WeakHandle<T extends object> {

@@ -495,6 +495,32 @@ describe("validateEngineConfig — schema contract", () => {
   });
 });
 
+describe("validateEngineConfig — wasmIsolatedBudget", () => {
+  type EngineOptions = Parameters<typeof validateEngineConfig>[0];
+
+  function asBudget(value: unknown): EngineOptions {
+    const options: EngineOptions | { wasmIsolatedBudget: unknown } = { wasmIsolatedBudget: value };
+    return options as EngineOptions;
+  }
+
+  it("wasmIsolatedBudget", () => {
+    for (const value of [-1, 1.5, Number.NaN, "2"] as const) {
+      let caught: unknown;
+      try {
+        validateEngineConfig(asBudget(value));
+      } catch (error: unknown) {
+        caught = error;
+      }
+      expect(caught).toBeInstanceOf(GwenConfigError);
+      if (!(caught instanceof GwenConfigError)) return;
+      expect(caught.code).toBe("CORE:INVALID_CONFIG");
+      expect(caught.message).toContain('Invalid config "wasmIsolatedBudget"');
+    }
+    expect(() => validateEngineConfig(asBudget(0))).not.toThrow();
+    expect(() => validateEngineConfig(asBudget(3))).not.toThrow();
+  });
+});
+
 describe("createEngine config defaults", () => {
   it("createEngine without options reads every default from schema ENGINE_DEFAULTS", async () => {
     expect(typeof schema.checkEngineConfig).toBe("function");

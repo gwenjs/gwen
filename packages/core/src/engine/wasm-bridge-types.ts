@@ -1153,6 +1153,8 @@ export interface InitWasmOptions {
    * @default "shared"
    */
   wasmInstance?: WasmInstanceMode;
+  /** Isolated-instance budget for `wasmInstance: "auto"`. Other modes ignore it. */
+  wasmIsolatedBudget?: number;
 }
 
 // ─── WasmBridge public interface ────────────────────────────────────────────
