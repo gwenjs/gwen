@@ -2,7 +2,8 @@
  * @file onContact() / _dispatchContactEvent() tests.
  */
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { createEngine, GwenContextError, type GwenEngine } from "@gwenjs/core";
+import { GwenContextError, type GwenEngine } from "@gwenjs/core";
+import { createEngine } from "@gwenjs/core/node";
 import {
   _dispatchContactEvent,
   onContact,

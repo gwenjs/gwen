@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { createEngine, GwenContextError, type GwenEngine } from "@gwenjs/core";
+import { GwenContextError, type GwenEngine } from "@gwenjs/core";
+import { createEngine } from "@gwenjs/core/node";
 import { GwenError } from "@gwenjs/schema";
 import { LayerRegistry } from "../src/config";
 import { usePhysics2D } from "../src/composables";

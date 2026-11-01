@@ -3,7 +3,8 @@
  */
 
 import { afterEach, describe, expect, it } from "vitest";
-import { createEngine, GwenContextError, type GwenEngine } from "@gwenjs/core";
+import { GwenContextError, type GwenEngine } from "@gwenjs/core";
+import { createEngine } from "@gwenjs/core/node";
 import { Physics2DPlugin } from "../src/index.js";
 import { onContact } from "../src/composables/on-contact.js";
 import { useBoxCollider } from "../src/composables/use-box-collider.js";

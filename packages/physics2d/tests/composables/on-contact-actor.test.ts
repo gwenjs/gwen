@@ -2,7 +2,8 @@
  * onContact() inside a real defineActor factory, with no entityId argument.
  */
 import { describe, it, expect } from "vitest";
-import { createEngine, defineComponent, Types } from "@gwenjs/core";
+import { defineComponent, Types } from "@gwenjs/core";
+import { createEngine } from "@gwenjs/core/node";
 import { defineActor, definePrefab } from "@gwenjs/core/actor";
 import { onContact, _dispatchContactEvent } from "../../src/composables/on-contact.js";
 import type { ContactEvent } from "../../src/types.js";
