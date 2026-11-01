@@ -1150,6 +1150,8 @@ export interface InitWasmOptions {
    * `shared` (default) keeps one WASM instance per compiled module.
    * `isolated` keeps one instance per engine, with its own linear memory.
    * Browser `isolated` is not supported until the browser gate (#265).
+   * `auto` keeps the first engine on that pool, then isolated instances while
+   * fewer than `wasmIsolatedBudget` are live (16 when the budget is omitted).
    * @default "shared"
    */
   wasmInstance?: WasmInstanceMode;

@@ -21,7 +21,7 @@ import { GwenError, type GwenLogEntry, type IGwenLogProvider } from "@gwenjs/sch
 import { afterEach, describe, expect, it } from "vitest";
 
 import { CoreErrorCodes, GwenWasmPanicError } from "../../src/engine/engine-errors.js";
-import { createEngine } from "../../src/node.js";
+import { createEngine, setupGwen } from "../../src/node.js";
 import type { GwenEngine } from "../../src/engine/engine-types.js";
 import { entityGeneration, entityIndex } from "../../src/types/entity.js";
 import { WasmBridgeImpl } from "../../src/engine/wasm-bridge.js";
@@ -617,6 +617,15 @@ function flakyInstantiateFactory(realJsUrl: string): string {
   ].join("\n");
 }
 
+function rangeAfterFirst(realJsUrl: string): string {
+  return flakyInstantiateFactory(realJsUrl)
+    .replace("if (calls === 1)", "if (calls > 1)")
+    .replace(
+      "throw new Error('instantiation failed')",
+      "throw (globalThis.__gwenOom ??= new RangeError('out of memory'))",
+    );
+}
+
 function memoryOf(engine: GwenEngine): WebAssembly.Memory {
   const memory = bridgeOf(engine).getLinearMemory();
   if (!(memory instanceof WebAssembly.Memory)) throw new Error("no linear memory");
@@ -1176,13 +1185,20 @@ describe("wasmInstance auto", () => {
   }, 60_000);
 
   it("auto: a budget of 0 puts every engine on the pool", async () => {
+    const entries: GwenLogEntry[] = [];
     const engines: GwenEngine[] = [];
+    const providers: readonly IGwenLogProvider[] = [
+      { handle: (entry) => void entries.push(entry) },
+    ];
     try {
-      const first = await openAuto(engines, 0);
-      const second = await openAuto(engines, 0);
+      const first = await openAuto(engines, 0, "light", undefined, providers);
+      const second = await openAuto(engines, 0, "light", undefined, providers);
       expect(first.wasmInstance).toBe("shared");
       expect(second.wasmInstance).toBe("shared");
       expect(memoryOf(first)).toBe(memoryOf(second));
+      const warns = entries.filter((entry) => entry.payload?.reason === "budget");
+      expect(warns).toHaveLength(1);
+      expect(warns[0]?.payload).toMatchObject({ reason: "budget", mode: "auto", isolatedLive: 0 });
     } finally {
       await stopAll(engines);
     }
@@ -1219,8 +1235,9 @@ describe("wasmInstance auto", () => {
         const isolatedHash = await sceneHash(isolated, variant);
         const sharedHash = await sceneHash(shared, variant);
         await shared.stop();
-        const autoPool = await openAuto(engines, 1, variant, 60);
-        const autoRoom = await openAuto(engines, 1, variant, 60);
+        const autoPool = await openAuto(engines, 2, variant, 60);
+        const autoRoom = await openAuto(engines, 2, variant, 60);
+        expect([autoPool.wasmInstance, autoRoom.wasmInstance]).toEqual(["shared", "isolated"]);
         expect(await sceneHash(autoPool, variant)).toBe(expected);
         expect(await sceneHash(autoRoom, variant)).toBe(expected);
         expect(isolatedHash).toBe(expected);
@@ -1231,6 +1248,60 @@ describe("wasmInstance auto", () => {
     },
     120_000,
   );
+
+  it("setupGwen rejects a negative wasmIsolatedBudget before acquire", async () => {
+    const jsUrl = factoryUrl("light");
+    const wasmUrl = dataWasmUrl("light", "bad-budget");
+    const base = { variant: "light" as const, jsUrl, wasmUrl, maxEntities: 32 };
+    let caught: unknown;
+    try {
+      await setupGwen({ ...base, wasmInstance: "auto", wasmIsolatedBudget: -1 });
+    } catch (error: unknown) {
+      caught = error;
+    }
+    expect(caught instanceof GwenError ? caught.code : "").toBe("CORE:INVALID_CONFIG");
+    const next = await createEngine({ ...base, wasmInstance: "auto" });
+    try {
+      expect(next.wasmInstance).toBe("shared");
+    } finally {
+      await next.stop();
+    }
+  }, 60_000);
+
+  it("auto: a capacity fallback logs one warning with the original cause", async () => {
+    await collectBudgetWarns(0, 2);
+    const dir = mkdtempSync(path.join(tmpdir(), "gwen-capacity-log-"));
+    const jsPath = path.join(dir, "glue.mjs");
+    writeFileSync(jsPath, rangeAfterFirst(factoryUrl("light")), "utf8");
+    const entries: GwenLogEntry[] = [];
+    const providers: readonly IGwenLogProvider[] = [
+      { handle: (entry) => void entries.push(entry) },
+    ];
+    const engines: GwenEngine[] = [];
+    const opts = {
+      variant: "light" as const,
+      jsUrl: pathToFileURL(jsPath).href,
+      wasmUrl: dataWasmUrl("light", "capacity-log"),
+      wasmInstance: "auto" as const,
+      wasmIsolatedBudget: 2,
+      maxEntities: 32,
+      logger: { providers },
+    };
+    try {
+      for (let n = 0; n < 3; n += 1) engines.push(await createEngine(opts));
+      const warns = entries.filter((entry) => entry.payload?.reason === "capacity");
+      expect(warns).toHaveLength(1);
+      expect(warns[0]?.payload).toMatchObject({
+        reason: "capacity",
+        mode: "auto",
+        cause: Reflect.get(globalThis, "__gwenOom"),
+      });
+    } finally {
+      await stopAll(engines);
+      rmSync(dir, { recursive: true, force: true });
+      Reflect.deleteProperty(globalThis, "__gwenOom");
+    }
+  }, 60_000);
 
   it("after resetAutoFallbackLog() a second auto run logs the budget warning again", async () => {
     const first = await collectBudgetWarns(1, 4);

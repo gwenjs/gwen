@@ -42,12 +42,14 @@ import {
 import { getWasmModule } from "./wasm-module-cache.js";
 import { checkGwenModule } from "./wasm-contract.js";
 import {
+  autoProvider,
   isolatedProvider,
   poisonInstance,
   registerSharedBridge,
   sharedProvider,
   unregisterSharedBridge,
   weakHandle,
+  type AutoFallback,
   type SharedBridgePoison,
   type WeakHandle,
 } from "./wasm-instance-provider.js";
@@ -296,10 +298,11 @@ export class WasmBridgeImpl implements WasmBridge {
   /** Set when another bridge on the same shared instance trapped. */
   private _fromInstance = false;
   private _sharedExport: string | undefined;
-  /** Shared glue, or null in isolated mode and before acquire. */
+  /** Shared glue. Null before acquire and when placement is not `"shared"`. */
   private _sharedGlue: GwenCoreGlueInstance | null = null;
-  /** Placement `engine.wasmInstance` reads. `"auto"` stays on the pool in this stub. */
+  /** Resolved placement. An uninitialised bridge reports `"shared"`. */
   wasmInstance: "shared" | "isolated" = "shared";
+  private _autoFallback: AutoFallback | undefined;
   /** Set by {@link dispose}. A call that reaches WASM throws `CORE:ENGINE_DISPOSED`. */
   private _disposed = false;
   /** Drops this bridge's ref on the shared glue. Null until acquire. */
@@ -362,12 +365,20 @@ export class WasmBridgeImpl implements WasmBridge {
 
   // ── Init ─────────────────────────────────────────────────────────────────
 
+  /** One `auto` fallback from the last acquire. Cleared when read. */
+  pullAutoFallback(): AutoFallback | undefined {
+    const fallback = this._autoFallback;
+    this._autoFallback = undefined;
+    return fallback;
+  }
+
   /**
    * Load and initialize the gwen_core WASM module for this bridge instance.
    *
    * @param variant The core variant to load ('light', 'physics2d', 'physics3d')
    * @param options Initialization options (`glue`, bytes, a module, urls, max entities, `wasmInstance`).
-   *   `wasmInstance: "isolated"` uses one instance per engine. The default is `"shared"`.
+   *   `wasmInstance: "isolated"` uses one instance per engine. `"auto"` puts the first engine on the
+   *   pool and later ones on isolated instances until `wasmIsolatedBudget`. The default is `"shared"`.
    * @throws {GwenError} `CORE:ENGINE_DISPOSED` when this bridge was disposed.
    * @throws {GwenError} `CORE:WASM_LOAD_ERROR` when `glue`, `jsUrl`, `wasmUrl`, `wasmBytes`, or `wasmModule` is passed again
    *   after init has started. A call with none of them returns the init already running.
@@ -379,7 +390,8 @@ export class WasmBridgeImpl implements WasmBridge {
    *   `WebAssembly.CompileError`.
    * @throws {GwenError} `CORE:WASM_VARIANT_MISMATCH` when `glue` names a different variant.
    * @throws {GwenError} `CORE:WASM_CAPACITY_EXHAUSTED` when `initSync` throws a `RangeError`
-   *   or a value that is not an `Error`. The dev hint names the fallbacks.
+   *   or a value that is not an `Error`. In `"auto"`, that throw joins the pool once the pool
+   *   exists, and still rejects when the pool itself cannot be created. The dev hint names the fallbacks.
    * @throws {GwenError} If WASM cannot be loaded or has invalid format
    */
   async init(variant: CoreVariant = "light", options: InitWasmOptions = {}): Promise<void> {
@@ -508,10 +520,18 @@ export class WasmBridgeImpl implements WasmBridge {
       }
       if (this._disposed) this._throwDisposed();
       checkGwenModule(compiled, factory.CONTRACT);
-      const provider = options.wasmInstance === "isolated" ? isolatedProvider : sharedProvider;
-      this.wasmInstance = provider === isolatedProvider ? "isolated" : "shared";
+      const requested = options.wasmInstance ?? "shared";
+      const provider =
+        requested === "isolated"
+          ? isolatedProvider
+          : requested === "auto"
+            ? autoProvider(options.wasmIsolatedBudget)
+            : sharedProvider;
+      this._autoFallback = undefined;
       const acquired = provider.acquire(compiled, factory);
-      const sharedGlue = provider === sharedProvider ? acquired.glue : null;
+      this.wasmInstance = acquired.placement;
+      this._autoFallback = acquired.fallback;
+      const sharedGlue = acquired.placement === "shared" ? acquired.glue : null;
       this._sharedGlue = sharedGlue;
       if (sharedGlue !== null) registerSharedBridge(sharedGlue, this._instancePoisonerRef);
       this._release = () => {
