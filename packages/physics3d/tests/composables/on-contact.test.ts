@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { createEngine, GwenContextError, type GwenEngine } from "@gwenjs/core";
+import { createEngine } from "@gwenjs/core/node";
+import { GwenContextError, type GwenEngine } from "@gwenjs/core";
 import {
   onContact,
   _dispatchContactEvent,
