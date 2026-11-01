@@ -144,7 +144,7 @@ They still share three things:
 | `shared` (default) | One instance per compiled module. Engines of that module share its linear memory. |
 | `isolated` | One instance per engine, with its own linear memory (`packages/core/src/engine/wasm-instance-provider.ts:133`). |
 
-`createEngine` in Node still defaults to `shared` (`packages/core/src/engine/engine-factory.ts:79`). `isolated` becomes the Node default only with `@gwenjs/core/node`, in a later ticket (#267).
+`createEngine` from `@gwenjs/core` defaults to `shared` (`packages/core/src/engine/wasm-bridge.ts:509`). `createEngine` from `@gwenjs/core/node` defaults to `isolated` (see [Headless / server](#headless-server)).
 
 Browser `isolated` is supported. Three Playwright projects gate it: Chromium, Firefox and WebKit (`packages/core/playwright.config.ts:21-23`). They run `packages/core/tests/browser/isolation.pw.ts` and `packages/core/tests/browser/capacity.pw.ts`. `shared` stays the default in the browser. On iOS devices, use the default `shared` mode. iOS is not in CI.
 
@@ -347,7 +347,33 @@ These are 1.0 targets. A line marked Target is not true on this tree.
 
 The engine runs in Node with no DOM. The only supported server loop is `startExternal()`, then `advance(dt)` once per tick, then `stop()`. The Multiplayer (1.0) note above names the same loop.
 
-Read the `.wasm` bytes from the packaged binary. Pass them with the pre-imported glue. Nothing is fetched.
+Import from `@gwenjs/core/node`. The import is the declaration that the code runs in Node. Nothing is sniffed at runtime. No option is needed.
+
+```ts check
+import { createEngine, loadGwenModule } from "@gwenjs/core/node";
+
+async function runServer(): Promise<number> {
+  await loadGwenModule("light");
+  const engine = await createEngine();
+  try {
+    await engine.startExternal();
+    for (let i = 0; i < 10; i++) await engine.advance(1 / 60);
+    return engine.frameCount;
+  } finally {
+    await engine.stop();
+  }
+}
+```
+
+`createEngine()` uses the `light` variant. Pass `variant: "physics2d"` or `"physics3d"` for the others. The packaged glue and binary are found for you. Nothing is fetched.
+
+- Each engine gets its own WASM instance and linear memory. `wasmInstance` defaults to `"isolated"`.
+- `loadGwenModule(variant)` compiles the binary once per variant and returns the same `WebAssembly.Module` on every call. Calling it first, as above, moves the compile cost to boot.
+- Your sources win. A `glue` or `jsUrl` you pass replaces the default glue. A `wasmBytes`, `wasmModule` or `wasmUrl` you pass replaces the default binary. Each side is filled only when you left it empty, so the defaults never cause a two-source error.
+
+The suite runs on Node 22. Bun and Deno with Node compatibility are not tested.
+
+To control every source yourself, use the low-level `setupGwen` from `@gwenjs/core`. Read the `.wasm` bytes from the packaged binary. Pass them with the pre-imported glue. Nothing is fetched.
 
 ```ts check
 import { readFile } from "node:fs/promises";
@@ -372,8 +398,6 @@ The `GwenCoreGlueFactoryModule` import only types the helper. Real code passes `
 `wasmInstance: "isolated"` gives each engine its own WASM instance and linear memory. To compile once and share the result, pass `wasmModule: await WebAssembly.compile(wasmBytes)` instead of `wasmBytes`. Use `variant: "physics2d"` or `"physics3d"` with the matching `@gwenjs/core/wasm/<variant>/factory` import.
 
 `engine.loadWasmModule({ name, bytes })` loads a community module in a server with no fetch. Pass `module` for a compiled `WebAssembly.Module`. Pass exactly one of `url`, `bytes` or `module`. Zero or several, or invalid bytes, reject with `CORE:WASM_LOAD_ERROR`.
-
-The suite runs on Node 22. Bun and Deno are untested.
 
 ## API Summary
 

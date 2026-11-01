@@ -271,6 +271,7 @@ src/
 | `defineSystem` `onUpdate` `onBeforeUpdate` `onAfterUpdate` `onRender` `useQuery` `useService` `useWasmModule` | `@gwenjs/core/system` |
 | `defineActor` `onStart` `onDestroy` `definePrefab` `useActor` `useComponent` `useEntityId` `usePrefab` `useTransform` `defineLayout` `useLayout` `placeActor` `placeGroup` `placePrefab` `defineActorPool` `useActorPool` | `@gwenjs/core/actor` |
 | `defineScene` `defineSceneRouter` `useSceneRouter` `useSystem` `onEnter` `onExit` | `@gwenjs/core/scene` |
+| `createEngine` `setupGwen` `loadGwenModule` (Node) | `@gwenjs/core/node` |
 | `definePlugin` | `@gwenjs/kit/plugin` |
 | `defineGwenModule` | `@gwenjs/kit/module` |
 | `defineConfig` | `@gwenjs/app` |
