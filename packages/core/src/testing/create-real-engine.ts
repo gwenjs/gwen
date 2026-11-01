@@ -8,6 +8,7 @@ import { createEngine } from "../engine/engine-factory.js";
 import { SceneEnginePlugin } from "../scene/engine-plugin.js";
 import type { GwenEngine } from "../engine/engine-types.js";
 import { WasmBridgeImpl } from "../engine/wasm-bridge.js";
+import { resetAutoFallbackLog as clearAutoFallbackFlags } from "../engine/wasm-instance-provider.js";
 import type { CoreVariant } from "../engine/wasm-bridge-types.js";
 import { GwenError } from "@gwenjs/schema";
 import { CoreErrorCodes } from "../engine/engine-errors.js";
@@ -77,6 +78,7 @@ export async function createRealEngine(
     maxEntities: options.maxEntities,
     jsUrl,
     wasmUrl,
+    wasmInstance: "shared",
   });
   const engine = await createEngine({
     variant: options.variant,
@@ -116,4 +118,6 @@ export async function createRealEngine(
   };
 }
 
-export function resetAutoFallbackLog(): void {}
+export function resetAutoFallbackLog(): void {
+  clearAutoFallbackFlags();
+}

@@ -1,7 +1,8 @@
 /**
  * Glue instances for a compiled module.
  * `shared` keeps one instance per module. `isolated` keeps one instance per engine.
- * Both providers map `initSync` only. `createGlue` and `new Engine` are not mapped.
+ * `auto` keeps the first engine on that pool, then isolated instances under a budget.
+ * Providers map `initSync` only. `createGlue` and `new Engine` are not mapped.
  */
 
 import { GwenError } from "@gwenjs/schema";
@@ -11,15 +12,17 @@ import type { GwenCoreGlueFactoryModule, GwenCoreGlueInstance } from "./wasm-bri
 
 export type WasmInstanceMode = "shared" | "isolated" | "auto";
 
+export interface AutoFallback {
+  reason: "capacity" | "budget";
+  isolatedLive: number;
+  cause?: unknown;
+}
+
 interface WasmInstanceAcquire {
   glue: GwenCoreGlueInstance;
   exports: { memory: WebAssembly.Memory };
   placement: "shared" | "isolated";
-  fallback?: {
-    reason: "capacity" | "budget";
-    isolatedLive: number;
-    cause?: unknown;
-  };
+  fallback?: AutoFallback;
 }
 
 export interface WasmInstanceProvider {
@@ -43,6 +46,8 @@ const byGlue = new Map<GwenCoreGlueInstance, SharedEntry>();
 /** One per live shared instance. Decremented once, when that entry's refs hit zero. */
 let sharedLive = 0;
 
+const CAPACITY_HINT = 'Use wasmInstance: "shared", fewer engines per process, or worker threads.';
+
 /**
  * Map one `glue.initSync` failure.
  * A `RangeError`, or a throw that is not an `Error`, is `CORE:WASM_CAPACITY_EXHAUSTED`.
@@ -57,9 +62,7 @@ function mapInstantiateError(err: unknown, mode: WasmInstanceMode, live: number)
       {
         composable: "initWasm",
         cause: err,
-        hint: __GWEN_DEV__
-          ? 'Use wasmInstance: "shared", fewer engines per process, or worker threads.'
-          : undefined,
+        hint: __GWEN_DEV__ ? CAPACITY_HINT : undefined,
       },
     );
   }
@@ -155,10 +158,106 @@ export const isolatedProvider: WasmInstanceProvider = {
   },
 };
 
-/** Routes every acquire to the shared pool. `budget` is unused until placement lands. */
-export function autoProvider(budget: number): WasmInstanceProvider {
-  void budget;
-  return sharedProvider;
+/** Isolated engines after the pool engine, when `wasmIsolatedBudget` is omitted. */
+const AUTO_ISOLATED_BUDGET = 16;
+
+let loggedCapacity = false;
+let loggedBudget = false;
+
+/** True the first time this realm logs `reason`. */
+export function claimAutoFallback(reason: "capacity" | "budget"): boolean {
+  const already = reason === "capacity" ? loggedCapacity : loggedBudget;
+  if (already) return false;
+  if (reason === "capacity") loggedCapacity = true;
+  else loggedBudget = true;
+  return true;
+}
+
+/** Clears the once-per-reason log flags. Does not touch instances or live counts. */
+export function resetAutoFallbackLog(): void {
+  loggedCapacity = false;
+  loggedBudget = false;
+}
+
+function autoCapacityError(cause: unknown): GwenError {
+  return new GwenError(
+    CoreErrorCodes.WASM_CAPACITY_EXHAUSTED,
+    `Cannot create another WASM instance (mode "auto", ${sharedLive} live).`,
+    {
+      composable: "initWasm",
+      cause,
+      hint: __GWEN_DEV__ ? CAPACITY_HINT : undefined,
+    },
+  );
+}
+
+function readCause(err: object): unknown {
+  return "cause" in err ? err.cause : undefined;
+}
+
+function rethrowForAutoPool(err: unknown): never {
+  if (err instanceof GwenError && err.code === CoreErrorCodes.WASM_LOAD_ERROR) throw err;
+  if (err instanceof GwenError && err.code === CoreErrorCodes.WASM_CAPACITY_EXHAUSTED) {
+    throw autoCapacityError(readCause(err));
+  }
+  throw err;
+}
+
+function capacityCauseOf(err: unknown): { readonly cause: unknown } | undefined {
+  if (!(err instanceof GwenError) || err.code !== CoreErrorCodes.WASM_CAPACITY_EXHAUSTED) {
+    return undefined;
+  }
+  return { cause: readCause(err) };
+}
+
+function budgetFull(isolatedBudget: number): boolean {
+  return isolatedLive >= isolatedBudget;
+}
+
+function withFallback(
+  pooled: WasmInstanceAcquire,
+  reason: "capacity" | "budget",
+  cause?: unknown,
+): WasmInstanceAcquire {
+  const fallback: AutoFallback = { reason, isolatedLive };
+  if (cause !== undefined) fallback.cause = cause;
+  return { glue: pooled.glue, exports: pooled.exports, placement: "shared", fallback };
+}
+
+/** First `auto` engine of a module is the pool. Later ones are isolated under `budget`. */
+export function autoProvider(budget?: number): WasmInstanceProvider {
+  const isolatedBudget = budget ?? AUTO_ISOLATED_BUDGET;
+  return {
+    mode: "auto",
+    acquire(module, factory) {
+      const creating = byModule.get(module) === undefined;
+      let pooled: WasmInstanceAcquire;
+      try {
+        pooled = sharedProvider.acquire(module, factory);
+      } catch (err: unknown) {
+        rethrowForAutoPool(err);
+      }
+      if (creating) return pooled;
+      if (budgetFull(isolatedBudget)) return withFallback(pooled, "budget");
+      try {
+        const isolated = isolatedProvider.acquire(module, factory);
+        sharedProvider.release(pooled.glue);
+        return isolated;
+      } catch (err: unknown) {
+        const capacity = capacityCauseOf(err);
+        if (capacity !== undefined) return withFallback(pooled, "capacity", capacity.cause);
+        sharedProvider.release(pooled.glue);
+        throw err;
+      }
+    },
+    release(glue) {
+      if (byGlue.has(glue)) {
+        sharedProvider.release(glue);
+        return;
+      }
+      isolatedProvider.release(glue);
+    },
+  };
 }
 
 /** `deref` is `undefined` once the target is collected. */

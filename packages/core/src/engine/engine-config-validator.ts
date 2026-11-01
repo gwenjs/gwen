@@ -1,6 +1,7 @@
 /**
  * @file Engine configuration validator for SAFETY-01.
  * Validates `GwenEngineOptions` and throws `GwenConfigError` on invalid values.
+ * `wasmIsolatedBudget`, when present, must be an integer >= 0.
  */
 
 import { checkEngineConfig, formatReceived, type GwenConfigIssue } from "@gwenjs/schema";
@@ -81,6 +82,10 @@ function rejectConfig(fields: Readonly<Record<string, unknown>>, issue: GwenConf
   });
 }
 
+function isWholeBudget(value: unknown): boolean {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0;
+}
+
 /**
  * Validates engine configuration options.
  * Rules for the engine fields come from `@gwenjs/schema` `checkEngineConfig`.
@@ -88,6 +93,7 @@ function rejectConfig(fields: Readonly<Record<string, unknown>>, issue: GwenConf
  * Also rejects an invalid `variant`, `loop`, `physicsHz`, `maxCatchupSteps`, or `debug`.
  * Logs console.warn for unusual but valid values.
  *
+ * - `wasmIsolatedBudget`: integer >= 0. Any other value throws.
  * - `maxEntities`: integer in [1, 2_000_000]. Warns if > 500_000.
  * - `targetFPS`: finite number in [1, 300]. Warns if > 144.
  * - `maxDeltaSeconds`: finite number in (0, 10].
@@ -112,7 +118,14 @@ function rejectConfig(fields: Readonly<Record<string, unknown>>, issue: GwenConf
  * validateEngineConfig({});
  * ```
  */
-export function validateEngineConfig(opts: GwenEngineOptions): void {
+export function validateEngineConfig(
+  opts: GwenEngineOptions & { readonly wasmIsolatedBudget?: unknown },
+): void {
+  if (opts.wasmIsolatedBudget !== undefined && !isWholeBudget(opts.wasmIsolatedBudget)) {
+    throw new GwenConfigError("wasmIsolatedBudget", opts.wasmIsolatedBudget, {
+      hint: "Expected an integer >= 0.",
+    });
+  }
   const fields = pickEngineFields(opts);
   const issues = checkEngineConfig(fields, "@gwenjs/core");
   const issue = issues[0];

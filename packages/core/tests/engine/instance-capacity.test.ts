@@ -67,16 +67,6 @@ function factoryOk(): GwenCoreGlueFactoryModule {
   return factory(() => ({ memory }));
 }
 
-function factoryThenThrow(thrown: unknown): GwenCoreGlueFactoryModule {
-  let calls = 0;
-  const memory = new WebAssembly.Memory({ initial: 1 });
-  return factory(() => {
-    calls += 1;
-    if (calls > 1) throw thrown;
-    return { memory };
-  });
-}
-
 function capacityLine(mode: "shared" | "isolated" | "auto", live: number): string {
   return `[initWasm()] Cannot create another WASM instance (mode "${mode}", ${live} live).`;
 }
@@ -190,18 +180,51 @@ describe("wasm instance capacity", () => {
 
 function expectPoolFallback(thrown: unknown): void {
   const provider = autoProvider(2);
-  const acquired = provider.acquire(tinyModule(), factoryThenThrow(thrown));
+  const module = tinyModule();
+  let inits = 0;
+  const memory = new WebAssembly.Memory({ initial: 1 });
+  const glueFactory = factory(() => {
+    if (++inits > 1) throw thrown;
+    return { memory };
+  });
+  const held: GwenCoreGlueInstance[] = [];
   try {
-    expect(acquired.placement).toBe("shared");
-    expect(acquired.fallback?.reason).toBe("capacity");
-    expect(acquired.fallback?.cause).toBe(thrown);
+    const first = provider.acquire(module, glueFactory);
+    held.push(first.glue);
+    expect([first.placement, first.fallback, inits]).toEqual(["shared", undefined, 1]);
+    const next = provider.acquire(module, glueFactory);
+    held.push(next.glue);
+    expect([next.placement, next.fallback?.reason, next.fallback?.cause]).toEqual([
+      "shared",
+      "capacity",
+      thrown,
+    ]);
   } finally {
-    provider.release(acquired.glue);
+    for (const glue of held) provider.release(glue);
   }
 }
 
 describe("wasmInstance auto", () => {
   afterEach(resetAutoFallbackLog);
+
+  it("auto: the first engine never allocates a second instance", () => {
+    let created = 0;
+    let inits = 0;
+    const memory = new WebAssembly.Memory({ initial: 1 });
+    const base = factory(() => (inits++, { memory }));
+    const provider = autoProvider(2);
+    const acquired = provider.acquire(tinyModule(), {
+      ...base,
+      createGlue: () => (created++, base.createGlue()),
+    });
+    try {
+      expect([created, inits]).toEqual([1, 1]);
+      expect(acquired.placement).toBe("shared");
+      expect(acquired.fallback).toBeUndefined();
+    } finally {
+      provider.release(acquired.glue);
+    }
+  });
 
   it("auto: a RangeError from an isolated instantiation places the engine on the pool", () => {
     expectPoolFallback(new RangeError("out of memory"));
