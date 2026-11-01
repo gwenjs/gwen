@@ -10,7 +10,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { defineGwenModule } from "@gwenjs/kit/module";
+import { fileURLToPath } from "node:url";
+import { defineGwenModule, GwenModuleDefinitionError } from "@gwenjs/kit/module";
 import type { GwenModule } from "@gwenjs/kit/module";
 import type { AutoImport } from "@gwenjs/kit";
 import { GwenError } from "@gwenjs/schema";
@@ -887,6 +888,13 @@ describe("GwenApp.setupModules — local modules", () => {
     return root;
   }
 
+  /** Under `packages/app` so jiti resolves `@gwenjs/kit/module` from that package. */
+  function makeAppRoot(): string {
+    const root = mkdtempSync(join(dirname(fileURLToPath(import.meta.url)), "tmp-local-mod-"));
+    roots.push(root);
+    return root;
+  }
+
   function writeModule(root: string, rel: string, source: string): void {
     const file = join(root, rel);
     mkdirSync(dirname(file), { recursive: true });
@@ -1063,6 +1071,116 @@ describe("GwenApp.setupModules — local modules", () => {
     });
     await app.setupModules(resolveConfig({ modules: [] }), makeLoader({}), { root });
     expect(before.filter((name) => !name.startsWith("@"))).toEqual(["local:blank"]);
+  });
+
+  it("an invalid module fails the load with KIT:MODULE_INVALID", async () => {
+    const root = makeRoot();
+    writeModule(
+      root,
+      "src/modules/bad-key.ts",
+      `export default { meta: { name: "ok:name", configKey: 1 }, setup() {} }\n`,
+    );
+    const app = new GwenApp();
+    let caught: unknown;
+    try {
+      await app.setupModules(resolveConfig({ modules: [] }), makeLoader({}), { root });
+      caught = undefined;
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(GwenModuleDefinitionError);
+    if (!(caught instanceof GwenModuleDefinitionError)) {
+      throw new Error("expected GwenModuleDefinitionError");
+    }
+    expect(caught.code).toBe("KIT:MODULE_INVALID");
+    expect(caught.fields).toEqual(["meta.configKey"]);
+    expect(caught.module).toBe("ok:name");
+    expect(caught.message).toContain('Module "ok:name" is invalid: meta.configKey.');
+  });
+
+  it("a local module without meta fails with KIT:MODULE_INVALID naming its file", async () => {
+    const root = makeRoot();
+    const file = join(root, "src", "modules", "plain.ts");
+    writeModule(root, "src/modules/plain.ts", "export default { setup() {} }\n");
+    const app = new GwenApp();
+    let caught: unknown;
+    try {
+      await app.setupModules(resolveConfig({ modules: [] }), makeLoader({}), { root });
+      caught = undefined;
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(GwenModuleDefinitionError);
+    if (!(caught instanceof GwenModuleDefinitionError)) {
+      throw new Error("expected GwenModuleDefinitionError");
+    }
+    expect(caught.code).toBe("KIT:MODULE_INVALID");
+    expect(caught.module).toBe(file);
+    expect(caught.fields).toEqual(["meta"]);
+  });
+
+  it("a local module with a frozen empty meta.name gets the inferred name", async () => {
+    const root = makeRoot();
+    writeModule(
+      root,
+      "src/modules/frozen.ts",
+      `const meta = Object.freeze({ name: "" });
+export default { meta, setup() {} };
+`,
+    );
+    const app = new GwenApp();
+    const before: string[] = [];
+    app.buildHooks.hook("module:before", (mod) => {
+      before.push(mod.meta.name);
+    });
+    await app.setupModules(resolveConfig({ modules: [] }), makeLoader({}), { root });
+    expect(before.filter((name) => !name.startsWith("@"))).toEqual(["local:frozen"]);
+  });
+
+  it("a local module with a non-string meta.name fails with KIT:MODULE_INVALID", async () => {
+    const root = makeRoot();
+    writeModule(
+      root,
+      "src/modules/numbered.ts",
+      `export default { meta: { name: 42 }, setup() {} }\n`,
+    );
+    const app = new GwenApp();
+    let caught: unknown;
+    try {
+      await app.setupModules(resolveConfig({ modules: [] }), makeLoader({}), { root });
+      caught = undefined;
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(GwenModuleDefinitionError);
+    if (!(caught instanceof GwenModuleDefinitionError)) {
+      throw new Error("expected GwenModuleDefinitionError");
+    }
+    expect(caught.code).toBe("KIT:MODULE_INVALID");
+    expect(caught.fields).toEqual(["meta.name"]);
+  });
+
+  it("a local file built with defineGwenModule and no meta.name fails with KIT:MODULE_INVALID", async () => {
+    const root = makeAppRoot();
+    writeModule(
+      root,
+      "src/modules/score.ts",
+      `import { defineGwenModule } from "@gwenjs/kit/module";
+export default defineGwenModule({ meta: { configKey: "score" }, setup() {} });
+`,
+    );
+    const app = new GwenApp();
+    let caught: unknown;
+    try {
+      await app.setupModules(resolveConfig({ modules: [] }), makeLoader({}), { root });
+      caught = undefined;
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(GwenError);
+    if (!(caught instanceof GwenError)) throw new Error("expected GwenError");
+    expect(caught.code).toBe("APP:MODULE_LOAD_FAILED");
+    expect(caught.cause).toMatchObject({ code: "KIT:MODULE_INVALID", fields: ["meta.name"] });
   });
 });
 

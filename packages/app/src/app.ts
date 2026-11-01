@@ -9,7 +9,12 @@
 
 import type { GwenPlugin, PluginDeclaration } from "@gwenjs/schema";
 import type { AutoImport, VitePlugin, ViteUserConfig } from "@gwenjs/kit";
-import type { GwenModule, GwenKit, GwenBuildHooks } from "@gwenjs/kit/module";
+import {
+  validateGwenModule,
+  type GwenBuildHooks,
+  type GwenKit,
+  type GwenModule,
+} from "@gwenjs/kit/module";
 import { createHooks } from "hookable";
 import { createJiti } from "jiti";
 import { writeFileSync, mkdirSync, readFileSync, existsSync } from "node:fs";
@@ -135,7 +140,8 @@ export class GwenApp {
    *   Defaults to `process.cwd()`, same as {@link GwenApp.prepare}.
    *   `config.localModulesDir === false` disables local modules.
    *
-   * @throws {GwenError} If a module cannot be resolved or has no `setup` function.
+   * @throws {GwenError} `KIT:MODULE_INVALID` when any field is invalid.
+   *   `APP:MODULE_LOAD_FAILED` when the import fails.
    *
    * @example
    * ```typescript
@@ -677,9 +683,11 @@ function freezeResolved(config: ResolvedGwenConfig): Readonly<ResolvedGwenConfig
  *
  * @throws {GwenError} `APP:MODULE_LOAD_FAILED` when the import throws.
  *   A local file names `file` and does not suggest installing a package.
- * @throws {GwenError} `KIT:MODULE_INVALID` when the imported value has no `setup` function.
- *   In development the hint says to export the object from `defineGwenModule()`.
- *   A local file also names `file`.
+ * @throws {GwenError} `KIT:MODULE_INVALID` when any field is invalid.
+ *   The error is rethrown unchanged. `validateGwenModule(definition, file ?? name)`
+ *   uses the file path as `module` when a local file has no usable name.
+ *   A missing or empty `meta.name` is filled on a copy with the inferred name
+ *   before that check. The imported object is not mutated.
  */
 async function loadModule(
   name: string,
@@ -717,20 +725,27 @@ async function loadModule(
   }
 
   const definition: unknown = imported.default ?? imported;
+  const checked = file !== undefined ? withInferredModuleName(definition, name) : definition;
+  validateGwenModule(checked, file ?? name);
+  return checked as GwenModule;
+}
 
-  if (!definition || typeof (definition as Record<string, unknown>)["setup"] !== "function") {
-    const what =
-      read !== undefined
-        ? `Module "${name}" from ${file} does not export a valid GwenModule (missing setup function).`
-        : `Module "${name}" does not export a valid GwenModule (missing setup function).`;
-    throw new GwenError(AppErrorCodes.MODULE_INVALID, what, {
-      hint: __GWEN_DEV__
-        ? "Ensure the module exports a default object created with defineGwenModule()."
-        : undefined,
-    });
-  }
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
 
-  return definition as GwenModule;
+/**
+ * A local file with a missing or empty `meta.name` is checked as a copy
+ * that carries the inferred name. Any other `meta.name` is left as it is.
+ * The imported object is not mutated.
+ */
+function withInferredModuleName(definition: unknown, inferred: string): unknown {
+  if (!isObjectRecord(definition)) return definition;
+  const meta = definition["meta"];
+  if (!isObjectRecord(meta)) return definition;
+  const explicit = meta["name"];
+  if (explicit !== undefined && explicit !== "") return definition;
+  return { ...definition, meta: { ...meta, name: inferred } };
 }
 
 // ─── RFC-010: .gwen/ generation helpers ──────────────────────────────────────

@@ -150,7 +150,7 @@ Cause. L'appel est hors de `defineActor()`, `plugin setup()` ou `withCleanup()`.
 
 ## @gwenjs/kit
 
-- `KIT:MODULE_INVALID` {#kit-module-invalid}
+- `KIT:MODULE_INVALID` {#kit-module-invalid} Levé par `defineGwenModule()` quand `meta`, `meta.name`, `meta.configKey`, `meta.version`, `defaults`, `setup` ou `validate` est invalide. `fields` liste chaque chemin en échec. Le message nomme ces champs.
 - `KIT:PLUGIN_SETUP_FAILED` {#kit-plugin-setup-failed} Cause. Plus rien dans @gwenjs/kit ne lève ce code ; `definePlugin` n'enveloppe plus `setup`, et un échec de setup est `CORE:PLUGIN_SETUP_ERROR` (ancre #core-plugin-setup-error).
 
 ## @gwenjs/schema
@@ -171,7 +171,7 @@ Cause. Le `setup()` d'un module a levé une erreur. `cause` est cette erreur. Fi
 
 ### APP:MODULE_LOAD_FAILED {#app-module-load-failed}
 
-Cause. Le paquet ou le fichier du module n'a pas pu être importé, l'import n'a pas de `setup()` (`cause` est `KIT:MODULE_INVALID`), ou un `moduleLoader` personnalisé a levé une erreur. Fix. Vérifiez le nom et que le paquet est installé. En développement, un paquet manquant indique de lancer `gwen add <name>`.
+Cause. Le paquet ou le fichier du module n'a pas pu être importé, l'import échoue à la validation du module (`cause` est `KIT:MODULE_INVALID` et nomme les champs), ou un `moduleLoader` personnalisé a levé une erreur. Fix. Vérifiez le nom et que le paquet est installé. En développement, un paquet manquant indique de lancer `gwen add <name>`.
 
 ### APP:PLUGIN_NOT_DECLARATIVE {#app-plugin-not-declarative}
 
