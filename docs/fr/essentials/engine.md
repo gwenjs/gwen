@@ -125,7 +125,7 @@ export const DebugSystem = defineSystem(() => {
 
 ## Moteurs sur une même instance
 
-C'est `wasmInstance: "shared"`, le défaut (`packages/core/src/engine/wasm-bridge.ts:458`). Deux moteurs peuvent tourner sur une même instance WASM. Chaque moteur possède ses entités, son monde physique et ses tampons de chemin. Un chemin écrit par un moteur n'est pas le chemin que l'autre moteur lit.
+C'est `wasmInstance: "shared"`, le défaut (`packages/core/src/engine/wasm-bridge.ts:523`). Deux moteurs peuvent tourner sur une même instance WASM. Chaque moteur possède ses entités, son monde physique et ses tampons de chemin. Un chemin écrit par un moteur n'est pas le chemin que l'autre moteur lit.
 
 `jsUrl` est l'URL de `gwen_core_factory.js`. `init()` avec `jsUrl` ou `wasmUrl` sur un pont déjà initialisé rejette `CORE:WASM_LOAD_ERROR`.
 
@@ -137,14 +137,19 @@ Ils partagent encore trois choses :
 
 ## Plusieurs moteurs par page ou par processus
 
-`wasmInstance` choisit l'instance WASM (`packages/core/src/engine/wasm-bridge.ts:458`).
+`wasmInstance` choisit l'instance WASM (`packages/core/src/engine/wasm-bridge.ts:523`).
 
 | Mode | Comportement |
 | --- | --- |
 | `shared` (défaut) | Une instance par module compilé. Les moteurs de ce module partagent sa mémoire linéaire. |
-| `isolated` | Une instance par moteur, avec sa propre mémoire linéaire (`packages/core/src/engine/wasm-instance-provider.ts:133`). |
+| `isolated` | Une instance par moteur, avec sa propre mémoire linéaire (`packages/core/src/engine/wasm-instance-provider.ts:144`). |
+| `auto` | Le premier moteur d'un module va sur l'instance du pool de ce module, celle que `shared` utilise (`packages/core/src/engine/wasm-instance-provider.ts:240`). Chaque moteur suivant reçoit sa propre instance tant que moins de `wasmIsolatedBudget` instances isolées sont vivantes dans la page ou le processus (`packages/core/src/engine/wasm-instance-provider.ts:241`, `:243`). Au-delà du budget, ou sur un `RangeError` ou une valeur levée qui n'est pas une `Error`, il rejoint le pool (`packages/core/src/engine/wasm-instance-provider.ts:241`, `:248`). `engine.wasmInstance` est le placement résolu, `"shared"` ou `"isolated"` (`packages/core/src/engine/engine-types.ts:504`). |
 
-`createEngine` de `@gwenjs/core` utilise `shared` par défaut (`packages/core/src/engine/wasm-bridge.ts:509`). `createEngine` de `@gwenjs/core/node` utilise `isolated` par défaut (voir [Sans affichage / serveur](#sans-affichage-serveur)).
+`createEngine` de `@gwenjs/core` utilise `shared` par défaut (`packages/core/src/engine/wasm-bridge.ts:523`). `createEngine` de `@gwenjs/core/node` utilise `isolated` par défaut (voir [Sans affichage / serveur](#sans-affichage-serveur)). `auto` est opt-in et ne change aucun défaut.
+
+`wasmIsolatedBudget` est un entier >= 0, sinon `CORE:INVALID_CONFIG` (`packages/core/src/engine/engine-config-validator.ts:124`). Le défaut est 16 (`packages/core/src/engine/wasm-instance-provider.ts:162`). `0` met chaque moteur sur le pool (`packages/core/src/engine/wasm-instance-provider.ts:213`). Un moteur en marche ne bouge jamais (`packages/core/src/engine/wasm-bridge.ts:532`). `auto` n'alloue jamais d'instance pour tester la capacité (`packages/core/src/engine/wasm-instance-provider.ts:240`). `LinkError` et `CompileError` ne sont pas un repli : ils rejettent `CORE:WASM_LOAD_ERROR` (`packages/core/src/engine/wasm-instance-provider.ts:199`). Quand un moteur rejoint le pool, le logger du moteur écrit un avertissement par raison (`budget` ou `capacity`) et par page ou processus, avec la charge `{ reason, mode: "auto", isolatedLive, cause? }` (`packages/core/src/engine/engine-factory.ts:22`, `packages/core/src/engine/wasm-instance-provider.ts:168`).
+
+Sous `auto`, les moteurs du pool partagent un seul domaine de faute : un trap les empoisonne tous avec `CORE:WASM_PANIC`. Les moteurs isolés ne sont pas enregistrés auprès du pool, donc ils ne sont pas empoisonnés (`packages/core/src/engine/wasm-bridge.ts:534`).
 
 `isolated` dans le navigateur est pris en charge. Trois projets Playwright le valident : Chromium, Firefox et WebKit (`packages/core/playwright.config.ts:21-23`). Ils lancent `packages/core/tests/browser/isolation.pw.ts` et `packages/core/tests/browser/capacity.pw.ts`. `shared` reste le défaut dans le navigateur. Sur les appareils iOS, utilisez le mode `shared` par défaut. iOS n'est pas dans la CI.
 
@@ -153,7 +158,7 @@ Capacité mesurée :
 | Navigateur | Version | Limite mesurée | Date |
 | --- | --- | --- | --- |
 | Chromium | 153.0.8010.12 | 123 moteurs isolés créés. Le 124e rejette `CORE:WASM_CAPACITY_EXHAUSTED`, avec un moteur partagé créé d'abord (`packages/core/tests/browser/capacity.pw.ts:46`). | 2026-10-30 |
-| Firefox | 155.0 | 998 moteurs isolés créés. Le 999e rejette `CORE:WASM_CAPACITY_EXHAUSTED`. La valeur levée n'est pas une `Error` ; `packages/core/src/engine/wasm-instance-provider.ts:45` la convertit. | 2026-10-30 |
+| Firefox | 155.0 | 998 moteurs isolés créés. Le 999e rejette `CORE:WASM_CAPACITY_EXHAUSTED`. La valeur levée n'est pas une `Error` ; `packages/core/src/engine/wasm-instance-provider.ts:58` la convertit. | 2026-10-30 |
 | WebKit | 26.6 | Aucune limite observée jusqu'à 500 moteurs isolés : 500 mémoires distinctes, pas de crash. La boucle du test s'arrête à 500 et ne sonde jamais plus loin (`packages/core/tests/browser/capacity.pw.ts:142`). | 2026-10-30 |
 | Node 22 | — | Environ 10 GiB de mémoire virtuelle par instance avec le gestionnaire de traps activé. Prévoir le budget avec `ulimit -v`. | — |
 
@@ -163,12 +168,15 @@ Un run manuel, hors CI, a vu le processus de la page WebKit mourir vers 13,575 �
 
 Firefox sur ARM64 Android réserve de la place pour 75 grandes mémoires (source SpiderMonkey) ; ce n'est pas mesuré.
 
-Quand `glue.initSync` lève un `RangeError` ou une valeur qui n'est pas une `Error`, `initWasm` lève `CORE:WASM_CAPACITY_EXHAUSTED` (`packages/core/src/engine/wasm-instance-provider.ts:46`). Les recours sont `wasmInstance: "shared"`, moins de moteurs par processus, ou des worker threads.
+Le budget par défaut de 16 (`packages/core/src/engine/wasm-instance-provider.ts:162`) vient des médianes WebKit 26.6 du run CI 41061814726 : 0,492 millisecondes par pas pour les moteurs 1 à 8, 0,5 milliseconde pour les moteurs 9 à 16 (+1,6 %), pas de falaise jusqu'à 16. C'est le plus grand nombre mesuré sans ralentissement. Il est au moins 4 fois sous le plus petit plafond documenté, Firefox ARM64 Android (environ 75, documenté depuis la source, non mesuré). Les plafonds mesurés sont Chromium 123 et Firefox 998. Ce n'est pas une garantie. Changez-le avec `wasmIsolatedBudget`.
+
+Quand `glue.initSync` lève un `RangeError` ou une valeur qui n'est pas une `Error`, `initWasm` lève `CORE:WASM_CAPACITY_EXHAUSTED` en `shared` et `isolated` (`packages/core/src/engine/wasm-instance-provider.ts:58`). En `auto`, le moteur rejoint le pool à la place. Il rejette seulement quand l'instance du pool elle-même ne peut pas être créée, avec `mode "auto"` (`packages/core/src/engine/wasm-instance-provider.ts:198`). Les recours sont `wasmInstance: "shared"`, `wasmInstance: "auto"`, moins de moteurs par processus, ou des worker threads.
 
 Quand le code de capacité est levé, le moteur partagé créé d'abord continue de fonctionner. `capacity.pw.ts` vérifie qu'il avance encore (`packages/core/tests/browser/capacity.pw.ts:74`, `:92`) et qu'un second moteur partagé s'initialise après le rejet (`packages/core/tests/browser/capacity.pw.ts:75`, `:93`).
 
 ```ts
 const room = await createEngine({ variant: "physics2d", wasmInstance: "isolated" });
+const lobby = await createEngine({ variant: "physics2d", wasmInstance: "auto", wasmIsolatedBudget: 4 });
 ```
 
 ## Statistiques de frame
