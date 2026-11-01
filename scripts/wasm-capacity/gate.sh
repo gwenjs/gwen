@@ -13,7 +13,7 @@ for v in light physics2d physics3d; do
   cp "$WASM/$v/gwen_core_factory.js" "$WASM/$v/gwen_core.js" "$WASM/$v/gwen_core_bg.wasm" "$WORK/$v/" || exit 1
 done
 printf '%s\n' '{"type":"module"}' > "$WORK/package.json"
-for s in max2.mjs start2.mjs det.mjs leak.mjs; do
+for s in max2.mjs start2.mjs det.mjs leak.mjs auto.mjs; do
   cp "$HERE/$s" "$WORK/" || exit 1
 done
 cd "$WORK"
@@ -40,6 +40,9 @@ for g in 16 32 64; do
   run "ul$g-default" $((g * G)) "" max2.mjs light 40000 1
   run "ul$g-notrap" $((g * G)) "--disable-wasm-trap-handler" max2.mjs light 40000 25
 done
+# auto.mjs imports packages/core/dist/node.js. The wasm copy in $WORK is for the other stages.
+CORE="$(cd "$HERE/../../packages/core" && pwd)"
+run auto $((64 * G)) "" auto.mjs "$CORE"
 for v in light physics2d physics3d; do
   run "start-$v" unlimited "" start2.mjs "$v" 1000
 done

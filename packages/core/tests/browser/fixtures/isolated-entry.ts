@@ -171,8 +171,7 @@ async function makeAuto(wasmIsolatedBudget?: number): Promise<Made> {
   let acquired = false;
   try {
     const options: InitWasmOptions = {
-      // stub: phase 2 routes this to auto
-      wasmInstance: "isolated",
+      wasmInstance: "auto",
       jsUrl: source.jsUrl,
       wasmUrl: source.wasmUrl,
       maxEntities: 16,

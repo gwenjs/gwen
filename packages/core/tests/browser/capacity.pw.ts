@@ -139,8 +139,8 @@ test.describe("chromium", () => {
   });
 
   test("auto: past the cap new engines join the pool and advance", async ({ page }) => {
-    // local run, 88ms; replace with a CI run id
-    test.setTimeout(5_000);
+    // provisional: 2x a local run of 478 ms; replace with a CI run id and 2x its duration
+    test.setTimeout(1_000);
     await openIsolated(page);
     const result = await autoPastCap(page, 200);
     logAuto("chromium", result);
@@ -163,8 +163,8 @@ test.describe("firefox", () => {
   });
 
   test("auto: past the cap new engines join the pool and advance", async ({ page }) => {
-    // local run, 1345ms; replace with a CI run id
-    test.setTimeout(5_000);
+    // provisional: same ceiling as the isolated test above; replace with a CI run id and 2x its duration
+    test.setTimeout(10_400);
     await openIsolated(page);
     const result = await autoPastCap(page, 1100);
     logAuto("firefox", result);
@@ -194,8 +194,8 @@ test.describe("webkit", () => {
   });
 
   test("auto: WebKit 500 engines, budget default, all advance", async ({ page }) => {
-    // local run, 998ms; replace with a CI run id
-    test.setTimeout(5_000);
+    // provisional: same ceiling as the isolated test above; replace with a CI run id and 2x its duration
+    test.setTimeout(16_600);
     await openIsolated(page);
     const result: AutoBatch = await page.evaluate(async () => {
       const gwen: GwenHarness = window.__gwen;

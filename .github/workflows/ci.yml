@@ -821,6 +821,8 @@ jobs:
         with:
           name: core-wasm
           path: packages/core/wasm/
+      - name: Build core node entry
+        run: pnpm --filter @gwenjs/schema --filter @gwenjs/math --filter @gwenjs/kit --filter @gwenjs/core build
       - name: Kernel facts
         run: |
           uname -m
