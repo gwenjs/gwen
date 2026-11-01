@@ -21,6 +21,7 @@ const SHARED_CHECKS = [
   "determinism_equal_modes",
   "dropped_3000_rooms_reclaimed_under_64gib",
   "notrap_with_limit_exit_134_recorded",
+  "auto_fallback_at_ulimit",
 ];
 
 /**
@@ -507,6 +508,88 @@ test("a missing auto.out fails its check instead of crashing", () => {
     assert.equal(result.status, 1, result.stdout + result.stderr);
     assert.equal(result.json.checks?.auto_fallback_at_ulimit?.measured, null);
     assert.deepEqual(failedNames(result.json), ["auto_fallback_at_ulimit"]);
+  } finally {
+    release(dir);
+  }
+});
+
+test("auto_fallback_at_ulimit: fallback_at off the ul64 failed_at exits 1", () => {
+  const dir = stage("pass-x64");
+  try {
+    patchOut(dir, "auto.out", (json) => {
+      json.fallback_at = 8;
+    });
+    assertFailedOnly(dir, "auto_fallback_at_ulimit", "x64");
+  } finally {
+    release(dir);
+  }
+});
+
+test("auto_fallback_at_ulimit: same_memory false exits 1", () => {
+  const dir = stage("pass-x64");
+  try {
+    patchOut(dir, "auto.out", (json) => {
+      json.same_memory = false;
+    });
+    assertFailedOnly(dir, "auto_fallback_at_ulimit", "x64");
+  } finally {
+    release(dir);
+  }
+});
+
+test("auto_fallback_at_ulimit: advanced false exits 1", () => {
+  const dir = stage("pass-x64");
+  try {
+    patchOut(dir, "auto.out", (json) => {
+      json.advanced = false;
+    });
+    assertFailedOnly(dir, "auto_fallback_at_ulimit", "x64");
+  } finally {
+    release(dir);
+  }
+});
+
+test("auto_fallback_at_ulimit: rejected_at set exits 1", () => {
+  const dir = stage("pass-x64");
+  try {
+    patchOut(dir, "auto.out", (json) => {
+      json.rejected_at = 7;
+    });
+    assertFailedOnly(dir, "auto_fallback_at_ulimit", "x64");
+  } finally {
+    release(dir);
+  }
+});
+
+test("auto_fallback_at_ulimit: a non-zero auto.code exits 1", () => {
+  const dir = stage("pass-x64");
+  try {
+    writeFileSync(join(dir, "auto.code"), "1\n");
+    assertFailedOnly(dir, "auto_fallback_at_ulimit", "x64");
+  } finally {
+    release(dir);
+  }
+});
+
+test("auto_fallback_at_ulimit: a ul64-default row without failed_at exits 1", () => {
+  const dir = stage("pass-x64");
+  try {
+    patchOut(dir, "ul64-default.out", (json) => {
+      delete json.failed_at;
+    });
+    patchOut(dir, "auto.out", (json) => {
+      json.fallback_at = null;
+    });
+    // judge.mjs:164 also fails ulimit_16_32_64_formula_pm1 when failed_at is absent.
+    // fallback_at null matches that null, so only ul64FailedAt !== null (judge.mjs:257) fails the auto check.
+    const result = run(dir);
+    assert.equal(result.status, 1, result.stdout + result.stderr);
+    assert.ok(result.json, result.stderr);
+    assert.equal(result.json.checks?.auto_fallback_at_ulimit?.ok, false);
+    assert.deepEqual(failedNames(result.json), [
+      "ulimit_16_32_64_formula_pm1",
+      "auto_fallback_at_ulimit",
+    ]);
   } finally {
     release(dir);
   }

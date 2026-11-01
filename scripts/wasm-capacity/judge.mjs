@@ -231,6 +231,39 @@ checks.notrap_with_limit_exit_134_recorded = {
   threshold: "recorded",
 };
 
+const autoRow = lastJson("auto");
+metrics.auto = autoRow;
+const autoExit = exitCode("auto");
+const ul64Row = lastJson("ul64-default");
+const ul64FailedAt = typeof ul64Row?.failed_at === "number" ? ul64Row.failed_at : null;
+const autoReadable = autoRow != null && ul64Row != null;
+/** @type {{ fallback_at: number | null, rejected_at: number | null, same_memory: boolean, advanced: boolean } | null} */
+const autoMeasured = autoReadable
+  ? {
+      fallback_at: typeof autoRow.fallback_at === "number" ? autoRow.fallback_at : null,
+      rejected_at: typeof autoRow.rejected_at === "number" ? autoRow.rejected_at : null,
+      same_memory: autoRow.same_memory === true,
+      advanced: autoRow.advanced === true,
+    }
+  : null;
+checks.auto_fallback_at_ulimit = {
+  ok:
+    autoMeasured != null &&
+    autoExit === 0 &&
+    autoMeasured.rejected_at === null &&
+    autoMeasured.same_memory === true &&
+    autoMeasured.advanced === true &&
+    autoMeasured.fallback_at === ul64FailedAt &&
+    ul64FailedAt !== null,
+  measured: autoMeasured,
+  threshold: {
+    fallback_at: ul64FailedAt,
+    rejected_at: null,
+    same_memory: true,
+    advanced: true,
+  },
+};
+
 const out = { arch, node: process.version, metrics, checks };
 process.stdout.write(`${JSON.stringify(out, null, 2)}\n`);
 process.exit(Object.values(checks).some((check) => check.ok === false) ? 1 : 0);
