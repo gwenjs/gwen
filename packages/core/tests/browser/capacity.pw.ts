@@ -139,8 +139,8 @@ test.describe("chromium", () => {
   });
 
   test("auto: past the cap new engines join the pool and advance", async ({ page }) => {
-    // measuring: wide ceiling for the first CI runs; replaced by 2x the slowest measured CI run
-    test.setTimeout(5_000);
+    // CI run 41332186332 attempts 1 to 3, chromium: 1.3 s, 1.6 s and 1.6 s. Timeout is 2x the slowest.
+    test.setTimeout(3_200);
     await openIsolated(page);
     const result = await autoPastCap(page, 200);
     logAuto("chromium", result);
@@ -163,8 +163,8 @@ test.describe("firefox", () => {
   });
 
   test("auto: past the cap new engines join the pool and advance", async ({ page }) => {
-    // measuring: wide ceiling for the first CI runs; replaced by 2x the slowest measured CI run
-    test.setTimeout(30_000);
+    // CI run 41332186332 attempts 1 to 3, firefox: 8.7 s, 10.1 s and 10.1 s. Timeout is 2x the slowest.
+    test.setTimeout(20_200);
     await openIsolated(page);
     const result = await autoPastCap(page, 1100);
     logAuto("firefox", result);
@@ -194,8 +194,8 @@ test.describe("webkit", () => {
   });
 
   test("auto: WebKit 500 engines, budget default, all advance", async ({ page }) => {
-    // measuring: wide ceiling for the first CI runs; replaced by 2x the slowest measured CI run
-    test.setTimeout(16_600);
+    // CI run 41332186332 attempts 1 to 3, webkit: 0.36 s, 0.44 s and 0.43 s. Timeout is 2x the slowest.
+    test.setTimeout(900);
     await openIsolated(page);
     const result: AutoBatch = await page.evaluate(async () => {
       const gwen: GwenHarness = window.__gwen;
