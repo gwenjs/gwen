@@ -1,7 +1,7 @@
 import { writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { expect, test, type Page } from "@playwright/test";
-import type { GwenHarness, IsolatedBatch } from "./fixtures/isolated-entry";
+import type { AutoBatch, GwenHarness, IsolatedBatch } from "./fixtures/isolated-entry";
 
 function log(line: string): void {
   process.stdout.write(`${line}\n`);
@@ -94,6 +94,30 @@ function expectExhausted(result: Exhausted, bound: number): void {
   expect(result.sameMemory, detail).toBe(true);
 }
 
+function autoPastCap(page: Page, limit: number): Promise<AutoBatch> {
+  return page.evaluate(async (opened) => {
+    const gwen: GwenHarness = window.__gwen;
+    return gwen.collectAuto(opened, 10_000);
+  }, limit);
+}
+
+function logAuto(browser: string, result: AutoBatch): void {
+  log(
+    `${browser} auto opened=${String(result.opened)} rejected=${String(result.rejected)} first=${result.firstMode} isolated=${String(result.isolatedCount)} last=${result.lastMode} lastShares=${String(result.lastSharesFirstMemory)} from18=${String(result.from18SharesFirstMemory)} advanced=${String(result.advancedCount)} code=${result.code} name=${result.name} message=${result.message}`,
+  );
+}
+
+function expectAutoPastCap(result: AutoBatch, limit: number): void {
+  const detail = `${result.code} ${result.name}: ${result.message}`;
+  expect(result.rejected, detail).toBe(false);
+  expect(result.opened, detail).toBe(limit);
+  expect(result.firstMode, detail).toBe("shared");
+  expect(result.isolatedCount, detail).toBeGreaterThanOrEqual(1);
+  expect(result.lastMode, detail).toBe("shared");
+  expect(result.lastSharesFirstMemory, detail).toBe(true);
+  expect(result.advancedCount, detail).toBe(limit);
+}
+
 function logExhausted(browser: string, result: Exhausted): void {
   log(
     `${browser} isolated successes=${String(result.successes)} failing engine index=${String(result.successes + 1)} code=${result.code} name=${result.name} message=${result.message}`,
@@ -113,6 +137,15 @@ test.describe("chromium", () => {
     logExhausted("chromium", result);
     expectExhausted(result, 125);
   });
+
+  test("auto: past the cap new engines join the pool and advance", async ({ page }) => {
+    // local run, 88ms; replace with a CI run id
+    test.setTimeout(5_000);
+    await openIsolated(page);
+    const result = await autoPastCap(page, 200);
+    logAuto("chromium", result);
+    expectAutoPastCap(result, 200);
+  });
 });
 
 test.describe("firefox", () => {
@@ -127,6 +160,15 @@ test.describe("firefox", () => {
     const result = await exhaustShared(page, 1100);
     logExhausted("firefox", result);
     expectExhausted(result, 1000);
+  });
+
+  test("auto: past the cap new engines join the pool and advance", async ({ page }) => {
+    // local run, 1345ms; replace with a CI run id
+    test.setTimeout(5_000);
+    await openIsolated(page);
+    const result = await autoPastCap(page, 1100);
+    logAuto("firefox", result);
+    expectAutoPastCap(result, 1100);
   });
 });
 
@@ -149,6 +191,26 @@ test.describe("webkit", () => {
     expect(opened.distinctMemories).toBe(500);
     expect(opened.counts).toHaveLength(500);
     expect(opened.counts.findIndex((count, index) => count !== index % 7)).toBe(-1);
+  });
+
+  test("auto: WebKit 500 engines, budget default, all advance", async ({ page }) => {
+    // local run, 998ms; replace with a CI run id
+    test.setTimeout(5_000);
+    await openIsolated(page);
+    const result: AutoBatch = await page.evaluate(async () => {
+      const gwen: GwenHarness = window.__gwen;
+      return gwen.collectAuto(500);
+    });
+    logAuto("webkit", result);
+    const detail = `${result.code} ${result.name}: ${result.message}`;
+    expect(result.rejected, detail).toBe(false);
+    expect(result.opened, detail).toBe(500);
+    expect(result.firstMode, detail).toBe("shared");
+    // Default budget is 16 isolated engines after the pool engine
+    // (`packages/core/src/engine/wasm-instance-provider.ts:162`).
+    expect(result.isolatedCount, detail).toBe(16);
+    expect(result.from18SharesFirstMemory, detail).toBe(true);
+    expect(result.advancedCount, detail).toBe(500);
   });
 
   test("webkit: per-tick step time of isolated engines 9-16 against 1-8", async ({
