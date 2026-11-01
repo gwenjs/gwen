@@ -327,7 +327,7 @@ export const EnemyActor = defineActor(EnemyPrefab, () => {
 ```
 
 ::: tip Déclarez les événements avant d'émettre
-`enemy:hit` et `enemy:die` doivent être déclarés avec `defineHooks` pour que `emit` soit typé. Sans la déclaration, TypeScript traite le nom comme une `string` et les types d'arguments ne sont pas vérifiés. Voir [Hooks](/fr/essentials/hooks).
+`enemy:hit` et `enemy:die` doivent être déclarés avec `defineHooks` pour que `emit` soit typé. Un nom non déclaré est une erreur de compilation. Voir [Hooks](/fr/essentials/hooks).
 :::
 
 ## Accéder aux services

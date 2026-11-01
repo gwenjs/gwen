@@ -812,23 +812,22 @@ transform.x += 10;
 
 **Signature:**
 ```ts
-function defineHooks(map: Record<string, any>): HookDef
+function defineHooks<const T extends HookHandlerMap>(map: string extends keyof T ? T : T & HookMapKeyErrors<T>): WritableHookMap<T>
 ```
 
-**Description.** Définit les types de hooks pour votre jeu.
+**Description.** Déclare des hooks de jeu nommés `namespace:action`. Retourne le même objet. Une clé mal formée ou réservée au cœur lève `GwenHookNameError`. `viewport`, `camera`, `physics` et `physics3d` sont des erreurs de compilation.
 
 **Paramètres:**
 | Paramètre | Type | Description |
 |---|---|---|
-| map | `object` | Définitions de types de hooks |
+| map | `HookHandlerMap` | Nom de hook vers son handler |
 
-**Retourne:** `HookDef`
+**Retourne:** la même carte
 
 **Exemple:**
 ```ts
 const Hooks = defineHooks({
-  'player-hit': { damage: Number },
-  'level-complete': { time: Number }
+  'player:damage': (_amount: number): void => undefined,
 });
 ```
 
@@ -836,22 +835,46 @@ const Hooks = defineHooks({
 
 **Signature:**
 ```ts
-function emit<K extends keyof GwenRuntimeHooks>(name: K, ...args: Parameters<GwenRuntimeHooks[K]>): void
+function emit<K extends GwenUserHookName>(name: K, ...args: Parameters<GwenRuntimeHooks[K]>): void
 ```
 
-**Description.** Émet un événement personnalisé à tous les écouteurs enregistrés avec [`useHook()`](#usehookevent-handler).
+**Description.** Émet un événement de jeu déclaré aux écouteurs enregistrés avec [`useHook()`](#usehookevent-handler). Un espace de noms réservé (`engine`, `entity`, `scene`, `plugin`, `actor`, `prefab`, `service`) est une erreur de compilation et lève `GwenHookNameError` à l'exécution.
 
 **Paramètres:**
 | Paramètre | Type | Description |
 |---|---|---|
-| event | `string` | Identifiant du type d'événement |
-| payload | `any` | Charge utile de l'événement (optionnel) |
+| event | `GwenUserHookName` | Nom de hook déclaré |
+| payload | arguments du handler | Arguments de ce hook |
 
 **Retourne:** `void`
 
 **Exemple:**
 ```ts
-emit('player-hit', { damage: 10 });
+emit('player:damage', 10);
+```
+
+### useHook(event, handler)
+
+**Signature:**
+```ts
+function useHook<K extends GwenRuntimeHookName>(name: K, fn: GwenRuntimeHooks[K]): UnsubscribeFn
+```
+
+**Description.** S'abonne à un hook déclaré, y compris un nom réservé comme `engine:tick`. Un nom hors de `namespace:action` lève `GwenHookNameError`. L'abonnement est retiré à la fin du scope courant.
+
+**Paramètres:**
+| Paramètre | Type | Description |
+|---|---|---|
+| event | `GwenRuntimeHookName` | Nom de hook déclaré |
+| handler | `GwenRuntimeHooks[K]` | Écouteur |
+
+**Retourne:** `UnsubscribeFn`
+
+**Exemple:**
+```ts
+useHook('engine:tick', (dt) => {
+  const _seconds: number = dt;
+});
 ```
 
 ## Utilitaires

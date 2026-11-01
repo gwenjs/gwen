@@ -32,7 +32,7 @@ export const GameHooks = defineHooks({
 `gwenHooksPlugin` (inclus dans `@gwenjs/vite`) scanne `src/hooks.ts` et `src/hooks/*.ts` et génère automatiquement le bloc `declare module '@gwenjs/schema'` dans `.gwen/types/hooks.d.ts`. Vous n'écrivez jamais ce bloc à la main.
 :::
 
-`defineHooks` est une fonction d'identité — son seul but est de laisser TypeScript déduire la carte d'événements. Le plugin Vite écrit cette carte sur `GwenRuntimeHooks`. Ensuite, un mauvais nom ou un mauvais type d'argument est une erreur de compilation dans chaque acteur, système et plugin.
+`defineHooks` retourne le même objet. Une clé qui n'est pas `namespace:action`, ou qui utilise un espace de noms réservé au cœur, lève `GwenHookNameError` (`CORE:HOOK_NAME_INVALID`) à l'exécution. Le plugin Vite écrit cette carte sur `GwenRuntimeHooks`. Ensuite, un mauvais nom ou un mauvais type d'argument est une erreur de compilation dans chaque acteur, système et plugin.
 
 ## Écouter des événements
 
@@ -80,7 +80,7 @@ export const EnemyActor = defineActor(EnemyPrefab, () => {
 })
 ```
 
-Les événements émis ici — `enemy:hit` et `enemy:die` — doivent être déclarés dans `defineHooks` au préalable. Sans la déclaration, TypeScript traite les noms comme des `string` et aucun type d'argument n'est vérifié.
+Les événements émis ici — `enemy:hit` et `enemy:die` — doivent être déclarés dans `defineHooks` au préalable. Un nom non déclaré est une erreur de compilation. `emit` refuse aussi un espace de noms réservé au cœur, à la compilation et à l'exécution.
 
 ## Nettoyage automatique
 
@@ -104,7 +104,7 @@ Préfixez les noms d'événements avec un espace de noms :
 'hit'             // ❌ trop générique — peut entrer en collision
 ```
 
-Les espaces de noms `engine:*`, `entity:*`, `scene:*`, `actor:*` et `plugin:*` sont réservés aux événements du framework intégré.
+Les espaces de noms `engine`, `entity`, `scene`, `plugin`, `actor`, `prefab` et `service` sont réservés. `useHook` peut les écouter. `emit`, ainsi que `engine.hooks.callHook`, `callHookParallel` et `callHookWith` d'un plugin, ne peuvent pas les émettre. `viewport`, `camera`, `physics` et `physics3d` appartiennent aux paquets du framework : déclarez ces hooks dans le paquet, pas avec `defineHooks`.
 
 ## Événements intégrés
 

@@ -25,6 +25,7 @@ import {
 } from "./error-isolation.js";
 import { ScopedHooksTracker } from "./hook-tracker.js";
 import type { GwenRuntimeHooks } from "./runtime-hooks.js";
+import { assertHookName } from "../hooks/hook-name.js";
 
 /**
  * Collaborators `use` / `unuse` need from the facade.
@@ -246,7 +247,8 @@ export class PluginRegistry {
     this._pluginNames.add(plugin.name);
     this._rollback.delete(plugin.name);
     this._flushProvides(plugin.name);
-    await receiver.hooks.callHook("plugin:registered", plugin.name);
+    // The receiver may be a setup proxy. Its hooks reject this reserved name.
+    await this.deps.hooks.callHook("plugin:registered", plugin.name);
     if (this.deps.debug) {
       this.deps.logger.debug(`plugin registered: ${plugin.name}`);
     }
@@ -501,10 +503,15 @@ export class PluginRegistry {
         context: { frame: frame() },
       });
     };
-    return new Proxy(realHooks, {
+    const callHook = guardReservedCall(realHooks, "callHook", 0);
+    const callHookParallel = guardReservedCall(realHooks, "callHookParallel", 0);
+    const callHookWith = guardReservedCall(realHooks, "callHookWith", 1);
+    const scoped = new Proxy(realHooks, {
       get(target, prop) {
         if (prop === "hook") {
+          // removeHook with a bad name is harmless, unchecked on purpose.
           return (event: string, fn: (...args: unknown[]) => unknown) => {
+            assertHookName(String(event), "engine.hooks.hook", false);
             const setup = currentPluginSetupTarget();
             const registered =
               event === "engine:memory-grow"
@@ -524,9 +531,13 @@ export class PluginRegistry {
             return Reflect.apply(register, target, [event, registered]);
           };
         }
+        if (prop === "callHook") return callHook;
+        if (prop === "callHookParallel") return callHookParallel;
+        if (prop === "callHookWith") return callHookWith;
         return Reflect.get(target, prop);
       },
     });
+    return scoped;
   }
 
   private _ownedFor(name: string): Map<string, unknown> {
@@ -558,4 +569,26 @@ export class PluginRegistry {
     this.deps.remember(receiverEngine(proxy));
     return proxy;
   }
+}
+
+type LooseCall = (...args: readonly unknown[]) => unknown;
+
+/** Read a hookable method and keep the live hookable as `this`. */
+function readCall(target: object, prop: string): LooseCall {
+  const value: unknown = Reflect.get(target, prop);
+  if (typeof value !== "function") return () => undefined;
+  return (...args) => Reflect.apply(value, target, args);
+}
+
+/**
+ * One wrapper per method, created once per install.
+ * `nameAt` is 0 for `callHook` / `callHookParallel`, 1 for `callHookWith`.
+ */
+function guardReservedCall(target: object, method: string, nameAt: number): LooseCall {
+  const fn = readCall(target, method);
+  return (...args) => {
+    const raw = args[nameAt];
+    assertHookName(typeof raw === "string" ? raw : String(raw), `engine.hooks.${method}`, true);
+    return fn(...args);
+  };
 }
