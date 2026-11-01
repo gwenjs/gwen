@@ -388,7 +388,7 @@ describe("dev strip", () => {
   );
 
   it.runIf(__GWEN_DEV__)("unbundled core dist follows the Node default", () => {
-    const dist = join(repoRoot, "packages/core/dist/index.js");
+    const dist = join(repoRoot, "packages/core/dist/node.js");
     const script = `
       import { createEngine } from ${JSON.stringify(dist)};
       const engine = await createEngine({ debug: true });
