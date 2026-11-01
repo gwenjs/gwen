@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createEngine, type GwenEngine } from "@gwenjs/core";
+import { createEngine } from "@gwenjs/core/node";
+import { type GwenEngine } from "@gwenjs/core";
 import { preloadMeshCollider } from "../src/index.js";
 import { _clearBvhCache } from "../src/plugin/bvh.js";
 

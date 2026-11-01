@@ -30,7 +30,8 @@ import {
   type Physics3DAPI,
   type Physics3DConfig,
 } from "../src/index";
-import { createEngine, type GwenEngine } from "@gwenjs/core";
+import { createEngine } from "@gwenjs/core/node";
+import { type GwenEngine } from "@gwenjs/core";
 import { engineContext } from "@gwenjs/core/internal";
 
 afterEach(() => {

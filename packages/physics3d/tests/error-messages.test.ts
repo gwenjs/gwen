@@ -1,11 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
-import {
-  createEngine,
-  defineComponent,
-  GwenContextError,
-  Types,
-  type GwenEngine,
-} from "@gwenjs/core";
+import { createEngine } from "@gwenjs/core/node";
+import { defineComponent, GwenContextError, Types, type GwenEngine } from "@gwenjs/core";
 import { defineActor, definePrefab } from "@gwenjs/core/actor";
 import { GwenError } from "@gwenjs/schema";
 import { usePhysics3D } from "../src/composables";

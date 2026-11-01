@@ -4,7 +4,7 @@
  * live in `bench/timing-gate.test.ts`.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { createEngine } from "@gwenjs/core";
+import { createEngine } from "@gwenjs/core/node";
 
 // ─── Mocks for dynamic body test ─────────────────────────────────────
 
