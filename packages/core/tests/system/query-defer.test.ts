@@ -1,13 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { defineSystem, onUpdate, useQuery } from "../../src/system/index";
-import {
-  createEngine,
-  defineComponent,
-  Types,
-  type EntityId,
-  type GwenEngine,
-} from "../../src/index";
+import { defineComponent, Types, type EntityId, type GwenEngine } from "../../src/index";
+import { createEngine } from "../../src/node";
 import { setEntityDormant } from "../../src/engine/engine-internals";
 
 const Position = defineComponent({

@@ -4,7 +4,8 @@
 import { describe, expect, it } from "vitest";
 import { GwenError } from "@gwenjs/schema";
 
-import { CoreErrorCodes, createEngine, type GwenEngine } from "../../../src/index.js";
+import { CoreErrorCodes, type GwenEngine } from "../../../src/index.js";
+import { createEngine } from "../../../src/node.js";
 import type { MemoryView } from "../../../src/engine/engine-memory.js";
 import { forceGc } from "./helpers.js";
 import "../../../../physics2d/src/augment";

@@ -3,7 +3,8 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { createEngine, type GwenEngine } from "@gwenjs/core";
+import { type GwenEngine } from "@gwenjs/core";
+import { createEngine } from "@gwenjs/core/node";
 import { defineSystem } from "@gwenjs/core/system";
 import { GwenContextError, useLogger } from "@gwenjs/kit";
 import type { GwenLogEntry, IGwenLogProvider } from "@gwenjs/schema";

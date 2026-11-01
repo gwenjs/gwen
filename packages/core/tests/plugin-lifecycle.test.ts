@@ -11,7 +11,6 @@ import {
 import { GwenContextError, getCurrentScope, useErrorReporter, useLogger } from "@gwenjs/kit";
 import { definePlugin } from "@gwenjs/kit/plugin";
 import {
-  createEngine as openEngine,
   GwenEngineStateError,
   GwenPluginDependencyError,
   GwenPluginNotFoundError,
@@ -20,6 +19,7 @@ import {
   type GwenEngine,
   type GwenPlugin,
 } from "../src/index";
+import { createEngine as openEngine } from "../src/node";
 
 const engines: GwenEngine[] = [];
 

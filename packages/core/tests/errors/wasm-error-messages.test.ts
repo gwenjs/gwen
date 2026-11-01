@@ -2,13 +2,13 @@ import { afterEach, describe, expect, it } from "vitest";
 import { errorDocsUrl, GwenError } from "@gwenjs/schema";
 import {
   CoreErrorCodes,
-  createEngine,
   defineComponent,
   GwenWasmError,
   GwenWasmPanicError,
   Types,
   type GwenEngine,
 } from "../../src/index.js";
+import { createEngine } from "../../src/node.js";
 import { defineSystem, useQuery } from "../../src/system/index.js";
 import {
   LINK_ERROR_WASM,

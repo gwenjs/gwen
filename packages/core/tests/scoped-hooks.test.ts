@@ -2,7 +2,7 @@
  * RFC-003: Scoped hooks proxy — hooks auto-removed on unuse()
  */
 import { describe, it, expect, vi } from "vitest";
-import { createEngine } from "../src/index";
+import { createEngine } from "../src/node";
 
 describe("Scoped hooks proxy", () => {
   it("plugin hooks are called after use()", async () => {

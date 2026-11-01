@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createEngine } from "../../src";
+import { createEngine } from "../../src/node";
 import { engineContext } from "../../src/internal";
 import { defineScene } from "../../src/scene/runtime/define-scene";
 import { onEnter, onExit } from "../../src/scene/runtime/scene-context";

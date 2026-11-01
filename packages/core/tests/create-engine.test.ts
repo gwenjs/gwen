@@ -3,7 +3,8 @@
  */
 import { describe, it, expect } from "vitest";
 import { GwenError } from "@gwenjs/schema";
-import { CoreErrorCodes, createEngine, GwenConfigError } from "../src/index";
+import { CoreErrorCodes, GwenConfigError } from "../src/index";
+import { createEngine } from "../src/node";
 
 describe("createEngine", () => {
   it("returns a GwenEngine (not {engine, scenes})", async () => {

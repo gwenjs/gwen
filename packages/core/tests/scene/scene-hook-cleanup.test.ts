@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createEngine } from "../../src/engine/engine-factory";
+import { createEngine } from "../../src/node";
 import { SceneEnginePlugin, SceneHookRegistry } from "../../src/scene/engine-plugin";
 
 describe("SceneEnginePlugin — cleanup via DisposableRegistry", () => {

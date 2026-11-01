@@ -1,5 +1,6 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
-import { createEngine, type GwenEngine } from "../../src/index";
+import { type GwenEngine } from "../../src/index";
+import { createEngine } from "../../src/node";
 import { createSystemHandle } from "../../src/scene/runtime/system-handle";
 import type { GwenPlugin } from "../../src/engine/engine-types.js";
 

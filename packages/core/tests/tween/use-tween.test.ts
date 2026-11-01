@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
-import { createEngine } from "../../src/index";
+import { createEngine } from "../../src/node";
 import { useTween } from "../../src/tween/runtime/use-tween";
 import { getTweenManager } from "../../src/tween/runtime/tween-manager";
 import { TweenPlugin } from "../../src/tween/engine-plugin";

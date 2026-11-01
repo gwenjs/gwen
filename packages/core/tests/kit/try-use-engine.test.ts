@@ -4,7 +4,8 @@
 
 import { afterEach, describe, expect, it } from "vitest";
 import type { GwenEngineBase } from "@gwenjs/schema";
-import { createEngine, createEngineLocal, defineComponent, Types, useEngine } from "@gwenjs/core";
+import { createEngineLocal, defineComponent, Types, useEngine } from "@gwenjs/core";
+import { createEngine } from "@gwenjs/core/node";
 import { engineContext, executeAsync } from "@gwenjs/core/internal";
 import { defineSystem } from "@gwenjs/core/system";
 import { defineActor, definePrefab } from "@gwenjs/core/actor";

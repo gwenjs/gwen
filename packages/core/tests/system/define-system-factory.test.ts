@@ -6,7 +6,7 @@ import {
   onAfterUpdate,
   onRender,
 } from "../../src/system/runtime/define-system";
-import { createEngine } from "../../src/engine/engine-factory";
+import { createEngine } from "../../src/node";
 
 describe("defineSystem — factory pattern", () => {
   it("returns a function, not a GwenPlugin directly", () => {

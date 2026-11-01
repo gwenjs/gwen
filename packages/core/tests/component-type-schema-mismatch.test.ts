@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { GwenError } from "@gwenjs/schema";
 
 import { CoreErrorCodes } from "../src/engine/engine-errors";
-import { createEngine } from "../src/index";
+import { createEngine } from "../src/node";
 import { defineComponent, Types } from "../src/schema";
 
 function defineOrError<T>(fn: () => T): T | GwenError {

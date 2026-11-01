@@ -6,7 +6,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { GwenError } from "@gwenjs/schema";
 import { normalizeComponentTypesForQuery } from "../src/core/component-type-normalizer";
-import { createEngine } from "../src/engine/engine-factory";
+import { createEngine } from "../src/node";
 import { CoreErrorCodes } from "../src/engine/engine-errors";
 import { readLiveQueryIds, setEntityDormant } from "../src/engine/engine-internals";
 import type { GwenEngine } from "../src/engine/engine-types";

@@ -8,12 +8,11 @@ import { GwenError } from "@gwenjs/schema";
 
 import {
   CoreErrorCodes,
-  createEngine,
   GwenEngineStateError,
-  setupGwen,
   unpackEntityId,
   type GwenEngine,
 } from "../../../src/index.js";
+import { createEngine, setupGwen } from "../../../src/node.js";
 import type { MemoryView } from "../../../src/engine/engine-memory.js";
 import { createDisposable } from "../../../src/disposable.js";
 import { WasmBridgeImpl } from "../../../src/engine/wasm-bridge.js";

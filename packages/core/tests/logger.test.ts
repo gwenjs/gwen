@@ -2,7 +2,8 @@
  * createLogger(tag, options?) delivers through providers.
  */
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { createEngine, createLogger } from "../src/index";
+import { createLogger } from "../src/index";
+import { createEngine } from "../src/node";
 import type { GwenLogEntry } from "@gwenjs/schema";
 
 function silenceConsole() {
