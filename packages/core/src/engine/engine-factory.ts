@@ -38,8 +38,8 @@ function warnAutoFallback(engine: GwenEngine, bridge: WasmBridgeImpl | undefined
  * Create a GWEN engine instance.
  *
  * @param options - Engine configuration. All fields optional.
- *   Init fields are not stored on the engine. Omitted `wasmInstance` stays `"shared"` (#267).
- *   `"auto"` is opt-in. A pool fallback is logged once the engine exists.
+ *   Init fields are not stored on the engine. Omitted `wasmInstance` is `"auto"`.
+ *   Later engines of a module are isolated until the budget, then join the pool. A pool fallback logs one warning per reason (`budget` or `capacity`) per page or process, after the engine exists.
  *   In Node, import from `@gwenjs/core/node`.
  * @returns The engine. When `options._bridge` is omitted, the light bridge is loaded first.
  * The engine owns that bridge, so `stop()` disposes it. A caller that passes `_bridge`

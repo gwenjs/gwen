@@ -125,7 +125,7 @@ export const DebugSystem = defineSystem(() => {
 
 ## Engines on one instance
 
-This is `wasmInstance: "shared"`, the default (`packages/core/src/engine/wasm-bridge.ts:523`). Two engines can run on one WASM instance. Each engine owns its entities, its physics world, and its path buffers. A path written by one engine is not the path the other engine reads.
+Under `wasmInstance: "shared"`, two engines can run on one WASM instance. `@gwenjs/core` defaults to `auto` (`packages/core/src/engine/wasm-bridge.ts:523`). Each engine owns its entities, its physics world, and its path buffers. A path written by one engine is not the path the other engine reads.
 
 `jsUrl` is the URL of `gwen_core_factory.js`. `init()` with `jsUrl` or `wasmUrl` on an already initialised bridge rejects `CORE:WASM_LOAD_ERROR`.
 
@@ -141,17 +141,17 @@ They still share three things:
 
 | Mode | Behaviour |
 | --- | --- |
-| `shared` (default) | One instance per compiled module. Engines of that module share its linear memory. |
+| `shared` | One instance per compiled module. Engines of that module share its linear memory. |
 | `isolated` | One instance per engine, with its own linear memory (`packages/core/src/engine/wasm-instance-provider.ts:144`). |
-| `auto` | The first engine of a module goes on that module's pool instance, the one `shared` uses (`packages/core/src/engine/wasm-instance-provider.ts:240`). Each later engine gets its own instance while fewer than `wasmIsolatedBudget` isolated instances are live in the page or process (`packages/core/src/engine/wasm-instance-provider.ts:241`, `:243`). Past the budget, or on a `RangeError` or a thrown value that is not an `Error`, it joins the pool (`packages/core/src/engine/wasm-instance-provider.ts:241`, `:248`). `engine.wasmInstance` is the resolved placement, `"shared"` or `"isolated"` (`packages/core/src/engine/engine-types.ts:504`). |
+| `auto` (default) | The first engine of a module goes on that module's pool instance, the one `shared` uses (`packages/core/src/engine/wasm-instance-provider.ts:240`). Each later engine gets its own instance while fewer than `wasmIsolatedBudget` isolated instances are live in the page or process (`packages/core/src/engine/wasm-instance-provider.ts:241`, `:243`). Past the budget, or on a `RangeError` or a thrown value that is not an `Error`, it joins the pool (`packages/core/src/engine/wasm-instance-provider.ts:241`, `:248`). `engine.wasmInstance` is the resolved placement, `"shared"` or `"isolated"` (`packages/core/src/engine/engine-types.ts:504`). |
 
-`createEngine` from `@gwenjs/core` defaults to `shared` (`packages/core/src/engine/wasm-bridge.ts:523`). `createEngine` from `@gwenjs/core/node` defaults to `isolated` (see [Headless / server](#headless-server)). `auto` is opt-in and changes neither default.
+`createEngine` from `@gwenjs/core` defaults to `auto` (`packages/core/src/engine/wasm-bridge.ts:523`). Breaking change: engines 2..K of a module each get their own instance until `wasmIsolatedBudget` (16, `packages/core/src/engine/wasm-instance-provider.ts:162`), then join the pool; the first fallback logs one warning per reason. `createEngine` from `@gwenjs/core/node` defaults to `isolated` (see [Headless / server](#headless-server)).
 
 `wasmIsolatedBudget` is an integer >= 0, else `CORE:INVALID_CONFIG` (`packages/core/src/engine/engine-config-validator.ts:124`). The default is 16 (`packages/core/src/engine/wasm-instance-provider.ts:162`). `0` puts every engine on the pool (`packages/core/src/engine/wasm-instance-provider.ts:213`). A running engine never moves (`packages/core/src/engine/wasm-bridge.ts:532`). `auto` never allocates an instance to test capacity (`packages/core/src/engine/wasm-instance-provider.ts:240`). `LinkError` and `CompileError` are not a fallback: they reject `CORE:WASM_LOAD_ERROR` (`packages/core/src/engine/wasm-instance-provider.ts:199`). When an engine joins the pool, the engine logger writes one warning per reason (`budget` or `capacity`) per page or process, with payload `{ reason, mode: "auto", isolatedLive, cause? }` (`packages/core/src/engine/engine-factory.ts:22`, `packages/core/src/engine/wasm-instance-provider.ts:168`).
 
 Under `auto`, the engines on the pool share one fault domain: a trap poisons them all with `CORE:WASM_PANIC`. Isolated engines are not registered with the pool, so they are not poisoned (`packages/core/src/engine/wasm-bridge.ts:534`).
 
-Browser `isolated` is supported. Three Playwright projects gate it: Chromium, Firefox and WebKit (`packages/core/playwright.config.ts:21-23`). They run `packages/core/tests/browser/isolation.pw.ts` and `packages/core/tests/browser/capacity.pw.ts`. `shared` stays the default in the browser. On iOS devices, use the default `shared` mode. iOS is not in CI.
+Browser `isolated` is supported. Three Playwright projects gate it: Chromium, Firefox and WebKit (`packages/core/playwright.config.ts:21-23`). They run `packages/core/tests/browser/isolation.pw.ts` and `packages/core/tests/browser/capacity.pw.ts`. The browser default is `auto`. On iOS devices, pass `wasmInstance: "shared"`. iOS is not in CI.
 
 Measured capacity:
 

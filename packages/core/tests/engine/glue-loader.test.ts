@@ -100,7 +100,7 @@ describe("loadWasmGlue", () => {
     expect(caught).toBeInstanceOf(GwenError);
     if (!(caught instanceof GwenError)) return;
     expect(caught.message.split("\n")[0]).toBe(
-      `[initWasm()] Cannot create another WASM instance (mode "shared", 0 live).`,
+      `[initWasm()] Cannot create another WASM instance (mode "auto", 0 live).`,
     );
     expect(caught.message.endsWith(`\n${CAPACITY_SEE}`)).toBe(true);
     expect(caught.cause).toBe("not-an-error");

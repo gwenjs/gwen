@@ -378,7 +378,7 @@ export class WasmBridgeImpl implements WasmBridge {
    * @param variant The core variant to load ('light', 'physics2d', 'physics3d')
    * @param options Initialization options (`glue`, bytes, a module, urls, max entities, `wasmInstance`).
    *   `wasmInstance: "isolated"` uses one instance per engine. `"auto"` puts the first engine on the
-   *   pool and later ones on isolated instances until `wasmIsolatedBudget`. The default is `"shared"`.
+   *   pool and later ones on isolated instances until `wasmIsolatedBudget`. The default is `"auto"`.
    * @throws {GwenError} `CORE:ENGINE_DISPOSED` when this bridge was disposed.
    * @throws {GwenError} `CORE:WASM_LOAD_ERROR` when `glue`, `jsUrl`, `wasmUrl`, `wasmBytes`, or `wasmModule` is passed again
    *   after init has started. A call with none of them returns the init already running.
@@ -520,7 +520,7 @@ export class WasmBridgeImpl implements WasmBridge {
       }
       if (this._disposed) this._throwDisposed();
       checkGwenModule(compiled, factory.CONTRACT);
-      const requested = options.wasmInstance ?? "shared";
+      const requested = options.wasmInstance ?? "auto";
       const provider =
         requested === "isolated"
           ? isolatedProvider
