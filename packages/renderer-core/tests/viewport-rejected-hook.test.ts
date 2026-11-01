@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createEngine, CoreErrorCodes } from "@gwenjs/core";
+import { CoreErrorCodes } from "@gwenjs/core";
+import { createEngine } from "@gwenjs/core/node";
 import type { GwenErrorPayload } from "@gwenjs/schema";
 import { getOrCreateViewportManager } from "../src/get-or-create-viewport-manager.js";
 
