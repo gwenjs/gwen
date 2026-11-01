@@ -1064,13 +1064,24 @@ describe("GwenApp.setupModules — local modules", () => {
       "src/modules/blank.ts",
       `export default { meta: { name: "" }, setup() {} }\n`,
     );
+    // A frozen meta is never written to: the name goes onto a copy.
+    writeModule(
+      root,
+      "src/modules/frozen.ts",
+      `const meta = Object.freeze({ name: "" });
+export default { meta, setup() {} };
+`,
+    );
     const app = new GwenApp();
     const before: string[] = [];
     app.buildHooks.hook("module:before", (mod) => {
       before.push(mod.meta.name);
     });
     await app.setupModules(resolveConfig({ modules: [] }), makeLoader({}), { root });
-    expect(before.filter((name) => !name.startsWith("@"))).toEqual(["local:blank"]);
+    expect(before.filter((name) => !name.startsWith("@")).sort()).toEqual([
+      "local:blank",
+      "local:frozen",
+    ]);
   });
 
   it("an invalid module fails the load with KIT:MODULE_INVALID", async () => {
@@ -1117,24 +1128,6 @@ describe("GwenApp.setupModules — local modules", () => {
     expect(caught.code).toBe("KIT:MODULE_INVALID");
     expect(caught.module).toBe(file);
     expect(caught.fields).toEqual(["meta"]);
-  });
-
-  it("a local module with a frozen empty meta.name gets the inferred name", async () => {
-    const root = makeRoot();
-    writeModule(
-      root,
-      "src/modules/frozen.ts",
-      `const meta = Object.freeze({ name: "" });
-export default { meta, setup() {} };
-`,
-    );
-    const app = new GwenApp();
-    const before: string[] = [];
-    app.buildHooks.hook("module:before", (mod) => {
-      before.push(mod.meta.name);
-    });
-    await app.setupModules(resolveConfig({ modules: [] }), makeLoader({}), { root });
-    expect(before.filter((name) => !name.startsWith("@"))).toEqual(["local:frozen"]);
   });
 
   it("a local module with a non-string meta.name fails with KIT:MODULE_INVALID", async () => {
