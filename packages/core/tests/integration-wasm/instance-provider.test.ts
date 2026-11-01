@@ -17,8 +17,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { GwenError } from "@gwenjs/schema";
-import { describe, expect, it } from "vitest";
+import { GwenError, type GwenLogEntry, type IGwenLogProvider } from "@gwenjs/schema";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { CoreErrorCodes, GwenWasmPanicError } from "../../src/engine/engine-errors.js";
 import { createEngine } from "../../src/node.js";
@@ -27,6 +27,7 @@ import { entityGeneration, entityIndex } from "../../src/types/entity.js";
 import { WasmBridgeImpl } from "../../src/engine/wasm-bridge.js";
 import type { CoreVariant } from "../../src/engine/wasm-bridge-types.js";
 import { invalidateWasmModule } from "../../src/engine/wasm-module-cache.js";
+import { resetAutoFallbackLog } from "../../src/testing.js";
 import "../../../physics2d/src/augment";
 import { Physics2DPlugin } from "../../../physics2d/src/plugin/index";
 import "../../../physics3d/src/augment";
@@ -1102,6 +1103,164 @@ describe("shared fault domain", () => {
       expect(thrown.cause).toBe(frameTrap);
     } finally {
       await stopAll(engines);
+    }
+  }, 60_000);
+});
+
+async function openAuto(
+  into: GwenEngine[],
+  budget: number,
+  variant: CoreVariant = "light",
+  physicsHz?: number,
+  providers?: readonly IGwenLogProvider[],
+): Promise<GwenEngine> {
+  const engine = await createEngine({
+    variant,
+    wasmInstance: "auto",
+    wasmIsolatedBudget: budget,
+    maxEntities: 32,
+    ...(physicsHz === undefined ? {} : { physicsHz }),
+    ...(providers === undefined ? {} : { logger: { providers } }),
+  });
+  into.push(engine);
+  return engine;
+}
+
+async function collectBudgetWarns(budget: number, count: number): Promise<GwenLogEntry[]> {
+  const entries: GwenLogEntry[] = [];
+  const engines: GwenEngine[] = [];
+  const providers: readonly IGwenLogProvider[] = [{ handle: (entry) => void entries.push(entry) }];
+  try {
+    for (let n = 0; n < count; n += 1)
+      await openAuto(engines, budget, "light", undefined, providers);
+    return entries.filter((entry) => entry.level === "warn" && entry.payload?.reason === "budget");
+  } finally {
+    await stopAll(engines);
+  }
+}
+
+describe("wasmInstance auto", () => {
+  afterEach(resetAutoFallbackLog);
+
+  it("auto: the first engine is on the pool, the next ones are isolated up to wasmIsolatedBudget", async () => {
+    const engines: GwenEngine[] = [];
+    try {
+      const first = await openAuto(engines, 2);
+      const second = await openAuto(engines, 2);
+      const third = await openAuto(engines, 2);
+      const fourth = await openAuto(engines, 2);
+      expect([first, second, third, fourth].map((engine) => engine.wasmInstance)).toEqual([
+        "shared",
+        "isolated",
+        "isolated",
+        "shared",
+      ]);
+      expect(memoryOf(first)).toBe(memoryOf(fourth));
+      expect(memoryOf(second)).not.toBe(memoryOf(first));
+      expect(memoryOf(third)).not.toBe(memoryOf(first));
+      expect(memoryOf(second)).not.toBe(memoryOf(third));
+      await second.stop();
+      const again = await openAuto(engines, 2);
+      expect(again.wasmInstance).toBe("isolated");
+      expect(memoryOf(again)).not.toBe(memoryOf(first));
+    } finally {
+      await stopAll(engines);
+    }
+  }, 60_000);
+
+  it("auto: past the budget engines join the pool and one warning is logged", async () => {
+    const warns = await collectBudgetWarns(1, 4);
+    expect(warns).toHaveLength(1);
+    expect(warns[0]?.message).toBe('wasmInstance "auto" joined the pool.');
+    expect(warns[0]?.payload).toMatchObject({ reason: "budget", mode: "auto", isolatedLive: 1 });
+  }, 60_000);
+
+  it("auto: a budget of 0 puts every engine on the pool", async () => {
+    const engines: GwenEngine[] = [];
+    try {
+      const first = await openAuto(engines, 0);
+      const second = await openAuto(engines, 0);
+      expect(first.wasmInstance).toBe("shared");
+      expect(second.wasmInstance).toBe("shared");
+      expect(memoryOf(first)).toBe(memoryOf(second));
+    } finally {
+      await stopAll(engines);
+    }
+  }, 60_000);
+
+  it("auto: a fallback never moves a running isolated engine", async () => {
+    const engines: GwenEngine[] = [];
+    try {
+      await openAuto(engines, 1);
+      const isolated = await openAuto(engines, 1);
+      const memory = memoryOf(isolated);
+      expect(isolated.wasmInstance).toBe("isolated");
+      const fallback = await openAuto(engines, 1);
+      expect(fallback.wasmInstance).toBe("shared");
+      expect(isolated.wasmInstance).toBe("isolated");
+      expect(memoryOf(isolated)).toBe(memory);
+      await isolated.startExternal();
+      const before = isolated.getStats().frameCount;
+      await isolated.advance(1 / 60);
+      expect(isolated.getStats().frameCount).toBeGreaterThan(before);
+    } finally {
+      await stopAll(engines);
+    }
+  }, 60_000);
+
+  it.each(["physics2d", "physics3d"] as const)(
+    "determinism: auto, shared and isolated give identical state hashes (%s)",
+    async (variant) => {
+      const expected = variant === "physics2d" ? PHYSICS2D_HASH_A : PHYSICS3D_HASH_A;
+      const engines: GwenEngine[] = [];
+      try {
+        const isolated = await openOne(engines, variant, "isolated");
+        const shared = await openOne(engines, variant, "shared");
+        const isolatedHash = await sceneHash(isolated, variant);
+        const sharedHash = await sceneHash(shared, variant);
+        await shared.stop();
+        const autoPool = await openAuto(engines, 1, variant, 60);
+        const autoRoom = await openAuto(engines, 1, variant, 60);
+        expect(await sceneHash(autoPool, variant)).toBe(expected);
+        expect(await sceneHash(autoRoom, variant)).toBe(expected);
+        expect(isolatedHash).toBe(expected);
+        expect(sharedHash).toBe(expected);
+      } finally {
+        await stopAll(engines);
+      }
+    },
+    120_000,
+  );
+
+  it("after resetAutoFallbackLog() a second auto run logs the budget warning again", async () => {
+    const first = await collectBudgetWarns(1, 4);
+    resetAutoFallbackLog();
+    const second = await collectBudgetWarns(1, 4);
+    expect(second).toHaveLength(1);
+    expect(first).toHaveLength(1);
+  }, 60_000);
+
+  it("engine.wasmInstance for explicit shared and isolated engines, and for bridge.init then createEngine({_bridge})", async () => {
+    const engines: GwenEngine[] = [];
+    const bridge = new WasmBridgeImpl();
+    const light = { variant: "light" as const, maxEntities: 32 };
+    try {
+      const shared = await createEngine({ ...light, wasmInstance: "shared" });
+      const isolated = await createEngine({ ...light, wasmInstance: "isolated" });
+      engines.push(shared, isolated);
+      expect([shared.wasmInstance, isolated.wasmInstance]).toEqual(["shared", "isolated"]);
+      await bridge.init("light", {
+        ...light,
+        jsUrl: factoryUrl("light"),
+        wasmUrl: dataWasmUrl("light"),
+        wasmInstance: "isolated",
+      });
+      const adopted = await createEngine({ _bridge: bridge, maxEntities: 32 });
+      engines.push(adopted);
+      expect(adopted.wasmInstance).toBe("isolated");
+    } finally {
+      await stopAll(engines);
+      bridge.dispose();
     }
   }, 60_000);
 });

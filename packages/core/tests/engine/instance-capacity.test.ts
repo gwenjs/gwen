@@ -3,15 +3,17 @@
  * The factory is the boundary. `initSync` throws the chosen value.
  */
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { GwenError } from "@gwenjs/schema";
 
 import { CoreErrorCodes } from "../../src/engine/engine-errors.js";
 import {
+  autoProvider,
   isolatedProvider,
   sharedProvider,
   type WasmInstanceProvider,
 } from "../../src/engine/wasm-instance-provider.js";
+import { resetAutoFallbackLog } from "../../src/testing.js";
 import type {
   GwenCoreGlueFactoryModule,
   GwenCoreGlueInstance,
@@ -65,7 +67,17 @@ function factoryOk(): GwenCoreGlueFactoryModule {
   return factory(() => ({ memory }));
 }
 
-function capacityLine(mode: "shared" | "isolated", live: number): string {
+function factoryThenThrow(thrown: unknown): GwenCoreGlueFactoryModule {
+  let calls = 0;
+  const memory = new WebAssembly.Memory({ initial: 1 });
+  return factory(() => {
+    calls += 1;
+    if (calls > 1) throw thrown;
+    return { memory };
+  });
+}
+
+function capacityLine(mode: "shared" | "isolated" | "auto", live: number): string {
   return `[initWasm()] Cannot create another WASM instance (mode "${mode}", ${live} live).`;
 }
 
@@ -173,5 +185,47 @@ describe("wasm instance capacity", () => {
     const line = capacityLine("isolated", 0);
     expect(first.message.split("\n")[0]).toBe(line);
     expect(second.message.split("\n")[0]).toBe(line);
+  });
+});
+
+function expectPoolFallback(thrown: unknown): void {
+  const provider = autoProvider(2);
+  const acquired = provider.acquire(tinyModule(), factoryThenThrow(thrown));
+  try {
+    expect(acquired.placement).toBe("shared");
+    expect(acquired.fallback?.reason).toBe("capacity");
+    expect(acquired.fallback?.cause).toBe(thrown);
+  } finally {
+    provider.release(acquired.glue);
+  }
+}
+
+describe("wasmInstance auto", () => {
+  afterEach(resetAutoFallbackLog);
+
+  it("auto: a RangeError from an isolated instantiation places the engine on the pool", () => {
+    expectPoolFallback(new RangeError("out of memory"));
+  });
+
+  it("auto: a thrown non-Error value places the engine on the pool", () => {
+    expectPoolFallback("capacity");
+    expectPoolFallback({ kind: "oom" });
+  });
+
+  it('auto: when the pool cannot be created init rejects CORE:WASM_CAPACITY_EXHAUSTED with mode "auto"', () => {
+    const caught = expectGwen(acquireThrown(autoProvider(1), new RangeError("out of memory")));
+    expect(caught.code).toBe("CORE:WASM_CAPACITY_EXHAUSTED");
+    expect(caught.message.split("\n")[0]).toBe(capacityLine("auto", 0));
+  });
+
+  it("auto: a LinkError rejects CORE:WASM_LOAD_ERROR", () => {
+    for (const error of [
+      new WebAssembly.LinkError("link"),
+      new WebAssembly.CompileError("compile"),
+    ]) {
+      const caught = expectGwen(acquireThrown(autoProvider(1), error));
+      expect(caught.code).toBe("CORE:WASM_LOAD_ERROR");
+      expect(caught.cause).toBe(error);
+    }
   });
 });

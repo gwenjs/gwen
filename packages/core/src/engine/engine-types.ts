@@ -500,6 +500,8 @@ export type {
 export interface GwenEngine extends GwenEngineBase {
   /** Current lifecycle state. Starts at `idle`. Getter only. */
   readonly state: GwenEngineState;
+  /** Resolved WASM placement. An uninitialised bridge reports `"shared"`. */
+  readonly wasmInstance: "shared" | "isolated";
   // ─── Plugin runner ──────────────────────────────────────────────────────
   /**
    * Register and initialise a plugin. Installs once per name; a duplicate call

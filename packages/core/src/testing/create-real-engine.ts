@@ -115,3 +115,5 @@ export async function createRealEngine(
     },
   };
 }
+
+export function resetAutoFallbackLog(): void {}

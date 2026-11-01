@@ -12,6 +12,7 @@ function engineFieldsOf(opts: GwenEngineOptions & InitWasmOptions): GwenEngineOp
     wasmBytes: _wasmBytes,
     wasmModule: _wasmModule,
     wasmInstance: _wasmInstance,
+    wasmIsolatedBudget: _wasmIsolatedBudget,
     ...engine
   } = opts;
   return engine;

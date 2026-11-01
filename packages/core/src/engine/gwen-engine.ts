@@ -109,6 +109,10 @@ export class GwenEngineImpl extends EngineCollaborators implements GwenEngine {
     return this._stateMachine.state;
   }
 
+  get wasmInstance(): "shared" | "isolated" {
+    return this._bridge.wasmInstance;
+  }
+
   // ─── Plugin runner ────────────────────────────────────────────────────────
 
   use(plugin: GwenPlugin): Promise<void> {

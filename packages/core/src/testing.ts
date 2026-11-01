@@ -6,5 +6,5 @@
  * `createRealEngine` reads the wasm artifacts with `node:fs`. Node and jsdom can import this file. A browser test runner cannot.
  */
 
-export { createRealEngine } from "./testing/create-real-engine";
+export { createRealEngine, resetAutoFallbackLog } from "./testing/create-real-engine";
 export type { CreateRealEngineOptions, RealEngineHandle } from "./testing/create-real-engine";

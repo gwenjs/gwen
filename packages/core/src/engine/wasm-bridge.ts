@@ -298,6 +298,8 @@ export class WasmBridgeImpl implements WasmBridge {
   private _sharedExport: string | undefined;
   /** Shared glue, or null in isolated mode and before acquire. */
   private _sharedGlue: GwenCoreGlueInstance | null = null;
+  /** Placement `engine.wasmInstance` reads. `"auto"` stays on the pool in this stub. */
+  wasmInstance: "shared" | "isolated" = "shared";
   /** Set by {@link dispose}. A call that reaches WASM throws `CORE:ENGINE_DISPOSED`. */
   private _disposed = false;
   /** Drops this bridge's ref on the shared glue. Null until acquire. */
@@ -507,6 +509,7 @@ export class WasmBridgeImpl implements WasmBridge {
       if (this._disposed) this._throwDisposed();
       checkGwenModule(compiled, factory.CONTRACT);
       const provider = options.wasmInstance === "isolated" ? isolatedProvider : sharedProvider;
+      this.wasmInstance = provider === isolatedProvider ? "isolated" : "shared";
       const acquired = provider.acquire(compiled, factory);
       const sharedGlue = provider === sharedProvider ? acquired.glue : null;
       this._sharedGlue = sharedGlue;
