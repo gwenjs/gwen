@@ -1,9 +1,8 @@
 /**
  * @gwenjs/kit — defineGwenModule() unit tests.
  *
- * `defineGwenModule()` is an identity function: it validates the definition
- * shape at compile time and returns it unchanged at runtime. These tests
- * verify runtime invariants and the GwenKit mock interface contract.
+ * `defineGwenModule()` checks the definition and returns the same object.
+ * These tests verify that check, the runtime invariants, and the GwenKit mock.
  */
 
 import { describe, it, expect, vi } from "vitest";
@@ -153,5 +152,142 @@ describe("defineGwenModule() — setup() call contract", () => {
     const result = mod.setup({}, kit);
     expect(result).toBeInstanceOf(Promise);
     await result;
+  });
+});
+
+describe("defineGwenModule() — definition validation", () => {
+  function thrownBy(definition: unknown): {
+    code: string;
+    module: string;
+    fields: readonly string[];
+    name: string;
+    message: string;
+    hint: string | undefined;
+  } {
+    let caught: unknown;
+    try {
+      Reflect.apply(defineGwenModule, undefined, [definition]);
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toMatchObject({ code: "KIT:MODULE_INVALID" });
+    if (typeof caught !== "object" || caught === null) throw new Error("expected an error object");
+    const error = caught as {
+      code: string;
+      module: string;
+      fields: readonly string[];
+      name: string;
+      message: string;
+      hint?: string;
+    };
+    return {
+      code: error.code,
+      module: error.module,
+      fields: error.fields,
+      name: error.name,
+      message: error.message,
+      hint: error.hint,
+    };
+  }
+
+  const cases: ReadonlyArray<readonly [string, unknown, readonly string[]]> = [
+    ["meta missing", { setup() {} }, ["meta"]],
+    ["empty name and bad setup", { meta: { name: "" }, setup: 1 }, ["meta.name", "setup"]],
+    ["leading space", { meta: { name: " x" }, setup() {} }, ["meta.name"]],
+    ["trailing space", { meta: { name: "x " }, setup() {} }, ["meta.name"]],
+    ["configKey", { meta: { name: "ok", configKey: 1 }, setup() {} }, ["meta.configKey"]],
+    ["version", { meta: { name: "ok", version: 1 }, setup() {} }, ["meta.version"]],
+    ["defaults array", { meta: { name: "ok" }, defaults: [], setup() {} }, ["defaults"]],
+    ["defaults null", { meta: { name: "ok" }, defaults: null, setup() {} }, ["defaults"]],
+    ["defaults map", { meta: { name: "ok" }, defaults: new Map(), setup() {} }, ["defaults"]],
+    ["setup missing", { meta: { name: "ok" } }, ["setup"]],
+    ["validate", { meta: { name: "ok" }, setup() {}, validate: "x" }, ["validate"]],
+    ["null definition", null, ["meta", "setup"]],
+  ];
+
+  it.each(cases)(
+    "each invalid field gives KIT:MODULE_INVALID with the exact fields (%s)",
+    (_label, definition, fields) => {
+      const error = thrownBy(definition);
+      expect(error.code).toBe("KIT:MODULE_INVALID");
+      expect(error.fields).toEqual(fields);
+    },
+  );
+
+  it("every failing path is collected before throwing", () => {
+    const error = thrownBy({
+      meta: { name: "", configKey: 1 },
+      defaults: [],
+      setup: 1,
+    });
+    expect(error.fields).toEqual(["meta.name", "meta.configKey", "defaults", "setup"]);
+  });
+
+  it('"@gwenjs/core:tween" is accepted', () => {
+    const definition = { meta: { name: "@gwenjs/core:tween" }, setup() {} };
+    expect(defineGwenModule(definition)).toBe(definition);
+    expect(thrownBy({ meta: { name: "@gwenjs/core:tween " }, setup() {} }).fields).toEqual([
+      "meta.name",
+    ]);
+  });
+
+  it("the error names the module and renders the grammar", () => {
+    const error = thrownBy({ meta: { name: "@test/m" }, setup: 1 });
+    expect(error.name).toBe("GwenModuleDefinitionError");
+    expect(error.module).toBe("@test/m");
+    expect(
+      error.message.startsWith('[defineGwenModule()] Module "@test/m" is invalid: setup.'),
+    ).toBe(true);
+    expect(error.message.endsWith("(KIT:MODULE_INVALID)")).toBe(true);
+    expect(error.message.includes("[GWEN] [")).toBe(false);
+    expect(thrownBy({}).module).toBe("<anonymous>");
+    expect(thrownBy({ meta: { name: "" }, setup() {} }).module).toBe("<anonymous>");
+  });
+
+  it("dev hint names defineGwenModule", () => {
+    if (!__GWEN_DEV__) return;
+    const error = thrownBy({ meta: { name: "m" } });
+    expect(error.hint ?? "").toContain("or build it with defineGwenModule from @gwenjs/kit");
+  });
+
+  it("no hint in prod", () => {
+    if (__GWEN_DEV__) return;
+    const error = thrownBy({ meta: { name: "m" } });
+    expect(error.hint).toBeUndefined();
+    expect(error.message.includes("Fix:")).toBe(false);
+  });
+
+  it("two calls do not share state", () => {
+    expect(thrownBy({ meta: { name: "" }, setup() {} }).fields).toEqual(["meta.name"]);
+    expect(thrownBy({ setup() {} }).fields).toEqual(["meta"]);
+    const good = { meta: { name: "ok" }, setup() {} };
+    expect(defineGwenModule(good)).toBe(good);
+  });
+
+  it("a valid definition with defaults, validate, configKey and version is returned unchanged", () => {
+    const definition = {
+      meta: { name: "mod", configKey: "mod", version: "1.2.3" },
+      defaults: { n: 1 },
+      validate() {
+        return [];
+      },
+      setup() {},
+    };
+    expect(defineGwenModule(definition)).toBe(definition);
+    const short = { meta: { name: "a" }, setup() {} };
+    expect(defineGwenModule(short)).toBe(short);
+    expect(thrownBy({ ...definition, meta: { ...definition.meta, version: 1 } }).fields).toEqual([
+      "meta.version",
+    ]);
+  });
+
+  it("a null-prototype defaults record is accepted", () => {
+    const definition = {
+      meta: { name: "ok" },
+      defaults: Object.create(null),
+      setup() {},
+    };
+    expect(defineGwenModule(definition)).toBe(definition);
+    expect(thrownBy({ ...definition, defaults: new Map() }).fields).toEqual(["defaults"]);
   });
 });
