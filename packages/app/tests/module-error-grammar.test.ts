@@ -93,11 +93,11 @@ it("an invalid module export throws KIT:MODULE_INVALID without a tag", async () 
     expect(cause).toBeInstanceOf(GwenError);
     if (!(cause instanceof GwenError)) return;
     const fix = __GWEN_DEV__
-      ? "\nFix: Ensure the module exports a default object created with defineGwenModule()."
+      ? "\nFix: Give the module a non-empty meta.name and a setup function, or build it with defineGwenModule from @gwenjs/kit."
       : "";
     expect(cause.code).toBe("KIT:MODULE_INVALID");
     expect(cause.message).toBe(
-      `[GWEN] Module "${name}" does not export a valid GwenModule (missing setup function).${fix}\n${see("KIT:MODULE_INVALID")}`,
+      `[defineGwenModule()] Module "no-setup" is invalid: setup.${fix}\n${see("KIT:MODULE_INVALID")}`,
     );
     expect(cause.message.includes("[GWEN] [GWEN]")).toBe(false);
   } finally {
