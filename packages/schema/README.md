@@ -9,11 +9,11 @@
 
 `@gwenjs/schema` holds the shared contracts other packages augment, plus the engine-field check `checkEngineConfig` and `ENGINE_DEFAULTS`.
 
-| Responsibility         | What is exported                                   |
-| ---------------------- | -------------------------------------------------- |
-| **Helper types**       | `GwenHookHandler`, `DeepPartial`                   |
-| **Hook contracts**     | `GwenRuntimeHooks`, `HookHandlerMap`, `InferHooks` |
-| **Engine field check** | `ENGINE_DEFAULTS`, `checkEngineConfig`             |
+| Responsibility         | What is exported                                                                                                      |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| **Helper types**       | `GwenHookHandler`, `DeepPartial`                                                                                      |
+| **Hook contracts**     | `GwenRuntimeHooks`, `HookHandlerMap`, `InferHooks`, `GWEN_RESERVED_HOOK_NAMESPACES`, `GWEN_FRAMEWORK_HOOK_NAMESPACES` |
+| **Engine field check** | `ENGINE_DEFAULTS`, `checkEngineConfig`                                                                                |
 
 User configuration is `GwenUserConfig` in `@gwenjs/app` and `resolveGwenConfig` in `@gwenjs/app/resolve`. The resolved shape is `ResolvedGwenConfig` (`### ResolvedGwenConfig` in `docs/api/app.md`). The field table is `## Config Reference` in `docs/essentials/engine.md`.
 
@@ -102,9 +102,9 @@ Tests live in `tests/`.
 
 ### `.`
 
-Values: `ENGINE_DEFAULTS`, `GWEN_DOCS_BASE`, `GWEN_PLUGIN_KEYS`, `GWEN_PLUGIN_LIFECYCLE_HOOKS`, `GwenError`, `RENDERER_CONTRACT_VERSION`, `RENDER_VIEW_MATRIX_LENGTH`, `TRANSFORM_2D_SERVICE`, `checkEngineConfig`, `createEntityId`, `entityGeneration`, `entityIndex`, `errorDocsAnchor`, `errorDocsUrl`, `formatReceived`, `unpackEntityId`
+Values: `ENGINE_DEFAULTS`, `GWEN_DOCS_BASE`, `GWEN_FRAMEWORK_HOOK_NAMESPACES`, `GWEN_PLUGIN_KEYS`, `GWEN_PLUGIN_LIFECYCLE_HOOKS`, `GWEN_RESERVED_HOOK_NAMESPACES`, `GwenError`, `RENDERER_CONTRACT_VERSION`, `RENDER_VIEW_MATRIX_LENGTH`, `TRANSFORM_2D_SERVICE`, `checkEngineConfig`, `createEntityId`, `entityGeneration`, `entityIndex`, `errorDocsAnchor`, `errorDocsUrl`, `formatReceived`, `unpackEntityId`
 
-Types: `AutoImport`, `CameraProjection`, `CameraState`, `CameraStateStore`, `ComponentType`, `DeepPartial`, `DisposableRegistryBase`, `EngineErrorPayload`, `EngineStateChangePayload`, `EntityId`, `ForbiddenPluginKey`, `GwenBaseConfig`, `GwenBuildHooks`, `GwenConfigIssue`, `GwenDisposable`, `GwenEngineBase`, `GwenEngineConfig`, `GwenEngineState`, `GwenEngineStateChangeReason`, `GwenErrorBusBase`, `GwenErrorLevel`, `GwenErrorOptions`, `GwenErrorPayload`, `GwenErrorTarget`, `GwenHookHandler`, `GwenKit`, `GwenLogEntry`, `GwenLogLevel`, `GwenModule`, `GwenModuleDefinition`, `GwenModuleOptions`, `GwenPlugin`, `GwenPluginRequirement`, `GwenPluginRequires`, `GwenPrefabExtensions`, `GwenProvides`, `GwenRuntimeHooks`, `GwenSceneExtensions`, `GwenScopeMeta`, `GwenScopeType`, `GwenUIExtensions`, `HookBusBase`, `HookHandlerMap`, `IGwenLogProvider`, `IGwenLogger`, `IGwenScope`, `InferHooks`, `LayerDef`, `LayerHost`, `PluginDeclaration`, `PluginErrorContext`, `PluginErrorEvent`, `RenderView`, `RendererKind`, `RendererLayerStats`, `RendererRendererStats`, `RendererService`, `RendererStats`, `RendererStatsCollector`, `ScreenInfoStore`, `ServiceChangeEvent`, `ServiceChangeReason`, `SurfaceRendererService`, `TransformReader2D`, `TransformRef2D`, `TransformSample2D`, `Vec3Like`, `ViewportBounds`, `ViewportBoundsProvider`, `ViewportContext`, `ViewportPixels`, `ViewportRegion`, `ViewportScreenInfo`, `ViewportStore`, `VitePlugin`, `ViteUserConfig`, `WorldTransform`
+Types: `AutoImport`, `CameraProjection`, `CameraState`, `CameraStateStore`, `ComponentType`, `DeepPartial`, `DisposableRegistryBase`, `EngineErrorPayload`, `EngineStateChangePayload`, `EntityId`, `ForbiddenPluginKey`, `FrameworkHookNamespace`, `GwenBaseConfig`, `GwenBuildHooks`, `GwenConfigIssue`, `GwenDisposable`, `GwenEngineBase`, `GwenEngineConfig`, `GwenEngineState`, `GwenEngineStateChangeReason`, `GwenErrorBusBase`, `GwenErrorLevel`, `GwenErrorOptions`, `GwenErrorPayload`, `GwenErrorTarget`, `GwenHookHandler`, `GwenKit`, `GwenLogEntry`, `GwenLogLevel`, `GwenModule`, `GwenModuleDefinition`, `GwenModuleOptions`, `GwenPlugin`, `GwenPluginRequirement`, `GwenPluginRequires`, `GwenPrefabExtensions`, `GwenProvides`, `GwenRuntimeHookName`, `GwenRuntimeHooks`, `GwenSceneExtensions`, `GwenScopeMeta`, `GwenScopeType`, `GwenUIExtensions`, `GwenUserHookName`, `HookBusBase`, `HookHandlerMap`, `HookMapKeyErrors`, `IGwenLogProvider`, `IGwenLogger`, `IGwenScope`, `InferHooks`, `IsHookName`, `LayerDef`, `LayerHost`, `PluginDeclaration`, `PluginErrorContext`, `PluginErrorEvent`, `RenderView`, `RendererKind`, `ReservedHookNamespace`, `RendererLayerStats`, `RendererRendererStats`, `RendererService`, `RendererStats`, `RendererStatsCollector`, `ScreenInfoStore`, `ServiceChangeEvent`, `ServiceChangeReason`, `SurfaceRendererService`, `TransformReader2D`, `TransformRef2D`, `TransformSample2D`, `Vec3Like`, `ViewportBounds`, `ViewportBoundsProvider`, `ViewportContext`, `ViewportPixels`, `ViewportRegion`, `ViewportScreenInfo`, `ViewportStore`, `VitePlugin`, `ViteUserConfig`, `WorldTransform`
 
 `GwenErrorOptions` — Options for a `GwenError`.
 

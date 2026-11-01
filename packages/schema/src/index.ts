@@ -65,10 +65,17 @@ export type { GwenPrefabExtensions, GwenSceneExtensions, GwenUIExtensions } from
 // ─── Hook map ────────────────────────────────────────────────────────────────
 
 export type { HookHandlerMap, InferHooks } from "./hook-types";
+export { GWEN_FRAMEWORK_HOOK_NAMESPACES, GWEN_RESERVED_HOOK_NAMESPACES } from "./runtime-hooks";
 export type {
   EngineErrorPayload,
+  FrameworkHookNamespace,
+  GwenRuntimeHookName,
   GwenRuntimeHooks,
+  GwenUserHookName,
+  HookMapKeyErrors,
+  IsHookName,
   PluginErrorEvent,
+  ReservedHookNamespace,
   ServiceChangeEvent,
   ServiceChangeReason,
 } from "./runtime-hooks";

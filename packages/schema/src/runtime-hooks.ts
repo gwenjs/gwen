@@ -169,3 +169,60 @@ export interface GwenRuntimeHooks {
   /** Fired when a viewport is removed. */
   "viewport:remove": (payload: { id: string }) => void;
 }
+
+/** Core namespaces. A plugin cannot emit these. Listen with `useHook`. */
+export const GWEN_RESERVED_HOOK_NAMESPACES = Object.freeze([
+  "engine",
+  "entity",
+  "scene",
+  "plugin",
+  "actor",
+  "prefab",
+  "service",
+] as const);
+
+/** One member of {@link GWEN_RESERVED_HOOK_NAMESPACES}. */
+export type ReservedHookNamespace = (typeof GWEN_RESERVED_HOOK_NAMESPACES)[number];
+
+/**
+ * Framework namespaces and the package that owns each one.
+ * `physics2d` is not a key: the open maintainer question keeps `physics` on `@gwenjs/physics2d`.
+ */
+export const GWEN_FRAMEWORK_HOOK_NAMESPACES = Object.freeze({
+  viewport: "@gwenjs/renderer-core",
+  camera: "@gwenjs/camera-core",
+  physics: "@gwenjs/physics2d",
+  physics3d: "@gwenjs/physics3d",
+} as const);
+
+/** Key of {@link GWEN_FRAMEWORK_HOOK_NAMESPACES}. */
+export type FrameworkHookNamespace = keyof typeof GWEN_FRAMEWORK_HOOK_NAMESPACES;
+
+/** `namespace:action`, both sides non-empty. A later colon stays in the action. */
+export type IsHookName<K> = K extends `${infer NS}:${infer A}`
+  ? NS extends ""
+    ? false
+    : A extends ""
+      ? false
+      : true
+  : false;
+
+/** Declared hook names that match {@link IsHookName}. */
+export type GwenRuntimeHookName = {
+  [K in keyof GwenRuntimeHooks]-?: IsHookName<K> extends true ? K : never;
+}[keyof GwenRuntimeHooks];
+
+/** Names a game may emit. Reserved namespaces stay on the engine. */
+export type GwenUserHookName = Exclude<GwenRuntimeHookName, `${ReservedHookNamespace}:${string}`>;
+
+/**
+ * Keys that are malformed, reserved, or owned by a framework package.
+ * Intersect a hook map with this to surface those keys as compile errors.
+ */
+export type HookMapKeyErrors<T> = {
+  [K in keyof T as IsHookName<K> extends true
+    ? K extends `${ReservedHookNamespace | FrameworkHookNamespace}:${string}`
+      ? K
+      : never
+    : K]: `Hook "${K & string}" must be "namespace:action" in your own namespace; engine, entity, scene, plugin, actor, prefab and service are reserved for the engine; viewport, camera, physics and physics3d belong to framework packages`;
+};
