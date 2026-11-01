@@ -1,3 +1,4 @@
+import { definePlugin } from "@gwenjs/kit/plugin";
 import type { GwenEngine } from "@gwenjs/core";
 import type { ComponentDef, LiveQuery, EntityAccessor } from "@gwenjs/core/system";
 import type { Physics2DAPI, SensorState } from "./types";
@@ -65,6 +66,10 @@ export interface PhysicsKinematicSyncSystemOptions {
  *
  * @param options - Pixel-to-meter ratio and the position component definition.
  * @returns A plugin object ready to register with `engine.use()`.
+ * @throws {GwenError} Code `Physics2DErrorCodes.POSITION_COMPONENT_REQUIRED` when
+ *   `positionComponent` is missing. The parameter is typed optional only because
+ *   `definePlugin` types its factory parameter as optional
+ *   (`packages/kit/src/define-plugin.ts:107`). It is still required at runtime.
  *
  * @example
  * ```typescript
@@ -77,68 +82,70 @@ export interface PhysicsKinematicSyncSystemOptions {
  *
  * @since 1.0.0
  */
-export function createPhysicsKinematicSyncSystem(options: PhysicsKinematicSyncSystemOptions) {
-  if (options?.positionComponent === undefined) {
-    throw new GwenError(
-      Physics2DErrorCodes.POSITION_COMPONENT_REQUIRED,
-      "positionComponent is required.",
-      { composable: "createPhysicsKinematicSyncSystem" },
-    );
-  }
-  const _pixelsPerMeter = options.pixelsPerMeter ?? DEFAULT_PIXELS_PER_METER;
-  const _positionComponent = options.positionComponent;
+export const createPhysicsKinematicSyncSystem = definePlugin(
+  (options?: PhysicsKinematicSyncSystemOptions) => {
+    if (options === undefined || options.positionComponent === undefined) {
+      throw new GwenError(
+        Physics2DErrorCodes.POSITION_COMPONENT_REQUIRED,
+        "positionComponent is required.",
+        { composable: "createPhysicsKinematicSyncSystem" },
+      );
+    }
+    const _pixelsPerMeter = options.pixelsPerMeter ?? DEFAULT_PIXELS_PER_METER;
+    const _positionComponent = options.positionComponent;
 
-  let _physics: Physics2DAPI | null = null;
-  let _liveQuery: LiveQuery<EntityAccessor<readonly ComponentDef[]>> | null = null;
-  let _offBeforeUpdate: (() => void) | null = null;
+    let _physics: Physics2DAPI | null = null;
+    let _liveQuery: LiveQuery<EntityAccessor<readonly ComponentDef[]>> | null = null;
+    let _offBeforeUpdate: (() => void) | null = null;
 
-  return {
-    /** Unique plugin identifier consumed by the engine registry. */
-    name: "PhysicsKinematicSyncSystem",
-    requires: { services: ["physics2d"] },
+    return {
+      /** Unique plugin identifier consumed by the engine registry. */
+      name: "PhysicsKinematicSyncSystem",
+      requires: { services: ["physics2d"] },
 
-    /**
-     * Initialises the plugin: resolves the Physics2D service and registers a
-     * live query so only matching entities are visited each frame.
-     *
-     * @param engine - The running GWEN engine instance.
-     */
-    setup(engine: GwenEngine): void {
-      _physics = engine.inject("physics2d");
+      /**
+       * Initialises the plugin: resolves the Physics2D service and registers a
+       * live query so only matching entities are visited each frame.
+       *
+       * @param engine - The running GWEN engine instance.
+       */
+      setup(engine: GwenEngine): void {
+        _physics = engine.inject("physics2d");
 
-      const queried = _positionComponent;
-      _liveQuery = engine.createLiveQuery([queried]);
+        const queried = _positionComponent;
+        _liveQuery = engine.createLiveQuery([queried]);
 
-      _offBeforeUpdate = engine.hooks.hook("engine:before-update", (_dt: number): void => {
-        if (!_physics || !_liveQuery) return;
+        _offBeforeUpdate = engine.hooks.hook("engine:before-update", (_dt: number): void => {
+          if (!_physics || !_liveQuery) return;
 
-        for (const entity of _liveQuery) {
-          const rawPos: unknown = entity.get(queried);
-          if (!isVec2(rawPos)) continue;
+          for (const entity of _liveQuery) {
+            const rawPos: unknown = entity.get(queried);
+            if (!isVec2(rawPos)) continue;
 
-          _physics.setKinematicPosition(
-            entity.id,
-            rawPos.x / _pixelsPerMeter,
-            rawPos.y / _pixelsPerMeter,
-          );
+            _physics.setKinematicPosition(
+              entity.id,
+              rawPos.x / _pixelsPerMeter,
+              rawPos.y / _pixelsPerMeter,
+            );
+          }
+        });
+      },
+
+      /**
+       * Releases all references held by this plugin.
+       * Must be called when the plugin is removed from the engine.
+       */
+      teardown(): void {
+        if (_offBeforeUpdate) {
+          _offBeforeUpdate();
+          _offBeforeUpdate = null;
         }
-      });
-    },
-
-    /**
-     * Releases all references held by this plugin.
-     * Must be called when the plugin is removed from the engine.
-     */
-    teardown(): void {
-      if (_offBeforeUpdate) {
-        _offBeforeUpdate();
-        _offBeforeUpdate = null;
-      }
-      _physics = null;
-      _liveQuery = null;
-    },
-  };
-}
+        _physics = null;
+        _liveQuery = null;
+      },
+    };
+  },
+);
 
 // ─── Platformer grounded helper ──────────────────────────────────────────────
 
