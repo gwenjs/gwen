@@ -399,6 +399,64 @@ The `GwenCoreGlueFactoryModule` import only types the helper. Real code passes `
 
 `engine.loadWasmModule({ name, bytes })` loads a community module in a server with no fetch. Pass `module` for a compiled `WebAssembly.Module`. Pass exactly one of `url`, `bytes` or `module`. Zero or several, or invalid bytes, reject with `CORE:WASM_LOAD_ERROR`.
 
+### Many rooms on worker threads
+
+Rooms in one thread share one event loop. One room that never returns stops all of them. One thread also uses one core.
+
+Run rooms on worker threads. Each worker has its own event loop and can run on another core. This is a recipe, not a worker-pool API: GWEN adds none.
+
+On the main thread, compile the module once. Start the workers. Post the module to each one.
+
+```ts check
+import { availableParallelism } from "node:os";
+import { Worker } from "node:worker_threads";
+import { loadGwenModule } from "@gwenjs/core/node";
+
+async function startWorkers(rooms: number): Promise<Worker[]> {
+  const module = await loadGwenModule("physics2d");
+  const workers: Worker[] = [];
+  for (let i = 0; i < availableParallelism(); i++) {
+    const worker = new Worker(new URL("./room-worker.mjs", import.meta.url));
+    worker.postMessage({ type: "init", module, rooms });
+    workers.push(worker);
+  }
+  return workers;
+}
+
+async function closeWorkers(workers: Worker[]): Promise<void> {
+  await Promise.all(workers.map((worker) => worker.terminate()));
+}
+```
+
+`room-worker.mjs`, in the worker:
+
+```js
+import { parentPort } from "node:worker_threads";
+import { setupGwen } from "@gwenjs/core/node";
+
+parentPort.on("message", async ({ module, rooms }) => {
+  const engines = [];
+  for (let i = 0; i < rooms; i++) {
+    engines.push(await setupGwen({ variant: "physics2d", wasmModule: module }));
+  }
+  // Start each engine with startExternal(), then call advance(dt) on every tick.
+});
+```
+
+`setupGwen` from `@gwenjs/core/node` defaults to `wasmInstance: "isolated"` (`packages/core/src/node.ts:100`, `:114`). Each room is its own engine, with its own instance and linear memory. One compiled module serves every engine and every worker.
+
+Sizing:
+
+- Start about one worker per CPU. `os.availableParallelism()` gives that number.
+- Put several rooms in each worker.
+- Workers are for cores and for crash containment. Do not start one worker per room.
+
+Measured cost: 4 workers with 250 `physics2d` rooms each, all built from one module, used about 380 MiB of RSS. Each extra worker added about 10.6 MiB of RSS, measured with 8 workers. These come from local runs on arm64 on 2026-10-19 (ticket #268). The timings are in ticket #268. They are not a guarantee. Measure on your own hardware.
+
+A room that never returns blocks every room of its own worker. Call `worker.terminate()` on that worker. The other workers keep advancing. An integration test covers this.
+
+For how many isolated engines one process can hold, see [Several engines per page or process](#several-engines-per-page-or-process).
+
 ## API Summary
 
 | | |
