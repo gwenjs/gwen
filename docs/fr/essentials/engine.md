@@ -310,6 +310,8 @@ Le moteur tourne dans Node sans DOM. La seule boucle serveur prise en charge est
 
 Importez depuis `@gwenjs/core/node`. L'import déclare que le code tourne dans Node. Rien n'est deviné à l'exécution. Aucune option n'est nécessaire.
 
+Le point d'entrée principal ne lit jamais de fichiers.
+
 ```ts check
 import { createEngine, loadGwenModule } from "@gwenjs/core/node";
 

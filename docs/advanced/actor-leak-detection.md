@@ -173,7 +173,7 @@ Write tests that assert `_instances.size === 0` after scene exit — they fail i
 
 ```ts
 import { describe, it, expect } from 'vitest'
-import { createEngine } from '@gwenjs/core'
+import { createEngine } from '@gwenjs/core/node'
 
 describe('GameScene lifecycle', () => {
   it('despawns all actors when the scene exits', async () => {

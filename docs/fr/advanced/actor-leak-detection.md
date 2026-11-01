@@ -165,7 +165,7 @@ onEnter(() => {
 
 ```ts
 import { describe, it, expect } from 'vitest'
-import { createEngine } from '@gwenjs/core'
+import { createEngine } from '@gwenjs/core/node'
 
 describe('GameScene lifecycle', () => {
   it('despawne tous les acteurs quand la scène sort', async () => {
