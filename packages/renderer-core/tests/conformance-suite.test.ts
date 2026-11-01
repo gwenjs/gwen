@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi } from "vitest";
-import { createEngine } from "@gwenjs/core";
+import { createEngine } from "@gwenjs/core/node";
 import { GwenError } from "@gwenjs/schema";
 import { runConformanceTests, runSurfaceConformance } from "../src/testing/index.js";
 import { RendererErrorCodes } from "../src/errors.js";

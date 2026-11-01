@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { createEngine } from "@gwenjs/core";
+import { createEngine } from "@gwenjs/core/node";
 import type { LayerHost } from "@gwenjs/schema";
 import { GwenError } from "@gwenjs/schema";
 import { LayerManager } from "../src/layer-manager.js";

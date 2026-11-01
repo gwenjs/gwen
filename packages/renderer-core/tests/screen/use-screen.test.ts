@@ -3,7 +3,7 @@ import { useScreen } from "../../src/use-screen.js";
 import { getOrCreateScreenService } from "../../src/get-or-create-screen-service.js";
 import { StaticSizeProvider } from "../../src/screen-size-providers.js";
 import { ScreenPlugin } from "../../src/screen-plugin.js";
-import { createEngine } from "@gwenjs/core";
+import { createEngine } from "@gwenjs/core/node";
 
 async function makeEngine() {
   const engine = await createEngine({ maxEntities: 100 });
