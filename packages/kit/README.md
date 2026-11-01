@@ -92,7 +92,7 @@ Values: `GWEN_CONTEXT_BOUNDARIES`, `GwenContextError`, `GwenContextErrorCodes`, 
 
 `tryUseEngine` returns the engine `useEngine()` returns, or `undefined` where `useEngine()` would throw `CORE:OUTSIDE_ENGINE_CONTEXT`, and never throws.
 
-Types: `AutoImport`, `DeepPartial`, `EngineSlot`, `GwenContextBoundary`, `GwenContextErrorCode`, `MergePluginsPrefabExtensions`, `MergePluginsSceneExtensions`, `MergePluginsUIExtensions`, `VitePlugin`, `ViteUserConfig`
+Types: `AutoImport`, `DeepPartial`, `EngineSlot`, `GwenContextBoundary`, `GwenContextErrorCode`, `VitePlugin`, `ViteUserConfig`
 
 ### `./plugin`
 

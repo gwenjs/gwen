@@ -21,9 +21,6 @@
       "EngineSlot",
       "GwenContextBoundary",
       "GwenContextErrorCode",
-      "MergePluginsPrefabExtensions",
-      "MergePluginsSceneExtensions",
-      "MergePluginsUIExtensions",
       "VitePlugin",
       "ViteUserConfig"
     ]

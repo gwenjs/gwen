@@ -9,9 +9,6 @@ type _0 = [
   Root.DeepPartial<never>,
   Root.GwenContextBoundary,
   Root.GwenContextErrorCode,
-  Root.MergePluginsPrefabExtensions<never>,
-  Root.MergePluginsSceneExtensions<never>,
-  Root.MergePluginsUIExtensions<never>,
   Root.VitePlugin,
   Root.ViteUserConfig,
 ];

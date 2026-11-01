@@ -7,12 +7,6 @@
 // Types sourced from @gwenjs/schema — re-exported here for convenience.
 export type { AutoImport, VitePlugin, ViteUserConfig, DeepPartial } from "@gwenjs/schema";
 
-export type {
-  MergePluginsPrefabExtensions,
-  MergePluginsSceneExtensions,
-  MergePluginsUIExtensions,
-} from "./config.js";
-
 // Observability composables for plugin authors
 export { useLogger, useErrorReporter, usePerfMark } from "./observability.js";
 
