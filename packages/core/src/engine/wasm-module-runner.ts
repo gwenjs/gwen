@@ -77,8 +77,100 @@ function sourceLabel<Exports extends WebAssembly.Exports>(
   return String(options.url);
 }
 
+/** Default for `maxBytes` when the caller omits it. Not exported. */
+const DEFAULT_MAX_BYTES = 16 * 1024 * 1024;
+
+function wasmMaxBytesError(value: number): GwenError {
+  return new GwenError(
+    CoreErrorCodes.WASM_LOAD_ERROR,
+    `maxBytes must be a positive integer; got ${String(value)}.`,
+    { composable: "engine.loadWasmModule" },
+  );
+}
+
+function wasmByteCapError(name: string, cap: number, size: number | undefined): GwenError {
+  const what =
+    size === undefined
+      ? `Module "${name}" is more than ${cap} bytes, over the ${cap}-byte cap (maxBytes).`
+      : `Module "${name}" is ${size} bytes, over the ${cap}-byte cap (maxBytes).`;
+  return new GwenError(CoreErrorCodes.WASM_LOAD_ERROR, what, {
+    composable: "engine.loadWasmModule",
+    hint: __GWEN_DEV__
+      ? "Pass a larger maxBytes for a module you trust, or refuse the upload."
+      : undefined,
+  });
+}
+
+function declaredContentLength(response: Response): number | undefined {
+  const header = response.headers.get("content-length");
+  if (header === null) return undefined;
+  const length = Number(header);
+  if (!Number.isInteger(length) || length < 0) return undefined;
+  return length;
+}
+
+async function cancelBody(response: Response): Promise<void> {
+  try {
+    await response.body?.cancel();
+  } catch {
+    // A cancel rejection must not replace the cap error.
+  }
+}
+
+async function readBodyWithinCap(
+  response: Response,
+  cap: number,
+  name: string,
+): Promise<ArrayBuffer> {
+  const body = response.body;
+  if (body === null) {
+    const buffered = await response.arrayBuffer();
+    if (buffered.byteLength > cap) {
+      throw wasmByteCapError(name, cap, buffered.byteLength);
+    }
+    return buffered;
+  }
+  const reader = body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  let next = await reader.read();
+  while (!next.done) {
+    const piece = next.value;
+    total += piece.byteLength;
+    if (total > cap) {
+      try {
+        await reader.cancel();
+      } catch {
+        // A cancel rejection must not replace the cap error.
+      }
+      throw wasmByteCapError(name, cap, undefined);
+    }
+    chunks.push(piece);
+    next = await reader.read();
+  }
+  reader.releaseLock();
+  const buffer = new ArrayBuffer(total);
+  const out = new Uint8Array(buffer);
+  let offset = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return buffer;
+}
+
+async function bytesWithinCap(response: Response, cap: number, name: string): Promise<ArrayBuffer> {
+  const declared = declaredContentLength(response);
+  if (declared !== undefined && declared > cap) {
+    await cancelBody(response);
+    throw wasmByteCapError(name, cap, declared);
+  }
+  return readBodyWithinCap(response, cap, name);
+}
+
 async function fetchBytes<Exports extends WebAssembly.Exports>(
   options: WasmModuleOptions<Exports>,
+  cap: number,
 ): Promise<ArrayBuffer> {
   const url = options.url;
   // The count check guarantees a url. `String` only fills the type hole.
@@ -91,7 +183,7 @@ async function fetchBytes<Exports extends WebAssembly.Exports>(
       { composable: "engine.loadWasmModule" },
     );
   }
-  return response.arrayBuffer();
+  return bytesWithinCap(response, cap, options.name);
 }
 
 function transformRegionWhat(moduleName: string, regionName: string, detail: string): string {
@@ -123,6 +215,14 @@ export class WasmModuleRunner {
         { composable: "engine.loadWasmModule" },
       );
     }
+    const cap = options.maxBytes ?? DEFAULT_MAX_BYTES;
+    if (!Number.isInteger(cap) || cap < 1) {
+      throw wasmMaxBytesError(cap);
+    }
+    // A compiled module is already past this check.
+    if (options.bytes !== undefined && options.bytes.byteLength > cap) {
+      throw wasmByteCapError(options.name, cap, options.bytes.byteLength);
+    }
     const existing = this._wasmModules.get(options.name);
     if (existing) {
       return existing.handle as WasmModuleHandle<Exports>;
@@ -146,7 +246,8 @@ export class WasmModuleRunner {
     let probeOffset: number | undefined;
     try {
       wasmModule =
-        options.module ?? (await WebAssembly.compile(options.bytes ?? (await fetchBytes(options))));
+        options.module ??
+        (await WebAssembly.compile(options.bytes ?? (await fetchBytes(options, cap))));
       if (declared) {
         const exportName = `gwen_${declared.name}_ptr`;
         const hasPtrExport = WebAssembly.Module.exports(wasmModule).some(

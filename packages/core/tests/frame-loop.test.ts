@@ -31,16 +31,15 @@ const WASM_WITH_MEMORY = Uint8Array.from(
 
 // ─── Helper: mock fetch with a wasm buffer ────────────────────────────────────
 
+let fetchCalls = 0;
+
 function mockFetch(bytes: Uint8Array): void {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      statusText: "OK",
-      arrayBuffer: () => Promise.resolve(bytes.buffer.slice(0) as ArrayBuffer),
-    }),
-  );
+  fetchCalls = 0;
+  vi.stubGlobal("fetch", () => {
+    fetchCalls += 1;
+    // A fresh Response per call: its body can be read once.
+    return Promise.resolve(new Response(bytes.slice(), { status: 200 }));
+  });
 }
 
 function mockFetchFail(status = 404): void {
@@ -512,7 +511,7 @@ describe("Frame Loop v2", () => {
 
       expect(h1).toBe(h2);
       // fetch was only called once
-      expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+      expect(fetchCalls).toBe(1);
     });
 
     it("throws with a descriptive error when fetch returns non-ok status", async () => {

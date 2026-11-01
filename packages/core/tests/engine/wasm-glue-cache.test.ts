@@ -28,18 +28,7 @@ describe("engine.stop() — WASM module and glue cache cleanup", () => {
 
   function engineWithWasmFetch(): Promise<Awaited<ReturnType<typeof createEngine>>> {
     vi.stubGlobal("fetch", () =>
-      Promise.resolve({
-        ok: true,
-        status: 200,
-        statusText: "OK",
-        arrayBuffer: () =>
-          Promise.resolve(
-            MINIMAL_WASM.buffer.slice(
-              MINIMAL_WASM.byteOffset,
-              MINIMAL_WASM.byteOffset + MINIMAL_WASM.byteLength,
-            ),
-          ),
-      }),
+      Promise.resolve(new Response(MINIMAL_WASM.slice(), { status: 200 })),
     );
     const bridge = new WasmBridgeImpl();
     vi.spyOn(bridge, "isActive").mockReturnValue(true);
