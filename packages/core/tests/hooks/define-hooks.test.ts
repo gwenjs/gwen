@@ -37,15 +37,20 @@ describe("InferHooks<T>", () => {
 describe("emit() with declared hooks", () => {
   it("accepts declared hook keys and args without cast", async () => {
     const engine = await createEngine();
-    const spy = vi.fn();
-    engine.hooks.hook("enemy:died" as never, spy as never);
-    engine.run(() => {
-      emit("enemy:died", 42n);
-      emit("player:damage", 10);
-      emit("level:complete");
+    const seen: bigint[] = [];
+    engine.hooks.hook("enemy:died", (id) => {
+      seen.push(id);
     });
-    expect(spy).toHaveBeenCalledWith(42n);
-    await engine.stop();
+    try {
+      engine.run(() => {
+        emit("enemy:died", 42n);
+        emit("player:damage", 10);
+        emit("level:complete");
+      });
+      expect(seen).toEqual([42n]);
+    } finally {
+      await engine.stop();
+    }
   });
 });
 

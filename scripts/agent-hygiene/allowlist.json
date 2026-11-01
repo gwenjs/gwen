@@ -4,5 +4,17 @@
     "rule": "ts-expect-error",
     "reason": "A compile-time test: each of the 7 lifecycle keys and `version` must be a type error, so the test needs one expect-error directive per key. An unused directive fails the typecheck run.",
     "ticket": "#73"
+  },
+  {
+    "file": "packages/core/tests/types/hook-names.test-d.ts",
+    "rule": "ts-expect-error",
+    "reason": "Compile-time hook-name tests. Each malformed, reserved, or framework key, and each removed physics3d name, must be a type error. An unused directive fails the typecheck run.",
+    "ticket": "#63"
+  },
+  {
+    "file": "packages/core/tests/types/hooks.test-d.ts",
+    "rule": "ts-expect-error",
+    "reason": "The reserved emit engine:tick must stay a type error next to the existing argument and unknown-name directives. An unused directive fails the typecheck run.",
+    "ticket": "#63"
   }
 ]

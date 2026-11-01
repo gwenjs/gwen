@@ -132,7 +132,21 @@ function declaredHookNames(text: string): string[] {
     ts.forEachChild(node, visit);
   };
   visit(source);
+  scanColonKeys(text, names, seen);
+  return names;
+}
+
+/**
+ * String keys followed by `:`.
+ * A bare scanner leaves a template substitution open, so the rest of the file,
+ * including a synthetic key appended after `runtime-hooks.ts`, stays inside the template.
+ * Brace depth tells a `}` that closes `${ ... }` from one that closes a block.
+ * That `}` is rescanned as TemplateMiddle or TemplateTail.
+ */
+function scanColonKeys(text: string, names: string[], seen: Set<string>): void {
   const scanner = ts.createScanner(ts.ScriptTarget.Latest, true, ts.LanguageVariant.Standard, text);
+  const substitutionBrace: number[] = [];
+  let braceDepth = 0;
   let token = scanner.scan();
   while (token !== ts.SyntaxKind.EndOfFileToken) {
     if (token === ts.SyntaxKind.StringLiteral) {
@@ -141,9 +155,22 @@ function declaredHookNames(text: string): string[] {
       if (token === ts.SyntaxKind.ColonToken) addHookName(names, seen, value);
       continue;
     }
+    if (token === ts.SyntaxKind.OpenBraceToken) {
+      braceDepth += 1;
+    } else if (token === ts.SyntaxKind.CloseBraceToken) {
+      const open = substitutionBrace.length - 1;
+      if (open >= 0 && substitutionBrace[open] === braceDepth) {
+        token = scanner.reScanTemplateToken(false);
+        substitutionBrace.pop();
+        if (token === ts.SyntaxKind.TemplateMiddle) substitutionBrace.push(braceDepth);
+      } else {
+        braceDepth -= 1;
+      }
+    } else if (token === ts.SyntaxKind.TemplateHead || token === ts.SyntaxKind.TemplateMiddle) {
+      substitutionBrace.push(braceDepth);
+    }
     token = scanner.scan();
   }
-  return names;
 }
 
 /** String arguments of a firing callee, or of a function that forwards to one. */
