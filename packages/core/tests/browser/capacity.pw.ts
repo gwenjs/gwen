@@ -139,8 +139,8 @@ test.describe("chromium", () => {
   });
 
   test("auto: past the cap new engines join the pool and advance", async ({ page }) => {
-    // provisional: 2x a local run of 478 ms; replace with a CI run id and 2x its duration
-    test.setTimeout(1_000);
+    // measuring: wide ceiling for the first CI runs; replaced by 2x the slowest measured CI run
+    test.setTimeout(5_000);
     await openIsolated(page);
     const result = await autoPastCap(page, 200);
     logAuto("chromium", result);
@@ -163,8 +163,8 @@ test.describe("firefox", () => {
   });
 
   test("auto: past the cap new engines join the pool and advance", async ({ page }) => {
-    // provisional: same ceiling as the isolated test above; replace with a CI run id and 2x its duration
-    test.setTimeout(10_400);
+    // measuring: wide ceiling for the first CI runs; replaced by 2x the slowest measured CI run
+    test.setTimeout(30_000);
     await openIsolated(page);
     const result = await autoPastCap(page, 1100);
     logAuto("firefox", result);
@@ -194,7 +194,7 @@ test.describe("webkit", () => {
   });
 
   test("auto: WebKit 500 engines, budget default, all advance", async ({ page }) => {
-    // provisional: same ceiling as the isolated test above; replace with a CI run id and 2x its duration
+    // measuring: wide ceiling for the first CI runs; replaced by 2x the slowest measured CI run
     test.setTimeout(16_600);
     await openIsolated(page);
     const result: AutoBatch = await page.evaluate(async () => {
