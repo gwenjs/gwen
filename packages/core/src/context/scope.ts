@@ -12,7 +12,14 @@
  * @module
  */
 
-import type { GwenEngineBase, GwenRuntimeHooks, GwenScopeMeta, IGwenScope } from "@gwenjs/schema";
+import type {
+  GwenEngineBase,
+  GwenRuntimeHookName,
+  GwenRuntimeHooks,
+  GwenScopeMeta,
+  IGwenScope,
+} from "@gwenjs/schema";
+import { assertHookName } from "../hooks/hook-name.js";
 import { getCurrentScope, _setCurrentScope } from "@gwenjs/kit";
 import { ScopedHookable } from "../hooks/scoped-hookable.js";
 import type { GwenEngine } from "../engine/engine-types.js";
@@ -101,7 +108,8 @@ export class GwenScope implements IGwenScope {
     }
   }
 
-  hook<K extends keyof GwenRuntimeHooks>(name: K, fn: GwenRuntimeHooks[K]): () => void {
+  hook<K extends GwenRuntimeHookName>(name: K, fn: GwenRuntimeHooks[K]): () => void {
+    assertHookName(name, "scope.hook", false);
     this._hookCount++;
     const target = targetFromScopeMeta(this.meta);
     const guarded = guardHandler(

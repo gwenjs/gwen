@@ -199,7 +199,7 @@ declare module '@gwenjs/schema' {
 }
 ```
 
-`defineHooks()` est un outil de déclaration — il n'exécute aucun code à l'exécution. Sa valeur est la signature TypeScript. Associez-le à `InferHooks` pour plier vos événements personnalisés dans `GwenRuntimeHooks`.
+`defineHooks()` retourne le même objet. Une clé qui n'est pas `namespace:action`, ou qui utilise `engine`, `entity`, `scene`, `plugin`, `actor`, `prefab` ou `service`, lève `GwenHookNameError` (`CORE:HOOK_NAME_INVALID`). `viewport`, `camera`, `physics` et `physics3d` sont une erreur de compilation sur `defineHooks` et ne lèvent pas. Associez-le à `InferHooks` pour plier vos événements personnalisés dans `GwenRuntimeHooks`. `emit` ne peut pas déclencher un espace de noms réservé. Écoutez avec `useHook`.
 
 ### Émission d'événements
 

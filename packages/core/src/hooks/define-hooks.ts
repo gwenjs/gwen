@@ -1,14 +1,19 @@
-import type { HookHandlerMap } from "@gwenjs/schema";
+import type { HookHandlerMap, HookMapKeyErrors } from "@gwenjs/schema";
+import { assertHookName } from "./hook-name.js";
 
 export type { HookHandlerMap, InferHooks } from "@gwenjs/schema";
+
+// `const` infers readonly keys. The returned object is the same mutable map.
+type WritableHookMap<T> = { -readonly [K in keyof T]: T[K] };
 
 /**
  * Declare a typed set of custom game hooks.
  *
- * Returns the same object unchanged at runtime (identity function).
- * The value is its TypeScript signature — pair with `InferHooks` and
- * declaration merging to register your hooks in `GwenRuntimeHooks`
- * for full type-safety in `useHook` / `emit`.
+ * Returns the same object at runtime.
+ * A malformed or reserved key throws `GwenHookNameError` before the return.
+ * A framework namespace (`camera`, `viewport`, `physics`, `physics3d`) is a compile error
+ * and does not throw. Pair with `InferHooks` and declaration merging.
+ * A string index skips the compile-time key check. The runtime loop still rejects it.
  *
  * @example
  * ```ts
@@ -25,6 +30,9 @@ export type { HookHandlerMap, InferHooks } from "@gwenjs/schema";
  * }
  * ```
  */
-export function defineHooks<T extends HookHandlerMap>(map: T): T {
-  return map;
+export function defineHooks<const T extends HookHandlerMap>(
+  map: string extends keyof T ? T : T & HookMapKeyErrors<T>,
+): WritableHookMap<T> {
+  for (const key in map) assertHookName(key, "defineHooks", true);
+  return map as WritableHookMap<T>;
 }

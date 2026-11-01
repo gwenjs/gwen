@@ -49,6 +49,10 @@ onStart(async () => {
 
 ## @gwenjs/core
 
+### CORE:HOOK_NAME_INVALID {#core-hook-name-invalid}
+
+Cause. Le nom n'est pas `namespace:action` (`reason` `"format"`), ou `emit` / un `engine.hooks.callHook*` de plugin a utilisé un espace de noms réservé (`reason` `"reserved"`) : `engine`, `entity`, `scene`, `plugin`, `actor`, `prefab`, `service`. Fix. Utilisez `"namespace:action"`, par exemple `"enemy:died"`. Écoutez un nom réservé avec `useHook`. Émettez un nom de votre espace de noms, déclaré avec `defineHooks`.
+
 ### CORE:OUTSIDE_ENGINE_CONTEXT {#core-outside-engine-context}
 
 Cause. L'appel est hors de `defineSystem()`, `defineActor()`, `defineScene()`, `plugin setup()` ou `engine.run()`. Fix. Capturez la poignée dans la fabrique, puis utilisez-la comme closure après `await`.

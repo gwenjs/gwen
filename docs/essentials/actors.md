@@ -365,7 +365,7 @@ export const EnemyActor = defineActor(EnemyPrefab, () => {
 ```
 
 ::: tip Declare events before emitting
-`enemy:hit` and `enemy:die` must be declared with `defineHooks` before `emit` is type-safe. Without the declaration, TypeScript treats the name as `string` and argument types are not enforced. See [Hooks](/essentials/hooks).
+`enemy:hit` and `enemy:die` must be declared with `defineHooks` before `emit` is type-safe. An undeclared name is a compile error. See [Hooks](/essentials/hooks).
 :::
 
 ## Accessing Services

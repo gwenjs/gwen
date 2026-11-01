@@ -210,6 +210,8 @@ export const CoreErrorCodes = {
   PLUGIN_DEPENDENCY_MISSING: "CORE:PLUGIN_DEPENDENCY_MISSING",
   /** `engine.unuse` rejected: an installed plugin still requires this plugin or one of its services. */
   PLUGIN_IN_USE: "CORE:PLUGIN_IN_USE",
+  /** Thrown by `GwenHookNameError`. A hook name is not `namespace:action`, or an emit used a reserved namespace. */
+  HOOK_NAME_INVALID: "CORE:HOOK_NAME_INVALID",
   /** Thrown by `TweenPool.claim`. */
   TWEEN_POOL_EXHAUSTED: "CORE:TWEEN_POOL_EXHAUSTED",
   /** Thrown by `init` when the compiled module does not match its glue contract (#260). */
@@ -396,5 +398,36 @@ export class GwenActorError extends GwenError {
   constructor(code: string, what: string, options?: GwenErrorOptions) {
     super(code, what, options);
     this.name = "GwenActorError";
+  }
+}
+
+/**
+ * A hook name is not `namespace:action`, or an emit used a reserved namespace.
+ * `reason` is `format` or `reserved`.
+ */
+export class GwenHookNameError extends GwenError {
+  override readonly code: typeof CoreErrorCodes.HOOK_NAME_INVALID;
+  readonly hookName: string;
+  readonly reason: "format" | "reserved";
+
+  constructor(hookName: string, reason: "format" | "reserved", composable: string) {
+    super(
+      CoreErrorCodes.HOOK_NAME_INVALID,
+      reason === "format"
+        ? `Hook name "${hookName}" is invalid.`
+        : `Hook "${hookName}" uses the reserved namespace "${hookName.slice(0, hookName.indexOf(":"))}:".`,
+      {
+        composable,
+        hint: __GWEN_DEV__
+          ? reason === "format"
+            ? 'Use "namespace:action", for example "enemy:died".'
+            : "Only the engine emits engine, entity, scene, plugin, actor, prefab and service hooks. Listen with useHook(); emit your own namespace declared with defineHooks."
+          : undefined,
+      },
+    );
+    this.name = "GwenHookNameError";
+    this.code = CoreErrorCodes.HOOK_NAME_INVALID;
+    this.hookName = hookName;
+    this.reason = reason;
   }
 }

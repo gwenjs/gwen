@@ -622,23 +622,22 @@ function onRender(cb: (alpha: number) => void): void
 
 **Signature:**
 ```ts
-function defineHooks(map: Record<string, any>): HookDef
+function defineHooks<const T extends HookHandlerMap>(map: string extends keyof T ? T : T & HookMapKeyErrors<T>): WritableHookMap<T>
 ```
 
-**Description.** Defines hook types for your game.
+**Description.** Declares game hooks named `namespace:action`. Returns the same object. A malformed or core-reserved key throws `GwenHookNameError`. `viewport`, `camera`, `physics`, and `physics3d` are compile errors.
 
 **Parameters:**
 | Param | Type | Description |
 |---|---|---|
-| map | `object` | Hook type definitions |
+| map | `HookHandlerMap` | Hook name to handler |
 
-**Returns:** `HookDef`
+**Returns:** the same map
 
 **Example:**
 ```ts
 const Hooks = defineHooks({
-  'player-hit': { damage: Number },
-  'level-complete': { time: Number }
+  'player:damage': (_amount: number): void => undefined,
 });
 ```
 
@@ -646,22 +645,46 @@ const Hooks = defineHooks({
 
 **Signature:**
 ```ts
-function emit<K extends keyof GwenRuntimeHooks>(name: K, ...args: Parameters<GwenRuntimeHooks[K]>): void
+function emit<K extends GwenUserHookName>(name: K, ...args: Parameters<GwenRuntimeHooks[K]>): void
 ```
 
-**Description.** Emits a custom event to all listeners registered with [`useHook()`](#usehookevent-handler).
+**Description.** Emits a declared game event to listeners registered with [`useHook()`](#usehookevent-handler). A core-reserved namespace (`engine`, `entity`, `scene`, `plugin`, `actor`, `prefab`, `service`) is a compile error and throws `GwenHookNameError` at runtime.
 
 **Parameters:**
 | Param | Type | Description |
 |---|---|---|
-| event | `string` | Event type identifier |
-| payload | `any` | Event payload (optional) |
+| event | `GwenUserHookName` | Declared hook name |
+| payload | handler args | Arguments of that hook |
 
 **Returns:** `void`
 
 **Example:**
 ```ts
-emit('player-hit', { damage: 10 });
+emit('player:damage', 10);
+```
+
+#### useHook(event, handler)
+
+**Signature:**
+```ts
+function useHook<K extends GwenRuntimeHookName>(name: K, fn: GwenRuntimeHooks[K]): UnsubscribeFn
+```
+
+**Description.** Subscribes to a declared hook, including a core-reserved name such as `engine:tick`. A name outside `namespace:action` throws `GwenHookNameError`. The subscription is removed when the current scope ends.
+
+**Parameters:**
+| Param | Type | Description |
+|---|---|---|
+| event | `GwenRuntimeHookName` | Declared hook name |
+| handler | `GwenRuntimeHooks[K]` | Listener |
+
+**Returns:** `UnsubscribeFn`
+
+**Example:**
+```ts
+useHook('engine:tick', (dt) => {
+  const _seconds: number = dt;
+});
 ```
 
 ### UI & Layout

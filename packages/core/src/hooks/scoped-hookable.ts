@@ -14,7 +14,8 @@
  */
 
 import type { Hookable } from "hookable";
-import type { GwenRuntimeHooks } from "@gwenjs/schema";
+import type { GwenRuntimeHookName, GwenRuntimeHooks } from "@gwenjs/schema";
+import { assertHookName } from "./hook-name.js";
 
 // ─── ScopedHookable ───────────────────────────────────────────────────────────
 
@@ -73,7 +74,8 @@ export class ScopedHookable {
    * @returns An unsubscribe function. Call it to remove this handler early,
    *   before the scope is disposed.
    */
-  hook<K extends keyof GwenRuntimeHooks>(name: K, fn: GwenRuntimeHooks[K]): () => void {
+  hook<K extends GwenRuntimeHookName>(name: K, fn: GwenRuntimeHooks[K]): () => void {
+    assertHookName(name, "scope.hook", false);
     const call = fn as (...args: unknown[]) => unknown;
     const isPaused = (): boolean => this._paused;
     // Arity 0-4 stays allocation-free. A longer call uses apply.

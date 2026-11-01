@@ -32,7 +32,7 @@ export const GameHooks = defineHooks({
 `gwenHooksPlugin` (part of `@gwenjs/vite`) scans `src/hooks.ts` and `src/hooks/*.ts` and auto-generates the `declare module '@gwenjs/schema'` augmentation in `.gwen/types/hooks.d.ts`. You never write this block by hand.
 :::
 
-`defineHooks` is an identity function — its only purpose is to let TypeScript infer the event map. The Vite plugin writes that map onto `GwenRuntimeHooks`. After that, a wrong name or a wrong argument type is a compile error in every actor, system, and plugin.
+`defineHooks` returns the same object. A key that is not `namespace:action`, or that uses a core-reserved namespace, throws `GwenHookNameError` (`CORE:HOOK_NAME_INVALID`) at runtime. The Vite plugin writes the map onto `GwenRuntimeHooks`. After that, a wrong name or a wrong argument type is a compile error in every actor, system, and plugin.
 
 ## Listening to Events
 
@@ -80,7 +80,7 @@ export const EnemyActor = defineActor(EnemyPrefab, () => {
 })
 ```
 
-Events emitted here — `enemy:hit` and `enemy:die` — must be declared in `defineHooks` first. Without the declaration, TypeScript treats the names as `string` and no argument types are enforced.
+Events emitted here — `enemy:hit` and `enemy:die` — must be declared in `defineHooks` first. An undeclared name is a compile error. `emit` also rejects a core-reserved namespace at compile time and at runtime.
 
 ## Auto-Cleanup
 
@@ -104,7 +104,7 @@ Prefix event names with a namespace:
 'hit'             // ❌ too generic — may collide
 ```
 
-The namespaces `engine:*`, `entity:*`, `scene:*`, `actor:*`, and `plugin:*` are reserved for built-in framework events.
+The namespaces `engine`, `entity`, `scene`, `plugin`, `actor`, `prefab`, and `service` are reserved. `useHook` may listen to them. `emit`, and a plugin's `engine.hooks.callHook`, `callHookParallel`, and `callHookWith`, cannot fire them. `viewport`, `camera`, `physics`, and `physics3d` belong to framework packages: declare those hooks in the package, not with `defineHooks`.
 
 ## Built-in Events
 

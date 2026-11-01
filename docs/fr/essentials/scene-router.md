@@ -70,6 +70,17 @@ export const GameOverSystem = defineSystem(() => {
 
 Quand le système qui navigue fait partie d'une scène référencée par le router, importer `AppRouter` créerait une dépendance circulaire. Câblez la navigation dans un plugin local à la place — il se situe en dehors du graphe de scènes :
 
+Déclarez l'événement dans `src/hooks.ts` avant que le plugin écoute ou que la scène émette :
+
+```ts
+// src/hooks.ts
+import { defineHooks } from '@gwenjs/core'
+
+export const NavHooks = defineHooks({
+  'nav:toGame': (): void => undefined,
+})
+```
+
 ```ts
 // src/plugins/navigation.ts
 import { useSceneRouter } from '@gwenjs/core/scene'

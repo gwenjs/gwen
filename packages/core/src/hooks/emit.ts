@@ -6,9 +6,10 @@
  * lifecycle callback) without needing to hold a reference to the engine.
  */
 
+import type { GwenRuntimeHooks, GwenUserHookName } from "@gwenjs/schema";
 import { useEngine } from "../engine/context";
-import type { GwenRuntimeHooks } from "../engine/runtime-hooks";
 import { reportRejectedHook } from "./report-rejected-hook.js";
+import { assertHookName } from "./hook-name.js";
 
 /**
  * Emits a named event via the engine's hookable system.
@@ -35,21 +36,18 @@ import { reportRejectedHook } from "./report-rejected-hook.js";
  * ```
  *
  * @throws {GwenContextError} If called outside an active engine context.
+ * @throws {GwenHookNameError} If `name` is not `namespace:action` or uses a reserved namespace.
  *
- * @example Known hook — args are fully typed:
- * ```typescript
- * emit('engine:tick', 0.016) // ✅ dt: number
- * ```
- *
- * @example Custom game event — declare it, then emit with no type argument:
+ * @example Declared game hook — args are fully typed. Reserved names are not emit-able:
  * ```typescript
  * emit('player:damage', 25)
  * ```
  */
-export function emit<K extends keyof GwenRuntimeHooks>(
+export function emit<K extends GwenUserHookName>(
   name: K,
   ...args: Parameters<GwenRuntimeHooks[K]>
 ): void {
   const engine = useEngine();
+  assertHookName(name, "emit", true);
   reportRejectedHook(engine, "emit", String(name), engine.hooks.callHook(name, ...args));
 }

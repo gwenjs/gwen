@@ -24,7 +24,7 @@
 
 import { GwenError, type GwenErrorTarget } from "@gwenjs/schema";
 import { engineContext } from "./context";
-import { gwenEngineSelf, popEngine, pushEngine } from "./engine-local";
+import { gwenEngineSelf, popEngine, pushEngine, unwrapEngine } from "./engine-local";
 import { componentRegistryFor, componentTypeIds } from "./engine-component-registry";
 import type { EngineMemory } from "./engine-memory.js";
 import type { EntityId } from "./engine-api";
@@ -262,7 +262,8 @@ export class GwenEngineImpl extends EngineCollaborators implements GwenEngine {
     this._loop.cancel();
     this._loop.releaseHistory();
     try {
-      await this.hooks.callHook("engine:stop");
+      // `stop()` on the setup proxy has that proxy as `this`. Its hooks reject this name.
+      await unwrapEngine(this).hooks.callHook("engine:stop");
     } catch (err) {
       this._policy.handleFrameLoopError(err);
     }
@@ -295,10 +296,11 @@ export class GwenEngineImpl extends EngineCollaborators implements GwenEngine {
     await this._stateMachine.transition("starting", "USER");
     let hook: "engine:init" | "engine:start" = "engine:init";
     try {
-      await this.hooks.callHook("engine:init");
+      // `start()` and `startExternal()` on the setup proxy have that proxy as `this`.
+      await unwrapEngine(this).hooks.callHook("engine:init");
       if (this._stateMachine.state !== "starting") return;
       hook = "engine:start";
-      await this.hooks.callHook("engine:start");
+      await unwrapEngine(this).hooks.callHook("engine:start");
     } catch (err) {
       this._stateMachine.enterFaulted("FATAL_ERROR");
       const message = err instanceof Error ? err.message : String(err);

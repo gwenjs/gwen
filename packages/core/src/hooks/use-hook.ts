@@ -1,8 +1,9 @@
+import type { GwenRuntimeHookName, GwenRuntimeHooks } from "@gwenjs/schema";
 import { onCleanupIfActive } from "../cleanup-context.js";
 import { useEngine } from "../engine/context.js";
-import type { GwenRuntimeHooks } from "../engine/runtime-hooks.js";
 import { GwenScope } from "../context/scope.js";
 import { currentPluginSetupTarget, guardHandler } from "../engine/error-isolation.js";
+import { assertHookName } from "./hook-name.js";
 
 /**
  * A function that removes a previously registered hook subscription.
@@ -49,6 +50,7 @@ export type UnsubscribeFn = () => void;
  * @returns An unsubscribe function. Call it to remove the handler early.
  *
  * @throws {GwenContextError} If called outside any active engine context.
+ * @throws {GwenHookNameError} If `name` is not `namespace:action`.
  *
  * @example
  * ```ts
@@ -67,11 +69,12 @@ export type UnsubscribeFn = () => void;
  * @see {@link GwenRuntimeHooks} — all available event names
  * @since 1.0.0
  */
-export function useHook<K extends keyof GwenRuntimeHooks>(
+export function useHook<K extends GwenRuntimeHookName>(
   name: K,
   fn: GwenRuntimeHooks[K],
 ): UnsubscribeFn {
   const engine = useEngine();
+  assertHookName(name, "useHook", false);
 
   // Phase 5: GwenScope is the unified context system
   const gwenScope = GwenScope.current();

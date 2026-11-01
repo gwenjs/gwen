@@ -49,6 +49,10 @@ onStart(async () => {
 
 ## @gwenjs/core
 
+### CORE:HOOK_NAME_INVALID {#core-hook-name-invalid}
+
+Cause. The name is not `namespace:action` (`reason` `"format"`), or `emit` / a plugin `engine.hooks.callHook*` used a reserved namespace (`reason` `"reserved"`): `engine`, `entity`, `scene`, `plugin`, `actor`, `prefab`, `service`. Fix. Use `"namespace:action"`, for example `"enemy:died"`. Listen to a reserved name with `useHook`. Emit a name from your own namespace, declared with `defineHooks`.
+
 ### CORE:OUTSIDE_ENGINE_CONTEXT {#core-outside-engine-context}
 
 Cause. The call is outside `defineSystem()`, `defineActor()`, `defineScene()`, `plugin setup()`, or `engine.run()`. Fix. Capture the handle synchronously in the factory, then use it as a closure after await.
