@@ -25,6 +25,7 @@
       "@gwenjs/core/tween": ["./packages/core/src/tween/index.ts"],
       "@gwenjs/core/testing": ["./packages/core/src/testing.ts"],
       "@gwenjs/core/internal": ["./packages/core/src/internal.ts"],
+      "@gwenjs/core/node": ["./packages/core/src/node.ts"],
       "@gwenjs/core/wasm/light": ["./packages/core/wasm/light/gwen_core.d.ts"],
       "@gwenjs/core/wasm/physics2d": ["./packages/core/wasm/physics2d/gwen_core.d.ts"],
       "@gwenjs/core/wasm/physics3d": ["./packages/core/wasm/physics3d/gwen_core.d.ts"],

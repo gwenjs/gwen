@@ -10,7 +10,7 @@ npm install @gwenjs/core
 
 ## Subpath imports
 
-`@gwenjs/core` exposes a root entrypoint and three additional subpath entrypoints to keep bundle sizes small:
+`@gwenjs/core` exposes a root entrypoint and additional subpath entrypoints to keep bundle sizes small:
 
 | Subpath               | What it exports                                                                                                                                                                                       |
 | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -18,6 +18,7 @@ npm install @gwenjs/core
 | `@gwenjs/core/system` | `defineSystem`, `onUpdate`, `onBeforeUpdate`, `onAfterUpdate`, `onRender`, `useQuery`, `useService`, `useWasmModule`                                                                                  |
 | `@gwenjs/core/actor`  | `defineActor`, `onStart`, `onDestroy`, `useEntityId`, `definePrefab`, `useActor`, `useComponent`, `usePrefab`, `useTransform`, `defineLayout`, `useLayout`, `placeActor`, `placeGroup`, `placePrefab` |
 | `@gwenjs/core/scene`  | `defineScene`, `defineSceneRouter`, `useSceneRouter`                                                                                                                                                  |
+| `@gwenjs/core/node`   | `createEngine`, `setupGwen`, `loadGwenModule` — Node only; importing it declares Node. No options needed, each engine isolated, the compiled module cached per variant                                |
 
 ## Quick start
 
@@ -433,3 +434,11 @@ Types: `GwenCoreGlueInstance`
 Values: `CONTRACT`, `createGlue`, `wasmUrl`
 
 Types: `GwenCoreGlueInstance`
+
+### `./node`
+
+Values: `createEngine`, `loadGwenModule`, `setupGwen`
+
+Types: `CoreVariant`, `InitWasmOptions`
+
+`loadGwenModule` — Compiles `gwen_core_bg.wasm` once per variant; a missing artefact rejects `CORE:WASM_LOAD_ERROR` and is not cached.
