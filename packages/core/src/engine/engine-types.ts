@@ -70,6 +70,11 @@ export interface WasmModuleOptions<Exports extends WebAssembly.Exports = WebAsse
   /** Already compiled module. Instantiated with no fetch and no compile. */
   readonly module?: WebAssembly.Module | undefined;
   /**
+   * Byte cap checked before compile for `url` and `bytes` sources; default 16 MiB (16 777 216).
+   * A `module` source is already compiled and is not checked.
+   */
+  readonly maxBytes?: number | undefined;
+  /**
    * Named memory regions to expose via `handle.region(name)`.
    * Each region creates a {@link WasmRegionView} backed by WASM linear memory.
    */
