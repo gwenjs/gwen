@@ -7,6 +7,7 @@ import type * as T_scene from "@gwenjs/core/scene";
 import type * as T_tween from "@gwenjs/core/tween";
 import type * as T_testing from "@gwenjs/core/testing";
 import type * as T_internal from "@gwenjs/core/internal";
+import type * as T_node from "@gwenjs/core/node";
 import type * as T_wasm_light from "@gwenjs/core/wasm/light";
 import type * as T_wasm_physics2d from "@gwenjs/core/wasm/physics2d";
 import type * as T_wasm_physics3d from "@gwenjs/core/wasm/physics3d";
@@ -121,6 +122,7 @@ type _4 = [
   T_tween.TweenableValue,
 ];
 type _5 = [T_testing.CreateRealEngineOptions, T_testing.RealEngineHandle];
+type _node = [T_node.CoreVariant, T_node.InitWasmOptions];
 type _6 = [
   T_internal.GwenCoreGlueFactoryModule,
   T_internal.GwenCoreGlueInstance,

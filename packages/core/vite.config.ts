@@ -24,6 +24,7 @@ export default defineConfig({
         index: resolve(__dirname, "src/index.ts"),
         internal: resolve(__dirname, "src/internal.ts"),
         testing: resolve(__dirname, "src/testing.ts"),
+        node: resolve(__dirname, "src/node.ts"),
         "system/index": resolve(__dirname, "src/system/index.ts"),
         "actor/index": resolve(__dirname, "src/actor/index.ts"),
         "scene/index": resolve(__dirname, "src/scene/index.ts"),

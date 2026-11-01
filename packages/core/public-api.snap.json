@@ -373,5 +373,9 @@
   "./wasm/physics3d-dev/factory": {
     "values": ["CONTRACT", "createGlue", "wasmUrl"],
     "types": ["GwenCoreGlueInstance"]
+  },
+  "./node": {
+    "values": ["createEngine", "loadGwenModule", "setupGwen"],
+    "types": ["CoreVariant", "InitWasmOptions"]
   }
 }

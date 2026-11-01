@@ -129,7 +129,7 @@ function wasmUrlProtocol(url: string): string {
 function missingSource(variant: CoreVariant): GwenError {
   return new GwenError(
     CoreErrorCodes.WASM_LOAD_ERROR,
-    `No WASM source for variant "${variant}": pass glue or jsUrl, and wasmBytes, wasmModule or wasmUrl.`,
+    `No WASM source for variant "${variant}": pass glue or jsUrl, and wasmBytes, wasmModule or wasmUrl. In Node, import createEngine from "@gwenjs/core/node".`,
     {
       composable: "initWasm",
       hint: __GWEN_DEV__
