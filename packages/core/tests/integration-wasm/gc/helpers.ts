@@ -19,7 +19,7 @@ export async function forceGc(): Promise<void> {
 }
 
 /**
- * Same `file:` glue URL and `data:` wasm URL as `nodeWasmUrls` in engine-factory.ts.
+ * `file:` glue URL and `data:` wasm URL for the packaged binary.
  * `setupGwen` does not resolve them on its own.
  */
 export function nodeArtefactUrls(variant: CoreVariant): { jsUrl: string; wasmUrl: string } {

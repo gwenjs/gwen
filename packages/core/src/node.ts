@@ -21,7 +21,7 @@ import type {
   InitWasmOptions,
 } from "./engine/wasm-bridge-types.js";
 
-// Same three relatives as engine-factory.ts:41-43 (dist chunk, src entry, monorepo).
+// `../wasm` is the package `wasm/` directory seen from `dist/node.js` and from `src/node.ts`; the two other relatives are fallbacks for a deeper layout.
 const here = path.dirname(fileURLToPath(import.meta.url));
 const CANDIDATES = ["../../wasm", "../wasm", "../../../wasm"];
 
