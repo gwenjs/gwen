@@ -13,7 +13,8 @@ import type {
   ResolvedCollisionContact,
   PhysicsEntitySnapshot,
 } from "../src/types";
-import { createEngine, type EntityId } from "@gwenjs/core";
+import { type EntityId } from "@gwenjs/core";
+import { createEngine } from "@gwenjs/core/node";
 import { engineContext, entityIndex, getWasmBridge } from "@gwenjs/core/internal";
 import {
   Physics2DErrorCodes,
