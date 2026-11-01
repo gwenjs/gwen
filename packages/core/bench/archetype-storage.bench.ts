@@ -7,7 +7,7 @@
  */
 
 import { afterAll, bench, describe } from "vitest";
-import { createEngine } from "../src/index";
+import { createEngine } from "../src/node";
 import { defineComponent, Types } from "../src/schema";
 import type { EntityId } from "../src/types/entity";
 

@@ -6,7 +6,7 @@
  */
 
 import { afterAll, bench, beforeAll, describe } from "vitest";
-import { createEngine } from "../src/index";
+import { createEngine } from "../src/node";
 import type { GwenEngine } from "../src/engine/engine-types";
 import { defineComponent, Types } from "../src/schema";
 import { useQuery } from "../src/system/runtime/define-system";

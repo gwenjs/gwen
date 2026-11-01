@@ -12,7 +12,7 @@
  */
 
 import { expect, test } from "vitest";
-import { createEngine } from "../src/index";
+import { createEngine } from "../src/node";
 import { defineComponent, Types } from "../src/schema";
 import { defineSystem, onUpdate, useQuery } from "../src/system/runtime/define-system";
 import type { EntityId } from "../src/types/entity";

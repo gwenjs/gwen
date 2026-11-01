@@ -8,8 +8,9 @@
  */
 import { bench } from "vitest";
 
-import { createEngine, defineComponent, readInterpolatedTransform2D, Types } from "../src/index.js";
+import { defineComponent, readInterpolatedTransform2D, Types } from "../src/index.js";
 import { entityIndex } from "../src/internal.js";
+import { createEngine } from "../src/node.js";
 import { defineSystem, onUpdate, useQuery } from "../src/system/index.js";
 import { createRealEngine } from "../src/testing/create-real-engine.js";
 
