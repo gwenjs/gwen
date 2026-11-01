@@ -3,7 +3,7 @@
  */
 
 import { afterEach, describe, expect, it } from "vitest";
-import { createEngine } from "@gwenjs/core";
+import { createEngine } from "@gwenjs/core/node";
 import { defineActor, definePrefab } from "@gwenjs/core/actor";
 import { defineSystem } from "@gwenjs/core/system";
 import type { GwenEngineBase, IGwenLogger, IGwenScope } from "@gwenjs/schema";

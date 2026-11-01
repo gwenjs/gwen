@@ -3,7 +3,8 @@
  */
 import { describe, expect, it, vi } from "vitest";
 import type { GwenLogEntry, GwenLogLevel, IGwenLogProvider } from "@gwenjs/schema";
-import { createEngine, GwenConfigError, type GwenEngine, type GwenPlugin } from "../../src/index";
+import { createEngine } from "../../src/node";
+import { GwenConfigError, type GwenEngine, type GwenPlugin } from "../../src/index";
 
 function captureProvider(): { seen: GwenLogEntry[]; provider: IGwenLogProvider } {
   const seen: GwenLogEntry[] = [];

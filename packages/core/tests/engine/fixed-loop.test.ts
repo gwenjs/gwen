@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { createEngine } from "../../src";
+import { createEngine } from "../../src/node";
 import { defineSystem, onUpdate } from "@gwenjs/core/system";
 import { activateTestWasm } from "../helpers/activate-test-wasm";
 

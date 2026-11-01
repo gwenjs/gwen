@@ -12,7 +12,8 @@ import { EngineStateMachine } from "../../src/engine/engine-state.js";
 import { EngineStatsRecorder } from "../../src/engine/engine-stats.js";
 import type { GwenRuntimeHooks } from "../../src/engine/runtime-hooks.js";
 import { WasmBridgeImpl } from "../../src/engine/wasm-bridge.js";
-import { createEngine, useEngine } from "../../src/index.js";
+import { createEngine } from "../../src/node.js";
+import { useEngine } from "../../src/index.js";
 import { activateTestWasm } from "../helpers/activate-test-wasm";
 import { GwenLogger } from "../../src/logger/gwen-logger.js";
 

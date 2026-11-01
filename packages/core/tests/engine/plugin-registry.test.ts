@@ -9,7 +9,7 @@ import type { IGwenLogger } from "@gwenjs/schema";
 import type { GwenPlugin } from "../../src/engine/engine-types";
 import type { EngineErrorBus, GwenEngine } from "../../src/engine/engine-types";
 import type { GwenRuntimeHooks } from "../../src/engine/runtime-hooks";
-import { createEngine } from "../../src/index";
+import { createEngine } from "../../src/node";
 import { GwenEngineStateError } from "../../src/engine/engine-errors";
 import { engineContext } from "../../src/engine/context";
 import { ScopedHooksTracker } from "../../src/engine/hook-tracker";

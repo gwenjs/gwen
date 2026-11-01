@@ -8,7 +8,8 @@ import { CoreErrorCodes, GwenWasmPanicError } from "../../src/engine/engine-erro
 import { EngineStateMachine } from "../../src/engine/engine-state";
 import type { GwenPlugin } from "../../src/engine/engine-types";
 import type { GwenRuntimeHooks } from "../../src/engine/runtime-hooks";
-import { createEngine, GwenEngineStateError } from "../../src/index.js";
+import { createEngine } from "../../src/node.js";
+import { GwenEngineStateError } from "../../src/index.js";
 import { GwenLogger } from "../../src/logger/gwen-logger";
 import type { GwenErrorPayload, GwenErrorTarget } from "@gwenjs/schema";
 

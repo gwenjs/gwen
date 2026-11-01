@@ -14,7 +14,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { createEngine, useEngine, GwenContextError, GwenPluginNotFoundError } from "../../src";
+import { createEngine } from "../../src/node";
+import { useEngine, GwenContextError, GwenPluginNotFoundError } from "../../src";
 import { engineContext } from "../../src/internal";
 import {
   defineSystem,

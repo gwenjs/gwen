@@ -7,7 +7,7 @@ import { createServer, type Server } from "node:http";
 import { once } from "node:events";
 import { describe, expect, it } from "vitest";
 import { errorDocsUrl, GwenError } from "@gwenjs/schema";
-import { createEngine } from "../../src/index";
+import { createEngine } from "../../src/node";
 import { CoreErrorCodes } from "../../src/engine/engine-errors";
 import { createErrorBus } from "../../src/engine/error-bus";
 import { EngineMemory } from "../../src/engine/engine-memory";

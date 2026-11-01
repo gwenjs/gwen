@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import type { IGwenLogger } from "@gwenjs/schema";
+import { createEngine } from "../../node.js";
 import {
-  createEngine,
   createErrorBus,
   CoreErrorCodes,
   GwenEngineStateError,
