@@ -41,15 +41,14 @@ const REAL_HINTS = [
   '}" plugin via engine.use() or in gwen.config.ts.',
   requirementHint,
   shapeHint,
+  "or build it with defineGwenModule from @gwenjs/kit",
 ];
 
 /**
- * Named stand-ins. These classes are not in this tree, or their hint text is
- * not a single gated phrase: GwenModuleDefinitionError,
+ * Named stand-ins whose hint is not one gated phrase:
  * GwenEngineStateError, GwenWasmError, GwenConfigError, GwenConfigLoadError.
  */
 const STAND_IN_CLASSES = [
-  "GwenModuleDefinitionError",
   "GwenEngineStateError",
   "GwenWasmError",
   "GwenConfigError",
@@ -172,15 +171,24 @@ function writeFixture(dir: string, shapeError = true): void {
   const shapeLog = shapeError
     ? `console.log(new GwenPluginShapeError("demo", ["onRender"]).message);\n`
     : "";
+  // Kit dist gains GwenModuleDefinitionError only after a rebuild. The node_modules
+  // build (shapeError false) keeps the published artifact and omits the import.
+  const moduleImport = shapeError
+    ? `import { GwenModuleDefinitionError } from "@gwenjs/kit";\n`
+    : "";
+  const moduleLog = shapeError
+    ? `console.log(new GwenModuleDefinitionError("demo", ["setup"]).message);\n`
+    : "";
   writeFileSync(
     join(dir, "src", "main.ts"),
     `import { createEngine, GwenActorError, GwenContextError, GwenPluginDependencyError, GwenPluginNotFoundError${shapeName}, GwenWasmAbiError, useEngine } from "@gwenjs/core";
 import { defineActor, PoolExhaustedError, useChildren } from "@gwenjs/core/actor";
 import { Physics3DPlugin } from "@gwenjs/physics3d";
-import "./layouts/level.ts";
+${moduleImport}import "./layouts/level.ts";
 import "./router.ts";
 
 console.log(createEngine, useChildren, Physics3DPlugin, GwenActorError, GwenContextError, GwenWasmAbiError, PoolExhaustedError, defineActor);
+${moduleLog}
 
 try {
   useEngine();

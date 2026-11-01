@@ -81,7 +81,7 @@ export const InputPlugin = definePlugin((opts: { deadzone?: number } = {}) => ({
 
 Build-time module authoring.
 
-**Exports:** `defineGwenModule`, `GwenModule` (type), `GwenModuleDefinition` (type), `GwenKit` (type), `GwenBuildHooks` (type), `GwenBaseConfig` (type)
+**Exports:** `defineGwenModule`, `validateGwenModule`, `GwenModuleDefinitionError`, `GwenModule` (type), `GwenModuleDefinition` (type), `GwenKit` (type), `GwenBuildHooks` (type), `GwenBaseConfig` (type)
 
 **Usage:**
 ```ts
@@ -107,6 +107,8 @@ function defineGwenModule<Options extends object = Record<string, unknown>>(
 | `definition.meta.configKey` | `string` | Key used in `gwen.config.ts` (optional) |
 | `definition.defaults` | `DeepPartial<Options>` | Default option values (optional) |
 | `definition.setup` | `(options, gwen) => void` | Build-time setup function |
+
+**Validation.** `defineGwenModule()` checks the definition and throws `GwenModuleDefinitionError` (`KIT:MODULE_INVALID`). `fields` lists every failing path: `meta` (missing object), `meta.name` (missing, empty, or padded; `:` is allowed), `meta.configKey` and `meta.version` (not strings when present), `defaults` (not a plain object), `setup` (not a function), `validate` (not a function when present). `meta.name` is required. This is a breaking change from earlier versions, where a name-less definition loaded.
 
 **Example:**
 ```ts

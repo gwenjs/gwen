@@ -4,6 +4,7 @@
       "GWEN_CONTEXT_BOUNDARIES",
       "GwenContextError",
       "GwenContextErrorCodes",
+      "GwenModuleDefinitionError",
       "KitErrorCodes",
       "_engineSlot",
       "_setCurrentScope",
@@ -47,7 +48,7 @@
     ]
   },
   "./module": {
-    "values": ["defineGwenModule"],
+    "values": ["GwenModuleDefinitionError", "defineGwenModule", "validateGwenModule"],
     "types": [
       "GwenBaseConfig",
       "GwenBuildHooks",

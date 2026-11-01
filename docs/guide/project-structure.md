@@ -219,7 +219,7 @@ Files in this directory are **auto-discovered**. They run at **build time**, and
 
 Each file must export a `defineGwenModule` definition as its **default export**.
 
-**Name inference** — `meta.name` is optional for local modules:
+**Name inference** — `defineGwenModule()` requires `meta.name`. A call without it throws `KIT:MODULE_INVALID`. A local file that exports a plain object still gets an inferred name when `meta.name` is missing or empty:
 
 | File | Inferred name |
 |---|---|
@@ -257,7 +257,7 @@ export const ScorePlugin = definePlugin((opts: ScoreOptions = {}) => ({
 }))
 
 export default defineGwenModule<ScoreOptions>({
-  meta: { configKey: 'score' },
+  meta: { name: 'local:score', configKey: 'score' },
   defaults: { maxScore: 999 },
   setup(options, gwen) {
     gwen.addPlugin({ src: "./src/modules/score", export: "ScorePlugin", options })
@@ -277,7 +277,7 @@ export default defineConfig({
 ```
 
 ::: tip Subdirectory support
-`src/modules/score/index.ts` is supported and inferred as `local:score`. Use this to split a complex module across multiple files.
+`src/modules/score/index.ts` is supported. A plain export with no `meta.name` is inferred as `local:score`. Use this to split a complex module across multiple files.
 :::
 
 ### `src/assets/` — Static Files
