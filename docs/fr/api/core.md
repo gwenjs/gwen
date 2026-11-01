@@ -18,7 +18,7 @@ Moteur ECS principal, composants, systèmes, acteurs et hooks de cycle de vie du
 function setupGwen(options?: GwenEngineOptions): Promise<GwenEngine>
 ```
 
-**Description.** Charge le cœur WASM et crée le moteur. C'est le point d'entrée d'une application. `createEngine()` charge le bridge WASM light quand aucun `_bridge` n'est fourni. `engine.start()` renvoie une promesse. Il lance `CORE:WASM_NOT_INITIALIZED` quand ce bridge n'est pas actif.
+**Description.** Charge le cœur WASM et crée le moteur. C'est le point d'entrée d'une application. Dans le navigateur, `createEngine()` charge le bridge WASM light depuis l'origine de la page quand aucun `_bridge` n'est fourni. Dans Node, importez depuis `@gwenjs/core/node`. `engine.start()` renvoie une promesse. Il lance `CORE:WASM_NOT_INITIALIZED` quand ce bridge n'est pas actif.
 
 **Paramètres:**
 | Paramètre | Type | Description |

@@ -349,6 +349,8 @@ The engine runs in Node with no DOM. The only supported server loop is `startExt
 
 Import from `@gwenjs/core/node`. The import is the declaration that the code runs in Node. Nothing is sniffed at runtime. No option is needed.
 
+The main entry never reads files.
+
 ```ts check
 import { createEngine, loadGwenModule } from "@gwenjs/core/node";
 
