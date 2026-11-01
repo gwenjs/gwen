@@ -672,6 +672,8 @@ import { readFile } from 'node:fs/promises'
 const handle = await engine.loadWasmModule({ name: 'my-physics', bytes: await readFile('./my-physics.wasm') })
 ```
 
+`maxBytes` plafonne une source `url` ou `bytes` avant la compilation (`16 MiB` par défaut, `16777216` octets). Une source `module` est déjà compilée et n'est pas vérifiée (`packages/core/src/engine/engine-types.ts:74`).
+
 ### WasmModuleOptions
 
 | Champ | Type | Description |
@@ -680,6 +682,7 @@ const handle = await engine.loadWasmModule({ name: 'my-physics', bytes: await re
 | `url` | `URL \| string` | Chemin vers le binaire `.wasm`. Téléchargé. Exactement un parmi `url`, `bytes`, `module` |
 | `bytes` | `BufferSource` | Octets `.wasm` bruts. Compilés dans le processus, sans téléchargement |
 | `module` | `WebAssembly.Module` | Module déjà compilé. Ni téléchargement ni compilation |
+| `maxBytes` | `number` | Plafond d'octets pour `url`/`bytes` avant la compilation ; 16 MiB par défaut. Non vérifié pour `module` |
 | `memory.regions` | `WasmMemoryRegion[]` | Tranches nommées de la mémoire linéaire WASM |
 | `channels` | `WasmChannelOptions[]` | Ring buffers pour l'échange de messages TS↔WASM |
 | `transformRegion` | `string` | Nom optionnel d'une entrée de `memory.regions` qui reçoit la copie des transforms à chaque image |

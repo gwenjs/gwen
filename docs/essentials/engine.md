@@ -457,6 +457,16 @@ A room that never returns blocks every room of its own worker. Call `worker.term
 
 For how many isolated engines one process can hold, see [Several engines per page or process](#several-engines-per-page-or-process).
 
+### Limits the host must enforce
+
+`loadWasmModule` rejects a `url` or `bytes` source over `maxBytes` before `WebAssembly.compile` (`packages/core/src/engine/wasm-module-runner.ts:223`, `packages/core/src/engine/wasm-module-runner.ts:250`). The default is `16 MiB` (`16777216` bytes) (`packages/core/src/engine/wasm-module-runner.ts:81`). A `module` source is already compiled and is not checked (`packages/core/src/engine/engine-types.ts:74`).
+
+GWEN does not cap `memory.grow`. The load path checks the byte length, then compiles (`packages/core/src/engine/wasm-module-runner.ts:223`, `packages/core/src/engine/wasm-module-runner.ts:250`). It does not limit later growth of the module memory.
+
+GWEN cannot interrupt a call that never returns on the main thread. A module `step` runs directly on that thread (`packages/core/src/engine/wasm-module-runner.ts:420`).
+
+Run a module you do not trust in a worker and call `worker.terminate()` on it. See [Many rooms on worker threads](#many-rooms-on-worker-threads).
+
 ## API Summary
 
 | | |
