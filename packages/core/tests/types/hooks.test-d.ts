@@ -19,6 +19,7 @@ expectTypeOf<InferHooks<typeof gameHooks>>().toEqualTypeOf<{
 }>();
 
 emit("test:hit", 1);
+// @ts-expect-error reserved namespace
 emit("engine:tick", 0.016);
 
 emit(

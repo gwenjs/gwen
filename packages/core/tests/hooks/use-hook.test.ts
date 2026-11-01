@@ -337,7 +337,9 @@ describe("UnsubscribeFn", () => {
     let unsub: UnsubscribeFn | undefined;
 
     engine.run(() => {
-      unsub = useHook("engine:afterTick" as never, handler as never);
+      unsub = useHook("engine:afterTick", (dt) => {
+        handler(dt);
+      });
     });
 
     // Before unsubscribe — handler fires.

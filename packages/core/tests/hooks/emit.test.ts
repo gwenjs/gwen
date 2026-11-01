@@ -9,7 +9,6 @@ import { describe, it, expect, vi } from "vitest";
 import { emit } from "../../src/hooks/emit";
 import { createEngine } from "../../src/node";
 import { engineContext } from "../../src/engine/context";
-import { createEntityId } from "../../src/types/entity";
 import type { GwenRuntimeHooks } from "../../src/engine/runtime-hooks";
 
 declare module "@gwenjs/schema" {
@@ -22,14 +21,18 @@ declare module "@gwenjs/schema" {
 describe("emit()", () => {
   it("calls engine.hooks.callHook for a known hook with typed args", async () => {
     const engine = await createEngine();
-    const spy = vi.fn();
-    engine.hooks.hook("entity:spawn", spy as GwenRuntimeHooks["entity:spawn"]);
-
-    engine.run(() => {
-      emit("entity:spawn", createEntityId(1, 0));
+    const seen: number[] = [];
+    engine.hooks.hook("emit-test:damage", (amount) => {
+      seen.push(amount);
     });
-
-    expect(spy).toHaveBeenCalledWith(1n);
+    try {
+      engine.run(() => {
+        emit("emit-test:damage", 25);
+      });
+      expect(seen).toEqual([25]);
+    } finally {
+      await engine.stop();
+    }
   });
 
   it("accepts arbitrary custom event strings without casting", async () => {
@@ -48,7 +51,7 @@ describe("emit()", () => {
 
   it("throws with [GWEN] prefix when called outside engine context", () => {
     engineContext.unset();
-    expect(() => emit("engine:init")).toThrow(
+    expect(() => emit("emit-test:died")).toThrow(
       /^\[useEngine\(\)\] Called outside defineSystem\(\) or defineActor\(\) or defineScene\(\) or plugin setup\(\) or engine\.run\(\)\.[\s\S]*\(CORE:OUTSIDE_ENGINE_CONTEXT\)$/,
     );
   });
