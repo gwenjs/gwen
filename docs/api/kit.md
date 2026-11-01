@@ -11,7 +11,7 @@ description: "API reference for @gwenjs/kit."
 
 Types shared between plugin and module authors.
 
-**Exports:** `AutoImport`, `DeepPartial`, `EngineSlot`, `getCurrentScope`, `tryUseEngine`, `GwenContextError`, `KitErrorCodes`, `GwenContextErrorCodes`, `GWEN_CONTEXT_BOUNDARIES`, `GwenContextBoundary`
+**Exports:** `AutoImport`, `DeepPartial`, `EngineSlot`, `getCurrentScope`, `tryUseEngine`, `GwenContextError`, `KitErrorCodes`, `GwenContextErrorCodes`, `GWEN_CONTEXT_BOUNDARIES`, `GwenContextBoundary`, `useCurrentScope`, `useLogger`, `useErrorReporter`, `usePerfMark`, `GwenModuleDefinitionError`
 
 `GwenContextError(code, composable, options?)` names the composable and `validContexts`. `GWEN_CONTEXT_BOUNDARIES` maps each code to those callsites. `tryUseEngine()` returns the engine `useEngine()` returns, or `undefined` where that call throws `CORE:OUTSIDE_ENGINE_CONTEXT`. It never throws.
 
@@ -42,7 +42,7 @@ export const mover = defineSystem('Mover', () => {
 
 Plugin authoring utilities and schema type re-exports.
 
-**Exports:** `definePlugin`, `satisfiesPluginContract`, `GwenPluginFactory` (type), plus schema re-exports: `GwenPlugin`, `GwenProvides`, `GwenRuntimeHooks`, `EntityId`, `ComponentType`, `PluginErrorContext`, `createEntityId`, `unpackEntityId`.
+**Exports:** `definePlugin`, `satisfiesPluginContract`, `optionalService`, `watchService`, `GwenPluginFactory` (type), plus schema re-exports: `GwenPlugin`, `GwenProvides`, `GwenRuntimeHooks`, `EntityId`, `ComponentType`, `PluginErrorContext`, `createEntityId`, `unpackEntityId`.
 
 **Usage:**
 ```ts
@@ -60,7 +60,7 @@ function definePlugin<TOptions, TPlugin extends GwenPlugin>(
 ): GwenPluginFactory<TOptions extends undefined ? void : TOptions, TPlugin>
 ```
 
-**Description.** Creates a reusable plugin factory. The factory function receives options and returns a plugin definition with a `name` and a `setup(engine)` function.
+**Description.** Creates a reusable plugin factory. The factory function receives options and returns a plugin definition. The only keys are `name`, `setup(engine)`, `teardown`, `onError` and `requires`. Any other key is a type error, and `engine.use()` rejects a frame callback such as `onUpdate` with `CORE:PLUGIN_INVALID_SHAPE`. Register frame work with `engine.hooks.hook` inside `setup`. A `setup()` error is not wrapped: it is published as `CORE:PLUGIN_SETUP_ERROR`, then `engine.use()` rejects with the original error.
 
 **Example:**
 ```ts
@@ -140,6 +140,7 @@ interface GwenModuleDefinition<Options extends object = Record<string, unknown>>
   }
   defaults?: DeepPartial<Options>
   setup(options: Options, gwen: GwenKit): void | Promise<void>
+  validate?(options: Options): readonly GwenConfigIssue[]
 }
 ```
 

@@ -61,10 +61,20 @@ export default defineGwenModule({
 | `setup(engine)`                          | Once, when the plugin is registered    | Register services and hook listeners |
 | `engine.hooks.hook("engine:update", fn)` | Every frame, registered inside `setup` | Sync physics, update state machines  |
 | `teardown()`                             | `engine.unuse` or `engine.stop`        | Free resources, cancel subscriptions |
+| `requires`                               | Checked by `engine.use` before `setup` | Plugins and services it needs        |
+| `onError(error, context)`                | A throw in `setup`, `teardown`, a hook | Handle it with `context.recover()`   |
 
 ## Accessing plugin services from actors
 
-Register a service in `setup` with `engine.provide`. Actors read it with `useService`. A typed key augments `GwenProvides` (`packages/schema/src/plugin.ts`).
+Register a service in `setup` with `engine.provide`. Actors read it with `useService`. A typed key augments `GwenProvides`:
+
+```typescript
+declare module "@gwenjs/schema" {
+  interface GwenProvides {
+    "my-plugin": { add(amount: number): void };
+  }
+}
+```
 
 ```typescript
 import { onUpdate, useService } from "@gwenjs/core/system";
@@ -77,6 +87,14 @@ const PlayerActor = defineActor(PlayerPrefab, () => {
   });
 });
 ```
+
+## Observability
+
+`useLogger`, `useErrorReporter` and `usePerfMark` come from `@gwenjs/kit`. They read the scope of the running plugin `setup`, so call them before its first `await`. Outside a scope they throw `CORE:OUTSIDE_ENGINE_CONTEXT`. `useErrorReporter().report(code, message, cause?)` throws a `GwenError` and logs nothing.
+
+## Errors
+
+A `setup` throw reaches the error bus as `CORE:PLUGIN_SETUP_ERROR`, then `engine.use` rejects with the original error. A `teardown` or hook throw is `CORE:PLUGIN_RUNTIME_ERROR`. A missing `requires` entry rejects with `CORE:PLUGIN_DEPENDENCY_MISSING`.
 
 ## See also
 

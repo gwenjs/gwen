@@ -31,52 +31,44 @@ await engine.start()
 
 ### Optional Dependencies
 
-Check if another service exists before using it:
+Name what must be installed in `requires`, and read optional services with `optionalService`. `tryInject` returns `unknown` on the engine `setup()` receives; `optionalService` is typed through `GwenProvides`, which the plugin that provides the service augments:
 
 ```ts
-import { definePlugin } from '@gwenjs/kit/plugin'
+import { definePlugin, optionalService } from '@gwenjs/kit/plugin'
+
+declare module '@gwenjs/schema' {
+  interface GwenProvides { audio: { play(track: string): void } }
+}
 
 export const GamePlugin = definePlugin(() => ({
   name: 'game',
+  // Input is required: engine.use() rejects without it
+  requires: { plugins: ['input'], optional: ['audio'] },
   setup(engine) {
+    const audio = optionalService(engine, 'audio')
     engine.hooks.hook('engine:init', () => {
-      // Audio is optional — only use if available
-      const audio = engine.get('audio')
-      if (audio) {
-        audio.play('game-music')
-      }
-
-      // Input is required
-      const input = engine.get('input')
-      if (!input) {
-        throw new Error('InputPlugin must be registered before GamePlugin')
-      }
+      // Audio is optional: `current` is undefined when it is absent
+      audio.current?.play('game-music')
     })
   },
 }))
 ```
 
-### Plugin Dependency in setup()
+If `input` is not installed, `engine.use()` rejects with `CORE:PLUGIN_DEPENDENCY_MISSING` and does not call `setup()`. `optional` is not checked.
 
-Some plugins might register other plugins during their setup:
+### Plugin Dependency
+
+A plugin cannot install another plugin from `setup()`: `GwenEngineBase`, the type `setup()` receives, has no `use()`. Declare the dependency in `requires` and register every plugin in `main.ts`, in order. GWEN does not install or reorder them. `requires` guarantees the plugins are installed, but `current` is still `T | undefined`.
 
 ```ts
-import { definePlugin } from '@gwenjs/kit/plugin'
-import { PhysicsPlugin } from './physics'
-import { CollisionPlugin } from './collision'
+import { definePlugin, optionalService } from '@gwenjs/kit/plugin'
 
 export const PhysicsSystemPlugin = definePlugin(() => ({
   name: 'physics-system',
+  requires: { plugins: ['physics', 'collision'] },
   setup(engine) {
-    // Register dependent plugins within setup
-    engine.use(PhysicsPlugin())
-    engine.use(CollisionPlugin())
-
-    engine.hooks.hook('engine:init', () => {
-      // Now you can safely use physics and collision services
-      const physics = engine.get('physics')
-      const collision = engine.get('collision')
-    })
+    const physics = optionalService(engine, 'physics')
+    const collision = optionalService(engine, 'collision')
   },
 }))
 ```
@@ -85,9 +77,13 @@ Then in `main.ts`:
 
 ```ts
 import { setupGwen } from '@gwenjs/core'
+import { PhysicsPlugin } from './plugins/physics'
+import { CollisionPlugin } from './plugins/collision'
 import { PhysicsSystemPlugin } from './plugins/physics-system'
 
 const engine = await setupGwen()
+await engine.use(PhysicsPlugin())
+await engine.use(CollisionPlugin())
 await engine.use(PhysicsSystemPlugin())
 await engine.start()
 ```
@@ -125,6 +121,10 @@ export const InputPlugin = definePlugin(() => ({
 ```ts
 import { definePlugin } from '@gwenjs/kit/plugin'
 
+declare module '@gwenjs/schema' {
+  interface GwenProvides { physics2d: { addBody(id: string, mass: number): void } }
+}
+
 export const Physics2DPlugin = definePlugin((opts: { gravity?: number } = {}) => ({
   name: 'physics2d',
   setup(engine) {
@@ -156,23 +156,16 @@ export const Physics2DPlugin = definePlugin((opts: { gravity?: number } = {}) =>
 **Game Plugin** (composes Input and Physics):
 
 ```ts
-import { definePlugin } from '@gwenjs/kit/plugin'
-import { InputPlugin } from './input'
-import { Physics2DPlugin } from './physics'
+import { definePlugin, optionalService } from '@gwenjs/kit/plugin'
 
 export const GamePlugin = definePlugin(() => ({
   name: 'game',
+  requires: { plugins: ['input', 'physics2d'] },
   setup(engine) {
-    // Register required dependencies
-    engine.use(InputPlugin())
-    engine.use(Physics2DPlugin({ gravity: 15 }))
-
+    const physics = optionalService(engine, 'physics2d')
     engine.hooks.hook('engine:init', () => {
-      const input = engine.get('input')
-      const physics = engine.get('physics2d')
-
       // Initialize game state
-      physics.addBody('player', 1.0)
+      physics.current?.addBody('player', 1.0)
 
       engine.hooks.hook('engine:stop', () => {
         console.log('Game plugin shutting down')
@@ -196,35 +189,38 @@ export default defineConfig({
 
 ```ts
 import { setupGwen } from '@gwenjs/core'
+import { InputPlugin } from './plugins/input'
+import { Physics2DPlugin } from './plugins/physics'
 import { GamePlugin } from './plugins/game'
 
 const engine = await setupGwen()
-await engine.use(GamePlugin()) // Internally registers Input and Physics
+await engine.use(InputPlugin())
+await engine.use(Physics2DPlugin({ gravity: 15 }))
+await engine.use(GamePlugin()) // Rejects with CORE:PLUGIN_DEPENDENCY_MISSING if either is absent
 await engine.start()
 ```
 
 ### Handling Missing Dependencies Gracefully
 
-Use a feature-detection pattern for truly optional capabilities:
+Use a feature-detection pattern for truly optional capabilities. The keys `physics2d` and `audio` are declared as above:
 
 ```ts
-import { definePlugin } from '@gwenjs/kit/plugin'
+import { definePlugin, optionalService } from '@gwenjs/kit/plugin'
 
 export const DebugUIPlugin = definePlugin(() => ({
   name: 'debug-ui',
   setup(engine) {
+    const physics = optionalService(engine, 'physics2d')
+    const audio = optionalService(engine, 'audio')
     engine.hooks.hook('engine:init', () => {
-      const physics = engine.get('physics2d')
-
-      if (physics) {
+      if (physics.current) {
         // Physics is available — show physics debug overlay
         console.log('[DebugUI] Physics visualization enabled')
       } else {
         console.log('[DebugUI] Physics plugin not found, skipping physics debug')
       }
 
-      const audio = engine.get('audio')
-      if (audio) {
+      if (audio.current) {
         console.log('[DebugUI] Audio debug panel enabled')
       }
     })
@@ -274,15 +270,11 @@ For complex plugin compositions, use `defineGwenModule()` to package everything:
 ```ts
 import { defineGwenModule } from '@gwenjs/kit/module'
 import { definePlugin } from '@gwenjs/kit/plugin'
-import { InputPlugin } from './input'
-import { Physics2DPlugin } from './physics'
 
 export const GamePlugin = definePlugin(() => ({
   name: 'game',
-  setup(engine) {
-    engine.use(InputPlugin())
-    engine.use(Physics2DPlugin({ gravity: 15 }))
-  },
+  requires: { plugins: ['input', 'physics2d'] },
+  setup() {},
 }))
 
 export default defineGwenModule({
@@ -291,6 +283,9 @@ export default defineGwenModule({
     configKey: 'gameFramework',
   },
   setup(options, gwen) {
+    // Registered in this order: the dependencies come before the plugin that requires them
+    gwen.addPlugin({ src: "@my-scope/game-framework", export: "InputPlugin" })
+    gwen.addPlugin({ src: "@my-scope/game-framework", export: "Physics2DPlugin" })
     gwen.addPlugin({ src: "@my-scope/game-framework", export: "GamePlugin" })
     gwen.addAutoImports([
       { name: 'useInput', from: '@my-scope/game-framework' },
@@ -302,24 +297,17 @@ export default defineGwenModule({
 
 ## Error Handling in Plugin Chains
 
-If a plugin fails to initialize, downstream plugins won't have access to its service:
+A plugin that needs another plugin names it in `requires`. When the dependency is not installed, `engine.use()` rejects with `GwenPluginDependencyError` (`CORE:PLUGIN_DEPENDENCY_MISSING`) and the plugin's `setup()` never runs:
 
 ```ts
 export const CriticalGamePlugin = definePlugin(() => ({
   name: 'critical-game',
-  setup(engine) {
-    engine.hooks.hook('engine:init', () => {
-      const physics = engine.get('physics2d')
-
-      if (!physics) {
-        throw new Error(
-          'CriticalGamePlugin requires physics2d plugin to be registered first'
-        )
-      }
-    })
-  },
+  requires: { plugins: ['physics2d'] },
+  setup(engine) { /* physics2d is installed here */ },
 }))
 ```
+
+A plugin whose `setup()` threw is not installed. A later plugin that requires it is rejected with `CORE:PLUGIN_DEPENDENCY_MISSING`.
 
 ## Best Practices
 
@@ -346,13 +334,10 @@ export const GamePlugin = definePlugin(() => ({
 
 ### 2. **Check for Missing Dependencies**
 
+Use `requires` instead of throwing from a hook. `engine.use()` checks it before `setup()`:
+
 ```ts
-engine.hooks.hook('engine:init', () => {
-  const requiredService = engine.get('required')
-  if (!requiredService) {
-    throw new Error('Required service not found')
-  }
-})
+requires: { plugins: ['input'], services: ['logger'], optional: ['audio'] },
 ```
 
 ### 3. **Use Modules for Complex Compositions**
@@ -379,10 +364,10 @@ export default defineConfig({
 
 | Method | Purpose |
 |--------|---------|
-| `use(plugin)` | Register a plugin during another plugin's setup |
-| `get(key)` | Retrieve a registered service (returns `undefined` if not found) |
+| `inject(key)` | Retrieve a registered service (throws if not found) |
+| `optionalService(engine, key)` | Typed read of an optional service: `.current` is `undefined` if not found. The engine's own `tryInject` returns `unknown` |
 | `provide(key, service)` | Register a service |
-| `hooks.hook('engine:start', cb)` | Register a callback after WASM loads |
+| `hooks.hook('engine:init', cb)` | Register a callback run by `engine.start()` after every plugin is set up |
 | `hooks.hook('engine:stop', cb)` | Register a callback before shutdown |
 
 ### Plugin Registration Order
@@ -398,18 +383,11 @@ export default defineConfig({
 // Define plugin with required and optional dependencies
 const MyPlugin = definePlugin(() => ({
   name: 'my-plugin',
+  requires: { plugins: ['input'], optional: ['audio'] },
   setup(engine) {
+    const audio = optionalService(engine, 'audio')
     engine.hooks.hook('engine:init', () => {
-      const required = engine.get('required')
-      const optional = engine.get('optional')
-
-      if (!required) {
-        throw new Error('Required plugin not registered')
-      }
-
-      if (optional) {
-        // Use optional feature
-      }
+      audio.current?.play('menu-music') // Use the optional feature
     })
   },
 }))
@@ -419,7 +397,7 @@ Then in `main.ts`:
 
 ```ts
 const engine = await setupGwen()
-await engine.use(RequiredPlugin())
+await engine.use(InputPlugin())
 await engine.use(MyPlugin())
 await engine.start()
 ```

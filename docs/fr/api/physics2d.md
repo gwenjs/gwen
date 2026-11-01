@@ -344,29 +344,26 @@ onUpdate(() => {
 
 ## Systèmes
 
-### createPhysicsKinematicSyncSystem(opts)
+### createPhysicsKinematicSyncSystem(options)
 
 **Signature:**
 ```ts
-function createPhysicsKinematicSyncSystem(opts?: {
-  syncPosition?: boolean;
-  syncRotation?: boolean;
-}): SystemDef
+const createPhysicsKinematicSyncSystem: (options?: {
+  pixelsPerMeter?: number; // 50 par défaut
+  positionComponent: ComponentDef;
+}) => GwenPlugin
 ```
 
-**Description.** Crée un système qui synchronise les positions/rotations des corps cinématiques basées sur les composants Transform.
+**Description.** Crée un plugin kit qui copie la position 2D ECS de chaque entité dans son corps cinématique avant chaque mise à jour. `positionComponent` est requis à l'exécution : sans lui, l'appel lève `Physics2DErrorCodes.POSITION_COMPONENT_REQUIRED`. Le paramètre est typé optionnel seulement parce que `definePlugin` le type ainsi.
 
 Physics2DPlugin doit être installé en premier, sinon `engine.use` rejette `CORE:PLUGIN_DEPENDENCY_MISSING`.
 
-**Retourne:** `SystemDef`
+**Retourne:** `GwenPlugin`
 
 **Exemple:**
 ```ts
-const scene = defineScene({
-  systems: [
-    createPhysicsKinematicSyncSystem({ syncPosition: true, syncRotation: true })
-  ]
-});
+await engine.use(Physics2DPlugin({ gravity: 0 }))
+await engine.use(createPhysicsKinematicSyncSystem({ pixelsPerMeter: 50, positionComponent: Position }))
 ```
 
 ### createPlatformerGroundedSystem(opts)

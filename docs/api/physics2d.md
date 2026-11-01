@@ -395,29 +395,26 @@ export const PlatformActor = defineActor(PlatformPrefab, () => {
 
 ## Systems
 
-### createPhysicsKinematicSyncSystem(opts)
+### createPhysicsKinematicSyncSystem(options)
 
 **Signature:**
 ```ts
-function createPhysicsKinematicSyncSystem(opts?: {
-  syncPosition?: boolean;
-  syncRotation?: boolean;
-}): SystemDef
+const createPhysicsKinematicSyncSystem: (options?: {
+  pixelsPerMeter?: number; // default 50
+  positionComponent: ComponentDef;
+}) => GwenPlugin
 ```
 
-**Description.** Creates a system that synchronizes kinematic body positions/rotations based on Transform components.
+**Description.** Creates a kit plugin that copies the ECS 2D position of each entity into its kinematic body before every update. `positionComponent` is required at runtime: without it the call throws `Physics2DErrorCodes.POSITION_COMPONENT_REQUIRED`. The parameter is typed optional only because `definePlugin` types it so.
 
 Physics2DPlugin must be installed first, else `engine.use` rejects `CORE:PLUGIN_DEPENDENCY_MISSING`.
 
-**Returns:** `SystemDef`
+**Returns:** `GwenPlugin`
 
 **Example:**
 ```ts
-const scene = defineScene({
-  systems: [
-    createPhysicsKinematicSyncSystem({ syncPosition: true, syncRotation: true })
-  ]
-});
+await engine.use(Physics2DPlugin({ gravity: 0 }))
+await engine.use(createPhysicsKinematicSyncSystem({ pixelsPerMeter: 50, positionComponent: Position }))
 ```
 
 ### createPlatformerGroundedSystem(opts)
