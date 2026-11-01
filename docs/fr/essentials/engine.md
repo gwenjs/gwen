@@ -360,6 +360,64 @@ L'import `GwenCoreGlueFactoryModule` ne sert qu'à typer la fonction. Le vrai co
 
 `engine.loadWasmModule({ name, bytes })` charge un module communautaire sur un serveur sans téléchargement. Passez `module` pour un `WebAssembly.Module` déjà compilé. Passez exactement un parmi `url`, `bytes` ou `module`. Zéro ou plusieurs, ou des octets invalides, rejettent avec `CORE:WASM_LOAD_ERROR`.
 
+### Plusieurs rooms sur des worker threads
+
+Les rooms d'un même thread partagent une seule boucle d'événements. Une room qui ne rend jamais la main les arrête toutes. Un thread n'utilise aussi qu'un seul cœur.
+
+Lancez les rooms sur des worker threads. Chaque worker a sa propre boucle d'événements et peut tourner sur un autre cœur. C'est une recette, pas une API de pool de workers : GWEN n'en ajoute aucune.
+
+Sur le thread principal, compilez le module une fois. Démarrez les workers. Postez le module à chacun.
+
+```ts check
+import { availableParallelism } from "node:os";
+import { Worker } from "node:worker_threads";
+import { loadGwenModule } from "@gwenjs/core/node";
+
+async function startWorkers(rooms: number): Promise<Worker[]> {
+  const module = await loadGwenModule("physics2d");
+  const workers: Worker[] = [];
+  for (let i = 0; i < availableParallelism(); i++) {
+    const worker = new Worker(new URL("./room-worker.mjs", import.meta.url));
+    worker.postMessage({ type: "init", module, rooms });
+    workers.push(worker);
+  }
+  return workers;
+}
+
+async function closeWorkers(workers: Worker[]): Promise<void> {
+  await Promise.all(workers.map((worker) => worker.terminate()));
+}
+```
+
+`room-worker.mjs`, dans le worker :
+
+```js
+import { parentPort } from "node:worker_threads";
+import { setupGwen } from "@gwenjs/core/node";
+
+parentPort.on("message", async ({ module, rooms }) => {
+  const engines = [];
+  for (let i = 0; i < rooms; i++) {
+    engines.push(await setupGwen({ variant: "physics2d", wasmModule: module }));
+  }
+  // Démarrez chaque moteur avec startExternal(), puis appelez advance(dt) à chaque tick.
+});
+```
+
+`setupGwen` de `@gwenjs/core/node` utilise `wasmInstance: "isolated"` par défaut (`packages/core/src/node.ts:100`, `:114`). Chaque room est son propre moteur, avec sa propre instance et sa propre mémoire linéaire. Un seul module compilé sert tous les moteurs et tous les workers.
+
+Dimensionnement :
+
+- Démarrez environ un worker par CPU. `os.availableParallelism()` donne ce nombre.
+- Mettez plusieurs rooms dans chaque worker.
+- Les workers servent les cœurs et le confinement des plantages. N'en démarrez pas un par room.
+
+Coût mesuré : 4 workers de 250 rooms `physics2d` chacun, toutes construites depuis un seul module, ont utilisé environ 380 MiB de RSS. Chaque worker en plus a ajouté environ 10,6 MiB de RSS, mesuré avec 8 workers. Ces chiffres viennent de runs locaux sur arm64 le 2026-10-19 (ticket #268). Les temps sont dans le ticket #268. Ce n'est pas une garantie. Mesurez sur votre matériel.
+
+Une room qui ne rend jamais la main bloque toutes les rooms de son propre worker. Appelez `worker.terminate()` sur ce worker. Les autres workers continuent d'avancer. Un test d'intégration couvre ce cas.
+
+Pour savoir combien de moteurs isolés un processus peut contenir, voir [Plusieurs moteurs par page ou par processus](#plusieurs-moteurs-par-page-ou-par-processus).
+
 ## Résumé de l'API
 
 | | |
