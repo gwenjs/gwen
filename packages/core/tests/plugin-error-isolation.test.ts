@@ -2,7 +2,7 @@
  * Tests for plugin error isolation (RFC-011 Phase 2)
  */
 import { describe, it, expect } from "vitest";
-import { createEngine } from "../src/index";
+import { createEngine } from "../src/node";
 import type { GwenPlugin, EngineErrorBus } from "../src/index";
 import { CoreErrorCodes } from "../src/index";
 import { createMockWasmEngine } from "./helpers/mock-wasm-engine";

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { createEngine, defineComponent, Types } from "../src/index";
+import { defineComponent, Types } from "../src/index";
+import { createEngine } from "../src/node";
 
 const Marker = defineComponent({
   name: "Marker",

@@ -1,13 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { GwenError, type GwenErrorPayload } from "@gwenjs/schema";
 
-import {
-  CoreErrorCodes,
-  createEngine,
-  defineComponent,
-  Types,
-  type GwenEngine,
-} from "../../src/index";
+import { CoreErrorCodes, defineComponent, Types, type GwenEngine } from "../../src/index";
+import { createEngine } from "../../src/node";
 import { defineActor, defineActorPool, definePrefab, useActorQuery } from "../../src/actor/index";
 import {
   defineSystem,

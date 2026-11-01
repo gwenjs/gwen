@@ -6,7 +6,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import { GwenError } from "@gwenjs/schema";
 import { entityIndex } from "@gwenjs/schema";
 import { useErrorReporter } from "@gwenjs/kit";
-import { createEngine, type GwenEngine } from "@gwenjs/core";
+import { type GwenEngine } from "@gwenjs/core";
+import { createEngine } from "@gwenjs/core/node";
 import {
   defineActor,
   defineActorPool,

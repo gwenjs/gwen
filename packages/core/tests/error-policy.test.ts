@@ -5,7 +5,6 @@ import { defineActorPool } from "../src/actor/runtime/pool/define-actor-pool";
 import { createDisposable } from "../src/disposable";
 import {
   CoreErrorCodes,
-  createEngine,
   createErrorBus,
   GwenEngineStateError,
   defineHooks,
@@ -14,6 +13,7 @@ import {
   type EngineErrorPayload,
   type InferHooks,
 } from "../src/index";
+import { createEngine } from "../src/node";
 import { defineScene, useSystem, type SystemHandle } from "../src/scene/index";
 import { defineSystem, onUpdate } from "../src/system/index";
 import { activateTestWasm } from "./helpers/activate-test-wasm";

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { CoreErrorCodes, createEngine } from "../src/index";
+import { CoreErrorCodes } from "../src/index";
+import { createEngine } from "../src/node";
 import { activateTestWasm } from "./helpers/activate-test-wasm";
 
 describe("plugin setup failure", () => {

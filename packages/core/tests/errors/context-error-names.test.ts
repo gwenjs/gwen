@@ -4,7 +4,6 @@
 
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  createEngine,
   defineComponent,
   GwenContextError,
   Types,
@@ -12,6 +11,7 @@ import {
   withAsyncContext,
   type GwenEngine,
 } from "@gwenjs/core";
+import { createEngine } from "@gwenjs/core/node";
 import {
   defineActor,
   definePrefab,

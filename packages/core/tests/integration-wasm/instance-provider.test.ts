@@ -21,7 +21,7 @@ import { GwenError } from "@gwenjs/schema";
 import { describe, expect, it } from "vitest";
 
 import { CoreErrorCodes, GwenWasmPanicError } from "../../src/engine/engine-errors.js";
-import { createEngine } from "../../src/engine/engine-factory.js";
+import { createEngine } from "../../src/node.js";
 import type { GwenEngine } from "../../src/engine/engine-types.js";
 import { entityGeneration, entityIndex } from "../../src/types/entity.js";
 import { WasmBridgeImpl } from "../../src/engine/wasm-bridge.js";
@@ -112,8 +112,8 @@ describe("shared wasm instance", () => {
     async (variant) => {
       const engines: GwenEngine[] = [];
       try {
-        const engineA = await createEngine({ variant, maxEntities: 32 });
-        const engineB = await createEngine({ variant, maxEntities: 32 });
+        const engineA = await createEngine({ variant, wasmInstance: "shared", maxEntities: 32 });
+        const engineB = await createEngine({ variant, wasmInstance: "shared", maxEntities: 32 });
         engines.push(engineA, engineB);
         const bridgeA = bridgeOf(engineA);
         const bridgeB = bridgeOf(engineB);
@@ -344,15 +344,30 @@ describe("shared wasm instance", () => {
     const engines: GwenEngine[] = [];
     const wasmUrl = dataWasmUrl("light");
     try {
-      const engineA = await createEngine({ variant: "light", maxEntities: 32 });
-      const engineB = await createEngine({ variant: "light", maxEntities: 32 });
+      const engineA = await createEngine({
+        variant: "light",
+        wasmUrl,
+        wasmInstance: "shared",
+        maxEntities: 32,
+      });
+      const engineB = await createEngine({
+        variant: "light",
+        wasmUrl,
+        wasmInstance: "shared",
+        maxEntities: 32,
+      });
       engines.push(engineA, engineB);
       const memory = bridgeOf(engineA).getLinearMemory();
       expect(memory).not.toBeNull();
       expect(bridgeOf(engineB).getLinearMemory()).toBe(memory);
 
       expect(invalidateWasmModule(wasmUrl)).toBe(true);
-      const engineC = await createEngine({ variant: "light", maxEntities: 32 });
+      const engineC = await createEngine({
+        variant: "light",
+        wasmUrl,
+        wasmInstance: "shared",
+        maxEntities: 32,
+      });
       engines.push(engineC);
       expect(bridgeOf(engineC).getLinearMemory()).not.toBe(memory);
       expect(bridgeOf(engineA).getLinearMemory()).toBe(memory);

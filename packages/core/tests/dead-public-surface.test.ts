@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createEngine } from "../src/index.js";
+import { createEngine } from "../src/node.js";
 
 describe("removed public surface (#109 step 2)", () => {
   it("has no wasmBridge and a debug frame has no phaseMs.physics", async () => {

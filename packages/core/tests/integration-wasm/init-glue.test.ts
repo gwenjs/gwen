@@ -12,7 +12,7 @@ import * as physics2d from "@gwenjs/core/wasm/physics2d/factory";
 import * as physics3d from "@gwenjs/core/wasm/physics3d/factory";
 import { beforeAll, expect, it } from "vitest";
 
-import { createEngine } from "../../src/engine/engine-factory.js";
+import { createEngine } from "../../src/node.js";
 import type { GwenEngine } from "../../src/engine/engine-types.js";
 import { WasmBridgeImpl } from "../../src/engine/wasm-bridge.js";
 import type { CoreVariant, GwenCoreGlueFactoryModule } from "../../src/engine/wasm-bridge-types.js";

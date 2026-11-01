@@ -4,7 +4,8 @@
 
 import { afterEach, describe, expect, it } from "vitest";
 import { GwenError, type GwenLogLevel, type IGwenLogProvider } from "@gwenjs/schema";
-import { createEngine, type GwenEngine, type GwenEngineOptions } from "@gwenjs/core";
+import { type GwenEngine, type GwenEngineOptions } from "@gwenjs/core";
+import { createEngine } from "@gwenjs/core/node";
 import { GwenConfigError } from "../../src/engine/config-error";
 import { WasmBridgeImpl } from "../../src/engine/wasm-bridge";
 import { SharedMemoryManager } from "../../src/hooks/wasm/shared-memory";

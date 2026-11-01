@@ -1,12 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  createEngine,
-  defineComponent,
-  Types,
-  type EntityId,
-  type GwenEngine,
-} from "../../src/index";
+import { defineComponent, Types, type EntityId, type GwenEngine } from "../../src/index";
+import { createEngine } from "../../src/node";
 import { useQuery } from "../../src/system/index";
 import { readLoopDepth, readStructuralCompares } from "../../src/engine/engine-internals";
 import { entityGeneration, entityIndex } from "../../src/types/entity";

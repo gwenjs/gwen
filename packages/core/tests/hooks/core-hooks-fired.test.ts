@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   CoreErrorCodes,
-  createEngine,
   createEntityId,
   defineComponent,
   GwenWasmError,
@@ -11,6 +10,7 @@ import {
   type EntityId,
   type GwenEngine,
 } from "../../src/index";
+import { createEngine } from "../../src/node";
 import { entityIndex } from "../../src/types/entity.js";
 import {
   defineActor,

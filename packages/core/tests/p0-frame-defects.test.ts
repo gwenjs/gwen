@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { CoreErrorCodes, GwenWasmError, GwenWasmPanicError, createEngine } from "../src/index.js";
+import { CoreErrorCodes, GwenWasmError, GwenWasmPanicError } from "../src/index.js";
+import { createEngine } from "../src/node.js";
 import type { EngineStateChangePayload } from "../src/index.js";
 import { activateTestWasm } from "./helpers/activate-test-wasm";
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createEngine } from "../src/index.js";
+import { createEngine } from "../src/node.js";
 import type { GwenEngine, GwenPlugin, WasmModuleHandle } from "../src/index.js";
 import { WasmBridgeImpl } from "../src/engine/wasm-bridge.js";
 import { SharedMemoryManager } from "@gwenjs/core/internal";
@@ -574,11 +574,15 @@ describe("Frame Loop v2", () => {
       expect(() => engine.getWasmModule("nope")).toThrow(/getWasmModule.*nope/);
     });
 
-    it("error message includes actionable hint to call loadWasmModule", () => {
-      const _engine = createEngine() as unknown as GwenEngine;
-      // createEngine is async, but the cast lets us test the sync path
-      // — use a properly awaited engine instead
-      expect(true).toBe(true); // placeholder, covered by test above
+    it("error message includes actionable hint to call loadWasmModule", async () => {
+      const engine = await createEngine();
+      try {
+        expect(() => engine.getWasmModule("nope")).toThrow(
+          __GWEN_DEV__ ? /loadWasmModule/ : /No WASM module "nope" is loaded/,
+        );
+      } finally {
+        await engine.stop();
+      }
     });
   });
 

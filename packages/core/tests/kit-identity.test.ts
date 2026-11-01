@@ -3,7 +3,8 @@
  */
 
 import { afterEach, describe, expect, it } from "vitest";
-import { CoreErrorCodes, createEngine, useEngine } from "@gwenjs/core";
+import { CoreErrorCodes, useEngine } from "@gwenjs/core";
+import { createEngine } from "@gwenjs/core/node";
 import { definePlugin } from "@gwenjs/kit/plugin";
 import * as core from "@gwenjs/core";
 import * as kit from "@gwenjs/kit";

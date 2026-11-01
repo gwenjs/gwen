@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, expectTypeOf } from "vitest";
-import { createEngine } from "../../src";
+import { createEngine } from "../../src/node";
 import { defineHooks } from "../../src/hooks";
 import type { InferHooks } from "../../src/hooks";
 import { emit, useHook } from "../../src";

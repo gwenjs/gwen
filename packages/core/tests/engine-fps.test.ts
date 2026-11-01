@@ -3,7 +3,7 @@
  * Validates that targetFPS is enforced in the game loop.
  */
 import { describe, it, expect } from "vitest";
-import { createEngine } from "../src/index.js";
+import { createEngine } from "../src/node.js";
 
 describe("GwenEngine — targetFPS throttle", () => {
   /**

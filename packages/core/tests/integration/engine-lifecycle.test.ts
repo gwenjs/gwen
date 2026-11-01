@@ -5,7 +5,7 @@
  * internals, verifying that the public API composes correctly across package boundaries.
  */
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { createEngine } from "../../src/index.js";
+import { createEngine } from "../../src/node.js";
 import type { GwenPlugin } from "../../src/index.js";
 import { activateTestWasm } from "../helpers/activate-test-wasm";
 

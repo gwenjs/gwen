@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { createEngine } from "../src/engine/engine-factory";
+import { createEngine } from "../src/node";
 import type { GwenLogEntry } from "@gwenjs/schema";
 
 function captureLogger(onEntry: (entry: GwenLogEntry) => void) {

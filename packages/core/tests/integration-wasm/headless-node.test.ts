@@ -10,7 +10,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { GwenError } from "@gwenjs/schema";
 import { afterEach, beforeAll, beforeEach, expect, it } from "vitest";
 
-import { createEngine, setupGwen } from "../../src/engine/engine-factory.js";
+import { createEngine, setupGwen } from "../../src/node.js";
+import { setupGwen as mainEntrySetupGwen } from "../../src/engine/engine-factory.js";
 import type { GwenEngine } from "../../src/engine/engine-types.js";
 import { WasmBridgeImpl } from "../../src/engine/wasm-bridge.js";
 import type {
@@ -184,7 +185,7 @@ it.each(VARIANTS)(
 );
 
 it("setupGwen with no source in Node rejects naming every accepted source", async () => {
-  const rejected = await settled(setupGwen());
+  const rejected = await settled(mainEntrySetupGwen());
   if ("v" in rejected) {
     try {
       expect("err" in rejected).toBe(true);
@@ -203,7 +204,7 @@ it("glue without a binary source in Node rejects with the missing-source error a
   let engine: GwenEngine | undefined;
   let bridge: WasmBridgeImpl | undefined;
   try {
-    const rejected = await settled(setupGwen({ variant: "light", glue, maxEntities: 32 }));
+    const rejected = await settled(mainEntrySetupGwen({ variant: "light", glue, maxEntities: 32 }));
     if ("v" in rejected) {
       engine = rejected.v;
       expect("err" in rejected).toBe(true);

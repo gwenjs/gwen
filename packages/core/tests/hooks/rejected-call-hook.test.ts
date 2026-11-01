@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { createEngine, CoreErrorCodes, emit } from "../../src/index.js";
+import { CoreErrorCodes, emit } from "../../src/index.js";
+import { createEngine } from "../../src/node.js";
 import { defineScene } from "../../src/scene/runtime/define-scene.js";
 import { defineSceneRouter } from "../../src/router/defines/define-scene-router.js";
 import { useSceneRouter } from "../../src/router/uses/use-scene-router.js";
