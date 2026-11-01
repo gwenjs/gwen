@@ -3,6 +3,7 @@ import { createEngine } from "../../../src/engine/engine-factory";
 import type { GwenEngine } from "../../../src/engine/engine-types";
 import { WasmBridgeImpl } from "../../../src/internal";
 import type {
+  InitWasmOptions,
   WasmEnginePhysics2D,
   WasmEnginePhysics3D,
 } from "../../../src/engine/wasm-bridge-types";
@@ -47,11 +48,27 @@ export interface IsolatedBatch {
   nullMemories: number;
 }
 
+export interface AutoBatch {
+  opened: number;
+  rejected: boolean;
+  code: string;
+  name: string;
+  message: string;
+  firstMode: "" | "shared" | "isolated";
+  isolatedCount: number;
+  lastMode: "" | "shared" | "isolated";
+  lastSharesFirstMemory: boolean;
+  from18SharesFirstMemory: boolean;
+  advancedCount: number;
+}
+
 export interface GwenHarness {
   makeIsolated(i: number): Promise<Made>;
   makeShared(): Promise<Made>;
+  makeAuto(wasmIsolatedBudget?: number): Promise<Made>;
   state(): HarnessState;
   collectIsolated(limit: number): Promise<IsolatedBatch>;
+  collectAuto(limit: number, wasmIsolatedBudget?: number): Promise<AutoBatch>;
   measurePhysicsSteps(): Promise<{ early: number; late: number }>;
 }
 
@@ -72,8 +89,15 @@ const SOURCE = {
   },
 } as const;
 
+interface AutoHeld {
+  engine: GwenEngine;
+  mode: "shared" | "isolated";
+  memory: WebAssembly.Memory | null;
+}
+
 const isolated: Held[] = [];
 const shared: Held[] = [];
+const auto: AutoHeld[] = [];
 
 function failed(err: unknown): Made {
   const name =
@@ -139,6 +163,91 @@ function makeIsolated(i: number): Promise<Made> {
 
 function makeShared(): Promise<Made> {
   return hold("light", "shared", shared, 0, 16);
+}
+
+async function makeAuto(wasmIsolatedBudget?: number): Promise<Made> {
+  const bridge = new WasmBridgeImpl();
+  const source = SOURCE.light;
+  let acquired = false;
+  try {
+    const options: InitWasmOptions = {
+      // stub: phase 2 routes this to auto
+      wasmInstance: "isolated",
+      jsUrl: source.jsUrl,
+      wasmUrl: source.wasmUrl,
+      maxEntities: 16,
+    };
+    if (wasmIsolatedBudget !== undefined) options.wasmIsolatedBudget = wasmIsolatedBudget;
+    await bridge.init("light", options);
+    acquired = true;
+    const engine = await createEngine({
+      _bridge: bridge,
+      _ownsBridge: true,
+      variant: "light",
+      maxEntities: 16,
+    });
+    acquired = false;
+    const mode = engine.wasmInstance;
+    const memory = engine.memory.linearMemory();
+    auto.push({ engine, mode, memory });
+    return { ok: true, count: engine.frameCount };
+  } catch (err: unknown) {
+    if (acquired) bridge.dispose();
+    return failed(err);
+  }
+}
+
+function autoBatch(rejected: Made | null, advancedCount: number): AutoBatch {
+  const first = auto[0];
+  const last = auto[auto.length - 1];
+  const firstMemory = first?.memory ?? null;
+  let from18SharesFirstMemory = auto.length >= 18 && firstMemory !== null;
+  for (let index = 17; index < auto.length; index += 1) {
+    const held = auto[index];
+    if (
+      held === undefined ||
+      held.mode !== "shared" ||
+      held.memory === null ||
+      held.memory !== firstMemory
+    ) {
+      from18SharesFirstMemory = false;
+      break;
+    }
+  }
+  const lastSharesFirstMemory =
+    last !== undefined &&
+    last.mode === "shared" &&
+    last.memory !== null &&
+    firstMemory !== null &&
+    last.memory === firstMemory;
+  return {
+    opened: auto.length,
+    rejected: rejected !== null,
+    code: rejected?.code ?? "",
+    name: rejected?.name ?? "",
+    message: rejected?.message ?? "",
+    firstMode: first?.mode ?? "",
+    isolatedCount: auto.filter((held) => held.mode === "isolated").length,
+    lastMode: last?.mode ?? "",
+    lastSharesFirstMemory,
+    from18SharesFirstMemory,
+    advancedCount,
+  };
+}
+
+/** Opens `limit` engines through `makeAuto`. Memory identity stays in the page. */
+async function collectAuto(limit: number, wasmIsolatedBudget?: number): Promise<AutoBatch> {
+  for (let i = 0; i < limit; i += 1) {
+    const made = await makeAuto(wasmIsolatedBudget);
+    if (!made.ok) return autoBatch(made, 0);
+  }
+  let advancedCount = 0;
+  for (const held of auto) {
+    const prior = held.engine.frameCount;
+    await held.engine.advance(1 / 60);
+    if (held.engine.frameCount === prior + 1) advancedCount += 1;
+  }
+  return autoBatch(null, advancedCount);
 }
 
 function state(): HarnessState {
@@ -255,5 +364,13 @@ async function measurePhysicsSteps(): Promise<{ early: number; late: number }> {
   return { early, late };
 }
 
-window.__gwen = { makeIsolated, makeShared, state, collectIsolated, measurePhysicsSteps };
+window.__gwen = {
+  makeIsolated,
+  makeShared,
+  makeAuto,
+  state,
+  collectIsolated,
+  collectAuto,
+  measurePhysicsSteps,
+};
 document.body.dataset.ready = "1";

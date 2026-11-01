@@ -1,0 +1,1 @@
+{"arch":"x64","node":"v22.23.3","flags":[],"variant":"light","mode":"auto","fallback_at":null,"rejected_at":7,"isolated":5,"same_memory":false,"advanced":false,"error":"RangeError: WebAssembly.Instance(): Out of memory: Cannot allocate Wasm memory for new instance"}

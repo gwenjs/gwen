@@ -472,6 +472,46 @@ test("missing arch.txt uses process.arch", () => {
   }
 });
 
+/**
+ * @param {unknown} value
+ * @param {string} key
+ */
+function field(value, key) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
+  return Reflect.get(value, key);
+}
+
+test("auto_fallback_under_ulimit failing fixture exits 1", () => {
+  const dir = stage("pass-x64", "auto_fallback_at_ulimit");
+  try {
+    const result = run(dir);
+    assert.equal(result.status, 1, result.stdout + result.stderr);
+    assert.ok(result.json, result.stderr);
+    assert.deepEqual(failedNames(result.json), ["auto_fallback_at_ulimit"]);
+    const row = result.json.checks?.auto_fallback_at_ulimit;
+    assert.equal(field(row?.measured, "rejected_at"), 7);
+    const ul64 = JSON.parse(readFileSync(join(dir, "ul64-default.out"), "utf8"));
+    assert.equal(field(row?.threshold, "fallback_at"), ul64.failed_at);
+  } finally {
+    release(dir);
+  }
+});
+
+test("a missing auto.out fails its check instead of crashing", () => {
+  const dir = stage("pass-x64");
+  try {
+    rmSync(join(dir, "auto.out"), { force: true });
+    const result = run(dir);
+    assert.ok(result.json, result.stderr);
+    assert.equal(result.json.checks?.auto_fallback_at_ulimit?.ok, false);
+    assert.equal(result.status, 1, result.stdout + result.stderr);
+    assert.equal(result.json.checks?.auto_fallback_at_ulimit?.measured, null);
+    assert.deepEqual(failedNames(result.json), ["auto_fallback_at_ulimit"]);
+  } finally {
+    release(dir);
+  }
+});
+
 test("unlimited_notrap metrics record the run and do not fail the judge", () => {
   const dir = stage("pass-x64");
   try {
