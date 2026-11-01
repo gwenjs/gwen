@@ -6,8 +6,9 @@
  * `today` is a real engine, not a mock.
  */
 
-import { createEngine, defineComponent, Types } from "../../src/index";
+import { defineComponent, Types } from "../../src/index";
 import type { EntityId, GwenEngine } from "../../src/index";
+import { createEngine } from "../../src/node";
 import { useQuery } from "../../src/system/index";
 
 /** Entity counts of the reference scene. See ADR-0001. */

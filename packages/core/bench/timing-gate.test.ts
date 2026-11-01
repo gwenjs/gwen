@@ -4,7 +4,8 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { createEngine, useEngine } from "../src/index";
+import { useEngine } from "../src/index";
+import { createEngine } from "../src/node";
 import { defineSequence } from "../src/tween/runtime/define-sequence";
 import { TweenPlugin } from "../src/tween/engine-plugin";
 import { TweenPool } from "../src/tween/runtime/tween-pool";
