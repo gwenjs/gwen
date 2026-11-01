@@ -3,7 +3,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
-import { createEngine, defineComponent, Types } from "../../src/index.js";
+import { createEngine } from "../../src/node.js";
+import { defineComponent, Types } from "../../src/index.js";
 
 const entitiesPath = join(
   dirname(fileURLToPath(import.meta.url)),

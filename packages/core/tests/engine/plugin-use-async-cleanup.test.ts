@@ -7,7 +7,8 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
-import { createEngine, onCleanup } from "../../src/index";
+import { createEngine } from "../../src/node";
+import { onCleanup } from "../../src/index";
 
 describe("engine.use() — async setup rejection cleanup", () => {
   it("calls onCleanup callbacks registered during sync phase when async setup rejects", async () => {

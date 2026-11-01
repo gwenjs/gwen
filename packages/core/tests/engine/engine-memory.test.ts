@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { GwenError } from "@gwenjs/schema";
 
-import { CoreErrorCodes, createEngine, createErrorBus } from "../../src/index.js";
+import { createEngine } from "../../src/node.js";
+import { CoreErrorCodes, createErrorBus } from "../../src/index.js";
 import { EngineMemory } from "../../src/engine/engine-memory.js";
 import { WasmBridgeImpl } from "../../src/engine/wasm-bridge.js";
 

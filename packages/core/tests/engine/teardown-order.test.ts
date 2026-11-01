@@ -4,7 +4,7 @@
 import { describe, expect, it } from "vitest";
 import { GwenError } from "@gwenjs/schema";
 
-import { createEngine } from "../../src/index.js";
+import { createEngine } from "../../src/node.js";
 import { CoreErrorCodes } from "../../src/engine/engine-errors.js";
 import { createDisposable } from "../../src/disposable.js";
 

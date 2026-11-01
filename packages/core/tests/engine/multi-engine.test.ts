@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { createEngine } from "../../src/node.js";
 import {
-  createEngine,
   createEngineLocal,
   GwenContextError,
   useEngine,

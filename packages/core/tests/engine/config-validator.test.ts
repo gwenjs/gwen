@@ -7,7 +7,8 @@ import * as schema from "@gwenjs/schema";
 import type { IGwenLogProvider } from "@gwenjs/schema";
 import { validateEngineConfig } from "../../src/engine/engine-config-validator.js";
 import { GwenConfigError } from "../../src/engine/config-error.js";
-import { createEngine, type GwenEngine } from "../../src/index";
+import { createEngine } from "../../src/node.js";
+import { type GwenEngine } from "../../src/index";
 
 describe("GwenConfigError", () => {
   it("is an Error instance", () => {

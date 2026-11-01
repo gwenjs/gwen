@@ -2,7 +2,7 @@ import { GwenContextError } from "@gwenjs/core";
 import { stubComponent, stubValue } from "../helpers/stub-component";
 import { describe, it, expect } from "vitest";
 import { definePrefab, defineActor } from "../../src/actor/index";
-import { createEngine } from "../../src/engine/engine-factory";
+import { createEngine } from "../../src/node";
 import { readLiveQueryIds } from "../../src/engine/engine-internals";
 import {
   defineSystem,

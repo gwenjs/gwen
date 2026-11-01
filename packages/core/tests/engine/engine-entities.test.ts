@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { GwenError } from "@gwenjs/schema";
 import { Types, defineComponent } from "../../src/schema";
 import { createEntityId } from "../../src/types/entity";
-import { createEngine } from "../../src/engine/engine-factory";
+import { createEngine } from "../../src/node";
 import type { GwenEngine } from "../../src/engine/engine-types";
 import { EngineEntities, type EngineEntitiesDeps } from "../../src/engine/engine-entities";
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createEngine } from "../../src";
+import { createEngine } from "../../src/node";
 import { defineSystem, onUpdate } from "@gwenjs/core/system";
 
 async function collectDt(timeScale: number, rawDt: number): Promise<number> {

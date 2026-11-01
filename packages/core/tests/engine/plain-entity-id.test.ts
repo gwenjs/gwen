@@ -3,7 +3,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { createEngine } from "../../src/index.js";
+import { createEngine } from "../../src/node.js";
 
 describe("plain entity id", () => {
   it("WasmBridge.createEntity returns a plain object without free", async () => {

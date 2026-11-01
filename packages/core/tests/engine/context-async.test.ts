@@ -1,11 +1,6 @@
 import { describe, it, expect } from "vitest";
-import {
-  withAsyncContext,
-  createEngine,
-  useEngine,
-  GwenContextError,
-  CoreErrorCodes,
-} from "../../src";
+import { createEngine } from "../../src/node.js";
+import { withAsyncContext, useEngine, GwenContextError, CoreErrorCodes } from "../../src";
 import { engineContext, executeAsync } from "../../src/internal";
 import { GwenScope } from "../../src/context/scope.js";
 

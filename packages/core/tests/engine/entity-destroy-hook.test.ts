@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { entityIndex } from "../../src/internal";
-import { CoreErrorCodes, createEngine, type EntityId } from "../../src/index";
+import { createEngine } from "../../src/node";
+import { CoreErrorCodes, type EntityId } from "../../src/index";
 
 describe("entity:destroy", () => {
   it("fires once, synchronously, after the entity is dead", async () => {

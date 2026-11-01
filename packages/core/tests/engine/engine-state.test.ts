@@ -5,12 +5,8 @@ import { createDisposable } from "../../src/disposable";
 import { EngineStateMachine } from "../../src/engine/engine-state";
 import type { EngineStateChangePayload, GwenEngineState } from "../../src/engine/engine-types";
 import type { GwenRuntimeHooks } from "../../src/engine/runtime-hooks";
-import {
-  CoreErrorCodes,
-  GwenEngineStateError,
-  createEngine,
-  type GwenEngine,
-} from "../../src/index";
+import { createEngine } from "../../src/node";
+import { CoreErrorCodes, GwenEngineStateError, type GwenEngine } from "../../src/index";
 import { GwenLogger as CoreGwenLogger } from "../../src/logger/gwen-logger";
 import { activateTestWasm } from "../helpers/activate-test-wasm";
 import { GwenError } from "@gwenjs/schema";

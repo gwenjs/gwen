@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { createEngine, type GwenEngine } from "@gwenjs/core";
+import { createEngine } from "@gwenjs/core/node";
+import { type GwenEngine } from "@gwenjs/core";
 import { definePlugin } from "@gwenjs/kit/plugin";
 import type { GwenEngineBase } from "@gwenjs/schema";
 

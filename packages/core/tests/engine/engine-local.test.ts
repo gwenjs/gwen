@@ -4,7 +4,8 @@
  */
 import { afterEach, describe, expect, it } from "vitest";
 import { GwenError } from "@gwenjs/schema";
-import { createEngine, createEngineLocal, type GwenEngine } from "../../src/index.js";
+import { createEngine } from "../../src/node.js";
+import { createEngineLocal, type GwenEngine } from "../../src/index.js";
 import { CoreErrorCodes } from "../../src/engine/engine-errors.js";
 import { createDisposable } from "../../src/disposable.js";
 

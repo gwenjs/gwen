@@ -10,8 +10,8 @@ import type { GwenRuntimeHooks } from "../../src/engine/runtime-hooks";
 import { ScopedHooksTracker } from "../../src/engine/hook-tracker";
 import { PluginRegistry, type PluginRegistryDeps } from "../../src/engine/plugin-registry";
 import { ServiceContainer } from "../../src/engine/service-container";
+import { createEngine as openEngine } from "../../src/node";
 import {
-  createEngine as openEngine,
   GwenPluginNotFoundError,
   onCleanup,
   type GwenEngine as PublicEngine,
