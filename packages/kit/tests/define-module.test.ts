@@ -245,14 +245,14 @@ describe("defineGwenModule() — definition validation", () => {
   });
 
   it("dev hint names defineGwenModule", () => {
-    if (!__GWEN_DEV__) return;
     const error = thrownBy({ meta: { name: "m" } });
+    if (!__GWEN_DEV__) return;
     expect(error.hint ?? "").toContain("or build it with defineGwenModule from @gwenjs/kit");
   });
 
   it("no hint in prod", () => {
-    if (__GWEN_DEV__) return;
     const error = thrownBy({ meta: { name: "m" } });
+    if (__GWEN_DEV__) return;
     expect(error.hint).toBeUndefined();
     expect(error.message.includes("Fix:")).toBe(false);
   });
