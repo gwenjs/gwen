@@ -951,6 +951,62 @@ nav.can('START')               // check if valid
 nav.current                    // current state name
 ```
 
+## `@gwenjs/core/node`
+
+Node-only entry. Importing it declares that the code runs in Node. Nothing is sniffed at runtime. The glue and the binary are found in the package `wasm/` directory.
+
+**Exports:** `loadGwenModule`, `createEngine`, `setupGwen`. Types: `CoreVariant`, `InitWasmOptions`.
+
+**Usage:**
+```ts
+import { createEngine, loadGwenModule, setupGwen } from '@gwenjs/core/node'
+```
+
+### loadGwenModule(variant)
+
+**Signature:**
+```ts
+function loadGwenModule(variant: CoreVariant): Promise<WebAssembly.Module>
+```
+
+**Description.** Compiles `gwen_core_bg.wasm` for `variant` once per process. Every call for the same variant returns the same promise, so the same `WebAssembly.Module`.
+
+**Throws:** rejects with `GwenError` `CORE:WASM_LOAD_ERROR` when the artefact is missing. The message names `gwen_core_bg.wasm` and the three paths tried. A rejection is not cached: the next call looks again and rejects with a new error.
+
+### createEngine(options?)
+
+**Signature:**
+```ts
+function createEngine(options?: GwenEngineOptions & InitWasmOptions): Promise<GwenEngine>
+```
+
+**Description.** Checks the config, then calls [`setupGwen`](#node-setupgwen). With `_bridge`, it passes the options to `createEngine` from `@gwenjs/core`. An invalid config rejects with `GwenConfigError` before any WASM loads.
+
+### setupGwen(options?) {#node-setupgwen}
+
+**Signature:**
+```ts
+function setupGwen(options?: GwenEngineOptions & InitWasmOptions): Promise<GwenEngine>
+```
+
+**Description.** Loads WASM and creates the engine. It needs no option: the variant is `light`.
+
+- **Isolated.** `wasmInstance` defaults to `"isolated"`: each engine has its own instance and linear memory.
+- **Cached module.** The binary comes from `loadGwenModule(variant)`, compiled once per variant.
+- **Caller sources win.** The glue side is `glue` or `jsUrl`. The binary side is `wasmUrl`, `wasmBytes` or `wasmModule`. A default is injected only for the side you left empty, so passing one side never causes a two-source error.
+
+**Example:**
+```ts
+import { createEngine } from '@gwenjs/core/node'
+
+const engine = await createEngine({ variant: 'physics2d' })
+await engine.startExternal()
+await engine.advance(1 / 60)
+await engine.stop()
+```
+
+Bun and Deno with Node compatibility are not tested.
+
 ## GwenWasmMismatchError
 
 `GwenWasmMismatchError` is the public error for a glue/binary mismatch (`CORE:WASM_GLUE_MISMATCH`). `reason` is `build`, `fingerprint`, `exports`, or `imports`. `expected` and `actual` name the two sides. `checkGwenModule` (internal, not exported from `@gwenjs/core`; `packages/core/src/engine/wasm-contract.ts:3`) throws it on the compiled module, before any instance. `init` calls that check before it acquires an instance (#263).

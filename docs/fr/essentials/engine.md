@@ -144,7 +144,7 @@ Ils partagent encore trois choses :
 | `shared` (défaut) | Une instance par module compilé. Les moteurs de ce module partagent sa mémoire linéaire. |
 | `isolated` | Une instance par moteur, avec sa propre mémoire linéaire (`packages/core/src/engine/wasm-instance-provider.ts:133`). |
 
-`createEngine` dans Node utilise encore `shared` par défaut (`packages/core/src/engine/engine-factory.ts:79`). `isolated` devient le défaut Node seulement avec `@gwenjs/core/node`, dans un ticket ultérieur (#267).
+`createEngine` de `@gwenjs/core` utilise `shared` par défaut (`packages/core/src/engine/wasm-bridge.ts:509`). `createEngine` de `@gwenjs/core/node` utilise `isolated` par défaut (voir [Sans affichage / serveur](#sans-affichage-serveur)).
 
 `isolated` dans le navigateur est pris en charge. Trois projets Playwright le valident : Chromium, Firefox et WebKit (`packages/core/playwright.config.ts:21-23`). Ils lancent `packages/core/tests/browser/isolation.pw.ts` et `packages/core/tests/browser/capacity.pw.ts`. `shared` reste le défaut dans le navigateur. Sur les appareils iOS, utilisez le mode `shared` par défaut. iOS n'est pas dans la CI.
 
@@ -308,7 +308,33 @@ La 1.0 ne fournit ni lockstep, ni rollback, ni snapshot du monde, ni entrée ind
 
 Le moteur tourne dans Node sans DOM. La seule boucle serveur prise en charge est `startExternal()`, puis `advance(dt)` une fois par tick, puis `stop()`. La note Multijoueur (1.0) plus haut nomme la même boucle.
 
-Lisez les octets `.wasm` depuis le binaire livré dans le paquet. Passez-les avec le glue importé à l'avance. Rien n'est téléchargé.
+Importez depuis `@gwenjs/core/node`. L'import déclare que le code tourne dans Node. Rien n'est deviné à l'exécution. Aucune option n'est nécessaire.
+
+```ts check
+import { createEngine, loadGwenModule } from "@gwenjs/core/node";
+
+async function runServer(): Promise<number> {
+  await loadGwenModule("light");
+  const engine = await createEngine();
+  try {
+    await engine.startExternal();
+    for (let i = 0; i < 10; i++) await engine.advance(1 / 60);
+    return engine.frameCount;
+  } finally {
+    await engine.stop();
+  }
+}
+```
+
+`createEngine()` utilise la variante `light`. Passez `variant: "physics2d"` ou `"physics3d"` pour les autres. Le glue et le binaire livrés dans le paquet sont trouvés pour vous. Rien n'est téléchargé.
+
+- Chaque moteur reçoit sa propre instance WASM et sa propre mémoire linéaire. `wasmInstance` vaut `"isolated"` par défaut.
+- `loadGwenModule(variant)` compile le binaire une fois par variante et renvoie le même `WebAssembly.Module` à chaque appel. L'appeler en premier, comme ci-dessus, déplace le coût de compilation au démarrage.
+- Vos sources l'emportent. Un `glue` ou un `jsUrl` que vous passez remplace le glue par défaut. Un `wasmBytes`, `wasmModule` ou `wasmUrl` que vous passez remplace le binaire par défaut. Chaque côté n'est rempli que si vous l'avez laissé vide : les valeurs par défaut ne provoquent donc jamais d'erreur de double source.
+
+La suite tourne sur Node 22. Bun et Deno avec la compatibilité Node ne sont pas testés.
+
+Pour maîtriser toutes les sources vous-même, utilisez le `setupGwen` bas niveau de `@gwenjs/core`. Lisez les octets `.wasm` depuis le binaire livré dans le paquet. Passez-les avec le glue importé à l'avance. Rien n'est téléchargé.
 
 ```ts check
 import { readFile } from "node:fs/promises";
@@ -333,8 +359,6 @@ L'import `GwenCoreGlueFactoryModule` ne sert qu'à typer la fonction. Le vrai co
 `wasmInstance: "isolated"` donne à chaque moteur sa propre instance WASM et sa propre mémoire linéaire. Pour compiler une fois et partager le résultat, passez `wasmModule: await WebAssembly.compile(wasmBytes)` à la place de `wasmBytes`. Utilisez `variant: "physics2d"` ou `"physics3d"` avec l'import `@gwenjs/core/wasm/<variant>/factory` correspondant.
 
 `engine.loadWasmModule({ name, bytes })` charge un module communautaire sur un serveur sans téléchargement. Passez `module` pour un `WebAssembly.Module` déjà compilé. Passez exactement un parmi `url`, `bytes` ou `module`. Zéro ou plusieurs, ou des octets invalides, rejettent avec `CORE:WASM_LOAD_ERROR`.
-
-La suite tourne sur Node 22. Bun et Deno ne sont pas testés.
 
 ## Résumé de l'API
 
