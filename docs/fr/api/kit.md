@@ -62,6 +62,14 @@ defineConfig({
 
 ## Définition de modules
 
+**Exports :** `defineGwenModule`, `validateGwenModule`, `GwenModuleDefinitionError`, `GwenModule` (type), `GwenModuleDefinition` (type), `GwenKit` (type), `GwenBuildHooks` (type), `GwenBaseConfig` (type)
+
+**Usage :**
+```ts
+import { defineGwenModule } from '@gwenjs/kit/module'
+import type { GwenKit, GwenModule } from '@gwenjs/kit/module'
+```
+
 ### defineGwenModule(definition)
 
 **Signature:**
@@ -86,6 +94,8 @@ function defineGwenModule<Options extends object = Record<string, unknown>>(
 | `definition.setup` | `function` | Appelé avec les options résolues et l'API GwenKit |
 
 **Retourne:** `GwenModule<Options>` — à exporter comme export par défaut du fichier module.
+
+**Validation.** `defineGwenModule()` vérifie la définition et lève `GwenModuleDefinitionError` (`KIT:MODULE_INVALID`). `fields` liste chaque chemin en échec : `meta` (objet manquant), `meta.name` (absent, vide ou entouré d'espaces ; `:` est permis), `meta.configKey` et `meta.version` (pas des chaînes quand ils sont présents), `defaults` (pas un objet simple), `setup` (pas une fonction), `validate` (pas une fonction quand elle est présente). `meta.name` est obligatoire. C'est un changement cassant par rapport aux versions précédentes, où une définition sans nom se chargeait.
 
 **Exemple:**
 ```ts

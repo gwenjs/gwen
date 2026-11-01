@@ -237,7 +237,7 @@ export const ScorePlugin = definePlugin((opts: { maxScore?: number } = {}) => ({
 }))
 
 export default defineGwenModule({
-  meta: { configKey: 'score' }, // nom inféré → 'local:score'
+  meta: { name: 'local:score', configKey: 'score' },
   defaults: { maxScore: 999 },
   setup(options, gwen) {
     gwen.addPlugin({ src: "./src/modules/score", export: "ScorePlugin", options })
@@ -245,7 +245,7 @@ export default defineGwenModule({
 })
 ```
 
-**Inférence du nom** — `meta.name` est optionnel pour les modules locaux :
+**Inférence du nom** — `defineGwenModule()` exige `meta.name`. Un appel sans `meta.name` lève `KIT:MODULE_INVALID`. Un fichier local qui exporte un objet simple reçoit un nom inféré quand `meta.name` est absent ou vide :
 
 | Fichier | Nom inféré |
 |---|---|
@@ -268,7 +268,7 @@ declare module '@gwenjs/schema' {
 }
 
 export default defineGwenModule<ScoreOptions>({
-  meta: { configKey: 'score' },
+  meta: { name: 'local:score', configKey: 'score' },
   defaults: { maxScore: 999 },
   setup(options, gwen) {
     gwen.addPlugin({ src: "./src/modules/score", export: "ScorePlugin", options })
@@ -288,7 +288,7 @@ export default defineConfig({
 ```
 
 ::: tip Support des sous-répertoires
-`src/modules/score/index.ts` est supporté et inféré comme `local:score`. Utilisez-le pour diviser un module complexe en plusieurs fichiers.
+`src/modules/score/index.ts` est supporté. Un export simple sans `meta.name` est inféré comme `local:score`. Utilisez-le pour diviser un module complexe en plusieurs fichiers.
 :::
 
 ### `src/assets/` — Fichiers statiques

@@ -41,15 +41,16 @@ export const MyPlugin = definePlugin((config: { debug?: boolean } = {}) => {
 
 ## defineGwenModule
 
-`defineGwenModule` registers a collection of plugins as a single installable unit in a GWEN app config.
+`defineGwenModule` declares a build-time module. It needs a non-empty `meta.name` and a `setup` function, and throws `KIT:MODULE_INVALID` otherwise.
 
 ```typescript
 import { defineGwenModule } from "@gwenjs/kit/module";
-import { MyPlugin } from "./my-plugin";
 
-export const MyModule = defineGwenModule({
-  id: "my-module",
-  plugins: [MyPlugin({ debug: true })],
+export default defineGwenModule({
+  meta: { name: "my-module", configKey: "myModule" },
+  setup(options, gwen) {
+    gwen.addPlugin({ src: "./my-plugin", export: "MyPlugin", options });
+  },
 });
 ```
 
@@ -87,7 +88,7 @@ const PlayerActor = defineActor(PlayerPrefab, () => {
 
 ### `.`
 
-Values: `GWEN_CONTEXT_BOUNDARIES`, `GwenContextError`, `GwenContextErrorCodes`, `KitErrorCodes`, `_engineSlot`, `_setCurrentScope`, `getCurrentScope`, `tryUseEngine`, `useCurrentScope`, `useErrorReporter`, `useLogger`, `usePerfMark`
+Values: `GWEN_CONTEXT_BOUNDARIES`, `GwenContextError`, `GwenContextErrorCodes`, `GwenModuleDefinitionError`, `KitErrorCodes`, `_engineSlot`, `_setCurrentScope`, `getCurrentScope`, `tryUseEngine`, `useCurrentScope`, `useErrorReporter`, `useLogger`, `usePerfMark`
 
 `tryUseEngine` returns the engine `useEngine()` returns, or `undefined` where `useEngine()` would throw `CORE:OUTSIDE_ENGINE_CONTEXT`, and never throws.
 
@@ -101,6 +102,8 @@ Types: `ComponentType`, `EntityId`, `GwenPlugin`, `GwenPluginFactory`, `GwenProv
 
 ### `./module`
 
-Values: `defineGwenModule`
+Values: `GwenModuleDefinitionError`, `defineGwenModule`, `validateGwenModule`
+
+`defineGwenModule` and `validateGwenModule` throw `GwenModuleDefinitionError` (`KIT:MODULE_INVALID`, `fields` lists every invalid path).
 
 Types: `GwenBaseConfig`, `GwenBuildHooks`, `GwenKit`, `GwenModule`, `GwenModuleDefinition`, `PluginDeclaration`

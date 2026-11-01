@@ -115,7 +115,7 @@ export const ScorePlugin = definePlugin((opts: { maxScore?: number } = {}) => ({
 }))
 
 export default defineGwenModule({
-  meta: { configKey: 'score' }, // nom inféré → 'local:score'
+  meta: { name: 'local:score', configKey: 'score' },
   defaults: { maxScore: 999 },
   setup(options, gwen) {
     gwen.addPlugin({ src: "./src/modules/score", export: "ScorePlugin", options })
@@ -127,7 +127,9 @@ Déposez ce fichier et le module est actif. Aucune modification de `gwen.config.
 
 ### Inférence du nom
 
-`meta.name` est optionnel. Le nom est inféré depuis le nom de fichier :
+`defineGwenModule()` exige `meta.name`. Un appel sans `meta.name` lève `KIT:MODULE_INVALID` avec `fields` `["meta.name"]`.
+
+Un fichier local qui exporte un objet simple, et non le résultat de `defineGwenModule()`, reçoit quand même un nom inféré quand `meta.name` est absent ou `""` :
 
 | Fichier | Nom inféré |
 |---|---|
@@ -168,7 +170,7 @@ export const ScorePlugin = definePlugin((opts: ScoreOptions = {}) => ({
 }))
 
 export default defineGwenModule<ScoreOptions>({
-  meta: { configKey: 'score' },
+  meta: { name: 'local:score', configKey: 'score' },
   defaults: { initialScore: 0, maxScore: 999 },
   setup(options, gwen) {
     gwen.addPlugin({ src: "./src/modules/score", export: "ScorePlugin", options })
@@ -415,7 +417,7 @@ Créez un module à la compilation :
 ```ts
 export default defineGwenModule<Options>({
   meta: {
-    name?: string     // optionnel pour les modules locaux — inféré depuis le nom de fichier
+    name: string      // obligatoire pour defineGwenModule(). Un fichier local simple sans meta.name reçoit local:<file>
     configKey?: string
     version?: string
   }
@@ -424,6 +426,10 @@ export default defineGwenModule<Options>({
   setup(options: Options, gwen: GwenKit): void | Promise<void>
 })
 ```
+
+### Validation
+
+`defineGwenModule()` lève `KIT:MODULE_INVALID` (`GwenModuleDefinitionError`) quand un champ est invalide. `fields` nomme chaque chemin en échec : `meta`, `meta.name`, `meta.configKey`, `meta.version`, `defaults`, `setup`, `validate`. `meta.name` est obligatoire et peut contenir `:`. L'omettre lève `fields` `["meta.name"]`. C'est un changement cassant par rapport aux versions précédentes, où une définition sans nom se chargeait. Un fichier local qui exporte un objet simple sans `meta.name` (ou avec `meta.name: ""`) reçoit quand même son nom inféré `local:<file>`. Un appel `defineGwenModule(...)` sans `meta.name` lève `KIT:MODULE_INVALID`.
 
 ### Méthodes GwenKit
 
