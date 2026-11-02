@@ -71,6 +71,8 @@ notes/
 
 # Leftover dev-strip fixtures if a test crashes before cleanup
 .tmp-dev-strip-*
+# Leftover typed-names runs if a test crashes before cleanup
+packages/vite/tests/fixtures/typed-names-run-*
 
 # Browser test fixture bundles (built by packages/core/tests/browser/build-site.mjs)
 packages/core/tests/browser/site/**/entry.js

@@ -226,7 +226,7 @@ console.log(manifest.wasmPath); // Path to WASM binary
 ### Scene Discovery Not Working
 
 - Place scenes in `src/scenes/` directory
-- Use `defineScene()` or export as class
+- Call `defineScene()` with a string literal name. A helper file starts with `_`
 - Check browser console for auto-discovery logs with `verbose: true`
 
 ## Performance Tips
@@ -256,6 +256,12 @@ Types: `ActorPluginOptions`, `CoreVariant`, `GwenDevStripReport`, `GwenOptimizer
 Values: `evalBitExpr`, `extractLayerDefinitions`, `inlineLayerReferences`
 
 Types: none
+
+### `./scanners`
+
+Values: `resolveMainScene`, `scanScenes`
+
+Types: `SceneInfo`
 
 ### `./internal`
 

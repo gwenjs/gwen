@@ -26,6 +26,10 @@
     "values": ["evalBitExpr", "extractLayerDefinitions", "inlineLayerReferences"],
     "types": []
   },
+  "./scanners": {
+    "values": ["resolveMainScene", "scanScenes"],
+    "types": ["SceneInfo"]
+  },
   "./internal": {
     "values": [
       "extractGlobalCssFromConfig",
