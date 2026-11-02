@@ -1,6 +1,7 @@
 {
   ".": {
     "values": [
+      "CORE_RANGE",
       "ENGINE_DEFAULTS",
       "GWEN_DOCS_BASE",
       "GWEN_FRAMEWORK_HOOK_NAMESPACES",

@@ -139,3 +139,7 @@ export type {
   GwenModuleOptions,
   PluginDeclaration,
 } from "./module";
+
+// ─── Framework range ─────────────────────────────────────────────────────────
+
+export { CORE_RANGE } from "./core-range";
