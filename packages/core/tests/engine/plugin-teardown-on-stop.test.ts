@@ -347,6 +347,7 @@ describe("plugin teardown on stop", () => {
         return { kind: "created" };
       },
       emitServiceChange() {},
+      releaseComponents() {},
     };
     const registry = new PluginRegistry(deps);
     try {

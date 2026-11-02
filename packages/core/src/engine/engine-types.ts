@@ -479,6 +479,15 @@ export interface EngineStats {
   overBudget?: boolean;
 }
 
+/**
+ * Component-type and entity counts for one engine.
+ * Not a field of {@link EngineStats}.
+ */
+export interface EngineCapacity {
+  readonly componentTypes: { readonly used: number; readonly max: number };
+  readonly entities: { readonly alive: number; readonly max: number };
+}
+
 export type {
   EngineStateChangePayload,
   GwenEngineState,
@@ -572,7 +581,8 @@ export interface GwenEngine extends GwenEngineBase {
   canSpawn(count: number): boolean;
   /**
    * Rust type id for a component name, owned by this engine.
-   * Registering the same name again returns the same id.
+   * Registering the same name again returns the same id, until `unuse`
+   * releases a type its plugin owned.
    */
   getOrRegisterComponent(type: ComponentType): number;
   /** Component names registered on this engine, and their type ids. */
@@ -648,4 +658,9 @@ export interface GwenEngine extends GwenEngineBase {
   /** Smoothed frames per second from the raw wall-frame duration. */
   getFPS(): number;
   getStats(): EngineStats;
+  /**
+   * Component types and live entities on this engine.
+   * `componentTypes.used` changes as soon as a type is registered or released.
+   */
+  getCapacity(): EngineCapacity;
 }

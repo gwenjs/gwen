@@ -25,7 +25,11 @@
 import { GwenError, type GwenErrorTarget } from "@gwenjs/schema";
 import { engineContext } from "./context";
 import { gwenEngineSelf, popEngine, pushEngine, unwrapEngine } from "./engine-local";
-import { componentRegistryFor, componentTypeIds } from "./engine-component-registry";
+import {
+  componentRegistryFor,
+  componentTypeIds,
+  MAX_COMPONENT_TYPES,
+} from "./engine-component-registry";
 import type { EngineMemory } from "./engine-memory.js";
 import type { EntityId } from "./engine-api";
 import type { ComponentDefinition, ComponentSchema, InferComponent } from "../schema";
@@ -49,6 +53,7 @@ import type {
   GwenWasmModules,
   GwenPlugin,
   EngineStats,
+  EngineCapacity,
   EngineFrame,
   GwenEngineState,
   GwenEngine,
@@ -424,7 +429,8 @@ export class GwenEngineImpl extends EngineCollaborators implements GwenEngine {
 
   /**
    * Rust component type id for `name`, owned by this engine.
-   * The same name (including an HMR re-definition) keeps the same id.
+   * The same name (including an HMR re-definition) keeps the same id until
+   * `unuse` releases a type its plugin owned.
    * Numeric ids are not baked by the Vite optimizer; cached lookup is #66.
    */
   getOrRegisterComponent(type: ComponentType): number {
@@ -556,6 +562,16 @@ export class GwenEngineImpl extends EngineCollaborators implements GwenEngine {
   }
   getStats(): EngineStats {
     return this._stats.snapshot();
+  }
+
+  getCapacity(): EngineCapacity {
+    return {
+      componentTypes: {
+        used: componentRegistryFor(this).usedCount(),
+        max: MAX_COMPONENT_TYPES,
+      },
+      entities: { alive: this._bridge.countEntities(), max: this.maxEntities },
+    };
   }
 }
 

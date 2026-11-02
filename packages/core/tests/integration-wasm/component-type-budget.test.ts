@@ -59,7 +59,7 @@ describe("component type budget", () => {
     }
     expect(caught.code).toBe(CoreErrorCodes.COMPONENT_TYPE_LIMIT_REACHED);
     expect(caught.message).toContain("128");
-    expect(caught.name).toBe("GwenError");
+    expect(caught.name).toBe("GwenComponentLimitError");
   });
 
   it("the registry accepts its 128th name and the next wasm layout is refused", async () => {

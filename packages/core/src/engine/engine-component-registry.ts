@@ -13,15 +13,38 @@
 
 import { GwenError } from "@gwenjs/schema";
 
+import { GwenScope } from "../context/scope";
 import type { ComponentSchema, SchemaType } from "../schema";
 import type { ComponentType } from "../types";
 import type { GwenEngine } from "./engine-types";
 import { createEngineLocal } from "./engine-local";
-import { CoreErrorCodes } from "./engine-errors";
+import { CoreErrorCodes, GwenComponentLimitError, GwenWasmError } from "./engine-errors";
 import type { WasmBridge } from "./wasm-bridge";
 
 /** Rust bit cap. Every slot is a user name. */
-const MAX_COMPONENT_TYPES = 128;
+export const MAX_COMPONENT_TYPES = 128;
+
+function currentPluginName(): string | null {
+  for (let scope = GwenScope.current(); scope !== null; scope = scope.parent) {
+    if (scope.meta.type === "plugin") return scope.meta.name ?? null;
+  }
+  return null;
+}
+
+function isWasmCode(error: unknown, code: string): error is GwenWasmError {
+  return error instanceof GwenWasmError && error.code === code;
+}
+
+function throwTypeLimit(component: string, used: number, cause?: unknown): never {
+  const owner = currentPluginName();
+  throw new GwenComponentLimitError({
+    component,
+    owner,
+    max: MAX_COMPONENT_TYPES,
+    used,
+    ...(cause !== undefined ? { cause } : {}),
+  });
+}
 
 const registries = createEngineLocal((engine: GwenEngine) => {
   const bridge = engine.tryInject("wasm:bridge");
@@ -134,6 +157,8 @@ export class EngineComponentRegistry {
   private typeIds = new Map<ComponentType, number>();
   /** Lane bytes stored with the name. A second layout must match. */
   private layouts = new Map<string, Uint8Array>();
+  /** Plugin that first registered the name, or null outside a plugin scope. */
+  private owners = new Map<ComponentType, string | null>();
   /** Used only while the bridge has no WASM engine. Each registry has its own counter. */
   private nextLocalId = 0;
 
@@ -146,8 +171,10 @@ export class EngineComponentRegistry {
    * A string is one f32 lane. A definition uses its schema, in field order.
    * The same name with different lanes throws and stores nothing.
    *
-   * @throws {GwenError} code `CORE:COMPONENT_TYPE_LIMIT_REACHED` when this name
-   *   would be the 129th user type. The check runs before `registerComponent`.
+   * @throws {GwenComponentLimitError} code `CORE:COMPONENT_TYPE_LIMIT_REACHED`
+   *   when this name would be the 129th user type. The count is checked before
+   *   `registerComponent`. A `GwenWasmError` with that code is rethrown as
+   *   `GwenComponentLimitError` with `cause` set.
    * @throws {GwenError} code `CORE:COMPONENT_LAYOUT_INVALID` when this name is
    *   already stored with different lanes.
    */
@@ -168,19 +195,78 @@ export class EngineComponentRegistry {
       return existing;
     }
     if (this.typeIds.size >= MAX_COMPONENT_TYPES) {
-      throw new GwenError(
-        CoreErrorCodes.COMPONENT_TYPE_LIMIT_REACHED,
-        `Component type limit reached: ${MAX_COMPONENT_TYPES} user types fit.`,
-      );
+      throwTypeLimit(name, this.typeIds.size);
     }
-    // Same name, including an HMR swap, keeps this id. A second call does not
-    // ask WASM again. Baked numeric ids are disabled; a hotter cache is #66.
-    const bridgeActive =
-      typeof this.wasmBridge.isActive === "function" && this.wasmBridge.isActive();
-    const typeId = bridgeActive ? this.wasmBridge.registerComponent(lanes) : this.nextLocalId++;
+    // Same name, including an HMR swap, keeps this id until `unuse` releases a
+    // type its plugin owned. A second call does not ask WASM again. Baked
+    // numeric ids are disabled; a hotter cache is #66.
+    let typeId: number;
+    if (this.bridgeActive()) {
+      try {
+        typeId = this.wasmBridge.registerComponent(lanes);
+      } catch (error: unknown) {
+        if (isWasmCode(error, CoreErrorCodes.COMPONENT_TYPE_LIMIT_REACHED)) {
+          throwTypeLimit(name, MAX_COMPONENT_TYPES, error);
+        }
+        throw error;
+      }
+    } else {
+      typeId = this.nextLocalId++;
+    }
     this.typeIds.set(name, typeId);
     this.layouts.set(name, lanes.slice());
+    this.owners.set(name, currentPluginName());
     return typeId;
+  }
+
+  /** Names stored on this engine. */
+  usedCount(): number {
+    return this.typeIds.size;
+  }
+
+  /**
+   * Drop one name. `false` when the name is unknown, a row still holds it,
+   * or a live query references it.
+   * An inactive bridge frees the local id and does not call WASM.
+   */
+  release(type: ComponentType): boolean {
+    const id = this.typeIds.get(type);
+    if (id === undefined) return false;
+    if (!this.bridgeActive()) {
+      this.forget(type);
+      return true;
+    }
+    try {
+      this.wasmBridge.releaseComponent(id);
+    } catch (error: unknown) {
+      if (isWasmCode(error, CoreErrorCodes.COMPONENT_TYPE_IN_USE)) return false;
+      throw error;
+    }
+    this.forget(type);
+    return true;
+  }
+
+  /** Names first registered by `plugin` that had no live row or live query. */
+  releaseOwnedBy(plugin: string): ComponentType[] {
+    const names: ComponentType[] = [];
+    for (const [type, owner] of this.owners) {
+      if (owner === plugin) names.push(type);
+    }
+    const released: ComponentType[] = [];
+    for (const type of names) {
+      if (this.release(type)) released.push(type);
+    }
+    return released;
+  }
+
+  private bridgeActive(): boolean {
+    return typeof this.wasmBridge.isActive === "function" && this.wasmBridge.isActive();
+  }
+
+  private forget(type: ComponentType): void {
+    this.typeIds.delete(type);
+    this.layouts.delete(type);
+    this.owners.delete(type);
   }
 
   /**

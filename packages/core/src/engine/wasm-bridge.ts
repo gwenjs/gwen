@@ -897,6 +897,15 @@ export class WasmBridgeImpl implements WasmBridge {
     }
   }
 
+  releaseComponent(typeId: number): void {
+    const wasm = this._requireWasm();
+    try {
+      wasm.release_component(typeId);
+    } catch (error: unknown) {
+      throw this._mapWasmError(error, "release_component");
+    }
+  }
+
   componentStagingPtr(): number {
     return this._wasmForRead().component_staging_ptr();
   }

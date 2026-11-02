@@ -97,6 +97,7 @@ function rig(over: Partial<PluginRegistryDeps> = {}) {
       return { kind: "same" };
     },
     emitServiceChange() {},
+    releaseComponents() {},
     ...over,
   };
   return {
@@ -361,6 +362,41 @@ describe("PluginRegistry", () => {
 
     expect(leftHits).toBe(0);
     expect(rightHits).toBe(1);
+  });
+
+  it("unuse releases the plugin's component types once with its name and stop does not", async () => {
+    const released: string[] = [];
+    const { receiver, registry } = rig({
+      releaseComponents(plugin) {
+        released.push(plugin);
+      },
+    });
+    await registry.use({ name: "alpha", setup() {} }, receiver);
+    await registry.unuse("alpha", receiver);
+    expect(released).toEqual(["alpha"]);
+
+    released.length = 0;
+    await registry.use({ name: "beta", setup() {} }, receiver);
+    await registry.teardownAll(receiver);
+    expect(released).toEqual([]);
+
+    const failing = rig({
+      releaseComponents() {
+        throw new Error("release failed");
+      },
+    });
+    await failing.registry.use({ name: "gamma", setup() {} }, failing.receiver);
+    let removal = "";
+    try {
+      await failing.registry.unuse("gamma", failing.receiver);
+      removal = "resolved";
+    } catch (error: unknown) {
+      removal = error instanceof Error ? error.message : "thrown";
+    }
+    expect(removal).toBe("resolved");
+    expect(failing.teardownReports).toEqual([{ name: "gamma", message: "release failed" }]);
+    expect(failing.registry.pluginNamed("gamma")).toBeUndefined();
+    expect(failing.dropped).toEqual(["gamma"]);
   });
 
   it("a hook registered inside use observes the same microtask order as before", async () => {

@@ -56,6 +56,8 @@ export interface PluginRegistryDeps {
   writeService: (key: string, value: unknown) => ServiceWriteResult;
   /** Isolated `service:provided` / `service:removed`. */
   emitServiceChange: (notice: ServiceChangeNotice) => void;
+  /** Release the component types first registered by `plugin`; called on `unuse` only. */
+  releaseComponents: (plugin: string) => void;
 }
 
 interface QueuedProvide {
@@ -327,9 +329,12 @@ export class PluginRegistry {
   }
 
   /**
-   * Services go first, then the setup disposer, then `teardown`.
+   * Services go first, then the setup disposer, then `teardown`, then the
+   * component release. The release is the last `finally` step, and only for
+   * `unuse`: the plugin's queries and entities are gone by then.
    * The disposer is inside the `try`: a throwing `onCleanup` is reported and
-   * `teardown` still runs. Hook removal stays in `finally`.
+   * `teardown` still runs. Hook removal stays in `finally`. A throwing release
+   * is reported and does not skip hooks, isolation, or the plugins list.
    */
   private async _finishRemove(
     plugin: GwenPlugin,
@@ -360,6 +365,13 @@ export class PluginRegistry {
       const idx = this._plugins.indexOf(plugin);
       if (idx !== -1) this._plugins.splice(idx, 1);
       this._pluginNames.delete(name);
+      if (reason === "unuse") {
+        try {
+          this.deps.releaseComponents(name);
+        } catch (releaseError: unknown) {
+          this.deps.reportTeardown(plugin, releaseError);
+        }
+      }
     }
   }
 

@@ -101,7 +101,7 @@ Cause. The call is outside `defineActor()`, `plugin setup()`, or `withCleanup()`
 - `CORE:WASM_PANIC` {#core-wasm-panic}
 - `CORE:QUERY_CAPACITY_EXCEEDED` {#core-query-capacity-exceeded}
 - `CORE:ENTITY_LIMIT_REACHED` {#core-entity-limit-reached}
-- `CORE:COMPONENT_TYPE_LIMIT_REACHED` {#core-component-type-limit-reached}
+- `CORE:COMPONENT_TYPE_LIMIT_REACHED` {#core-component-type-limit-reached} — registering one more component type throws `GwenComponentLimitError`.
 - `CORE:COMPONENT_TYPE_IN_USE` {#core-component-type-in-use} — component type {type_id} still has rows
 - `CORE:INVALID_PARENT` {#core-invalid-parent}
 - `CORE:INVALID_MAX_ENTITIES` {#core-invalid-max-entities}
