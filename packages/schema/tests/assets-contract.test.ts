@@ -38,11 +38,14 @@ describe("assets contract", () => {
 
   it("no ASSETS: code string value in the schema sources", () => {
     const quoted: string[] = [];
+    const scanned: string[] = [];
     for (const name of readdirSync(srcDir)) {
       if (!name.endsWith(".ts")) continue;
+      scanned.push(name);
       const text = readFileSync(path.join(srcDir, name), "utf8");
       if (QUOTED_ASSETS_CODE.test(text)) quoted.push(name);
     }
+    expect(scanned).toContain("assets.ts");
     expect(quoted).toEqual([]);
   });
 });
