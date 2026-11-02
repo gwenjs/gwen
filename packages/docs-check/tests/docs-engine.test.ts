@@ -108,4 +108,24 @@ describe("engine page run fences", () => {
     expect(asserted(file, 'engine.reenable("missing")')).toBe("false");
     expect(asserted(file, "engine.state")).toBe('"idle"');
   });
+
+  it("the engine page states both limits with their codes and the sizing formula", () => {
+    const text = readFileSync(path.join(repoRoot, "docs/essentials/engine.md"), "utf8");
+    const start = text.search(/^## Limits$/m);
+    expect(start).toBeGreaterThanOrEqual(0);
+    const end = text.indexOf("\n## API Summary", start);
+    expect(end).toBeGreaterThan(start);
+    const section = text.slice(start, end);
+    for (const needle of [
+      "128",
+      "CORE:COMPONENT_TYPE_LIMIT_REACHED",
+      "2_000_000",
+      "getCapacity",
+      "CORE:ENTITY_LIMIT_REACHED",
+      "1024",
+      "+ 8192",
+    ]) {
+      expect(section).toContain(needle);
+    }
+  });
 });
