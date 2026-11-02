@@ -1,4 +1,4 @@
-import { writeFile, rm } from "node:fs/promises";
+import { mkdir, writeFile, rm } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { checkPluginPackage, ConformanceErrorCodes } from "@gwenjs/plugin-conformance";
@@ -7,7 +7,9 @@ import {
   BARE_MANIFEST_MESSAGES,
   createFixture,
   editManifest,
+  readPackageText,
   stripPluginManifest,
+  writeManifestText,
 } from "./helpers/fixture.js";
 
 const cleanups: Array<() => Promise<void>> = [];
@@ -85,5 +87,49 @@ describe("checkPluginPackage manifest", () => {
     expect(finding.code).toBe(ConformanceErrorCodes.MANIFEST);
     expect(finding.file).toBe("package.json");
     expect(finding.message).toBe("package.json is missing");
+  });
+
+  it("runs the exports check when package.json starts with a BOM", async () => {
+    const root = await openPackage();
+    const text = await readPackageText(root);
+    await writeManifestText(root, `\uFEFF${text}`);
+
+    const report = await checkPluginPackage({ root, profile: "plugin" });
+    expect(report.checks).toEqual(["exports", "manifest"]);
+    expect(report.findings).toEqual([]);
+  });
+
+  it("reports a package.json that cannot be read", async () => {
+    const root = await openPackage();
+    await rm(path.join(root, "package.json"));
+    await mkdir(path.join(root, "package.json"));
+
+    const report = await checkPluginPackage({ root, profile: "plugin" });
+    expect(report.checks).toEqual(["manifest"]);
+    expect(report.findings).toHaveLength(1);
+    const finding = requireFinding(report.findings[0]);
+    expect(finding.code).toBe(ConformanceErrorCodes.MANIFEST);
+    expect(finding.file).toBe("package.json");
+    expect(finding.message).toBe("package.json cannot be read");
+  });
+
+  it("accepts LICENSE.md in place of LICENSE", async () => {
+    const root = await openPackage();
+    await rm(path.join(root, "LICENSE"));
+    await writeFile(path.join(root, "LICENSE.md"), "license\n");
+
+    const report = await checkPluginPackage({ root, profile: "plugin" });
+    expect(report.checks).toContain("manifest");
+    expect(report.findings).toEqual([]);
+  });
+
+  it("accepts LICENSE.txt in place of LICENSE", async () => {
+    const root = await openPackage();
+    await rm(path.join(root, "LICENSE"));
+    await writeFile(path.join(root, "LICENSE.txt"), "license\n");
+
+    const report = await checkPluginPackage({ root, profile: "plugin" });
+    expect(report.checks).toContain("manifest");
+    expect(report.findings).toEqual([]);
   });
 });
