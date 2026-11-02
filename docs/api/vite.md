@@ -242,6 +242,10 @@ export default defineConfig({
 
 ---
 
+## `@gwenjs/vite/scanners`
+
+`scanScenes` and `resolveMainScene` are exported from `@gwenjs/vite/scanners` (`packages/vite/package.json:22`). `scanScenes` reads `src/scenes/*.ts` and returns one `SceneInfo` per file (`packages/vite/src/scanners/index.ts:140`). `resolveMainScene` returns the given `mainScene` when it was discovered (`packages/vite/src/scanners/index.ts:224`), and the first scene when `mainScene` is omitted (`packages/vite/src/scanners/index.ts:226`).
+
 ## `ViteErrorCodes`
 
 Exported from `@gwenjs/vite`.
@@ -251,8 +255,11 @@ Exported from `@gwenjs/vite`.
 | `WASM_NOT_FOUND` | `VITE:WASM_NOT_FOUND` |
 | `OPTIMIZER_UNKNOWN_COMPONENT` | `VITE:OPTIMIZER_UNKNOWN_COMPONENT` |
 | `OPTIMIZER_UNKNOWN_FIELD` | `VITE:OPTIMIZER_UNKNOWN_FIELD` |
+| `SCENE_NAME_UNRESOLVED` | `VITE:SCENE_NAME_UNRESOLVED` |
+| `SCENE_NAME_DUPLICATE` | `VITE:SCENE_NAME_DUPLICATE` |
+| `MAIN_SCENE_UNKNOWN` | `VITE:MAIN_SCENE_UNKNOWN` |
 
-`gwenWasmPlugin` throws `VITE:WASM_NOT_FOUND` when the resolved WASM file is missing. The dev hint says to run `cargo build --target wasm32-unknown-unknown` first. The code generator throws `VITE:OPTIMIZER_UNKNOWN_COMPONENT` for a component missing from the manifest, and `VITE:OPTIMIZER_UNKNOWN_FIELD` for a field the manifest does not list. These throws are `GwenError` values with no `[gwen:wasm]` or `[gwen:optimizer]` tag. The hint is present when `NODE_ENV` is not `production`.
+`gwenWasmPlugin` throws `VITE:WASM_NOT_FOUND` when the resolved WASM file is missing. The dev hint says to run `cargo build --target wasm32-unknown-unknown` first. The code generator throws `VITE:OPTIMIZER_UNKNOWN_COMPONENT` for a component missing from the manifest, and `VITE:OPTIMIZER_UNKNOWN_FIELD` for a field the manifest does not list. These throws are `GwenError` values with no `[gwen:wasm]` or `[gwen:optimizer]` tag. The hint is present when `NODE_ENV` is not `production`. `scanScenes` throws `VITE:SCENE_NAME_UNRESOLVED` and `VITE:SCENE_NAME_DUPLICATE`. `resolveMainScene` throws `VITE:MAIN_SCENE_UNKNOWN`. Those three hints are present when `process.env["NODE_ENV"]` is not `"production"` (`packages/vite/src/scanners/index.ts:164`, `packages/vite/src/scanners/index.ts:179`, `packages/vite/src/scanners/index.ts:218`).
 
 ## Type Definitions
 
