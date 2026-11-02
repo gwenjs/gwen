@@ -1,35 +1,68 @@
-const SKELETON_SUMMARY = "CONFORMANCE: 0 findings (0 checks)\n";
+import { checkPluginPackage } from "./check-plugin-package.js";
+import type { ConformanceFinding, ConformanceReport } from "./types.js";
 
+/** Streams and working directory for {@link runCli}. */
 export interface CliIo {
+  /** Package directory to check. */
   readonly cwd: string;
+  /** Finding lines and the summary. */
   readonly stdout: { write(chunk: string): void };
+  /** Usage text when the command is rejected. */
   readonly stderr: { write(chunk: string): void };
 }
 
-const PROFILES = new Set(["plugin", "package"]);
+const USAGE = "Usage: gwen-conformance check [--profile plugin|package]\n";
 
-function classify(argv: readonly string[]): "check" | "usage" {
-  const command = argv[0];
-  if (command !== "check") return "usage";
+type Parsed =
+  | { readonly kind: "usage" }
+  | { readonly kind: "check"; readonly profile: "plugin" | "package" };
+
+function isProfile(value: string | undefined): value is "plugin" | "package" {
+  return value === "plugin" || value === "package";
+}
+
+function parseArgv(argv: readonly string[]): Parsed {
+  if (argv[0] !== "check") return { kind: "usage" };
+  let profile: "plugin" | "package" = "plugin";
   let seenProfile = false;
   for (let index = 1; index < argv.length; index += 1) {
     const token = argv[index];
-    if (token !== "--profile") return "usage";
-    if (seenProfile) return "usage";
+    if (token !== "--profile" || seenProfile) return { kind: "usage" };
     seenProfile = true;
     const value = argv[index + 1];
-    if (value === undefined || !PROFILES.has(value)) return "usage";
+    if (!isProfile(value)) return { kind: "usage" };
+    profile = value;
     index += 1;
   }
-  return "check";
+  return { kind: "check", profile };
 }
 
-export async function runCli(argv: readonly string[], io: CliIo): Promise<number> {
-  // Unknown options stay on this summary so the usage test is red until the checks exist.
-  if (classify(argv) === "usage") {
-    io.stdout.write(SKELETON_SUMMARY);
-    return 0;
+function formatFinding(finding: ConformanceFinding): string {
+  if (finding.file === undefined) return `${finding.code} ${finding.message}`;
+  if (finding.line === undefined) return `${finding.code} ${finding.file} ${finding.message}`;
+  return `${finding.code} ${finding.file}:${finding.line} ${finding.message}`;
+}
+
+function writeReport(report: ConformanceReport, stdout: CliIo["stdout"]): void {
+  for (const finding of report.findings) {
+    stdout.write(`${formatFinding(finding)}\n`);
   }
-  io.stdout.write(SKELETON_SUMMARY);
-  return 0;
+  stdout.write(
+    `CONFORMANCE: ${report.findings.length} findings (${report.checks.length} checks)\n`,
+  );
+}
+
+/**
+ * Run `gwen-conformance` for `argv` without the program name.
+ * Returns 0 when there is no finding, 1 when there is one, and 2 for an unknown command or option.
+ */
+export async function runCli(argv: readonly string[], io: CliIo): Promise<number> {
+  const parsed = parseArgv(argv);
+  if (parsed.kind === "usage") {
+    io.stderr.write(USAGE);
+    return 2;
+  }
+  const report = await checkPluginPackage({ root: io.cwd, profile: parsed.profile });
+  writeReport(report, io.stdout);
+  return report.findings.length > 0 ? 1 : 0;
 }
