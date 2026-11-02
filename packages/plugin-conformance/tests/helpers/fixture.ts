@@ -50,6 +50,11 @@ export async function readPackageText(root: string): Promise<string> {
   return readFile(path.join(root, "package.json"), "utf8");
 }
 
+/** Replace `package.json` with `text` exactly, so a test can assert a literal line. */
+export async function writeManifestText(root: string, text: string): Promise<void> {
+  await writeFile(path.join(root, "package.json"), text);
+}
+
 export async function editManifest(
   root: string,
   edit: (manifest: FixtureManifest) => void,
@@ -67,18 +72,6 @@ export function manifestExports(
     throw new Error("fixture is missing exports");
   }
   return manifest.exports;
-}
-
-export function lineOf(text: string, needle: string): number {
-  const at = text.indexOf(needle);
-  if (at < 0) {
-    throw new Error(`missing ${needle}`);
-  }
-  let line = 1;
-  for (let index = 0; index < at; index += 1) {
-    if (text.charCodeAt(index) === 10) line += 1;
-  }
-  return line;
 }
 
 export async function stripPluginManifest(root: string): Promise<void> {
