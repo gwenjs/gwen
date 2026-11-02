@@ -141,6 +141,7 @@ export const CoreErrorCodes = {
   WASM_PANIC: "CORE:WASM_PANIC",
   QUERY_CAPACITY_EXCEEDED: "CORE:QUERY_CAPACITY_EXCEEDED",
   ENTITY_LIMIT_REACHED: "CORE:ENTITY_LIMIT_REACHED",
+  /** Thrown by `GwenComponentLimitError`. */
   COMPONENT_TYPE_LIMIT_REACHED: "CORE:COMPONENT_TYPE_LIMIT_REACHED",
   COMPONENT_TYPE_IN_USE: "CORE:COMPONENT_TYPE_IN_USE",
   INVALID_PARENT: "CORE:INVALID_PARENT",
@@ -296,6 +297,47 @@ export class GwenWasmError<C extends string = `CORE:${string}`> extends GwenErro
     this.code = code;
     this.exportName = exportName;
     this.cause = cause;
+  }
+}
+
+/**
+ * The 129th component type was refused.
+ * `cause` is set only when the WASM export refused before the count check.
+ */
+export class GwenComponentLimitError extends GwenError {
+  override readonly code: typeof CoreErrorCodes.COMPONENT_TYPE_LIMIT_REACHED;
+  readonly component: string;
+  readonly owner: string | null;
+  readonly max: number;
+  readonly used: number;
+  readonly cause: unknown;
+
+  constructor(init: {
+    component: string;
+    owner: string | null;
+    max: number;
+    used: number;
+    cause?: unknown;
+  }) {
+    const plugin = init.owner !== null ? ` (plugin "${init.owner}")` : "";
+    super(
+      CoreErrorCodes.COMPONENT_TYPE_LIMIT_REACHED,
+      `Component "${init.component}"${plugin} cannot register: ${init.used} of ${init.max} component types are in use.`,
+      {
+        composable: "defineComponent",
+        hint: __GWEN_DEV__
+          ? "Remove unused component definitions, or unuse the plugin that owns the types you no longer need; see /essentials/engine#limits."
+          : undefined,
+        ...(init.cause !== undefined ? { cause: init.cause } : {}),
+      },
+    );
+    this.name = "GwenComponentLimitError";
+    this.code = CoreErrorCodes.COMPONENT_TYPE_LIMIT_REACHED;
+    this.component = init.component;
+    this.owner = init.owner;
+    this.max = init.max;
+    this.used = init.used;
+    this.cause = init.cause;
   }
 }
 

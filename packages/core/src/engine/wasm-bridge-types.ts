@@ -1226,6 +1226,13 @@ export interface WasmBridge {
    *   with no released id.
    */
   registerComponent(laneKinds: Uint8Array): number;
+  /**
+   * Free a component type id that no longer has rows.
+   * An unknown id does nothing.
+   * @throws {GwenWasmError} `CORE:COMPONENT_TYPE_IN_USE` when a row still holds the type
+   *   or a live query references it.
+   */
+  releaseComponent(typeId: number): void;
   /** Byte address of the 512-byte staging buffer. */
   componentStagingPtr(): number;
   /**

@@ -16,6 +16,7 @@ import { createErrorBus } from "./error-bus.js";
 import { bindFailureReporter, isIsolated } from "./error-isolation.js";
 import { ScopedHooksTracker } from "./hook-tracker.js";
 import { PluginRegistry } from "./plugin-registry.js";
+import { componentRegistryFor } from "./engine-component-registry.js";
 import { ServiceContainer } from "./service-container.js";
 import { announceDirectWrite, emitServiceChange } from "./service-change.js";
 import { EngineEntities } from "./engine-entities.js";
@@ -174,6 +175,9 @@ export abstract class EngineCollaborators {
         ),
       emitServiceChange: (notice) => {
         emitServiceChange(engine, notice);
+      },
+      releaseComponents: (plugin) => {
+        componentRegistryFor(engine).releaseOwnedBy(plugin);
       },
     });
     bindFailureReporter(this, (error, target, hook) => {

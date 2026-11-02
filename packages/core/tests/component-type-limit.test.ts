@@ -53,7 +53,7 @@ describe("defineComponent type limit", () => {
       }
       expect(caught.code).toBe(CoreErrorCodes.COMPONENT_TYPE_LIMIT_REACHED);
       expect(caught.message).toContain("128");
-      expect(caught.name).toBe("GwenError");
+      expect(caught.name).toBe("GwenComponentLimitError");
       expect(engine.registeredComponentTypes().size).toBe(128);
       expect(engine.registeredComponentTypes().get("Limit129")).toBeUndefined();
     } finally {

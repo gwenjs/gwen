@@ -70,6 +70,24 @@ const MySystem = defineSystem('MySystem', () => {
 })
 ```
 
+### engine.getCapacity()
+
+**Signature:**
+```ts
+function getCapacity(): EngineCapacity
+```
+
+**Description.** Counts component types and entities on this engine. `componentTypes.max` is `128`. `componentTypes.used` drops when `unuse` releases types that plugin first registered synchronously in `setup`. Types with live rows or live queries are kept. `entities.alive` is the live entity count. `entities.max` is `maxEntities`.
+
+**Returns:** `EngineCapacity` — `{ componentTypes: { used, max }, entities: { alive, max } }`.
+
+**Example:**
+```ts
+const engine = useEngine()
+const { componentTypes, entities } = engine.getCapacity()
+console.log(componentTypes.used, entities.alive)
+```
+
 ### engine.timeScale
 
 **Type:** `number` — mutable, default `1`.
