@@ -62,6 +62,7 @@ export type {
 // ─── Extensions ──────────────────────────────────────────────────────────────
 
 export type { GwenPrefabExtensions, GwenSceneExtensions, GwenUIExtensions } from "./extensions";
+export type { GwenSceneName, GwenSceneRegistry } from "./scene-names";
 
 // ─── Hook map ────────────────────────────────────────────────────────────────
 

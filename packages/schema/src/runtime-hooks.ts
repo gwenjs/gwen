@@ -4,6 +4,7 @@ import type { GwenErrorTarget } from "./errors.js";
 import type { GwenPrefabExtensions } from "./extensions.js";
 import type { GwenProvides } from "./plugin.js";
 import type { ViewportRegion } from "./renderer.js";
+import type { GwenSceneName } from "./scene-names.js";
 
 /** Why a service value was stored or removed. */
 export type ServiceChangeReason = "install" | "unuse" | "stop" | "overwrite";
@@ -126,21 +127,27 @@ export interface GwenRuntimeHooks {
    */
   "engine:memory-grow": (info: { epoch: number; byteLength: number; frame: number }) => void;
   /** Fired by the router when a scene becomes active. Payload: scene name + optional navigation params. */
-  "scene:enter": (name: string, params?: Record<string, unknown>) => void;
+  "scene:enter": (name: GwenSceneName, params?: Record<string, unknown>) => void;
   /** Fired by the router before leaving a scene. Payload: scene name. */
-  "scene:beforeLeave": (name: string) => void;
+  "scene:beforeLeave": (name: GwenSceneName) => void;
   /** Fired by the router after a scene is fully left. Payload: scene name. */
-  "scene:leave": (name: string) => void;
+  "scene:leave": (name: GwenSceneName) => void;
   /**
    * Fired by the router before the leave animation. Async — awaited before
    * `scene:beforeLeave`. Payload: { from, to }.
    */
-  "scene:transition:leave": (payload: { from: string; to: string }) => void | Promise<void>;
+  "scene:transition:leave": (payload: {
+    from: GwenSceneName;
+    to: GwenSceneName;
+  }) => void | Promise<void>;
   /**
    * Fired by the router after `scene:enter`. Async — awaited after scene is active.
    * Payload: { from, to }.
    */
-  "scene:transition:enter": (payload: { from: string; to: string }) => void | Promise<void>;
+  "scene:transition:enter": (payload: {
+    from: GwenSceneName;
+    to: GwenSceneName;
+  }) => void | Promise<void>;
   /** Fired when a pooled actor is acquired again. The first acquire does not fire this hook. */
   "actor:enable": (entityId: bigint) => void;
   /** Fired when a pooled actor is released. */
