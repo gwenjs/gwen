@@ -1,6 +1,6 @@
 import { stubComponent } from "../helpers/stub-component";
 import { describe, it, expect, vi } from "vitest";
-import { defineScene } from "../../src/scene/runtime/define-scene";
+import { defineScene, type SceneDefinition } from "../../src/scene/runtime/define-scene";
 import { useSystem } from "../../src/scene/runtime/scene-context";
 import { GwenContextError } from "../../src/engine/context";
 import { createEngine } from "../../src/node.js";
@@ -180,7 +180,7 @@ describe("useSystem — SystemHandle gating within scene", () => {
     // Mirrors entry module: engine.run(() => registerScenes(...))
     const sceneSystems: ReturnType<typeof MenuScene>["systems"][number][] = [];
     engine.run(() => {
-      const register = (scene: ReturnType<typeof MenuScene>) => {
+      const register = (scene: SceneDefinition) => {
         for (const s of scene.systems ?? []) sceneSystems.push(s);
       };
       register(GameScene({ register: () => {} }));

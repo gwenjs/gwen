@@ -206,6 +206,8 @@ Pour jouer des animations autour des changements de scène, utilisez `onTransiti
 - `initial` doit être une clé dans `routes`
 - Toutes les cibles de transition doivent être des clés de route valides
 
+Les clés de route forment un ensemble fermé : une clé hors de `routes` est une erreur de compilation, et `defineSceneRouter` lance `GwenSceneRouterError` (`CORE:INVALID_SCENE_ROUTE`) si une clé passe quand même.
+
 Les erreurs sont levées immédiatement au démarrage du développement, pas au runtime.
 
 ## Résumé de l'API

@@ -7,6 +7,8 @@ description: Regroupez les systèmes et acteurs en états de jeu distincts — m
 
 Une **scène** regroupe les systèmes et acteurs actifs pour un état de jeu. Changez de scène pour modifier ce qui s'exécute — menu pause, gameplay, cinématique.
 
+Les noms de scène forment un ensemble fermé : `defineScene` n'accepte que les noms listés dans `GwenSceneRegistry` une fois ce registre rempli par les types de scènes générés. Jusque-là, et dans le code de bibliothèque ou de test, toute chaîne est acceptée.
+
 ::: info Auto-imports
 Dans un projet GWEN, les composables sont disponibles sans aucune ligne `import` — le framework génère les déclarations de types globaux au moment du build. Vous écrivez `defineScene(...)`, `useSystem(...)`, `onEnter(...)` directement, sans import.
 :::

@@ -206,6 +206,8 @@ To play animations around scene changes, use `onTransitionLeave` and `onTransiti
 - `initial` must be a key in `routes`
 - All transition targets must be valid route keys
 
+Route keys are a closed set: a key outside `routes` is a compile error, and `defineSceneRouter` throws `GwenSceneRouterError` (`CORE:INVALID_SCENE_ROUTE`) when one still reaches the call.
+
 Errors are thrown immediately during development startup, not at runtime.
 
 ## API Summary

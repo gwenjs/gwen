@@ -8,7 +8,13 @@
 import type { GwenBuildHooks } from "@gwenjs/kit/module";
 import type { ViewportRegion } from "@gwenjs/renderer-core";
 import type { GwenEngineConfig } from "@gwenjs/schema";
-import type { GwenModuleOptions, IGwenLogProvider, GwenLogLevel, GwenPlugin } from "@gwenjs/schema";
+import type {
+  GwenModuleOptions,
+  GwenSceneName,
+  IGwenLogProvider,
+  GwenLogLevel,
+  GwenPlugin,
+} from "@gwenjs/schema";
 
 export type { GwenBuildHooks } from "@gwenjs/kit/module";
 import type { ScreenSizeProvider } from "@gwenjs/renderer-core";
@@ -96,7 +102,7 @@ export interface GwenUserConfig extends GwenModuleOptions {
   engine?: Partial<GwenEngineConfig>;
 
   /** Initial scene name. Must match the first argument of `defineScene()`. */
-  mainScene?: string;
+  mainScene?: GwenSceneName;
 
   /** Logger configuration. */
   logger?: GwenLoggerConfig;

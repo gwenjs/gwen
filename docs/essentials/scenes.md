@@ -7,6 +7,8 @@ description: Group systems and actors into discrete game states — menus, gamep
 
 A **scene** groups the active systems and actors for one game state. Swap scenes to change what runs — pause menu, gameplay, cutscene.
 
+Scene names are a closed set: `defineScene` accepts only the names listed in `GwenSceneRegistry` once that registry is filled by the generated scene types. Until then, and in library or test code, any string is accepted.
+
 ::: info Auto-imports
 In a GWEN project, composables are available without any `import` statement — the framework generates global type declarations at build time. You write `defineScene(...)`, `useSystem(...)`, `onEnter(...)` directly, with no import.
 :::

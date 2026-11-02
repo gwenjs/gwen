@@ -838,7 +838,7 @@ import { defineSceneRouter, useSceneRouter } from '@gwenjs/core/scene'
 
 **Signature:**
 ```ts
-function defineScene(name: string, factory: () => void): SceneFactory
+function defineScene<const N extends GwenSceneName>(name: N, factory: () => void): SceneFactory<N>
 ```
 
 **Description.** Defines a game scene. The factory runs inside an engine context at bootstrap — all engine composables are available. Declare systems and lifecycle hooks via composables. The factory result is cached and only executed once.
@@ -846,10 +846,10 @@ function defineScene(name: string, factory: () => void): SceneFactory
 **Parameters:**
 | Param | Type | Description |
 |---|---|---|
-| name | `string` | Unique scene name (used by the router) |
+| name | `GwenSceneName` | Unique scene name (used by the router) |
 | factory | `() => void` | Setup function — call `useSystem`, `onEnter`, `onExit` here |
 
-**Returns:** `SceneFactory` — callable with a `.sceneName` property.
+**Returns:** `SceneFactory<N>` — callable with a `.sceneName` property that keeps the literal.
 
 **Example:**
 ```ts

@@ -42,6 +42,7 @@ type _0 = [
   Root.GwenEngineOptions,
   Root.GwenHookable<never>,
   Root.GwenHookNameError,
+  Root.GwenSceneRouterError,
   Root.GwenPlugin,
   Root.GwenPluginDependencyError,
   Root.GwenPluginNotFoundErrorOptions,
