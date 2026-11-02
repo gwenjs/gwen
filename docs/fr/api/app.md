@@ -48,7 +48,7 @@ export default defineConfig({
 |---|---|---|---|
 | `mainScene` | `GwenSceneName` | premier fichier de scène | Nom de la scène initiale (doit correspondre au premier argument d'un appel `defineScene()`). Par défaut le framework choisit le premier fichier de scène alphabétiquement — définissez explicitement quand votre scène initiale n'est pas la première. |
 | `modules` | `string[]` | `[]` | Modules à activer. Chaque entrée est le nom du paquet npm. Les options du module sont déclarées comme clé top-level (ex. `physics2d: { gravity: -9.81 }`). |
-| `engine.maxEntities` | `number` | `10_000` | Nombre maximum d'entités simultanées. |
+| `engine.maxEntities` | `number` | `10_000` | Nombre maximum d'entités simultanées. Entier de `1` à `2_000_000`. Voir [Dimensionnement](/fr/essentials/engine#dimensionnement). |
 | `engine.targetFPS` | `number` | `60` | Fréquence d'images cible. |
 | `engine.variant` | `'light' \| 'physics2d' \| 'physics3d'` | auto | Variante WASM à charger. Détectée automatiquement depuis `modules` si omise. |
 | `engine.loop` | `'internal' \| 'external'` | `'internal'` | Qui gère la boucle de jeu (`requestAnimationFrame`). |

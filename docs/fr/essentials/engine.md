@@ -438,6 +438,44 @@ GWEN ne peut pas interrompre un appel qui ne revient pas sur le thread principal
 
 Exécutez un module auquel vous ne faites pas confiance dans un worker, et appelez `worker.terminate()` dessus. Voir [Plusieurs rooms sur des worker threads](#plusieurs-rooms-sur-des-worker-threads).
 
+## Limites
+
+Chaque moteur a deux limites strictes. Les deux sont propres à chaque moteur : un second moteur dans la même page ou le même processus compte ses propres types et entités. Types : `packages/core/tests/integration-wasm/capacity-limits.test.ts:285`. Entités : chaque `Engine` construit son propre `EntityManager` et son propre `ChunkStore` (`crates/gwen-core/src/bindings.rs:161-162`).
+
+### Types de composants
+
+Un moteur contient au plus `128` types de composants (`crates/gwen-core/src/ecs/error.rs:9`, `packages/core/src/engine/engine-component-registry.ts:25`). Le masque de composants fait 128 bits (`crates/gwen-core/src/ecs/chunk_store.rs:85`). Chaque nom de composant distinct prend un emplacement, la première fois que le moteur le voit.
+
+Le 129e nom lève `GwenComponentLimitError` avec le code `CORE:COMPONENT_TYPE_LIMIT_REACHED` (`packages/core/src/engine/engine-errors.ts:306-340`). L'erreur porte `component`, `owner` (le nom du plugin, ou `null`), `max` et `used`.
+
+`engine.unuse(name)` libère les emplacements que possède un plugin (`packages/core/src/engine/plugin-registry.ts:366-372`). Un plugin possède les types qu'il enregistre pour la première fois de façon synchrone dans `setup`, avant son premier `await`. Un type enregistré pour la première fois après un `await` n'a pas de propriétaire et reste après `unuse` (`packages/core/tests/integration-wasm/capacity-limits.test.ts:159`). Un type qui a encore des lignes vivantes, ou qu'une requête vivante référence, est conservé : `CORE:COMPONENT_TYPE_IN_USE` est géré dans le registre et le type reste (`packages/core/src/engine/engine-component-registry.ts:228-246`).
+
+Lisez l'usage courant avec [`engine.getCapacity()`](/fr/api/core#enginegetcapacity).
+
+### Entités
+
+`maxEntities` est un entier de `1` à `2_000_000` (`crates/gwen-core/src/ecs/error.rs:6`, `crates/gwen-core/src/ecs/chunk_store.rs:233`). La valeur par défaut est `10_000` (`packages/schema/src/engine-config.ts:20`). Une valeur hors de cette plage est refusée. `createEngine` et `setupGwen` la vérifient d'abord et lèvent `GwenConfigError` avec le code `CORE:INVALID_CONFIG` (`packages/core/src/engine/engine-factory.ts:58`, `packages/core/src/engine/engine-factory.ts:100`, `packages/schema/src/engine-config.ts:141-150`, `packages/core/src/engine/config-error.ts:30`). Dans `gwen.config.ts`, l'erreur est `APP:CONFIG_INVALID` (`docs/api/errors.md:168`). `CORE:INVALID_MAX_ENTITIES` n'est que la garde au niveau WASM, atteinte quand vous appelez directement `Engine::new` du WASM brut (`crates/gwen-core/src/ecs/error.rs:169`, `crates/gwen-core/src/ecs/chunk_store.rs:232-236`).
+
+Le moteur alloue la table d'emplacements à cette taille à sa création et ne la fait pas grandir (`crates/gwen-core/src/ecs/chunk_store.rs:228-240`). Quand tous les emplacements sont pris, créer une entité échoue avec `CORE:ENTITY_LIMIT_REACHED` (`packages/core/src/engine/engine-errors.ts:143`).
+
+### Dimensionnement
+
+Choisissez `maxEntities` comme le plus grand nombre d'entités vivantes en même temps, plus une marge. Ne le fixez pas à la valeur maximale « au cas où » : la table d'emplacements est allouée en entier à la création.
+
+Les données des composants vivent dans des chunks. Un chunk contient `1024` lignes (`CHUNK_ROWS`, `crates/gwen-core/src/ecs/chunk_store.rs:22`) pour un archétype, et il est alloué en entier quand sa première ligne en a besoin (`crates/gwen-core/src/ecs/chunk_store.rs:1526-1541`). Sa taille est :
+
+```text
+octets du chunk = 1024 × (somme des octets de lane des composants de l'archétype) + 8192
+```
+
+Les `8192` sont deux colonnes `u32` de 1024 lignes : l'index d'entité et la génération d'entité. Une lane fait un, quatre ou huit octets (`crates/gwen-core/src/ecs/chunk_store.rs:176-182`). Un layout de composant ne peut pas dépasser `512` octets (`MAX_ROW_BYTES`, `crates/gwen-core/src/ecs/chunk_store.rs:31`, `crates/gwen-core/src/ecs/chunk_store.rs:297`). Le store crée au plus `4096` archétypes (`MAX_ARCHETYPES`, `crates/gwen-core/src/ecs/chunk_store.rs:25`, `crates/gwen-core/src/ecs/chunk_store.rs:427-431`).
+
+Pour chaque archétype qui a déjà contenu une ligne, comptez jusqu'à `ceil(n / 1024) + 1` chunks, et au moins `1`, où `n` est son nombre d'entités vivantes. Quand sa dernière ligne quitte un chunk, le store garde un chunk vide pour cet archétype et le réutilise pour la ligne suivante (`crates/gwen-core/src/ecs/chunk_store.rs:1612-1633`, `crates/gwen-core/src/ecs/chunk_store.rs:2041-2068`). L'archétype et ses chunks restent jusqu'à ce qu'un de ses types de composant soit libéré par `unuse` (`crates/gwen-core/src/ecs/chunk_store.rs:372`). Comptez chaque archétype déjà atteint, y compris les intermédiaires que des appels successifs à `addComponent` traversent : ajouter `A`, puis `B`, crée un archétype `A` et un archétype `A+B`. Des entités qui diffèrent d'un seul composant sont dans des archétypes différents : un jeu avec beaucoup de combinaisons de composants paie le chunk de 1024 lignes une fois par combinaison.
+
+### Rebouclage de la génération
+
+Un id d'entité porte une génération `u32`. Le moteur émet les ids depuis son `EntityManager` (`crates/gwen-core/src/bindings.rs:161`, `crates/gwen-core/src/bindings.rs:187-192`). Ce gestionnaire incrémente la génération d'un emplacement avec `wrapping_add(1)` quand il réutilise l'emplacement libéré (`crates/gwen-core/src/ecs/entity.rs:68`). Un id périmé est refusé quand sa génération diffère de celle de l'emplacement, avant d'atteindre le store (`crates/gwen-core/src/ecs/entity.rs:126`, `crates/gwen-core/src/bindings.rs:198`). Les emplacements ne sont pas retirés. Après 2^32 réutilisations du même emplacement, un id périmé de cet emplacement redevient valide. Le chunk store garde un compteur miroir, incrémenté à la suppression (`crates/gwen-core/src/ecs/chunk_store.rs:584`).
+
 ## Résumé de l'API
 
 | | |

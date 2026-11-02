@@ -477,6 +477,44 @@ GWEN cannot interrupt a call that never returns on the main thread. A module `st
 
 Run a module you do not trust in a worker and call `worker.terminate()` on it. See [Many rooms on worker threads](#many-rooms-on-worker-threads).
 
+## Limits
+
+Each engine has two hard limits. Both are per engine: a second engine in the same page or process counts its own types and entities. Types: `packages/core/tests/integration-wasm/capacity-limits.test.ts:285`. Entities: each `Engine` builds its own `EntityManager` and `ChunkStore` (`crates/gwen-core/src/bindings.rs:161-162`).
+
+### Component types
+
+An engine holds at most `128` component types (`crates/gwen-core/src/ecs/error.rs:9`, `packages/core/src/engine/engine-component-registry.ts:25`). The component mask has 128 bits (`crates/gwen-core/src/ecs/chunk_store.rs:85`). Each distinct component name takes one slot, the first time the engine sees it.
+
+The 129th name throws `GwenComponentLimitError` with code `CORE:COMPONENT_TYPE_LIMIT_REACHED` (`packages/core/src/engine/engine-errors.ts:306-340`). It carries `component`, `owner` (the plugin name, or `null`), `max` and `used`.
+
+`engine.unuse(name)` frees the slots a plugin owns (`packages/core/src/engine/plugin-registry.ts:366-372`). A plugin owns the types it first registers synchronously in `setup`, before its first `await`. A type first registered after an `await` has no owner and stays after `unuse` (`packages/core/tests/integration-wasm/capacity-limits.test.ts:159`). A type that still has live rows, or that a live query references, is kept: `CORE:COMPONENT_TYPE_IN_USE` is handled inside the registry and the type stays (`packages/core/src/engine/engine-component-registry.ts:228-246`).
+
+Read the current use with [`engine.getCapacity()`](/api/core#enginegetcapacity).
+
+### Entities
+
+`maxEntities` is an integer from `1` to `2_000_000` (`crates/gwen-core/src/ecs/error.rs:6`, `crates/gwen-core/src/ecs/chunk_store.rs:233`). The default is `10_000` (`packages/schema/src/engine-config.ts:20`). A value outside that range is refused. `createEngine` and `setupGwen` check it first and throw `GwenConfigError` with code `CORE:INVALID_CONFIG` (`packages/core/src/engine/engine-factory.ts:58`, `packages/core/src/engine/engine-factory.ts:100`, `packages/schema/src/engine-config.ts:141-150`, `packages/core/src/engine/config-error.ts:30`). In `gwen.config.ts` the error is `APP:CONFIG_INVALID` (`docs/api/errors.md:168`). `CORE:INVALID_MAX_ENTITIES` is only the WASM-level guard, reached when you call the raw WASM `Engine::new` (`crates/gwen-core/src/ecs/error.rs:169`, `crates/gwen-core/src/ecs/chunk_store.rs:232-236`).
+
+The engine allocates the slot table at that size when it is created and does not grow it (`crates/gwen-core/src/ecs/chunk_store.rs:228-240`). When every slot is taken, creating an entity fails with `CORE:ENTITY_LIMIT_REACHED` (`packages/core/src/engine/engine-errors.ts:143`).
+
+### Sizing
+
+Pick `maxEntities` as the most entities alive at once, plus a margin. Do not set it to the largest value "just in case": the slot table is allocated whole at creation.
+
+Component data lives in chunks. A chunk holds `1024` rows (`CHUNK_ROWS`, `crates/gwen-core/src/ecs/chunk_store.rs:22`) for one archetype, and is allocated whole when its first row needs it (`crates/gwen-core/src/ecs/chunk_store.rs:1526-1541`). Its size is:
+
+```text
+chunk bytes = 1024 × (sum of the lane bytes of the archetype's components) + 8192
+```
+
+The `8192` is two `u32` columns of 1024 rows, the entity index and the entity generation. A lane is one, four or eight bytes wide (`crates/gwen-core/src/ecs/chunk_store.rs:176-182`). One component layout may not exceed `512` bytes (`MAX_ROW_BYTES`, `crates/gwen-core/src/ecs/chunk_store.rs:31`, `crates/gwen-core/src/ecs/chunk_store.rs:297`). The store creates at most `4096` archetypes (`MAX_ARCHETYPES`, `crates/gwen-core/src/ecs/chunk_store.rs:25`, `crates/gwen-core/src/ecs/chunk_store.rs:427-431`).
+
+For each archetype that ever held a row, count up to `ceil(n / 1024) + 1` chunks, and at least `1`, where `n` is its live entities. When its last row leaves a chunk, the store keeps one empty chunk for that archetype and reuses it for the next row (`crates/gwen-core/src/ecs/chunk_store.rs:1612-1633`, `crates/gwen-core/src/ecs/chunk_store.rs:2041-2068`). The archetype and its chunks stay until one of its component types is released by `unuse` (`crates/gwen-core/src/ecs/chunk_store.rs:372`). Count every archetype ever reached, including the intermediate ones that successive `addComponent` calls pass through: adding `A`, then `B`, makes an `A` archetype and an `A+B` archetype. Entities that differ by one component are in different archetypes, so a game with many component combinations pays the 1024-row chunk once per combination.
+
+### Generation wrap
+
+An entity id carries a `u32` generation. The engine issues ids from its `EntityManager` (`crates/gwen-core/src/bindings.rs:161`, `crates/gwen-core/src/bindings.rs:187-192`). That manager bumps the generation of a slot with `wrapping_add(1)` when it reuses the freed slot (`crates/gwen-core/src/ecs/entity.rs:68`). A stale id is refused when its generation differs from the slot's, before the store is reached (`crates/gwen-core/src/ecs/entity.rs:126`, `crates/gwen-core/src/bindings.rs:198`). Slots are not retired. After 2^32 reuses of the same slot, a stale id for that slot matches again. The chunk store keeps a mirror counter, bumped on delete (`crates/gwen-core/src/ecs/chunk_store.rs:584`).
+
 ## API Summary
 
 | | |
