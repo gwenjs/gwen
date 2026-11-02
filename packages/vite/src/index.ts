@@ -31,6 +31,7 @@ import * as path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawnSync, spawn, type ChildProcess } from "node:child_process";
 import { mergeConfig, type Plugin, type ViteDevServer } from "vite";
+import { writeScenesDts } from "@gwenjs/app";
 import { resolveGwenConfig, GwenApp, type ResolvedGwenConfig } from "@gwenjs/app/resolve";
 import type { PluginDeclaration, GwenModule } from "@gwenjs/schema";
 import type { AutoImport, ViteUserConfig } from "@gwenjs/kit";
@@ -502,6 +503,11 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
       if (!wasmSourceDir) {
         buildWasm(projectRoot);
       }
+      const scenes = scanScenes(projectRoot);
+      writeScenesDts(
+        projectRoot,
+        scenes.map((scene) => scene.sceneName),
+      );
     },
 
     // ── Virtual module resolution ──────────────────────────────────────
@@ -572,11 +578,21 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
         devServer.watcher.add(scenesDir);
         devServer.watcher.on("change", (filePath) => {
           if (!filePath.startsWith(scenesDir + path.sep)) return;
-          const mod = devServer.moduleGraph.getModuleById(RESOLVED_SCENES);
-          if (mod) devServer.moduleGraph.invalidateModule(mod);
-          const entryMod = devServer.moduleGraph.getModuleById(RESOLVED_ENTRY);
-          if (entryMod) devServer.moduleGraph.invalidateModule(entryMod);
-          devServer.ws.send({ type: "full-reload" });
+          try {
+            const scenes = scanScenes(projectRoot);
+            writeScenesDts(
+              projectRoot,
+              scenes.map((scene) => scene.sceneName),
+            );
+            const mod = devServer.moduleGraph.getModuleById(RESOLVED_SCENES);
+            if (mod) devServer.moduleGraph.invalidateModule(mod);
+            const entryMod = devServer.moduleGraph.getModuleById(RESOLVED_ENTRY);
+            if (entryMod) devServer.moduleGraph.invalidateModule(entryMod);
+            devServer.ws.send({ type: "full-reload" });
+          } catch (caught) {
+            const message = caught instanceof Error ? caught.message : String(caught);
+            devServer.config.logger.error(message);
+          }
         });
       }
 

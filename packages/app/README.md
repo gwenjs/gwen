@@ -72,7 +72,7 @@ export default defineConfig({
 
 ### `.`
 
-Values: `GwenAppConfigError`, `createScreenPlugin`, `createViewportsPlugin`, `defineConfig`, `defineGwenModule`
+Values: `GwenAppConfigError`, `createScreenPlugin`, `createViewportsPlugin`, `defineConfig`, `defineGwenModule`, `generateScenesDts`, `writeScenesDts`
 
 Types: `AutoImport`, `GwenBuildHooks`, `GwenKit`, `GwenModule`, `GwenModuleDefinition`, `GwenModuleEntry`, `GwenModuleOptions`, `GwenUserConfig`, `ResolvedGwenConfig`
 
