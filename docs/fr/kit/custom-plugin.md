@@ -17,6 +17,12 @@ Voici un plugin de gestion d'entrée basique :
 // Exemple de plugin
 import { definePlugin } from '@gwenjs/kit/plugin'
 
+declare module '@gwenjs/schema' {
+  interface GwenProvides {
+    input: { isKeyDown: (key: string) => boolean }
+  }
+}
+
 const keys = new Set<string>()
 
 export const InputPlugin = definePlugin(() => ({
@@ -41,6 +47,15 @@ Acceptez la configuration lors de l'instanciation du plugin :
 
 ```ts
 // Exemple de plugin
+declare module '@gwenjs/schema' {
+  interface GwenProvides {
+    input: {
+      isKeyDown: (key: string) => boolean
+      isKeyPressed: (key: string) => boolean
+    }
+  }
+}
+
 interface InputOptions {
   repeatDelay?: number
   preventDefault?: string[] // Keys to prevent default on
@@ -117,6 +132,12 @@ Deux règles pour les plugins locaux :
 ```ts
 // src/plugins/input.ts
 import { definePlugin } from '@gwenjs/kit/plugin'
+
+declare module '@gwenjs/schema' {
+  interface GwenProvides {
+    input: { isKeyDown: (key: string) => boolean }
+  }
+}
 
 const keys = new Set<string>()
 
@@ -275,7 +296,7 @@ Si un nom manque, `engine.use()` rejette `GwenPluginDependencyError` avec le cod
 
 ## Services optionnels
 
-Lisez un service optionnel avec `optionalService`, typé par `GwenProvides`, ou avec `tryInject`, qui renvoie `unknown`. Aucun des deux ne lance si la clé est absente.
+Lisez un service optionnel avec `optionalService` ou `tryInject`. Les deux sont typés par `GwenProvides`. `tryInject` renvoie `GwenProvides[K] | undefined`. Aucun des deux ne lance si la clé est absente.
 
 ```ts
 import { optionalService } from "@gwenjs/kit/plugin";
@@ -290,16 +311,7 @@ logger.current?.warn("prêt");
 
 ## Fournir des services
 
-Utilisez `engine.provide()` pour enregistrer un service que les systèmes peuvent accéder :
-
-```ts
-engine.provide('myService', {
-  getData() { /* ... */ },
-  setData(val) { /* ... */ },
-})
-```
-
-Pour typer la clé, fusionnez-la dans `GwenProvides` :
+Utilisez `engine.provide()` pour enregistrer un service que les systèmes peuvent accéder. Fusionnez d'abord la clé dans `GwenProvides`. Les clés de service n'ont pas de règle de nom, sauf le préfixe réservé `renderer:<name>`. Seule une valeur `RendererService` peut utiliser ce préfixe. Rien ne vérifie encore ce préfixe.
 
 ```ts
 declare module '@gwenjs/schema' {
@@ -307,6 +319,11 @@ declare module '@gwenjs/schema' {
     myService: { getData(): unknown; setData(val: unknown): void }
   }
 }
+
+engine.provide('myService', {
+  getData() { /* ... */ },
+  setData(val) { /* ... */ },
+})
 ```
 
 Un nom de hook personnalisé se type de la même façon, en fusionnant dans `GwenRuntimeHooks`. Les deux interfaces viennent de `@gwenjs/schema`.
@@ -547,6 +564,12 @@ class AudioManager {
   }
 }
 
+declare module '@gwenjs/schema' {
+  interface GwenProvides {
+    audio: AudioManager
+  }
+}
+
 export const AudioPlugin = definePlugin((opts: AudioOptions = {}) => ({
   name: 'audio',
   setup(engine) {
@@ -598,7 +621,7 @@ Fonction factory pour créer un plugin :
 ```ts
 const MyPlugin = definePlugin((opts?: Options) => ({
   name: string
-  requires?: { plugins?: string[]; services?: string[]; optional?: string[] }
+  requires?: { plugins?: string[]; services?: GwenServiceKey[]; optional?: GwenServiceKey[] }
   setup(engine: GwenEngineBase): void | Promise<void>
   teardown?(): void | Promise<void>
   onError?(error: unknown, context: PluginErrorContext): void
@@ -611,7 +634,9 @@ L'API moteur disponible dans `setup()` :
 
 | Méthode | But |
 |---------|-----|
-| `provide(key, service)` | Enregistrez un service pour que les systèmes y accèdent |
+| `provide<K extends GwenServiceKey>(key, value)` | Enregistre un service. `value` est `GwenProvides[K]` |
+| `inject<K extends GwenServiceKey>(key)` | Renvoie `GwenProvides[K]`. Lance une erreur si la clé est absente |
+| `tryInject<K extends GwenServiceKey>(key)` | Renvoie `GwenProvides[K] \| undefined` |
 | `hooks.hook(name, callback)` | Enregistre du travail de frame ou un callback de cycle de vie. `engine:init` se déclenche à `engine.start()` une fois tous les plugins installés. `engine:start` se déclenche au début de la boucle |
 
 ### PluginErrorContext

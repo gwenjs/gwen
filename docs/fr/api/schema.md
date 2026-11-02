@@ -35,6 +35,25 @@ type DeepPartial<T> = T extends object
 
 La configuration utilisateur est `GwenUserConfig` dans `@gwenjs/app` et `resolveGwenConfig` dans `@gwenjs/app/resolve`. Voir `### ResolvedGwenConfig` dans `docs/fr/api/app.md`. Le tableau des champs est `## Référence de configuration` dans `docs/fr/essentials/engine.md`.
 
+### GwenServiceKey
+
+**Signature :**
+```ts
+type GwenServiceKey = keyof GwenProvides & string
+```
+
+**Description.** Une clé de `GwenProvides`. Les clés de service n'ont pas de règle de nom, sauf le préfixe réservé `renderer:<name>`. Seule une valeur `RendererService` peut utiliser ce préfixe. Rien ne vérifie encore ce préfixe.
+
+### GwenEngineBase
+
+Méthodes du registre de services sur la surface moteur que reçoivent les plugins. Chaque clé est un `GwenServiceKey`. Le type de la valeur est `GwenProvides[K]`.
+
+| Méthode | Signature |
+|---|---|
+| `provide` | `provide<K extends GwenServiceKey>(key: K, value: GwenProvides[K]): void` |
+| `inject` | `inject<K extends GwenServiceKey>(key: K): GwenProvides[K]` |
+| `tryInject` | `tryInject<K extends GwenServiceKey>(key: K): GwenProvides[K] \| undefined` |
+
 ## Erreurs
 
 Champs de `GwenError` : `code`, `composable`, `hint`, `docsUrl`.

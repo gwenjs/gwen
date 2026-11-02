@@ -39,8 +39,8 @@ function plainEngine(): GwenEngine {
   };
   return {
     provide() {},
-    inject(): undefined {
-      return undefined;
+    inject(key): never {
+      throw new Error(String(key));
     },
     tryInject(): undefined {
       return undefined;

@@ -63,6 +63,7 @@
       "GwenSceneExtensions",
       "GwenScopeMeta",
       "GwenScopeType",
+      "GwenServiceKey",
       "GwenUIExtensions",
       "GwenUserHookName",
       "HookBusBase",

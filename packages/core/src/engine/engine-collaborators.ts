@@ -164,7 +164,7 @@ export abstract class EngineCollaborators {
       reportSetup: (plugin, error) => this._policy.reportSetupError(plugin, error),
       reportTeardown: (plugin, error) => this._policy.reportTeardown(plugin, error),
       dropIsolation: (name) => this._policy.dropIsolation(name),
-      hasService: (key) => this._serviceContainer.has(key as keyof GwenProvides),
+      hasService: (key) => this._serviceContainer.has(key),
       deleteService: (key, expected) =>
         this._serviceContainer.delete(key as keyof GwenProvides, expected),
       writeService: (key, value) =>

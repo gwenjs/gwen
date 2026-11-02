@@ -30,10 +30,10 @@ function plainEngine(): GwenEngineBase {
   };
   return {
     provide() {},
-    inject(): unknown {
-      return undefined;
+    inject(key): never {
+      throw new Error(String(key));
     },
-    tryInject(): undefined {
+    tryInject() {
       return undefined;
     },
     hooks: {

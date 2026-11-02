@@ -17,6 +17,12 @@ Here's a basic input handling plugin:
 // Example plugin
 import { definePlugin } from '@gwenjs/kit/plugin'
 
+declare module '@gwenjs/schema' {
+  interface GwenProvides {
+    input: { isKeyDown: (key: string) => boolean }
+  }
+}
+
 const keys = new Set<string>()
 
 export const InputPlugin = definePlugin(() => ({
@@ -41,6 +47,15 @@ Accept configuration when the plugin is instantiated:
 
 ```ts
 // Example plugin
+declare module '@gwenjs/schema' {
+  interface GwenProvides {
+    input: {
+      isKeyDown: (key: string) => boolean
+      isKeyPressed: (key: string) => boolean
+    }
+  }
+}
+
 interface InputOptions {
   repeatDelay?: number
   preventDefault?: string[] // Keys to prevent default on
@@ -117,6 +132,12 @@ Two rules for local plugins:
 ```typescript
 // src/plugins/input.ts
 import { definePlugin } from '@gwenjs/kit/plugin'
+
+declare module '@gwenjs/schema' {
+  interface GwenProvides {
+    input: { isKeyDown: (key: string) => boolean }
+  }
+}
 
 const keys = new Set<string>()
 
@@ -277,7 +298,7 @@ When a name is missing, `engine.use()` rejects `GwenPluginDependencyError` with 
 
 ## Optional services
 
-Read an optional service with `optionalService`, typed through `GwenProvides`, or with `tryInject`, which returns `unknown`. Neither throws when the key is absent.
+Read an optional service with `optionalService` or `tryInject`. Both are typed through `GwenProvides`. `tryInject` returns `GwenProvides[K] | undefined`. Neither throws when the key is absent.
 
 ```ts run
 import assert from "node:assert/strict";
@@ -293,16 +314,7 @@ assert.equal(typeof logger.current?.warn, "function");
 
 ## Providing Services
 
-Use `engine.provide()` to register a service that systems can access:
-
-```ts
-engine.provide('myService', {
-  getData() { /* ... */ },
-  setData(val) { /* ... */ },
-})
-```
-
-To type the key, merge it into `GwenProvides`:
+Use `engine.provide()` to register a service that systems can access. Merge the key into `GwenProvides` first. Service keys have no naming rule except the reserved prefix `renderer:<name>`. Only a `RendererService` value may use that prefix. Nothing checks this prefix yet.
 
 ```ts
 declare module '@gwenjs/schema' {
@@ -310,6 +322,11 @@ declare module '@gwenjs/schema' {
     myService: { getData(): unknown; setData(val: unknown): void }
   }
 }
+
+engine.provide('myService', {
+  getData() { /* ... */ },
+  setData(val) { /* ... */ },
+})
 ```
 
 A custom hook name is typed the same way, by merging into `GwenRuntimeHooks`. Both interfaces come from `@gwenjs/schema`.
@@ -550,6 +567,12 @@ class AudioManager {
   }
 }
 
+declare module '@gwenjs/schema' {
+  interface GwenProvides {
+    audio: AudioManager
+  }
+}
+
 export const AudioPlugin = definePlugin((opts: AudioOptions = {}) => ({
   name: 'audio',
   setup(engine) {
@@ -601,7 +624,7 @@ Factory function to create a plugin:
 ```ts
 const MyPlugin = definePlugin((opts?: Options) => ({
   name: string
-  requires?: { plugins?: string[]; services?: string[]; optional?: string[] }
+  requires?: { plugins?: string[]; services?: GwenServiceKey[]; optional?: GwenServiceKey[] }
   setup(engine: GwenEngineBase): void | Promise<void>
   teardown?(): void | Promise<void>
   onError?(error: unknown, context: PluginErrorContext): void
@@ -614,7 +637,9 @@ The engine API available in `setup()`:
 
 | Method | Purpose |
 |--------|---------|
-| `provide(key, service)` | Register a service for systems to access |
+| `provide<K extends GwenServiceKey>(key, value)` | Register a service. `value` is `GwenProvides[K]` |
+| `inject<K extends GwenServiceKey>(key)` | Return `GwenProvides[K]`. Throws when the key is absent |
+| `tryInject<K extends GwenServiceKey>(key)` | Return `GwenProvides[K] \| undefined` |
 | `hooks.hook(name, callback)` | Register frame work or a lifecycle callback. `engine:init` fires at `engine.start()` after every plugin is set up. `engine:start` fires when the loop begins |
 
 ### PluginErrorContext

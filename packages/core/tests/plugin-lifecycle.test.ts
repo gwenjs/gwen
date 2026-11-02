@@ -37,6 +37,8 @@ afterEach(async () => {
 declare module "@gwenjs/schema" {
   interface GwenProvides {
     testSvc: { value: number };
+    s1: { readonly missing: true };
+    "absent:svc": { readonly missing: true };
   }
 }
 

@@ -30,7 +30,6 @@ import type {
 import type { WasmBridgeImpl } from "./wasm-bridge";
 import type { EngineMemory } from "./engine-memory.js";
 import type { TransformPair2D } from "./transform-pair.js";
-import type { GwenProvides } from "@gwenjs/schema";
 import { DisposableRegistry } from "../disposable";
 import { GwenWasmAbiError } from "./engine-errors.js";
 
@@ -519,11 +518,6 @@ export interface GwenEngine extends GwenEngineBase {
    * `starting`, `stopping`, `stopped` and `faulted`.
    */
   unuse(name: string): Promise<void>;
-
-  // ─── Typed provide/inject (narrows GwenEngineBase to typed keys) ────────
-  provide<K extends keyof GwenProvides>(key: K, value: GwenProvides[K]): void;
-  inject<K extends keyof GwenProvides>(key: K): GwenProvides[K];
-  tryInject<K extends keyof GwenProvides>(key: K): GwenProvides[K] | undefined;
 
   // ─── Hooks (narrows HookBusBase to full Hookable) ────────────────────────
   readonly hooks: Hookable<GwenRuntimeHooks>;

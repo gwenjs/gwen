@@ -9,6 +9,7 @@ import type { EngineErrorBus, GwenPlugin } from "../../src/engine/engine-types";
 import type { GwenRuntimeHooks } from "../../src/engine/runtime-hooks";
 import { ScopedHooksTracker } from "../../src/engine/hook-tracker";
 import { PluginRegistry, type PluginRegistryDeps } from "../../src/engine/plugin-registry";
+import { EngineMemory } from "../../src/engine/engine-memory";
 import { ServiceContainer } from "../../src/engine/service-container";
 import { createEngine as openEngine } from "../../src/node";
 import {
@@ -233,10 +234,10 @@ describe("plugin teardown on stop", () => {
 
   it("unuse removes a plugin's own service but never an engine-owned key it re-provided", async () => {
     const engine = await createEngine();
-    const pluginMemory = { tag: "plugin-memory" };
     const bridge = engine.inject("wasm:bridge");
     const logger = engine.inject("logger");
     const errors = engine.inject("errors");
+    const pluginMemory = new EngineMemory(bridge, errors);
     await engine.use({
       name: "P",
       setup(host) {
