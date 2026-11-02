@@ -40,13 +40,8 @@ import {
   gwenDevStripPlugin,
 } from "./plugins/index.js";
 import type { LocalPluginsDirOption } from "./plugins/local-plugins.js";
-import {
-  generateEntryModule,
-  generateScenesModule,
-  resolveMainScene,
-  scanScenes,
-  toRootRelative,
-} from "./entry-gen.js";
+import { generateEntryModule, generateScenesModule, toRootRelative } from "./entry-gen.js";
+import { resolveMainScene, scanScenes } from "./scanners/index.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

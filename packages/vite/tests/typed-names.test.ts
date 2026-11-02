@@ -1,12 +1,13 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { cpSync, existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, readFileSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { GwenApp, type ResolvedGwenConfig } from "@gwenjs/app/resolve";
-import { scanScenes } from "../src/entry-gen.js";
+import type { GwenModule } from "@gwenjs/kit/module";
+import { scanScenes } from "../src/scanners/index.js";
 import { gwenHooksPlugin } from "../src/plugins/hooks.js";
 
 const require = createRequire(import.meta.url);
@@ -23,9 +24,36 @@ const EMPTY_DTS = [
   "",
 ].join("\n");
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isGwenModule(value: unknown): value is GwenModule {
+  if (!isRecord(value)) return false;
+  const meta = value["meta"];
+  const setup = value["setup"];
+  if (!isRecord(meta) || typeof setup !== "function") return false;
+  return typeof meta["name"] === "string";
+}
+
+// `@gwenjs/app` does not depend on `@gwenjs/physics2d`, so `loadModule`'s
+// `import(name)` cannot resolve it. This loader returns that package's real default export.
+async function loadPhysics2dModule(name: string): Promise<GwenModule> {
+  if (name !== "@gwenjs/physics2d") {
+    throw new Error(`unexpected module "${name}"`);
+  }
+  const imported: unknown = await import("@gwenjs/physics2d");
+  const candidate = isRecord(imported) ? imported["default"] : undefined;
+  if (!isGwenModule(candidate)) {
+    throw new Error("@gwenjs/physics2d did not export a GwenModule");
+  }
+  return candidate;
+}
+
 function makeConfig(): ResolvedGwenConfig {
   return {
-    modules: [],
+    modules: ["@gwenjs/physics2d"],
+    localModulesDir: false,
     engine: {
       maxEntities: 1000,
       targetFPS: 60,
@@ -96,51 +124,114 @@ function writeHooks(runDir: string): void {
 async function writeGeneratedTypes(runDir: string, sceneNames: readonly string[]): Promise<void> {
   writeHooks(runDir);
   const appInstance = new GwenApp();
-  await appInstance.setupModules(makeConfig());
-  await Reflect.apply(appInstance.prepare, appInstance, [runDir, { sceneNames }]);
+  await appInstance.setupModules(makeConfig(), loadPhysics2dModule, { root: runDir });
+  await appInstance.prepare(runDir, { sceneNames });
 }
 
-function stripExpectErrorBefore(source: string, nextIncludes: string): string {
-  const lines = source.split("\n");
-  const kept: string[] = [];
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index] ?? "";
-    const next = lines[index + 1] ?? "";
-    if (line.includes("@ts-expect-error") && next.includes(nextIncludes)) continue;
-    kept.push(line);
+interface Diagnostic {
+  file: string;
+  line: number;
+  code: string;
+  message: string;
+}
+
+// `--pretty false` prints `file(line,col): error TSxxxx: message`.
+function parseDiagnostics(stdout: string): Diagnostic[] {
+  const found: Diagnostic[] = [];
+  for (const text of stdout.split("\n")) {
+    const match = /^(.+?)\((\d+),\d+\): error (TS\d+): (.*)$/.exec(text);
+    if (match === null) continue;
+    found.push({
+      file: (match[1] ?? "").replaceAll("\\", "/"),
+      line: Number(match[2]),
+      code: match[3] ?? "",
+      message: match[4] ?? "",
+    });
   }
-  return kept.join("\n");
+  return found;
+}
+
+interface NegativeLine {
+  source: string;
+  literal: string;
+  code: string;
+}
+
+// One entry per line of `src/negative.ts`. Lines are found by their text, never by number.
+const NEGATIVE_LINES: readonly NegativeLine[] = [
+  { source: 'defineConfig({ mainScene: "Mian" });', literal: '"Mian"', code: "TS2322" },
+  { source: 'defineScene("boss", () => {});', literal: '"boss"', code: "TS2345" },
+  { source: 'useService("audoi");', literal: '"audoi"', code: "TS2345" },
+  { source: 'useHook("nav:toGmae", () => {});', literal: '"nav:toGmae"', code: "TS2345" },
+];
+
+const SCENE_LINES = NEGATIVE_LINES.slice(0, 2);
+const OTHER_LINES = NEGATIVE_LINES.slice(2);
+
+function lineOf(runDir: string, source: string): number {
+  const lines = readFileSync(join(runDir, "src", "negative.ts"), "utf8").split("\n");
+  const index = lines.findIndex((text) => text.trim() === source);
+  if (index === -1) throw new Error(`negative.ts has no line "${source}"`);
+  return index + 1;
+}
+
+function diagnosticFor(
+  runDir: string,
+  diagnostics: readonly Diagnostic[],
+  entry: NegativeLine,
+): Diagnostic | undefined {
+  const line = lineOf(runDir, entry.source);
+  return diagnostics.find((item) => item.file === "src/negative.ts" && item.line === line);
+}
+
+function expectDiagnostic(runDir: string, result: { stdout: string }, entry: NegativeLine): void {
+  const found = diagnosticFor(runDir, parseDiagnostics(result.stdout), entry);
+  expect(found, `no diagnostic for ${entry.source}\n${result.stdout}`).toBeDefined();
+  expect(found?.code, result.stdout).toBe(entry.code);
+  expect(found?.message, result.stdout).toContain(entry.literal);
+}
+
+function expectNoDiagnostic(runDir: string, result: { stdout: string }, entry: NegativeLine): void {
+  const found = diagnosticFor(runDir, parseDiagnostics(result.stdout), entry);
+  expect(found, `unexpected diagnostic for ${entry.source}\n${result.stdout}`).toBeUndefined();
 }
 
 describe("typed names fixture", () => {
-  it("the typed-names fixture type-checks with zero diagnostics", async () => {
+  it("the typed-names fixture reports exactly the four negative diagnostics", async () => {
     const runDir = copyFixture();
     try {
       const names = scanScenes(runDir).map((scene) => scene.sceneName);
       await writeGeneratedTypes(runDir, names);
+      const autoImports = readFileSync(join(runDir, ".gwen", "types", "auto-imports.d.ts"), "utf8");
+      expect(autoImports).toContain("typeof import('@gwenjs/physics2d')");
+      const userSources = [
+        readFileSync(join(runDir, "src", "use.ts"), "utf8"),
+        readFileSync(join(runDir, "gwen.config.ts"), "utf8"),
+      ].join("\n");
+      expect(userSources).not.toMatch(/import\s+["']@gwenjs\/physics2d["']/);
+      expect(userSources).not.toMatch(/from\s+["']@gwenjs\/physics2d["']/);
       const result = runTsc(runDir);
-      expect(result.status, result.stdout).toBe(0);
-      expect(result.stdout, result.stdout).toBe("");
+      const diagnostics = parseDiagnostics(result.stdout);
+      const outside = diagnostics.filter((item) => item.file !== "src/negative.ts");
+      expect(outside, result.stdout).toEqual([]);
+      expect(diagnostics.length, result.stdout).toBe(NEGATIVE_LINES.length);
+      for (const entry of NEGATIVE_LINES) expectDiagnostic(runDir, result, entry);
     } finally {
       rmSync(runDir, { recursive: true, force: true });
     }
   }, 120_000);
 
-  it("removing one @ts-expect-error line makes it fail", async () => {
+  it("removing the scene registry drops the scene diagnostics", async () => {
     const runDir = copyFixture();
     try {
-      const usePath = join(runDir, "src", "use.ts");
-      writeFileSync(
-        usePath,
-        stripExpectErrorBefore(readFileSync(usePath, "utf8"), 'useService("audoi")'),
-      );
       const names = scanScenes(runDir).map((scene) => scene.sceneName);
       await writeGeneratedTypes(runDir, names);
+      const file = join(runDir, ".gwen", "types", "scenes.d.ts");
+      expect(existsSync(file)).toBe(true);
+      rmSync(file);
       const result = runTsc(runDir);
-      expect(result.status, result.stdout).not.toBe(0);
-      expect(result.stdout, result.stdout).toContain("use.ts");
-      expect(result.stdout, result.stdout).toContain("TS2345");
-      expect(result.stdout, result.stdout).not.toContain("TS2578");
+      for (const entry of SCENE_LINES) expectNoDiagnostic(runDir, result, entry);
+      for (const entry of OTHER_LINES) expectDiagnostic(runDir, result, entry);
     } finally {
       rmSync(runDir, { recursive: true, force: true });
     }
@@ -150,19 +241,17 @@ describe("typed names fixture", () => {
     const runDir = copyFixture();
     try {
       rmSync(join(runDir, "src", "scenes"), { recursive: true, force: true });
-      const usePath = join(runDir, "src", "use.ts");
-      let source = readFileSync(usePath, "utf8");
-      source = stripExpectErrorBefore(source, 'defineScene("boss"');
-      source = stripExpectErrorBefore(source, 'mainScene: "Mian"');
-      writeFileSync(usePath, source);
       const names = scanScenes(runDir).map((scene) => scene.sceneName);
       await writeGeneratedTypes(runDir, names);
       const file = join(runDir, ".gwen", "types", "scenes.d.ts");
       expect(existsSync(file)).toBe(true);
       expect(readFileSync(file, "utf8")).toBe(EMPTY_DTS);
       const result = runTsc(runDir);
-      expect(result.status, result.stdout).toBe(0);
-      expect(result.stdout, result.stdout).toBe("");
+      const diagnostics = parseDiagnostics(result.stdout);
+      const outside = diagnostics.filter((item) => item.file !== "src/negative.ts");
+      expect(outside, result.stdout).toEqual([]);
+      for (const entry of SCENE_LINES) expectNoDiagnostic(runDir, result, entry);
+      for (const entry of OTHER_LINES) expectDiagnostic(runDir, result, entry);
     } finally {
       rmSync(runDir, { recursive: true, force: true });
     }

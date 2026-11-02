@@ -18,7 +18,7 @@
     "disableSourceOfProjectReferenceRedirect": true
   },
   "include": ["src/**/*", "tests/**/*"],
-  "exclude": ["node_modules", "dist", "src/**/*.js", "src/**/*.d.ts"],
+  "exclude": ["node_modules", "dist", "src/**/*.js", "src/**/*.d.ts", "tests/fixtures"],
   "extends": "../../tsconfig.base.json",
   "references": [
     {
