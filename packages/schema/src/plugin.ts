@@ -16,6 +16,7 @@ import type { DisposableRegistryBase } from "./disposable.js";
 import type { GwenRuntimeHookName, GwenRuntimeHooks } from "./runtime-hooks.js";
 import type { CameraStateStore, LayerHost, ScreenInfoStore, ViewportStore } from "./renderer.js";
 import type { TransformReader2D } from "./transforms.js";
+import type { AssetsService } from "./assets.js";
 
 /**
  * Augmentable interface for the typed provide/inject registry.
@@ -44,6 +45,8 @@ export interface GwenProvides {
   cameraManager: CameraStateStore;
   /** 2D transform reader. Inject via `engine.inject('transform:2d')`. */
   "transform:2d": TransformReader2D;
+  /** Asset registry. Inject via `engine.inject('assets')`. */
+  assets: AssetsService;
 }
 
 /**

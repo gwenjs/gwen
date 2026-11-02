@@ -22,6 +22,11 @@
       "unpackEntityId"
     ],
     "types": [
+      "AssetKind",
+      "AssetRef",
+      "AssetValue",
+      "AssetValueMap",
+      "AssetsService",
       "AutoImport",
       "CameraProjection",
       "CameraState",

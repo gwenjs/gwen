@@ -111,6 +111,10 @@ export type {
   WorldTransform,
 } from "./renderer";
 
+// ─── Assets contract ─────────────────────────────────────────────────────────
+
+export type { AssetKind, AssetRef, AssetValue, AssetValueMap, AssetsService } from "./assets";
+
 // ─── Transform 2D ────────────────────────────────────────────────────────────
 
 export { TRANSFORM_2D_SERVICE } from "./transforms";
