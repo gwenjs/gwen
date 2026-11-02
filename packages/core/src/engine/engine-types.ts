@@ -585,7 +585,10 @@ export interface GwenEngine extends GwenEngineBase {
    * releases a type its plugin owned.
    */
   getOrRegisterComponent(type: ComponentType): number;
-  /** Component names registered on this engine, and their type ids. */
+  /**
+   * Component names registered on this engine, and their type ids.
+   * Each call returns a snapshot copy: writing to it changes no type id.
+   */
   registeredComponentTypes(): ReadonlyMap<ComponentType, number>;
   addComponent<D extends ComponentDefinition<ComponentSchema>>(
     id: EntityId,
