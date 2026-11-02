@@ -14,10 +14,11 @@ describe("P0 entity quota", () => {
     });
     try {
       const { engine, bridge } = handle;
+      const created: { index: number; generation: number }[] = [];
       let caught: unknown;
       try {
         for (let n = 0; n < maxEntities + 1; n += 1) {
-          bridge.createEntity();
+          created.push(bridge.createEntity());
         }
       } catch (error: unknown) {
         caught = error;
@@ -33,6 +34,12 @@ describe("P0 entity quota", () => {
       expect((caught as GwenWasmError).message).toContain(String(maxEntities));
       expect(bridge.countEntities()).toBe(maxEntities);
       expect(bridge.isAlive(0, 0)).toBe(true);
+      expect(created).toHaveLength(maxEntities);
+      for (const id of created) {
+        expect(bridge.isAlive(id.index, id.generation)).toBe(true);
+      }
+      expect(typeof engine.getCapacity).toBe("function");
+      expect(engine.getCapacity().entities).toEqual({ alive: maxEntities, max: maxEntities });
       const before = engine.frameCount;
       await engine.advance(1 / 60);
       expect(engine.frameCount).toBe(before + 1);
