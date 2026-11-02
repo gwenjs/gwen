@@ -1,0 +1,96 @@
+import { mkdtemp, cp, readFile, writeFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const fixtureDir = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../fixtures/good-plugin",
+);
+
+export interface ExportCondition {
+  types?: string;
+  import?: string;
+}
+
+export interface FixtureManifest {
+  name: string;
+  version?: string;
+  license?: string;
+  type?: string;
+  gwen?: { type: string };
+  exports?: Record<string, string | ExportCondition>;
+}
+
+export interface Fixture {
+  readonly root: string;
+  readonly cleanup: () => Promise<void>;
+}
+
+export function goodPluginRoot(): string {
+  return fixtureDir;
+}
+
+export async function createFixture(): Promise<Fixture> {
+  const parent = await mkdtemp(path.join(tmpdir(), "gwen-conformance-"));
+  const root = path.join(parent, "pkg");
+  await cp(fixtureDir, root, { recursive: true });
+  let removed = false;
+  return {
+    root,
+    async cleanup() {
+      if (removed) return;
+      removed = true;
+      await rm(parent, { recursive: true, force: true });
+    },
+  };
+}
+
+export async function readPackageText(root: string): Promise<string> {
+  return readFile(path.join(root, "package.json"), "utf8");
+}
+
+export async function editManifest(
+  root: string,
+  edit: (manifest: FixtureManifest) => void,
+): Promise<void> {
+  const text = await readPackageText(root);
+  const manifest = JSON.parse(text) as FixtureManifest;
+  edit(manifest);
+  await writeFile(path.join(root, "package.json"), `${JSON.stringify(manifest, null, 2)}\n`);
+}
+
+export function manifestExports(
+  manifest: FixtureManifest,
+): Record<string, string | ExportCondition> {
+  if (manifest.exports === undefined) {
+    throw new Error("fixture is missing exports");
+  }
+  return manifest.exports;
+}
+
+export function lineOf(text: string, needle: string): number {
+  const at = text.indexOf(needle);
+  if (at < 0) {
+    throw new Error(`missing ${needle}`);
+  }
+  let line = 1;
+  for (let index = 0; index < at; index += 1) {
+    if (text.charCodeAt(index) === 10) line += 1;
+  }
+  return line;
+}
+
+export async function stripPluginManifest(root: string): Promise<void> {
+  await editManifest(root, (manifest) => {
+    delete manifest.license;
+    delete manifest.gwen;
+  });
+  await rm(path.join(root, "LICENSE"), { force: true });
+}
+
+export const BARE_MANIFEST_MESSAGES = [
+  "LICENSE file is missing",
+  'gwen.type must be "plugin"',
+  "license must be a non-empty string",
+] as const;

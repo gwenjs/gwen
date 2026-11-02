@@ -1,0 +1,42 @@
+{
+  "name": "@gwenjs/plugin-conformance",
+  "version": "0.0.0",
+  "description": "Static conformance checks for a GWEN plugin or package",
+  "license": "MPL-2.0",
+  "author": "Jonathan Moutier <djo.moutier@gmail.com>",
+  "bin": {
+    "gwen-conformance": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "postbuild": "node ../../scripts/fix-dts-extensions.mjs .",
+    "test": "vitest run",
+    "typecheck:isolated": "tsc --noEmit -p tsconfig.isolated.json",
+    "watch": "vite build --watch"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.3",
+    "vite-plugin-dts": "^4.5.4",
+    "vitest": "^4.1.2"
+  },
+  "gwen": {
+    "type": "kit"
+  }
+}
