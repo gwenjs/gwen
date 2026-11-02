@@ -9,6 +9,10 @@ A **scene** groups the active systems and actors for one game state. Swap scenes
 
 Scene names are a closed set: `defineScene` accepts only the names listed in `GwenSceneRegistry` once that registry is filled by the generated scene types. Until then, and in library or test code, any string is accepted.
 
+Each `src/scenes/*.ts` file needs a `defineScene` call whose first argument is a string literal (`packages/vite/src/scanners/index.ts:98`). A file with no literal throws `VITE:SCENE_NAME_UNRESOLVED` (`packages/vite/src/scanners/index.ts:159`). The same literal in two files throws `VITE:SCENE_NAME_DUPLICATE` and names both paths (`packages/vite/src/scanners/index.ts:175`). A file whose name starts with `_` is skipped (`packages/vite/src/scanners/index.ts:148`). `mainScene` must be one of the discovered names, or `resolveMainScene` throws `VITE:MAIN_SCENE_UNKNOWN` (`packages/vite/src/scanners/index.ts:213`). The Vite plugin writes `.gwen/types/scenes.d.ts` from those names (`packages/vite/src/index.ts:507`). That file fills `GwenSceneRegistry`. `GwenApp.prepare` writes the same file (`packages/app/src/app.ts:291`).
+
+In dev, adding or deleting a scene file does not regenerate `.gwen/types/scenes.d.ts` (only edits to an existing file do): restart the dev server (`packages/vite/src/index.ts:579`).
+
 ::: info Auto-imports
 In a GWEN project, composables are available without any `import` statement — the framework generates global type declarations at build time. You write `defineScene(...)`, `useSystem(...)`, `onEnter(...)` directly, with no import.
 :::

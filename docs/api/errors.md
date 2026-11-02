@@ -207,6 +207,18 @@ Cause. The code generator was asked for a component the manifest does not contai
 
 Cause. The field is not on that component in the manifest. Fix. Use a field that the component manifest lists.
 
+### VITE:SCENE_NAME_UNRESOLVED {#vite-scene-name-unresolved}
+
+Cause. `scanScenes` (`packages/vite/src/scanners/index.ts:140`) read a file under `src/scenes/` whose scene name is not a string literal. The message is `Scene file "${rel}" has no literal scene name.` (`packages/vite/src/scanners/index.ts:160`). A file whose name starts with `_` or `.` is skipped (`packages/vite/src/scanners/index.ts:148`). Fix. Call `defineScene` with a string literal, or prefix a helper file with `_`.
+
+### VITE:SCENE_NAME_DUPLICATE {#vite-scene-name-duplicate}
+
+Cause. Two scene files declare the same literal name. The message is `Scene name "${sceneName}" is declared in "${previous}" and "${rel}".` (`packages/vite/src/scanners/index.ts:175`). Fix. Give each file its own string literal.
+
+### VITE:MAIN_SCENE_UNKNOWN {#vite-main-scene-unknown}
+
+Cause. `resolveMainScene` (`packages/vite/src/scanners/index.ts:205`) received a `mainScene` that is not a discovered name. The message lists those names (`packages/vite/src/scanners/index.ts:214`). With no `mainScene`, the first discovered scene is used (`packages/vite/src/scanners/index.ts:226`). Fix. Set `mainScene` to a name discovered under `src/scenes/`.
+
 ## @gwenjs/math
 
 ### MATH:INVALID_HEX_COLOR {#math-invalid-hex-color}

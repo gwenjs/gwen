@@ -207,6 +207,18 @@ Cause. Le générateur de code a demandé un composant absent du manifeste. Fix.
 
 Cause. Le champ n'est pas sur ce composant dans le manifeste. Fix. Utilisez un champ listé par le manifeste du composant.
 
+### VITE:SCENE_NAME_UNRESOLVED {#vite-scene-name-unresolved}
+
+Cause. `scanScenes` (`packages/vite/src/scanners/index.ts:140`) a lu un fichier sous `src/scenes/` dont le nom de scène n'est pas un littéral. Le message est `Scene file "${rel}" has no literal scene name.` (`packages/vite/src/scanners/index.ts:160`). Un fichier dont le nom commence par `_` ou `.` est ignoré (`packages/vite/src/scanners/index.ts:148`). Fix. Appelez `defineScene` avec un littéral, ou préfixez un fichier d'aide par `_`.
+
+### VITE:SCENE_NAME_DUPLICATE {#vite-scene-name-duplicate}
+
+Cause. Deux fichiers de scène déclarent le même littéral. Le message est `Scene name "${sceneName}" is declared in "${previous}" and "${rel}".` (`packages/vite/src/scanners/index.ts:175`). Fix. Donnez à chaque fichier son propre littéral.
+
+### VITE:MAIN_SCENE_UNKNOWN {#vite-main-scene-unknown}
+
+Cause. `resolveMainScene` (`packages/vite/src/scanners/index.ts:205`) a reçu un `mainScene` qui n'est pas un nom découvert. Le message liste ces noms (`packages/vite/src/scanners/index.ts:214`). Sans `mainScene`, la première scène découverte est utilisée (`packages/vite/src/scanners/index.ts:226`). Fix. Réglez `mainScene` sur un nom découvert sous `src/scenes/`.
+
 ## @gwenjs/math
 
 ### MATH:INVALID_HEX_COLOR {#math-invalid-hex-color}

@@ -136,3 +136,15 @@ export default defineConfig({
   },
 })
 ```
+
+## `prepare`
+
+`GwenApp.prepare(rootDir, options)` writes `.gwen/types/` (`packages/app/src/app.ts:275`). `options.sceneNames` is the list written into `.gwen/types/scenes.d.ts` (`packages/app/src/app.ts:277`). An omitted list writes an empty registry (`packages/app/src/app.ts:291`). Unchanged files keep their mtime (`packages/app/src/scenes-dts.ts:15`).
+
+## `generateScenesDts`
+
+`generateScenesDts(names)` returns the `scenes.d.ts` source (`packages/app/src/scenes-dts.ts:25`). Names are sorted (`packages/app/src/scenes-dts.ts:26`). An empty list emits `interface GwenSceneRegistry {}` (`packages/app/src/scenes-dts.ts:28`).
+
+## `writeScenesDts`
+
+`writeScenesDts(projectRoot, names)` writes `<projectRoot>/.gwen/types/scenes.d.ts` only when the text changed (`packages/app/src/scenes-dts.ts:42`).
