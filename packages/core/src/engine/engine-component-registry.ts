@@ -278,10 +278,11 @@ export class EngineComponentRegistry {
   }
 
   /**
-   * Read-only view of the full type map.
-   * Exposed for shims and advanced introspection — do not mutate.
+   * Copy of the full type map, taken at call time.
+   * Exposed for shims and advanced introspection. Writing to the copy does
+   * not change the ids this registry hands out.
    */
   getAll(): ReadonlyMap<ComponentType, number> {
-    return this.typeIds;
+    return new Map(this.typeIds);
   }
 }

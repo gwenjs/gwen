@@ -438,7 +438,10 @@ export class GwenEngineImpl extends EngineCollaborators implements GwenEngine {
     return componentRegistryFor(this).getOrRegister(type);
   }
 
-  /** Names registered on this engine. Does not create the registry. */
+  /**
+   * Names registered on this engine. Does not create the registry.
+   * Each call returns a snapshot copy: writing to it changes no type id.
+   */
   registeredComponentTypes(): ReadonlyMap<ComponentType, number> {
     return componentTypeIds(this);
   }
