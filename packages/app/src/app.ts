@@ -17,7 +17,8 @@ import {
 } from "@gwenjs/kit/module";
 import { createHooks } from "hookable";
 import { createJiti } from "jiti";
-import { writeFileSync, mkdirSync, readFileSync, existsSync } from "node:fs";
+import { mkdirSync } from "node:fs";
+import { writeIfChanged, writeScenesDts } from "./scenes-dts.js";
 import { resolve, join } from "node:path";
 import { inferModuleName, scanLocalModuleFiles } from "./local-modules";
 import { readConfigFile, type ResolvedGwenConfig } from "./config";
@@ -254,12 +255,14 @@ export class GwenApp {
    * Creates:
    * - `.gwen/types/auto-imports.d.ts` — global stubs for auto-imported composables
    * - `.gwen/types/env.d.ts` — `virtual:gwen/*` module types
+   * - `.gwen/types/scenes.d.ts` — `GwenSceneRegistry` for the given scene names
    * - `.gwen/tsconfig.json` — TypeScript project config referencing all generated types
    *
    * Idempotent: uses `writeIfChanged` so unchanged files are not rewritten
    * (prevents unnecessary TypeScript re-checks in watch mode).
    *
    * @param rootDir - Project root directory. Defaults to `process.cwd()`.
+   * @param options.sceneNames - Scene names to emit. Omitted or empty writes an empty registry.
    *
    * @example
    * ```typescript
@@ -269,7 +272,10 @@ export class GwenApp {
    * // → .gwen/types/auto-imports.d.ts written
    * ```
    */
-  async prepare(rootDir: string = process.cwd()): Promise<void> {
+  async prepare(
+    rootDir: string = process.cwd(),
+    options: { sceneNames?: readonly string[] } = {},
+  ): Promise<void> {
     const gwenDir = resolve(rootDir, ".gwen");
     const typesDir = join(gwenDir, "types");
 
@@ -280,6 +286,9 @@ export class GwenApp {
 
     // 2. env.d.ts
     writeIfChanged(join(typesDir, "env.d.ts"), GWEN_ENV_DTS);
+
+    // 2bis. types/scenes.d.ts — empty registry when sceneNames is omitted
+    writeScenesDts(rootDir, options.sceneNames ?? []);
 
     // 3. .gwen/tsconfig.json
     writeIfChanged(join(gwenDir, "tsconfig.json"), generateGwenTsConfig());
@@ -749,21 +758,6 @@ function withInferredModuleName(definition: unknown, inferred: string): unknown 
 }
 
 // ─── RFC-010: .gwen/ generation helpers ──────────────────────────────────────
-
-/**
- * Writes `content` to `filePath` only if the file does not already contain
- * identical content. Prevents unnecessary disk writes in watch mode.
- *
- * @param filePath - Absolute path to write.
- * @param content  - String content to write.
- */
-function writeIfChanged(filePath: string, content: string): void {
-  if (existsSync(filePath)) {
-    const current = readFileSync(filePath, "utf8");
-    if (current === content) return;
-  }
-  writeFileSync(filePath, content, "utf8");
-}
 
 /**
  * Generates `auto-imports.d.ts` declaring each auto-imported composable

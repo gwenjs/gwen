@@ -1,7 +1,12 @@
 /* oxlint-disable no-unused-vars -- type fixture: the checker is the assertion */
 
+import { generateScenesDts, writeScenesDts } from "@gwenjs/app";
 import type * as Root from "@gwenjs/app";
 import type * as T_resolve from "@gwenjs/app/resolve";
+
+const _scenesDts: string = generateScenesDts(["menu"]);
+void writeScenesDts;
+void _scenesDts;
 
 type _0 = [
   Root.AutoImport,

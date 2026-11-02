@@ -5,7 +5,9 @@
       "createScreenPlugin",
       "createViewportsPlugin",
       "defineConfig",
-      "defineGwenModule"
+      "defineGwenModule",
+      "generateScenesDts",
+      "writeScenesDts"
     ],
     "types": [
       "AutoImport",
