@@ -36,6 +36,8 @@ type _0 = [
   Root.GwenRuntimeHooks,
   Root.GwenUserHookName,
   Root.GwenSceneExtensions,
+  Root.GwenSceneName,
+  Root.GwenSceneRegistry,
   Root.GwenScopeMeta,
   Root.GwenScopeType,
   Root.GwenUIExtensions,
