@@ -61,3 +61,11 @@ Service registry methods on the engine surface plugins receive. Each key is a `G
 Every call renders `[where] what`, an optional `Fix:` line, and a `See` line. Two arguments use `GWEN` as where. `docsUrl` is always set from the code and the constructing class's `docsBase`.
 
 Values: `GWEN_DOCS_BASE`, `errorDocsAnchor`, `errorDocsUrl`.
+
+## Framework range
+
+`CORE_RANGE` is `"^1.0.0-alpha.0"`.
+
+Dependency range of the linked framework group: core, kit, physics2d, physics3d, renderer-core, and camera-core. physics-core joins once #58 P-58-0 ships. A plugin declares its `@gwenjs/*` peers on it. It does not satisfy `0.2.x`. It matches stack-harness stamps `1.0.0-integration.<UTC yyyymmddHHMMSS>.g<sha7>`.
+
+Value: `CORE_RANGE`.

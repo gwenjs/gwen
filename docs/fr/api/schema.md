@@ -61,3 +61,11 @@ Champs de `GwenError` : `code`, `composable`, `hint`, `docsUrl`.
 Tout appel produit `[where] what`, une ligne `Fix:` facultative et une ligne `See`. Deux arguments utilisent `GWEN` comme `where`. `docsUrl` est toujours défini à partir du code et du `docsBase` de la classe qui construit l'erreur.
 
 Valeurs : `GWEN_DOCS_BASE`, `errorDocsAnchor`, `errorDocsUrl`.
+
+## Plage du framework
+
+`CORE_RANGE` vaut `"^1.0.0-alpha.0"`.
+
+Plage de dépendance du groupe framework lié : core, kit, physics2d, physics3d, renderer-core, et camera-core. physics-core le rejoint avec #58 P-58-0. Un plugin déclare ses pairs `@gwenjs/*` sur cette plage. Elle ne satisfait pas `0.2.x`. Elle correspond aux estampilles du harnais de pile `1.0.0-integration.<UTC yyyymmddHHMMSS>.g<sha7>`.
+
+Valeur : `CORE_RANGE`.
