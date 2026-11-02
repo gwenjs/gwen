@@ -78,3 +78,7 @@ packages/vite/tests/fixtures/typed-names-run-*
 packages/core/tests/browser/site/**/entry.js
 packages/core/test-results/
 packages/core/playwright-report/
+
+!packages/plugin-conformance/tests/fixtures/good-plugin/dist/
+!packages/plugin-conformance/tests/fixtures/good-plugin/dist/*
+!packages/plugin-conformance/tests/fixtures/good-plugin/dist/**/*

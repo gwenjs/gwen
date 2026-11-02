@@ -15,6 +15,7 @@ const config = {
         'math',
         'physics2d',
         'physics3d',
+        'plugin-conformance',
         'renderer-core',
         'schema',
         'vite',

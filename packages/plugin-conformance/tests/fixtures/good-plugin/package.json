@@ -1,0 +1,19 @@
+{
+  "name": "@fixture/good-plugin",
+  "version": "0.0.0",
+  "license": "MPL-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./module": {
+      "types": "./dist/module.d.ts",
+      "import": "./dist/module.js"
+    }
+  },
+  "gwen": {
+    "type": "plugin"
+  }
+}
