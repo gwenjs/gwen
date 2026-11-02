@@ -31,13 +31,13 @@ onStart(async () => {
 | `PHYSICS3D`      | `@gwenjs/physics3d` (gwen)                       | `Physics3DErrorCodes`     | `https://gwenjs.github.io/gwen`           |
 | `RENDERER`       | `@gwenjs/renderer-core` (gwen)                   | `RendererErrorCodes`      | `https://gwenjs.github.io/gwen`           |
 | `CAMERA`         | `@gwenjs/camera-core` (gwen)                     | `CameraErrorCodes`        | `https://gwenjs.github.io/gwen`           |
-| `CONFORMANCE`    | `@gwenjs/plugin-conformance` (gwen)              | —                         | `https://gwenjs.github.io/gwen`           |
+| `CONFORMANCE`    | `@gwenjs/plugin-conformance` (gwen)              | `ConformanceErrorCodes`   | `https://gwenjs.github.io/gwen`           |
 | `AUDIO`          | gwenjs/audio                                     | —                         | `https://gwenjs.github.io/audio`          |
 | `ASSETS`         | gwenjs/assets                                    | —                         | `https://gwenjs.github.io/assets`         |
 | `RENDERER_THREE` | `@gwenjs/renderer-three` (gwenjs/renderer-three) | `RendererThreeErrorCodes` | `https://gwenjs.github.io/renderer-three` |
 | `INSPECTOR`      | `@gwenjs/inspector` (gwenjs/inspector)           | `InspectorErrorCodes`     | `https://gwenjs.github.io/inspector`      |
 
-`RENDERER_THREE` throws `WEBGL_UNAVAILABLE`, `NOT_MOUNTED`, and `OBJECT_ALREADY_ATTACHED`. `INSPECTOR` and `CONFORMANCE` have no codes on this page.
+`RENDERER_THREE` throws `WEBGL_UNAVAILABLE`, `NOT_MOUNTED`, and `OBJECT_ALREADY_ATTACHED`. `INSPECTOR` has no codes on this page.
 
 ## Reserved codes
 
@@ -490,3 +490,17 @@ Warn only. Declared on `CameraErrorCodes` and never thrown (`packages/camera-cor
 ### CAMERA:PRIORITY_CONFLICT {#camera-priority-conflict}
 
 Warn only. Declared on `CameraErrorCodes` and never thrown (`packages/camera-core/src/errors.ts`).
+
+## @gwenjs/plugin-conformance
+
+### CONFORMANCE:EXPORTS_INVALID {#conformance-exports-invalid}
+
+Cause. A string `exports` target must start with `./` and be a file inside the package. A target that is not a string, an array, an object, or `null` is rejected. `null` is skipped. `exports` missing, not an object, or empty is rejected, and so is a mix of subpath keys and condition keys. In a condition object, `types` must be first. `./internal`, `./internal/…`, and a key that starts with `./internal*` are rejected. Profile `plugin` also requires `.` and `./module`. A subpath pattern (`*`) is not existence-checked. Fix. Point each string target at a `./` file inside the package, keep `exports` a non-empty object of one shape, put `types` first, remove internal subpaths, and add `.` and `./module` for a plugin.
+
+### CONFORMANCE:INVALID_SPEC {#conformance-invalid-spec}
+
+Cause. `checkPluginPackage` received a `profile` that is not `"plugin"` or `"package"`. It returns this one finding and runs no check. Fix. Pass `"plugin"` or `"package"` as `profile`.
+
+### CONFORMANCE:MANIFEST {#conformance-manifest}
+
+Cause. Profile `plugin` does not set `gwen.type` to `"plugin"`, `license` is empty or missing, no LICENSE file is at the root, or `package.json` is missing, unreadable, or not valid JSON. Fix. Set `gwen.type` and a non-empty `license`, add `LICENSE`, `LICENSE.md`, or `LICENSE.txt`, and write valid JSON.

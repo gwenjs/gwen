@@ -27,8 +27,9 @@ export default defineConfig({
       formats: ["es"],
       fileName: (_format, entryName) => `${entryName}.js`,
     },
+    target: "node18",
     rollupOptions: {
-      external: [/^@gwenjs\//],
+      external: [/^node:/, /^@gwenjs\//],
       output: {
         banner(chunk) {
           return chunk.name === "cli" ? "#!/usr/bin/env node\n" : "";
