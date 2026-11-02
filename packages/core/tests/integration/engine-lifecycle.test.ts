@@ -9,6 +9,12 @@ import { createEngine } from "../../src/node.js";
 import type { GwenPlugin } from "../../src/index.js";
 import { activateTestWasm } from "../helpers/activate-test-wasm";
 
+declare module "@gwenjs/schema" {
+  interface GwenProvides {
+    counter: { count: number };
+  }
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
@@ -222,7 +228,7 @@ describe("Engine lifecycle — provide / inject across plugins", () => {
     await engine.use({
       name: "provider",
       setup(eng) {
-        eng.provide("counter" as never, { count: 0 } as never);
+        eng.provide("counter", { count: 0 });
       },
     });
 
@@ -231,7 +237,7 @@ describe("Engine lifecycle — provide / inject across plugins", () => {
     await engine.use({
       name: "consumer",
       setup(eng) {
-        const svc = eng.tryInject("counter") as { count: number } | undefined;
+        const svc = eng.tryInject("counter");
         injectedCount = svc?.count;
       },
     });

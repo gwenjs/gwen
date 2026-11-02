@@ -31,7 +31,7 @@ await engine.start()
 
 ### Dépendances optionnelles
 
-Nommez dans `requires` ce qui doit être installé, et lisez les services optionnels avec `optionalService`. `tryInject` renvoie `unknown` sur le moteur que reçoit `setup()` ; `optionalService` est typé par `GwenProvides`, que le plugin fournisseur du service augmente :
+Nommez dans `requires` ce qui doit être installé, et lisez les services optionnels avec `optionalService` ou `tryInject`. Sur le moteur que reçoit `setup()`, les deux sont typés par `GwenProvides`, que le plugin fournisseur du service augmente. `tryInject` renvoie `GwenProvides[K] | undefined` :
 
 ```ts
 import { definePlugin, optionalService } from '@gwenjs/kit/plugin'
@@ -98,6 +98,12 @@ Voici un exemple réaliste : un jeu basé sur la physique qui utilise l'entrée,
 
 ```ts
 import { definePlugin } from '@gwenjs/kit/plugin'
+
+declare module '@gwenjs/schema' {
+  interface GwenProvides {
+    input: { isKeyDown: (k: string) => boolean }
+  }
+}
 
 const keys = new Set<string>()
 
@@ -337,6 +343,12 @@ export const GamePlugin = definePlugin(() => ({
 Utilisez `requires` plutôt que de lever une erreur depuis un hook. `engine.use()` le vérifie avant `setup()` :
 
 ```ts
+declare module '@gwenjs/schema' {
+  interface GwenProvides {
+    audio: { play(track: string): void }
+  }
+}
+
 requires: { plugins: ['input'], services: ['logger'], optional: ['audio'] },
 ```
 
@@ -365,7 +377,7 @@ export default defineConfig({
 | Méthode | But |
 |---------|-----|
 | `inject(key)` | Récupérez un service enregistré (lève une erreur s'il n'est pas trouvé) |
-| `optionalService(engine, key)` | Lecture typée d'un service optionnel : `.current` vaut `undefined` s'il n'est pas trouvé. Le `tryInject` du moteur renvoie `unknown` |
+| `optionalService(engine, key)` | Lecture typée d'un service optionnel : `.current` vaut `undefined` s'il n'est pas trouvé. `tryInject` renvoie `GwenProvides[K] \| undefined` |
 | `provide(key, service)` | Enregistrez un service |
 | `hooks.hook('engine:init', cb)` | Enregistre un callback exécuté par `engine.start()` une fois tous les plugins installés |
 | `hooks.hook('engine:stop', cb)` | Enregistre un callback avant l'arrêt |
@@ -380,6 +392,12 @@ export default defineConfig({
 ### Meilleur modèle pour les dépendances
 
 ```ts
+declare module '@gwenjs/schema' {
+  interface GwenProvides {
+    audio: { play(track: string): void }
+  }
+}
+
 // Plugin avec des dépendances requises et optionnelles
 const MyPlugin = definePlugin(() => ({
   name: 'my-plugin',

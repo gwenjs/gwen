@@ -34,6 +34,12 @@ Un plugin simple qui écoute les événements clavier :
 ```ts
 import { definePlugin } from '@gwenjs/kit/plugin'
 
+declare module '@gwenjs/schema' {
+  interface GwenProvides {
+    input: { isKeyDown: (k: string) => boolean }
+  }
+}
+
 export const InputPlugin = definePlugin(() => ({
   name: 'input',
   setup(engine) {
@@ -81,6 +87,12 @@ Déposez un fichier dans `src/plugins/`. GWEN le découvre et l'enregistre autom
 ```ts
 // src/plugins/input.ts
 import { definePlugin } from '@gwenjs/kit/plugin'
+
+declare module '@gwenjs/schema' {
+  interface GwenProvides {
+    input: { isKeyDown: (k: string) => boolean }
+  }
+}
 
 export default definePlugin(() => ({
   name: 'input',

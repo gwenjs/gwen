@@ -47,6 +47,15 @@ export interface GwenProvides {
 }
 
 /**
+ * Key of {@link GwenProvides}.
+ *
+ * Service keys have no naming rule except the reserved prefix
+ * `renderer:<name>`. Only a `RendererService` value may use that prefix.
+ * Nothing checks this prefix yet.
+ */
+export type GwenServiceKey = keyof GwenProvides & string;
+
+/**
  * Minimal hook bus surface exposed to plugins via `GwenEngineBase.hooks`.
  *
  * The full `Hookable<GwenRuntimeHooks>` in `@gwenjs/core` satisfies this
@@ -90,6 +99,12 @@ export interface HookBusBase {
  * ```ts
  * import { definePlugin } from '@gwenjs/kit'
  *
+ * declare module "@gwenjs/schema" {
+ *   interface GwenProvides {
+ *     audio: AudioManager
+ *   }
+ * }
+ *
  * export const AudioPlugin = definePlugin((opts: AudioOptions = {}) => ({
  *   name: 'AudioPlugin',
  *   setup(engine: GwenEngineBase) {
@@ -111,7 +126,7 @@ export interface GwenEngineBase {
    * @param key - Unique service key.
    * @param value - Service implementation.
    */
-  provide(key: string, value: unknown): void;
+  provide<K extends GwenServiceKey>(key: K, value: GwenProvides[K]): void;
 
   /**
    * Retrieve a registered service by key.
@@ -120,7 +135,7 @@ export interface GwenEngineBase {
    * @returns The registered value.
    * @throws {GwenPluginNotFoundError} if no service is registered for `key`.
    */
-  inject(key: string): unknown;
+  inject<K extends GwenServiceKey>(key: K): GwenProvides[K];
 
   /**
    * Retrieve a registered service by key, returning `undefined` if absent.
@@ -130,7 +145,7 @@ export interface GwenEngineBase {
    * @param key - The key used during `provide()`.
    * @returns The registered value, or `undefined`.
    */
-  tryInject(key: string): unknown | undefined;
+  tryInject<K extends GwenServiceKey>(key: K): GwenProvides[K] | undefined;
 
   /** Hook bus for subscribing to engine lifecycle and custom game events. */
   readonly hooks: HookBusBase;
@@ -206,13 +221,14 @@ export interface PluginErrorContext {
 /**
  * Plugins and services that must already be installed, plus optional services.
  * `engine.use()` checks `plugins` and `services` before `setup()`.
- * `optional` is not checked and does not block `unuse()`. Names are strings.
+ * `optional` is not checked and does not block `unuse()`.
+ * Plugin names are strings. Service names are {@link GwenServiceKey}s.
  */
 export interface GwenPluginRequires {
   readonly plugins?: readonly string[];
-  readonly services?: readonly string[];
+  readonly services?: readonly GwenServiceKey[];
   /** Services that may be absent. `use()` does not check them. */
-  readonly optional?: readonly string[];
+  readonly optional?: readonly GwenServiceKey[];
 }
 
 /** One unmet plugin or service named by {@link GwenPluginRequires}. */
@@ -238,6 +254,12 @@ export interface GwenPluginRequirement {
  *
  * @example Minimal plugin:
  * ```ts
+ * declare module "@gwenjs/schema" {
+ *   interface GwenProvides {
+ *     myService: MyService
+ *   }
+ * }
+ *
  * const plugin: GwenPlugin = {
  *   name: 'my-plugin',
  *   setup(engine) {

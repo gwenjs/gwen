@@ -4,6 +4,7 @@ import {
   GWEN_PLUGIN_LIFECYCLE_HOOKS,
   type ForbiddenPluginKey,
   type GwenPluginRequirement,
+  type GwenServiceKey,
   type IGwenLogger,
 } from "@gwenjs/schema";
 import { withCleanup } from "../cleanup-context.js";
@@ -45,7 +46,7 @@ export interface PluginRegistryDeps {
   reportTeardown: (plugin: GwenPlugin, error: unknown) => void;
   dropIsolation: (name: string) => void;
   /** True when the service map already holds `key`. Engine-owned keys count. */
-  hasService: (key: string) => boolean;
+  hasService: (key: GwenServiceKey) => boolean;
   /**
    * Remove `key` only while the map still holds `expected`.
    * Engine-owned keys stay. This must not check engine state.

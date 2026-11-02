@@ -31,7 +31,7 @@ await engine.start()
 
 ### Optional Dependencies
 
-Name what must be installed in `requires`, and read optional services with `optionalService`. `tryInject` returns `unknown` on the engine `setup()` receives; `optionalService` is typed through `GwenProvides`, which the plugin that provides the service augments:
+Name what must be installed in `requires`, and read optional services with `optionalService` or `tryInject`. On the engine `setup()` receives, both are typed through `GwenProvides`, which the plugin that provides the service augments. `tryInject` returns `GwenProvides[K] | undefined`:
 
 ```ts
 import { definePlugin, optionalService } from '@gwenjs/kit/plugin'
@@ -98,6 +98,12 @@ Here's a realistic example: a physics-based game that uses input, audio, physics
 
 ```ts
 import { definePlugin } from '@gwenjs/kit/plugin'
+
+declare module '@gwenjs/schema' {
+  interface GwenProvides {
+    input: { isKeyDown: (k: string) => boolean }
+  }
+}
 
 const keys = new Set<string>()
 
@@ -337,6 +343,12 @@ export const GamePlugin = definePlugin(() => ({
 Use `requires` instead of throwing from a hook. `engine.use()` checks it before `setup()`:
 
 ```ts
+declare module '@gwenjs/schema' {
+  interface GwenProvides {
+    audio: { play(track: string): void }
+  }
+}
+
 requires: { plugins: ['input'], services: ['logger'], optional: ['audio'] },
 ```
 
@@ -365,7 +377,7 @@ export default defineConfig({
 | Method | Purpose |
 |--------|---------|
 | `inject(key)` | Retrieve a registered service (throws if not found) |
-| `optionalService(engine, key)` | Typed read of an optional service: `.current` is `undefined` if not found. The engine's own `tryInject` returns `unknown` |
+| `optionalService(engine, key)` | Typed read of an optional service: `.current` is `undefined` if not found. `tryInject` returns `GwenProvides[K] \| undefined` |
 | `provide(key, service)` | Register a service |
 | `hooks.hook('engine:init', cb)` | Register a callback run by `engine.start()` after every plugin is set up |
 | `hooks.hook('engine:stop', cb)` | Register a callback before shutdown |
@@ -380,6 +392,12 @@ export default defineConfig({
 ### Best Pattern for Dependencies
 
 ```ts
+declare module '@gwenjs/schema' {
+  interface GwenProvides {
+    audio: { play(track: string): void }
+  }
+}
+
 // Define plugin with required and optional dependencies
 const MyPlugin = definePlugin(() => ({
   name: 'my-plugin',

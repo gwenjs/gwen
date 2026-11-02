@@ -6,8 +6,7 @@ function readProvided<K extends keyof GwenProvides>(
   engine: GwenEngineBase,
   key: K,
 ): GwenProvides[K] | undefined {
-  // The registry keys the store by string; the key type K proves the value type.
-  return engine.tryInject(key) as GwenProvides[K] | undefined;
+  return engine.tryInject(key);
 }
 
 /** Subscribe inside `setup`. The same value calls once. Removal calls `onChange(undefined)`. */

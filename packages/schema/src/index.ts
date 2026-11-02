@@ -41,6 +41,7 @@ export type {
   GwenPluginRequirement,
   GwenPluginRequires,
   GwenProvides,
+  GwenServiceKey,
 } from "./plugin";
 export { GWEN_PLUGIN_KEYS, GWEN_PLUGIN_LIFECYCLE_HOOKS } from "./plugin-lifecycle";
 export type { ForbiddenPluginKey } from "./plugin-lifecycle";

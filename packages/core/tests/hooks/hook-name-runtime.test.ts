@@ -16,6 +16,12 @@ import { emit } from "../../src/hooks/emit";
 import { ScopedHookable } from "../../src/hooks/scoped-hookable";
 import { useHook } from "../../src/hooks/use-hook";
 
+declare module "@gwenjs/schema" {
+  interface GwenProvides {
+    "hookname:svc": { readonly n: number };
+  }
+}
+
 /** Named import is undefined on the base. This assertion fails before `toBeInstanceOf`. */
 function expectHookNameClass(): void {
   expect(typeof GwenHookNameError).toBe("function");

@@ -195,6 +195,12 @@ Chaque fichier doit exporter une factory `definePlugin` comme **export par défa
 ```ts
 import { definePlugin } from '@gwenjs/kit/plugin'
 
+declare module '@gwenjs/schema' {
+  interface GwenProvides {
+    audio: { dispose(): void }
+  }
+}
+
 export default definePlugin(() => ({
   name: 'audio',
   setup(engine) {
@@ -223,6 +229,12 @@ Chaque fichier doit exporter une définition `defineGwenModule` comme **export p
 ```ts
 import { defineGwenModule } from '@gwenjs/kit/module'
 import { definePlugin } from '@gwenjs/kit/plugin'
+
+declare module '@gwenjs/schema' {
+  interface GwenProvides {
+    score: { get(): number; add(n: number): void; reset(): void }
+  }
+}
 
 export const ScorePlugin = definePlugin((opts: { maxScore?: number } = {}) => ({
   name: 'score',

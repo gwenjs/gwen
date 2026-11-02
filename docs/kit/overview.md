@@ -34,6 +34,12 @@ A simple plugin that listens to keyboard events:
 ```ts
 import { definePlugin } from '@gwenjs/kit/plugin'
 
+declare module '@gwenjs/schema' {
+  interface GwenProvides {
+    input: { isKeyDown: (k: string) => boolean }
+  }
+}
+
 export const InputPlugin = definePlugin(() => ({
   name: 'input',
   setup(engine) {
@@ -81,6 +87,12 @@ Drop a file in `src/plugins/`. GWEN discovers and registers it automatically:
 ```ts
 // src/plugins/input.ts — export default, not a named export
 import { definePlugin } from '@gwenjs/kit/plugin'
+
+declare module '@gwenjs/schema' {
+  interface GwenProvides {
+    input: { isKeyDown: (k: string) => boolean }
+  }
+}
 
 export default definePlugin(() => ({
   name: 'input',

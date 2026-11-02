@@ -37,6 +37,12 @@ Most modules register one or more runtime plugins:
 import { defineGwenModule } from '@gwenjs/kit/module'
 import { definePlugin } from '@gwenjs/kit/plugin'
 
+declare module '@gwenjs/schema' {
+  interface GwenProvides {
+    myService: { greet(): string }
+  }
+}
+
 export const MyPlugin = definePlugin(() => ({
   name: 'my-plugin',
   setup(engine) {
@@ -102,6 +108,12 @@ For project-specific modules, drop a file in `src/modules/`. GWEN discovers all 
 import { defineGwenModule } from '@gwenjs/kit/module'
 import { definePlugin } from '@gwenjs/kit/plugin'
 
+declare module '@gwenjs/schema' {
+  interface GwenProvides {
+    score: { get(): number; add(n: number): void; reset(): void }
+  }
+}
+
 export const ScorePlugin = definePlugin((opts: { maxScore?: number } = {}) => ({
   name: 'score',
   setup(engine) {
@@ -154,6 +166,12 @@ interface ScoreOptions {
 declare module '@gwenjs/schema' {
   interface GwenModuleOptions {
     score?: ScoreOptions
+  }
+}
+
+declare module '@gwenjs/schema' {
+  interface GwenProvides {
+    score: { get(): number; add(n: number): void; reset(): void }
   }
 }
 

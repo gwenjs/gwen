@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createEngine } from "@gwenjs/core/node";
 import { type GwenEngine } from "@gwenjs/core";
 import { definePlugin } from "@gwenjs/kit/plugin";
-import type { GwenEngineBase, GwenErrorPayload } from "@gwenjs/schema";
+import type { GwenEngineBase, GwenErrorPayload, GwenPluginRequires } from "@gwenjs/schema";
 
 declare module "@gwenjs/schema" {
   interface GwenProvides {
@@ -27,7 +27,7 @@ function install(
   engine: GwenEngine,
   name: string,
   setup: (host: GwenEngineBase) => void | Promise<void>,
-  requires?: { services?: readonly string[]; optional?: readonly string[] },
+  requires?: GwenPluginRequires,
   teardown?: () => void,
 ): Promise<void> {
   return engine.use(

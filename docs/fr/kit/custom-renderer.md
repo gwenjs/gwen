@@ -222,6 +222,12 @@ import { getOrCreateLayerManager } from '@gwenjs/renderer-core'
 import type { LayerDef } from '@gwenjs/schema'
 import { MyTechRenderer } from './mytech-renderer-service.js'
 
+declare module '@gwenjs/schema' {
+  interface GwenProvides {
+    'renderer:mytech': ReturnType<typeof MyTechRenderer>
+  }
+}
+
 export interface MyTechRendererPluginOptions {
   layers: Record<string, LayerDef>
   container?: HTMLElement

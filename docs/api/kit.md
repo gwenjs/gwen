@@ -64,6 +64,12 @@ function definePlugin<TOptions, TPlugin extends GwenPlugin>(
 
 **Example:**
 ```ts
+declare module '@gwenjs/schema' {
+  interface GwenProvides {
+    input: { isKeyDown: (k: string) => boolean }
+  }
+}
+
 export const InputPlugin = definePlugin((opts: { deadzone?: number } = {}) => ({
   name: 'input',
   setup(engine) {

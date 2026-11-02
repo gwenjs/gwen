@@ -33,7 +33,7 @@ import type { ScreenService } from "./screen-service.js";
  * @returns The shared `ScreenService`.
  */
 export function getOrCreateScreenService(engine: GwenEngineBase): ScreenService {
-  const existing = engine.tryInject("screenService") as ScreenService | undefined;
+  const existing = engine.tryInject("screenService");
   if (existing) return existing;
 
   const vm = getOrCreateViewportManager(engine as GwenEngine);
