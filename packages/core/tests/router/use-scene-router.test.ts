@@ -1,7 +1,8 @@
 import { stubComponent } from "../helpers/stub-component";
 import { describe, it, expect, vi } from "vitest";
+import * as core from "../../src/index.js";
 import { createEngine } from "../../src/node.js";
-import { defineScene } from "../../src/scene/runtime/define-scene";
+import { defineScene, type SceneFactory } from "../../src/scene/runtime/define-scene";
 import { definePrefab } from "../../src/actor/runtime/define-prefab";
 import { defineActor } from "../../src/actor/runtime/define-actor";
 import { useActor } from "../../src/actor/runtime/use-actor";
@@ -280,6 +281,70 @@ describe("useSceneRouter()", () => {
     });
     expect(enterSpy).toHaveBeenCalledOnce();
     expect(enterSpy).toHaveBeenCalledWith({ from: "TransEnterFrom", to: "TransEnterTo" });
+  });
+
+  it("transition payloads carry scene names, never route keys, and a target missing from the routes throws GwenSceneRouterError", async () => {
+    expect(typeof core.GwenSceneRouterError).toBe("function");
+    const menu = defineScene("menu", () => {});
+    const game = defineScene("game", () => {});
+    // `on` is required so EventsOf infers string. Optional `on?` makes send()'s argument `never`.
+    const routes: Record<string, { scene: SceneFactory; on: Record<string, string> }> = {
+      menuRoute: { scene: menu, on: { PLAY: "gameRoute" } },
+      gameRoute: { scene: game, on: {} },
+    };
+    const router = defineSceneRouter({
+      initial: "menuRoute",
+      routes,
+    });
+    let engineA: Awaited<ReturnType<typeof createEngine>> | undefined;
+    let engineB: Awaited<ReturnType<typeof createEngine>> | undefined;
+    try {
+      engineA = await createEngine();
+      try {
+        engineB = await createEngine();
+        const leaveA: { from: string; to: string }[] = [];
+        const enterA: { from: string; to: string }[] = [];
+        const leaveB: { from: string; to: string }[] = [];
+        engineA.hooks.hook("scene:transition:leave", (payload) => {
+          leaveA.push(payload);
+        });
+        engineA.hooks.hook("scene:transition:enter", (payload) => {
+          enterA.push(payload);
+        });
+        engineB.hooks.hook("scene:transition:leave", (payload) => {
+          leaveB.push(payload);
+        });
+        await engineA.run(async () => {
+          const nav = useSceneRouter(router);
+          await nav.send("PLAY");
+          expect(leaveA).toEqual([{ from: "menu", to: "game" }]);
+          expect(enterA).toEqual([{ from: "menu", to: "game" }]);
+          expect(leaveB).toEqual([]);
+
+          if (routes.gameRoute === undefined) {
+            throw new Error("gameRoute missing");
+          }
+          routes.gameRoute.on = { GHOST: "ghostRoute" };
+          let error: unknown;
+          try {
+            await nav.send("GHOST");
+          } catch (caught) {
+            error = caught;
+          }
+          expect(error).toBeInstanceOf(core.GwenSceneRouterError);
+          if (!(error instanceof core.GwenSceneRouterError)) return;
+          expect(error.code).toBe("CORE:INVALID_SCENE_ROUTE");
+          expect(error.route).toBe("ghostRoute");
+          expect(error.validRoutes).toEqual(["menuRoute", "gameRoute"]);
+          expect(nav.current).toBe("gameRoute");
+          expect(leaveA).toEqual([{ from: "menu", to: "game" }]);
+        });
+      } finally {
+        await engineB?.stop();
+      }
+    } finally {
+      await engineA?.stop();
+    }
   });
 
   it("throws if used outside engine context", () => {
