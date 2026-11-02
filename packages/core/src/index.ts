@@ -44,6 +44,7 @@ export {
   GwenWasmPanicError,
   GwenEngineStateError,
   GwenHookNameError,
+  GwenSceneRouterError,
 } from "./engine/engine-errors";
 export type { CoreWasmErrorCode, GwenEngineStateMethod } from "./engine/engine-errors";
 export { GwenWasmMismatchError } from "./engine/wasm-contract";

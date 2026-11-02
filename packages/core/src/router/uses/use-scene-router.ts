@@ -19,8 +19,10 @@
  * ```
  */
 
+import type { GwenSceneName } from "@gwenjs/schema";
 import { useEngine } from "../../engine/context";
 import type { GwenEngine } from "../../engine/engine-types";
+import { GwenSceneRouterError } from "../../engine/engine-errors";
 import type {
   RouteConfig,
   SceneRouterDefinition,
@@ -40,6 +42,22 @@ type TransitionListener<TRoutes extends Record<string, RouteConfig<TRoutes>>> = 
   to: StatesOf<TRoutes>,
   params: Record<string, unknown>,
 ) => void;
+
+function requireSceneName(
+  sceneNameByRoute: Map<string, GwenSceneName>,
+  route: string,
+): GwenSceneName {
+  const name = sceneNameByRoute.get(route);
+  if (name !== undefined) return name;
+  throw new GwenSceneRouterError(
+    `Route "${route}" is not found in routes.`,
+    route,
+    [...sceneNameByRoute.keys()],
+    undefined,
+    undefined,
+    "useSceneRouter",
+  );
+}
 
 function resolveScene(input: SceneDefinition | SceneFactory): SceneDefinition {
   if (typeof input === "function") {
@@ -91,8 +109,8 @@ export function useSceneRouter<TRoutes extends Record<string, RouteConfig<TRoute
   // Resolve all scene factories eagerly — each factory runs once, registering
   // its onEnter/onExit handlers on engine.hooks. Initial activation is not
   // done here: the generated bootstrap awaits scene:enter before start().
-  // Build a route-key → scene-name map so hook emissions use the scene's canonical name.
-  const sceneNameByRoute = new Map<string, string>();
+  // Route key → scene name. Hook payloads use `def.name`, never the route key.
+  const sceneNameByRoute = new Map<string, GwenSceneName>();
   for (const routeKey of Object.keys(routes)) {
     const def = resolveScene(routes[routeKey as keyof TRoutes]!.scene);
     sceneNameByRoute.set(routeKey, def.name);
@@ -123,8 +141,8 @@ export function useSceneRouter<TRoutes extends Record<string, RouteConfig<TRoute
       }
 
       const fromState = currentState;
-      const fromName = sceneNameByRoute.get(String(fromState)) ?? String(fromState);
-      const toName = sceneNameByRoute.get(String(target)) ?? String(target);
+      const fromName = requireSceneName(sceneNameByRoute, String(fromState));
+      const toName = requireSceneName(sceneNameByRoute, String(target));
       const toConfig = routes[target as keyof TRoutes]!;
 
       if (toConfig.overlay) {

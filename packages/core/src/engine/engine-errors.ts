@@ -166,6 +166,7 @@ export const CoreErrorCodes = {
   INVALID_ENTITY_ID: "CORE:INVALID_ENTITY_ID",
   WASM_MODULE_ABI_MISMATCH: "CORE:WASM_MODULE_ABI_MISMATCH",
   INVALID_COMPONENT_TYPE: "CORE:INVALID_COMPONENT_TYPE",
+  /** Thrown by `GwenSceneRouterError`. */
   INVALID_SCENE_ROUTE: "CORE:INVALID_SCENE_ROUTE",
   ADVANCE_REENTRANT: "CORE:ADVANCE_REENTRANT",
   INVALID_STATE_TRANSITION: "CORE:INVALID_STATE_TRANSITION",
@@ -429,5 +430,38 @@ export class GwenHookNameError extends GwenError {
     this.code = CoreErrorCodes.HOOK_NAME_INVALID;
     this.hookName = hookName;
     this.reason = reason;
+  }
+}
+
+/**
+ * `defineSceneRouter` rejected an `initial` state or a transition target
+ * that is not a key of `routes`.
+ */
+export class GwenSceneRouterError extends GwenError {
+  override readonly code: typeof CoreErrorCodes.INVALID_SCENE_ROUTE;
+  readonly route: string;
+  readonly from: string | undefined;
+  readonly event: string | undefined;
+  readonly validRoutes: readonly string[];
+
+  constructor(
+    what: string,
+    route: string,
+    validRoutes: readonly string[],
+    from?: string,
+    event?: string,
+    composable: string = "defineSceneRouter",
+  ) {
+    const frozen = Object.freeze([...validRoutes]);
+    super(CoreErrorCodes.INVALID_SCENE_ROUTE, what, {
+      composable,
+      hint: __GWEN_DEV__ ? `Valid states: ${frozen.join(", ")}.` : undefined,
+    });
+    this.name = "GwenSceneRouterError";
+    this.code = CoreErrorCodes.INVALID_SCENE_ROUTE;
+    this.route = route;
+    this.from = from;
+    this.event = event;
+    this.validRoutes = frozen;
   }
 }

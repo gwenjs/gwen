@@ -19,8 +19,7 @@
  */
 
 import type { RouteConfig, SceneRouterOptions, SceneRouterDefinition } from "../router-types";
-import { GwenError } from "@gwenjs/schema";
-import { CoreErrorCodes } from "../../engine/engine-errors";
+import { GwenSceneRouterError } from "../../engine/engine-errors";
 
 /**
  * Declares a type-safe FSM scene router.
@@ -32,8 +31,8 @@ import { CoreErrorCodes } from "../../engine/engine-errors";
  * @param options - Router configuration with routes and initial state.
  * @returns An opaque `SceneRouterDefinition` to pass to `useSceneRouter()`.
  *
- * @throws If `initial` is not a valid route key.
- * @throws If any transition target is not a valid route key.
+ * @throws {GwenSceneRouterError} If `initial` is not a valid route key.
+ * @throws {GwenSceneRouterError} If any transition target is not a valid route key.
  *
  * @example
  * ```typescript
@@ -52,13 +51,10 @@ export function defineSceneRouter<TRoutes extends Record<string, RouteConfig<TRo
   const keys = Object.keys(options.routes);
 
   if (!keys.includes(options.initial as string)) {
-    throw new GwenError(
-      CoreErrorCodes.INVALID_SCENE_ROUTE,
+    throw new GwenSceneRouterError(
       `Initial state "${String(options.initial)}" is not found in routes.`,
-      {
-        composable: "defineSceneRouter",
-        hint: __GWEN_DEV__ ? `Valid states: ${keys.join(", ")}.` : undefined,
-      },
+      String(options.initial),
+      keys,
     );
   }
 
@@ -69,13 +65,12 @@ export function defineSceneRouter<TRoutes extends Record<string, RouteConfig<TRo
     if (config.on) {
       for (const [event, target] of Object.entries(config.on)) {
         if (!keys.includes(target as string)) {
-          throw new GwenError(
-            CoreErrorCodes.INVALID_SCENE_ROUTE,
+          throw new GwenSceneRouterError(
             `Transition "${event}" in state "${state}" points to "${String(target)}", which is not a valid route.`,
-            {
-              composable: "defineSceneRouter",
-              hint: __GWEN_DEV__ ? `Valid states: ${keys.join(", ")}.` : undefined,
-            },
+            String(target),
+            keys,
+            state,
+            event,
           );
         }
       }

@@ -26,6 +26,7 @@
  * ```
  */
 
+import type { GwenSceneName } from "@gwenjs/schema";
 import { _withSceneContext } from "./scene-context";
 import type { GwenPlugin, GwenEngine } from "../../engine/engine-types";
 import { engineContext } from "../../engine/context";
@@ -41,9 +42,9 @@ export interface SceneRegistry {
 }
 
 /** A resolved scene definition ready to be registered with the engine. */
-export interface SceneDefinition {
+export interface SceneDefinition<N extends GwenSceneName = GwenSceneName> {
   /** Unique scene name used by the engine router. */
-  readonly name: string;
+  readonly name: N;
   /** Systems that run each frame while this scene is active. */
   readonly systems: GwenPlugin[];
   /**
@@ -58,9 +59,15 @@ export interface SceneDefinition {
   /** Optional callback fired when the engine routes away from this scene. */
   readonly onExit?: () => void | Promise<void>;
   /** Optional async callback fired before the leave animation (scene:transition:leave). */
-  readonly onTransitionLeave?: (payload: { from: string; to: string }) => void | Promise<void>;
+  readonly onTransitionLeave?: (payload: {
+    from: GwenSceneName;
+    to: GwenSceneName;
+  }) => void | Promise<void>;
   /** Optional async callback fired after the enter animation (scene:transition:enter). */
-  readonly onTransitionEnter?: (payload: { from: string; to: string }) => void | Promise<void>;
+  readonly onTransitionEnter?: (payload: {
+    from: GwenSceneName;
+    to: GwenSceneName;
+  }) => void | Promise<void>;
 }
 
 /**
@@ -68,14 +75,14 @@ export interface SceneDefinition {
  * Called by the engine bootstrap with the active scene registry.
  * The result is cached after the first call.
  */
-export interface SceneFactory {
+export interface SceneFactory<N extends GwenSceneName = GwenSceneName> {
   /** Call to produce the resolved `SceneDefinition`. Result is cached. */
-  (registry: SceneRegistry): SceneDefinition;
+  (registry: SceneRegistry): SceneDefinition<N>;
   /**
    * Scene name — exposed as a property so tooling (Vite plugin, CLI)
    * can identify scenes without executing the factory.
    */
-  readonly sceneName: string;
+  readonly sceneName: N;
 }
 
 // ── Implementation ────────────────────────────────────────────────────────────
@@ -113,9 +120,12 @@ export interface SceneFactory {
  * })
  * ```
  */
-export function defineScene(name: string, factory: () => void): SceneFactory {
+export function defineScene<const N extends GwenSceneName>(
+  name: N,
+  factory: () => void,
+): SceneFactory<N> {
   // The SceneDefinition is engine-independent — factory runs once.
-  let _def: SceneDefinition | null = null;
+  let _def: SceneDefinition<N> | null = null;
   // Hook registration is per-engine — tracked so each engine gets its own listeners.
   const _registeredEngines = new WeakSet<GwenEngine>();
 
@@ -125,7 +135,7 @@ export function defineScene(name: string, factory: () => void): SceneFactory {
    * Direct hook registration bypassing SceneHookRegistry.
    * Caller must handle deduplication via _registeredEngines.
    */
-  function _registerHooksDirect(engine: GwenEngine, def: SceneDefinition): void {
+  function _registerHooksDirect(engine: GwenEngine, def: SceneDefinition<N>): void {
     if (def.onEnter) {
       const enterCb = def.onEnter;
       engine.hooks.hook("scene:enter", async (sceneName, params) => {
@@ -179,7 +189,7 @@ export function defineScene(name: string, factory: () => void): SceneFactory {
     }
   }
 
-  const call = (_registry: SceneRegistry): SceneDefinition => {
+  const call = (_registry: SceneRegistry): SceneDefinition<N> => {
     // Run factory only once — SceneDefinition is engine-independent.
     if (!_def) {
       const ctx = _withSceneContext(factory);

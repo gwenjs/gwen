@@ -339,7 +339,7 @@ function onDestroy(cb: () => void): void
 
 **Signature:**
 ```ts
-function defineScene(name: string, factory: () => void): SceneFactory
+function defineScene<const N extends GwenSceneName>(name: N, factory: () => void): SceneFactory<N>
 ```
 
 **Description.** Définit une scène de jeu. La factory s'exécute dans un contexte engine actif au démarrage — tous les composables engine sont disponibles. Déclarez les systèmes et les hooks de cycle de vie via des composables. Le résultat est mis en cache, la factory ne s'exécute qu'une seule fois.
@@ -347,10 +347,10 @@ function defineScene(name: string, factory: () => void): SceneFactory
 **Paramètres:**
 | Paramètre | Type | Description |
 |---|---|---|
-| name | `string` | Nom unique de la scène (utilisé par le routeur) |
+| name | `GwenSceneName` | Nom unique de la scène (utilisé par le routeur) |
 | factory | `() => void` | Fonction de setup — appelez `useSystem`, `onEnter`, `onExit` ici |
 
-**Retourne:** `SceneFactory` — appelable, avec une propriété `.sceneName`.
+**Retourne:** `SceneFactory<N>` — appelable, avec une propriété `.sceneName` qui conserve le littéral.
 
 **Exemple:**
 ```ts

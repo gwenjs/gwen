@@ -92,7 +92,7 @@ Cause. The call is outside `defineActor()`, `plugin setup()`, or `withCleanup()`
 - `CORE:ACTOR_POOL_EXHAUSTED` {#core-actor-pool-exhausted}
 - `CORE:INVALID_COMPONENT_SCHEMA` {#core-invalid-component-schema}
 - `CORE:INVALID_COMPONENT_TYPE` {#core-invalid-component-type}
-- `CORE:INVALID_SCENE_ROUTE` {#core-invalid-scene-route}
+- `CORE:INVALID_SCENE_ROUTE` {#core-invalid-scene-route} — `defineSceneRouter` throws `GwenSceneRouterError` when `initial` or a transition target is not a route key.
 - `CORE:FRAME_LOOP_ERROR` {#core-frame-loop-error}
 - `CORE:PLUGIN_SETUP_ERROR` {#core-plugin-setup-error}
 - `CORE:PLUGIN_RUNTIME_ERROR` {#core-plugin-runtime-error}

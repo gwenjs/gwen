@@ -1,7 +1,7 @@
 // packages/core/src/scene/engine-plugin.ts
 import { createDisposable } from "../disposable.js";
 import { popEngine, pushEngine } from "../engine/engine-local.js";
-import type { GwenPlugin, GwenEngineBase } from "@gwenjs/schema";
+import type { GwenPlugin, GwenEngineBase, GwenSceneName } from "@gwenjs/schema";
 import type { SceneDefinition } from "./runtime/define-scene.js";
 
 // ── GwenProvides augmentation ─────────────────────────────────────────────────
@@ -64,7 +64,7 @@ export class SceneHookRegistry {
 
     if (def.onTransitionLeave) {
       const leaveCb = def.onTransitionLeave;
-      const handler = async (payload: { from: string; to: string }) => {
+      const handler = async (payload: { from: GwenSceneName; to: GwenSceneName }) => {
         if (payload.from !== name) return;
         const previous = pushEngine(engine);
         try {
@@ -79,7 +79,7 @@ export class SceneHookRegistry {
 
     if (def.onTransitionEnter) {
       const enterCb = def.onTransitionEnter;
-      const handler = async (payload: { from: string; to: string }) => {
+      const handler = async (payload: { from: GwenSceneName; to: GwenSceneName }) => {
         if (payload.to !== name) return;
         const previous = pushEngine(engine);
         try {
