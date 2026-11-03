@@ -29,12 +29,18 @@
     "typecheck:isolated": "tsc --noEmit -p tsconfig.isolated.json",
     "watch": "vite build --watch"
   },
+  "dependencies": {
+    "typescript": "^6.0.2"
+  },
   "devDependencies": {
+    "@gwenjs/schema": "workspace:^",
     "@types/node": "^25.6.0",
-    "typescript": "^6.0.2",
     "vite": "^8.0.3",
     "vite-plugin-dts": "^4.5.4",
     "vitest": "^4.1.2"
+  },
+  "peerDependencies": {
+    "@gwenjs/schema": "workspace:^"
   },
   "gwen": {
     "type": "kit"

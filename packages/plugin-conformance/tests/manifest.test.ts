@@ -95,7 +95,7 @@ describe("checkPluginPackage manifest", () => {
     await writeManifestText(root, `\uFEFF${text}`);
 
     const report = await checkPluginPackage({ root, profile: "plugin" });
-    expect(report.checks).toEqual(["exports", "manifest"]);
+    expect(report.checks).toEqual(["exports", "hooks", "manifest"]);
     expect(report.findings).toEqual([]);
   });
 

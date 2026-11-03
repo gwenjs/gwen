@@ -1,5 +1,6 @@
 import { CONFORMANCE_CHECK_IDS } from "./check-ids.js";
 import { checkExports } from "./check-exports.js";
+import { checkHooks } from "./check-hooks.js";
 import { checkManifest } from "./check-manifest.js";
 import { ConformanceErrorCodes } from "./error-codes.js";
 import { packageReadFinding } from "./manifest-finding.js";
@@ -22,6 +23,7 @@ interface CheckSpec {
 /** Implemented runs. Order comes from {@link CONFORMANCE_CHECK_IDS}. */
 const CHECK_RUNS: Partial<Record<ConformanceCheckId, CheckRun>> = {
   exports: checkExports,
+  hooks: checkHooks,
   manifest: checkManifest,
 };
 

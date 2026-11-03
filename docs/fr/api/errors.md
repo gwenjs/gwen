@@ -497,6 +497,26 @@ Avertissement seulement. Déclaré sur `CameraErrorCodes` et jamais levé (`pack
 
 Cause. Une cible `exports` qui est une chaîne doit commencer par `./` et être un fichier du paquet. Une cible qui n'est ni une chaîne, ni un tableau, ni un objet, ni `null` est refusée. `null` est ignoré. `exports` absent, qui n'est pas un objet, ou vide est refusé, ainsi qu'un mélange de clés de sous-chemin et de clés de condition. Dans un objet de conditions, `types` doit être la première clé. `./internal`, `./internal/…` et une clé qui commence par `./internal*` sont refusés. Le profil `plugin` exige aussi `.` et `./module`. Un motif (`*`) n'est pas vérifié sur le disque. Fix. Faites commencer chaque cible chaîne par `./` vers un fichier du paquet, gardez `exports` comme un objet non vide d'une seule forme, mettez `types` en premier, retirez les sous-chemins internes, et ajoutez `.` et `./module` pour un plugin.
 
+### CONFORMANCE:HOOK_DYNAMIC_NAME {#conformance-hook-dynamic-name}
+
+Cause. Le nom passé à `emit`, `callHook`, `callHookParallel` ou `callHookWith` n'est ni une chaîne littérale, ni un gabarit sans substitution, ni un identifiant qui désigne une `const` chaîne littérale du même fichier : la vérification ne peut pas le lire. Un constat par appel. Un appel par alias (`const fire = engine.hooks.callHook`) n'est pas un site d'émission et n'est pas vérifié. Fix. Passez une chaîne littérale, ou une `const` initialisée avec une chaîne littérale, comme nom du hook.
+
+### CONFORMANCE:HOOK_FOREIGN_NAMESPACE {#conformance-hook-foreign-namespace}
+
+Cause. Un nom déclaré avec `defineHooks` ou dans une augmentation `GwenRuntimeHooks` de `@gwenjs/schema`, ou un nom passé à un appel d'émission, ne commence pas par `<hookNamespace>:`. `hookNamespace` est `gwen.hookNamespace` dans `package.json`. La vérification est ignorée quand cette valeur est absente ou invalide. Fix. Renommez le hook en `<hookNamespace>:<action>`.
+
+### CONFORMANCE:HOOK_NAMESPACE_INVALID {#conformance-hook-namespace-invalid}
+
+Cause. `gwen.hookNamespace` n'est pas une chaîne, ne respecte pas `^[a-z][a-z0-9-]*$`, est l'un des espaces de noms réservés du cœur (`engine`, `entity`, `scene`, `plugin`, `actor`, `prefab`, `service`), ou est un espace de noms du framework (`viewport`, `camera`, `physics`, `physics3d`). Il est aussi signalé quand il est absent et que le paquet déclare ou émet un hook. Un constat par paquet, sur la ligne 1 de `package.json`. Fix. Réglez `gwen.hookNamespace` sur un nom en minuscules qui vous est propre, par exemple `"myplug"`.
+
+### CONFORMANCE:HOOK_RESERVED {#conformance-hook-reserved}
+
+Cause. Un appel d'émission (`emit`, `callHook`, `callHookParallel`, `callHookWith`) utilise un nom dont l'espace de noms est réservé par le cœur (`engine`, `entity`, `scene`, `plugin`, `actor`, `prefab`, `service`) ou appartient à un paquet du framework (`viewport`, `camera`, `physics`, `physics3d`). Fix. Écoutez ce hook avec `useHook`, et émettez un hook de votre propre espace de noms.
+
+### CONFORMANCE:HOOK_UNDECLARED {#conformance-hook-undeclared}
+
+Cause. Un appel d'émission utilise un nom de l'espace de noms du paquet qu'aucun fichier du paquet ne déclare, ni avec `defineHooks`, ni dans une augmentation `GwenRuntimeHooks` de `@gwenjs/schema`. La vérification est ignorée quand `gwen.hookNamespace` est absent ou invalide. Fix. Déclarez le hook avec `defineHooks`, ou ajoutez-le à une augmentation `GwenRuntimeHooks`.
+
 ### CONFORMANCE:INVALID_SPEC {#conformance-invalid-spec}
 
 Cause. `checkPluginPackage` a reçu un `profile` qui n'est ni `"plugin"` ni `"package"`. Elle renvoie ce seul constat et n'exécute aucune vérification. Fix. Passez `"plugin"` ou `"package"` comme `profile`.

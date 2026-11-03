@@ -188,7 +188,7 @@ describe("checkPluginPackage", () => {
       root: goodPluginRoot(),
       profile: "plugin",
     });
-    expect(report.checks).toEqual(["exports", "manifest"]);
+    expect(report.checks).toEqual(["exports", "hooks", "manifest"]);
     expect(report.findings).toEqual([]);
   });
 
