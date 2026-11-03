@@ -18,7 +18,7 @@ export default {
       { name: "useQuery", from: "@gwenjs/core/system" },
       { name: "useService", from: "@gwenjs/core/system" },
       { name: "useWasmModule", from: "@gwenjs/core/system" },
-      { name: "useComponentFor", from: "@gwenjs/core/system" },
+      { name: "useComponent", from: "@gwenjs/core/system" },
     ]);
   },
 } satisfies GwenModule;

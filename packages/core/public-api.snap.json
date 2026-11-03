@@ -112,7 +112,7 @@
       "onBeforeUpdate",
       "onRender",
       "onUpdate",
-      "useComponentFor",
+      "useComponent",
       "useQuery",
       "useService",
       "useWasmModule"
@@ -120,6 +120,7 @@
     "types": [
       "ChunkColumns",
       "ComponentDef",
+      "ComponentHandle",
       "DiscoverablePlugin",
       "EntityAccessor",
       "LiveQuery",
@@ -151,7 +152,6 @@
       "useActorPool",
       "useActorQuery",
       "useChildren",
-      "useComponent",
       "useEntityId",
       "useLayout",
       "usePrefab",

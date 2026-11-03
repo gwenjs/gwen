@@ -17,4 +17,5 @@ export type {
   QueryChunk,
   ChunkColumns,
 } from "./runtime/define-system";
-export { useComponentFor } from "./runtime/use-component";
+export { useComponent } from "./runtime/use-component";
+export type { ComponentHandle } from "./runtime/use-component";

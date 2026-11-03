@@ -78,6 +78,7 @@ type _0 = [
 ];
 type _1 = [
   T_system.ComponentDef,
+  T_system.ComponentHandle<never>,
   T_system.DiscoverablePlugin,
   T_system.EntityAccessor<never>,
   T_system.LiveQuery<never>,

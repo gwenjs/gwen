@@ -61,7 +61,7 @@ export function readLoopDepth(engine: GwenEngine): number {
  */
 type SystemFramePhase = "engine:before-update" | "engine:update" | "engine:after-update";
 
-type PerEntityApi = "Query.each" | "useComponentFor";
+type PerEntityApi = "Query.each" | "useComponent";
 
 const framePhases = new WeakMap<object, SystemFramePhase>();
 const systemDepths = new WeakMap<object, number>();
