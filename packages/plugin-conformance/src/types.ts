@@ -26,7 +26,7 @@ export interface CheckPluginPackageOptions {
   readonly root: string;
   /** `plugin` requires `.` and `./module`. `package` does not. */
   readonly profile: "plugin" | "package";
-  /** Accepted, not used yet (PC-1a2). */
+  /** Accepted, not used yet (PC-1a2b). */
   readonly write?: boolean;
   /** Accepted, not used yet (PC-1c). */
   readonly lockfileBase?: string;

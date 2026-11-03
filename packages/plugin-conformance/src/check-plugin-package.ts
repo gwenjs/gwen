@@ -6,6 +6,8 @@ import { ConformanceErrorCodes } from "./error-codes.js";
 import { packageReadFinding } from "./manifest-finding.js";
 import type { PackageContext } from "./package-context.js";
 import { readPackageJson } from "./read-package.js";
+import { snapshotFindings } from "./snapshot.js";
+import { compareFindings } from "./sort-findings.js";
 import type {
   CheckPluginPackageOptions,
   ConformanceCheckId,
@@ -13,44 +15,7 @@ import type {
   ConformanceReport,
 } from "./types.js";
 
-type CheckRun = (context: PackageContext) => Promise<readonly ConformanceFinding[]>;
-
-interface CheckSpec {
-  readonly id: ConformanceCheckId;
-  readonly run?: CheckRun;
-}
-
-/** Implemented runs. Order comes from {@link CONFORMANCE_CHECK_IDS}. */
-const CHECK_RUNS: Partial<Record<ConformanceCheckId, CheckRun>> = {
-  exports: checkExports,
-  hooks: checkHooks,
-  manifest: checkManifest,
-};
-
-const CHECK_ORDER: readonly CheckSpec[] = CONFORMANCE_CHECK_IDS.map((id) => {
-  const run = CHECK_RUNS[id];
-  return run === undefined ? { id } : { id, run };
-});
-
-function hasRun(entry: CheckSpec): entry is CheckSpec & { readonly run: CheckRun } {
-  return entry.run !== undefined;
-}
-
-function compareText(left: string, right: string): number {
-  if (left < right) return -1;
-  if (left > right) return 1;
-  return 0;
-}
-
-function compareFindings(left: ConformanceFinding, right: ConformanceFinding): number {
-  const byFile = compareText(left.file ?? "", right.file ?? "");
-  if (byFile !== 0) return byFile;
-  const byLine = (left.line ?? 0) - (right.line ?? 0);
-  if (byLine !== 0) return byLine;
-  const byCode = compareText(left.code, right.code);
-  if (byCode !== 0) return byCode;
-  return compareText(left.message, right.message);
-}
+type FindingsById = Partial<Record<ConformanceCheckId, readonly ConformanceFinding[]>>;
 
 function isProfile(profile: string): profile is CheckPluginPackageOptions["profile"] {
   return profile === "plugin" || profile === "package";
@@ -71,7 +36,8 @@ function invalidProfileReport(profile: string): ConformanceReport {
 
 /**
  * Run the implemented checks for the package at `opts.root`.
- * `package.json` is read once. When it is missing or not JSON, only the manifest check is reported.
+ * `package.json` is read once. The snapshot checks run only when `exports` has no finding. When it
+ * is missing or not JSON, only the manifest check is reported.
  * An unknown `profile` (from a JS caller) is one `INVALID_SPEC` finding, not a throw. A `src` file
  * that cannot be read (any error but a missing file) rejects with that error: a silent pass would
  * hide a violation.
@@ -90,8 +56,23 @@ export async function checkPluginPackage(
     text: loaded.text,
     manifest: loaded.manifest,
   };
-  const implemented = CHECK_ORDER.filter(hasRun);
-  const groups = await Promise.all(implemented.map((entry) => entry.run(context)));
-  const findings = groups.flat().sort(compareFindings);
-  return { checks: implemented.map((entry) => entry.id), findings };
+  const [exportsFindings, hooksFindings, manifestFindings] = await Promise.all([
+    checkExports(context),
+    checkHooks(context),
+    checkManifest(context),
+  ]);
+  const byId: FindingsById = {
+    exports: exportsFindings,
+    hooks: hooksFindings,
+    manifest: manifestFindings,
+  };
+  // A missing target already is an `exports` finding; the snapshot checks would repeat it.
+  if (exportsFindings.length === 0) {
+    const snapshot = await snapshotFindings(context);
+    byId["snapshot-values"] = snapshot.values;
+    byId["snapshot-types"] = snapshot.types;
+  }
+  const checks = CONFORMANCE_CHECK_IDS.filter((id) => byId[id] !== undefined);
+  const findings = checks.flatMap((id) => byId[id] ?? []).sort(compareFindings);
+  return { checks, findings };
 }

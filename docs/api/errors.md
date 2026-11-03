@@ -141,12 +141,13 @@ Cause. The call is outside `defineActor()`, `plugin setup()`, or `withCleanup()`
 - `CORE:TWEEN_POOL_EXHAUSTED` {#core-tween-pool-exhausted}
 - `CORE:WASM_GLUE_MISMATCH` {#core-wasm-glue-mismatch} `checkGwenModule` rejects a compiled module that does not match its glue. `init` calls the check before it acquires an instance (#263).
 
-  | `reason` | Meaning | `expected` | `actual` |
-  | --- | --- | --- | --- |
-  | `build` | Build ids differ, or `gwen.build` is absent or repeated. | Glue `buildId`. | Section text, `<no gwen.build section>`, or `<n gwen.build sections>`. |
-  | `fingerprint` | Fingerprints differ, or `gwen.fingerprint` is absent or repeated. | Glue fingerprint. | Section text, `<no gwen.fingerprint section>`, or `<n gwen.fingerprint sections>`. |
-  | `exports` | A glue `rawExports` name is not a module export. | Missing names joined by `,`. | `<absent>` |
-  | `imports` | The module imports a name the contract does not list. | `<not in contract>` | Those names joined by `,`. |
+  | `reason`      | Meaning                                                           | `expected`                   | `actual`                                                                           |
+  | ------------- | ----------------------------------------------------------------- | ---------------------------- | ---------------------------------------------------------------------------------- |
+  | `build`       | Build ids differ, or `gwen.build` is absent or repeated.          | Glue `buildId`.              | Section text, `<no gwen.build section>`, or `<n gwen.build sections>`.             |
+  | `fingerprint` | Fingerprints differ, or `gwen.fingerprint` is absent or repeated. | Glue fingerprint.            | Section text, `<no gwen.fingerprint section>`, or `<n gwen.fingerprint sections>`. |
+  | `exports`     | A glue `rawExports` name is not a module export.                  | Missing names joined by `,`. | `<absent>`                                                                         |
+  | `imports`     | The module imports a name the contract does not list.             | `<not in contract>`          | Those names joined by `,`.                                                         |
+
 - `CORE:ENGINE_DISPOSED` {#core-engine-disposed} Thrown by `createEngineLocal().get()` when it would create a value after `engine.stop()` began disposing, and by `WasmBridgeImpl` after `engine.stop()`.
 - `CORE:WASM_CAPACITY_EXHAUSTED` {#core-wasm-capacity-exhausted} Thrown by `initWasm`, from the instance providers (`packages/core/src/engine/wasm-instance-provider.ts:57`), when `glue.initSync` throws a `RangeError` or a value that is not an `Error` (`packages/core/src/engine/wasm-instance-provider.ts:58`). The message is `Cannot create another WASM instance (mode "${mode}", ${live} live).` (`packages/core/src/engine/wasm-instance-provider.ts:61`). `cause` is the thrown value (`packages/core/src/engine/wasm-instance-provider.ts:64`). In development, `hint` is `Use wasmInstance: "shared", fewer engines per process, or worker threads.` (`packages/core/src/engine/wasm-instance-provider.ts:65`). The fallbacks are `wasmInstance: "shared"`, fewer engines per process, or worker threads. `mode` can be `"auto"` only when the pool instance itself cannot be created (`packages/core/src/engine/wasm-instance-provider.ts:185`); otherwise `auto` joins the pool.
 - `CORE:INVALID_ENGINE` {#core-invalid-engine} Thrown by `createEngineLocal().get()` when the argument is not an engine.
@@ -524,3 +525,11 @@ Cause. `checkPluginPackage` received a `profile` that is not `"plugin"` or `"pac
 ### CONFORMANCE:MANIFEST {#conformance-manifest}
 
 Cause. Profile `plugin` does not set `gwen.type` to `"plugin"`, `license` is empty or missing, no LICENSE file is at the root, or `package.json` is missing, unreadable, or not valid JSON. Fix. Set `gwen.type` and a non-empty `license`, add `LICENSE`, `LICENSE.md`, or `LICENSE.txt`, and write valid JSON.
+
+### CONFORMANCE:PRIVATE_EXPORT {#conformance-private-export}
+
+Cause. A value exported by a subpath of `exports` (any subpath listed there, public or not) starts with `_`. Names that start with `__` are not read. One finding per value, on the built types file. Fix. Rename the value without the underscore, or stop exporting it.
+
+### CONFORMANCE:SNAPSHOT_MISMATCH {#conformance-snapshot-mismatch}
+
+Cause. `public-api.snap.json` disagrees with the built types of `exports`: a value, a type or a subpath is in one and not in the other, or the file is missing, is not valid JSON, or has an invalid shape. The file lists, per subpath, the sorted `values` and `types`, in the gwen format. A subpath whose module entry is not built (its `types` file, else its `types.import` file, else its `import` file) is one finding. A subpath whose target names none of these files (for example `{ "default": "./dist/x.js" }`, a nested condition, or an array) is one finding too: `subpath "." declares no types or import file`. A `null` target blocks the subpath and is skipped. A target that is not a module entry (a `.wasm`, a `.css`) or a pattern (`./x/*`) is never required. The check is read-only. In `checkPluginPackage`, it runs only when `exports` has no finding; `checkSnapshot` does not run the `exports` check. A snapshot file that exists but cannot be read (for example, a directory) is reported as `cannot be read (<code>)`, not as missing. Fix. Build the package, then edit `public-api.snap.json` to match the build, or change the export.
