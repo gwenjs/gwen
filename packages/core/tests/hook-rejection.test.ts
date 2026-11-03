@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { defineActor, definePrefab } from "../src/actor/index.js";
 import { defineActorPool } from "../src/actor/runtime/pool/define-actor-pool.js";
+import { useActorPool } from "../src/actor/runtime/pool/use-actor-pool.js";
 import { createEngine } from "../src/node.js";
 import { CoreErrorCodes } from "../src/index.js";
 import type { GwenErrorPayload } from "@gwenjs/schema";
@@ -25,9 +26,10 @@ describe("rejected hook calls", () => {
         definePrefab([{ def: stubValue("HookHp"), defaults: { value: 1 } }]),
         () => {},
       );
-      const pool = defineActorPool(actor, { size: 2 });
+      const poolDef = defineActorPool(actor, { size: 2 });
       await engine.use(actor._plugin);
-      await engine.use(pool.plugin);
+      await engine.use(poolDef.plugin);
+      const pool = engine.run(() => useActorPool(poolDef));
       pool.hooks.hook("pool:acquire", () => Promise.reject(new Error("pool hook failed")));
 
       pool.acquire();

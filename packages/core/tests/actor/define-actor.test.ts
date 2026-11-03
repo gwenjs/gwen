@@ -23,6 +23,11 @@ describe("defineActor", () => {
     expect(Actor.__actorName__.length).toBeGreaterThan(0);
   });
 
+  it("exposes the actor plugin as the public plugin, the same object as _plugin", () => {
+    const Actor = defineActor(SimplePrefab, () => {});
+    expect(Actor.plugin).toBe(Actor._plugin);
+  });
+
   it("starts with zero instances", () => {
     const Actor = defineActor(SimplePrefab, () => {});
     expect(Actor._instances.size).toBe(0);

@@ -3,7 +3,13 @@ import { GwenError, type GwenErrorPayload } from "@gwenjs/schema";
 
 import { CoreErrorCodes, defineComponent, Types, type GwenEngine } from "../../src/index";
 import { createEngine } from "../../src/node";
-import { defineActor, defineActorPool, definePrefab, useActorQuery } from "../../src/actor/index";
+import {
+  defineActor,
+  defineActorPool,
+  definePrefab,
+  useActorPool,
+  useActorQuery,
+} from "../../src/actor/index";
 import {
   defineSystem,
   onAfterUpdate,
@@ -350,8 +356,9 @@ describe("useQuery chunks", () => {
       const prefab = definePrefab([{ def: PoolPos, defaults: { x: 1 } }]);
       const Actor = defineActor("query-chunk-pool", prefab, () => {});
       await engine.use(Actor._plugin);
-      const pool = defineActorPool(Actor, { size: 2 });
-      await engine.use(pool.plugin);
+      const poolDef = defineActorPool(Actor, { size: 2 });
+      await engine.use(poolDef.plugin);
+      const pool = engine.run(() => useActorPool(poolDef));
 
       const id = pool.acquire();
       pool.release(id);

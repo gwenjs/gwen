@@ -21,6 +21,7 @@ function makeActorDef(name: string, initialCount = 0): ActorDefinition<void, voi
     __actorName__: name,
     _instances,
     _plugin: {} as never,
+    plugin: {} as never,
     _prefab: {} as never,
     __props__: undefined as never,
     __api__: undefined as never,

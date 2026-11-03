@@ -5,6 +5,7 @@ import { definePrefab } from "../../src/actor/runtime/define-prefab";
 import { defineActor } from "../../src/actor/runtime/define-actor";
 import { useActor } from "../../src/actor/runtime/use-actor";
 import { defineActorPool } from "../../src/actor/runtime/pool/define-actor-pool";
+import { useActorPool } from "../../src/actor/runtime/pool/use-actor-pool";
 
 const Position = defineComponent({
   name: "Position",
@@ -16,8 +17,8 @@ const prefab = definePrefab([{ def: Position, defaults: { x: 0 } }]);
 const withProps = defineActor(prefab, (props: { hp: number }) => ({ hp: props.hp }));
 const bare = defineActor(prefab, () => ({ ok: true }));
 
-const propsPool = defineActorPool(withProps, { size: 2 });
-const barePool = defineActorPool(bare, { size: 2 });
+const propsPool = useActorPool(defineActorPool(withProps, { size: 2 }));
+const barePool = useActorPool(defineActorPool(bare, { size: 2 }));
 
 expectTypeOf(propsPool.acquire).toEqualTypeOf(useActor(withProps).spawn);
 expectTypeOf(barePool.acquire).toEqualTypeOf(useActor(bare).spawn);

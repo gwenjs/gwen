@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { defineActor, defineActorPool, definePrefab } from "../../src/actor/index.js";
+import { defineActor, defineActorPool, definePrefab, useActorPool } from "../../src/actor/index.js";
 import { type EntityId } from "../../src/index.js";
 import { entityIndex } from "../../src/internal.js";
 import "../../../physics2d/src/augment";
@@ -228,8 +228,9 @@ describe.each(["physics2d", "physics3d"] as const)("p54 stale physics handles (%
     const physics = physicsOf(handle, variant);
     const Actor = defineActor(definePrefab([]), () => {});
     await handle.engine.use(Actor._plugin);
-    const pool = defineActorPool(Actor, { size: 2 });
-    await handle.engine.use(pool.plugin);
+    const poolDef = defineActorPool(Actor, { size: 2 });
+    await handle.engine.use(poolDef.plugin);
+    const pool = handle.engine.run(() => useActorPool(poolDef));
 
     const id = pool.acquire();
     addBody(variant, physics, id, 0, 1, false);

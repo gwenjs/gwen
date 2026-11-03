@@ -6,6 +6,7 @@ import { defineActor, onStart, onDestroy } from "../../src/actor/runtime/define-
 import { useChildren } from "../../src/actor/runtime/use-children";
 import type { PlaceHandle } from "../../src/actor/runtime/types";
 import { defineActorPool } from "../../src/actor/runtime/pool/define-actor-pool";
+import { useActorPool } from "../../src/actor/runtime/pool/use-actor-pool";
 import { activateTestWasm } from "../helpers/activate-test-wasm";
 import { GwenContextError } from "../../src/engine/context";
 import { GwenActorError, ActorErrorCodes } from "../../src/engine/engine-errors";
@@ -287,17 +288,19 @@ describe("useChildren — pool release cascade", () => {
   it("releasing a pooled parent releases a pooled child", async () => {
     const engine = await createEngine();
     const ChildActor = defineActor(Prefab, () => {});
-    const ChildPool = defineActorPool(ChildActor, { size: 5 });
+    const ChildPoolDef = defineActorPool(ChildActor, { size: 5 });
     let childrenHandle: ReturnType<typeof useChildren>;
     const Parent = defineActor(Prefab, () => {
       childrenHandle = useChildren();
     });
-    const ParentPool = defineActorPool(Parent, { size: 5 });
+    const ParentPoolDef = defineActorPool(Parent, { size: 5 });
 
     await engine.use(ChildActor._plugin);
-    await engine.use(ChildPool.plugin);
+    await engine.use(ChildPoolDef.plugin);
+    const ChildPool = engine.run(() => useActorPool(ChildPoolDef));
     await engine.use(Parent._plugin);
-    await engine.use(ParentPool.plugin);
+    await engine.use(ParentPoolDef.plugin);
+    const ParentPool = engine.run(() => useActorPool(ParentPoolDef));
 
     activateTestWasm(engine);
     await engine.start();
@@ -333,11 +336,12 @@ describe("useChildren — pool release cascade", () => {
         children.add(Child);
       });
     });
-    const ParentPool = defineActorPool(Parent, { size: 5 });
+    const ParentPoolDef = defineActorPool(Parent, { size: 5 });
 
     await engine.use(Child._plugin);
     await engine.use(Parent._plugin);
-    await engine.use(ParentPool.plugin);
+    await engine.use(ParentPoolDef.plugin);
+    const ParentPool = engine.run(() => useActorPool(ParentPoolDef));
 
     activateTestWasm(engine);
     await engine.start();
