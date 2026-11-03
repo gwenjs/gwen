@@ -6,8 +6,8 @@
  * Detection strategy:
  * 1. Find `useQuery([ComponentA, ComponentB])` or
  *    `useActorQuery(ActorDef, [ComponentA, ComponentB])` calls — extract component names.
- * 2. Find `onUpdate(() => { ... })` blocks — scan body for `useComponentFor` calls.
- * 3. Classify each `useComponentFor(entityId, Comp)` as a read declaration.
+ * 2. Find `onUpdate(() => { ... })` blocks — scan body for `useComponent` calls.
+ * 3. Classify each `useComponent(entityId, Comp)` as a read declaration.
  * 4. Detect proxy mutations (`pos.x += vel.x * dt`) as write targets, using
  *    the read-variable map to resolve variable names to component names.
  *
@@ -177,7 +177,7 @@ function extractQueryComponents(fn: FunctionExpression | ArrowFunctionExpression
 /**
  * Extract read and write component usage from `onUpdate` callback bodies.
  *
- * Reads are detected from `useComponentFor(entityId, Comp)` declarations.
+ * Reads are detected from `useComponent(entityId, Comp)` declarations.
  * Writes are detected from proxy mutations (`pos.x += ...`) using the
  * read-variable map built from the read declarations.
  */
@@ -237,10 +237,10 @@ function extractUpdateUsage(
 }
 
 /**
- * Recursively collect `useComponentFor` read declarations from a statement.
+ * Recursively collect `useComponent` read declarations from a statement.
  * Handles `for-of` loops that wrap the component access calls.
  *
- * Classification: `useComponentFor(entityId, Comp)` — **read**.
+ * Classification: `useComponent(entityId, Comp)` — **read**.
  */
 function collectUseComponentReads(node: Statement, reads: Set<string>): void {
   if (node.type === "ForOfStatement") {
@@ -251,13 +251,13 @@ function collectUseComponentReads(node: Statement, reads: Set<string>): void {
     return;
   }
 
-  // `const pos = useComponentFor(entityId, Position)` — read
+  // `const pos = useComponent(entityId, Position)` — read
   if (node.type === "VariableDeclaration") {
     const varDecl = node as VariableDeclaration;
     for (const decl of varDecl.declarations) {
       const d = decl as VariableDeclarator;
       if (!d.init || d.init.type !== "CallExpression") continue;
-      if (!isCallTo(d.init as CallExpression, "useComponentFor")) continue;
+      if (!isCallTo(d.init as CallExpression, "useComponent")) continue;
       const args = getCallArgs(d.init as CallExpression);
       if (args.length === 2) {
         const name = getIdentifierName(args[1]!);
@@ -312,7 +312,7 @@ function collectAssignmentWrites(
  * Scan the body of an `onUpdate` callback and build a map from read-variable
  * names to their component names.
  *
- * Example: `const pos = useComponentFor(entity.id, Position)` → `{ 'pos' → 'Position' }`.
+ * Example: `const pos = useComponent(entity.id, Position)` → `{ 'pos' → 'Position' }`.
  */
 function buildReadVarMap(
   onUpdateCallback: FunctionExpression | ArrowFunctionExpression,
@@ -335,7 +335,7 @@ function buildReadVarMap(
       for (const decl of varDecl.declarations) {
         const d = decl as VariableDeclarator;
         if (!d.init || d.init.type !== "CallExpression") continue;
-        if (!isCallTo(d.init as CallExpression, "useComponentFor")) continue;
+        if (!isCallTo(d.init as CallExpression, "useComponent")) continue;
         const args = getCallArgs(d.init as CallExpression);
         if (args.length !== 2) continue;
         if (d.id.type !== "Identifier") continue;
@@ -354,7 +354,7 @@ function buildReadVarMap(
  * Walk the `onUpdate` callback to find the first for-of loop and extract all
  * source byte-offset positions needed by `BulkTransformer`.
  *
- * - `readDecls`    — `const pos = useComponentFor(entity.id, Position)` statements to remove.
+ * - `readDecls`    — `const pos = useComponent(entity.id, Position)` statements to remove.
  * - `writeTargets` — component names mutated via proxy assignment (for `queryWriteBulk`).
  * - `propAccesses` — all `varName.field` member expressions to rewrite as flat-buffer indices.
  *
@@ -385,7 +385,7 @@ function extractForOfPositions(
 
     const bodyStmts = forOf.body.body;
 
-    // Read declarations: `const pos = useComponentFor(entity.id, Position)` — to be removed.
+    // Read declarations: `const pos = useComponent(entity.id, Position)` — to be removed.
     const readDecls: { varName: string; component: string; start: number; end: number }[] = [];
     for (const s of bodyStmts) {
       if (s.type !== "VariableDeclaration") continue;
@@ -393,7 +393,7 @@ function extractForOfPositions(
       for (const decl of varDecl.declarations) {
         const d = decl as VariableDeclarator;
         if (!d.init || d.init.type !== "CallExpression") continue;
-        if (!isCallTo(d.init as CallExpression, "useComponentFor")) continue;
+        if (!isCallTo(d.init as CallExpression, "useComponent")) continue;
         const args = getCallArgs(d.init as CallExpression);
         if (args.length !== 2) continue;
         if (d.id.type !== "Identifier") continue;
