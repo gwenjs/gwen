@@ -85,7 +85,7 @@ describe("package README public exports", () => {
     expect(missingReadmeLines()).toEqual([]);
   });
 
-  it("the only deprecated public export is useComponentFor", () => {
-    expect(deprecatedPublicExports()).toEqual(["@gwenjs/core ./system useComponentFor"]);
+  it("no public export is deprecated", () => {
+    expect(deprecatedPublicExports()).toEqual([]);
   });
 });

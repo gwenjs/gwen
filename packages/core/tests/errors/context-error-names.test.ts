@@ -26,7 +26,6 @@ import {
   placePrefab,
   useActor,
   useChildren,
-  useComponent,
   useEntityId,
   useTransform,
 } from "@gwenjs/core/actor";
@@ -47,6 +46,7 @@ import {
   onBeforeUpdate,
   onRender,
   onUpdate,
+  useComponent,
 } from "@gwenjs/core/system";
 import { onCleanup } from "../../src/hooks/index.js";
 

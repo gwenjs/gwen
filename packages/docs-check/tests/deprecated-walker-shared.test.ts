@@ -38,7 +38,7 @@ describe("the deprecated-export walker is shared, not copied", () => {
   });
 
   it("the shared helper returns the exact sets the consumers use", () => {
-    expect(deprecatedPublicExports()).toEqual(["@gwenjs/core ./system useComponentFor"]);
+    expect(deprecatedPublicExports()).toEqual([]);
     expect(deprecatedPublicMembers()).toEqual(["@gwenjs/core . GwenEngine.createLiveQuery"]);
   });
 

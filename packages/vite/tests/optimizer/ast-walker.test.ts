@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { AstWalker } from "../../src/optimizer/ast-walker";
 
 const SYSTEM_CODE = `                                                                                                                                                                                                                                                                                                                                                                                                        
-  import { useQuery, onUpdate, useComponentFor } from '@gwenjs/core/system'                                                                                                                                                                                                                                                                                                                                                       
+  import { useQuery, onUpdate, useComponent } from '@gwenjs/core/system'                                                                                                                                                                                                                                                                                                                                                       
   import { Position, Velocity } from './components'                                                                                                                                                                                                                                                                                                                                                                            
                                                                                                                                                                                                                                                                                                                                                                                                                                
   export const movementSystem = defineSystem(() => {                                                                                                                                                                                                                                                                                                                                                                         
@@ -10,8 +10,8 @@ const SYSTEM_CODE = `
                                                                                       
     onUpdate((dt) => {                                                                                                                                                                                                                                                                                                                                                                                                         
       for (const e of entities) {                                                                                                                                                                                                                                                                                                                                                                                              
-        const pos = useComponentFor(e.id, Position)                                                                                                                                                                                                                                                                                                                                                                               
-        const vel = useComponentFor(e.id, Velocity)                                   
+        const pos = useComponent(e.id, Position)                                                                                                                                                                                                                                                                                                                                                                               
+        const vel = useComponent(e.id, Velocity)                                   
         pos.x += vel.x * dt                                                                                                                                                                                                                                                                                                                                                                                                    
         pos.y += vel.y * dt                               
       }                                                                                                                                                                                                                                                                                                                                                                                                                        
@@ -28,7 +28,7 @@ describe("AstWalker", () => {
     expect(findings[0]!.queryComponents).toContain("Velocity");
   });
 
-  it("detects read components from useComponentFor calls", () => {
+  it("detects read components from useComponent calls", () => {
     const walker = new AstWalker("test.ts");
     const findings = walker.walk(SYSTEM_CODE);
     expect(findings[0]!.readComponents).toContain("Position");
@@ -51,7 +51,7 @@ describe("AstWalker", () => {
     expect(findings[0]!.positions?.writeTargets).not.toContain("Velocity");
   });
 
-  it("positions include readDecls for useComponentFor declarations", () => {
+  it("positions include readDecls for useComponent declarations", () => {
     const walker = new AstWalker("test.ts");
     const findings = walker.walk(SYSTEM_CODE);
     const decls = findings[0]!.positions?.readDecls ?? [];
@@ -75,21 +75,44 @@ describe("AstWalker", () => {
     expect(findings).toEqual([]);
   });
 
-  it("does not detect 3-arg useComponentFor as a read", () => {
+  it("does not detect 3-arg useComponent as a read", () => {
+    const walker = new AstWalker("test.ts");
+    const source = `
+        export const s = defineSystem(() => {
+          const entities = useQuery([Position, Velocity])
+          onUpdate(() => {
+            for (const e of entities) {
+              const vel = useComponent(e.id, Velocity)
+              const moved = useComponent(e.id, Position, { x: 1 })
+              moved.x = vel.x
+            }
+          })
+        })
+      `;
+    const findings = walker.walk(source);
+    // 3-arg call is not detected as a read declaration, a read variable or a write
+    expect(findings[0]!.readComponents).toEqual(["Velocity"]);
+    expect(findings[0]!.writeComponents).toEqual([]);
+    expect(findings[0]!.positions?.writeTargets).toEqual([]);
+    expect((findings[0]!.positions?.readDecls ?? []).map((d) => d.varName)).toEqual(["vel"]);
+  });
+
+  it("a one-argument useComponent(Pos) in onUpdate is left untouched", () => {
     const walker = new AstWalker("test.ts");
     const source = `
         export const s = defineSystem(() => {
           const entities = useQuery([Position])
           onUpdate(() => {
             for (const e of entities) {
-              useComponentFor(e.id, Position, { x: 1 })
+              const a = useComponent(e.id, Position)
+              const b = useComponent(Position)
             }
           })
         })
       `;
     const findings = walker.walk(source);
-    // 3-arg call is not detected as a read declaration
-    expect(findings[0]!.readComponents).not.toContain("Position");
+    const decls = findings[0]!.positions?.readDecls ?? [];
+    expect(decls.map((d) => d.varName)).toEqual(["a"]);
   });
 });
 
@@ -97,7 +120,7 @@ describe("AstWalker", () => {
 
 const ACTOR_CODE = `
   import { defineActor } from '@gwenjs/core/actor'
-  import { useQuery, onUpdate, useComponentFor } from '@gwenjs/core/system'
+  import { useQuery, onUpdate, useComponent } from '@gwenjs/core/system'
   import { Position, Velocity } from './components'
 
   export const SwarmActor = defineActor(SwarmPrefab, () => {
@@ -105,8 +128,8 @@ const ACTOR_CODE = `
 
     onUpdate(({ dt }) => {
       for (const e of boids) {
-        const pos = useComponentFor(e, Position)
-        const vel = useComponentFor(e, Velocity)
+        const pos = useComponent(e, Position)
+        const vel = useComponent(e, Velocity)
         pos.x += vel.x * dt
         pos.y += vel.y * dt
       }
@@ -120,7 +143,7 @@ const ACTOR_WITH_NAME_CODE = `
 
     onUpdate(({ dt }) => {
       for (const e of boids) {
-        const pos = useComponentFor(e, Position)
+        const pos = useComponent(e, Position)
         pos.x += 1
       }
     })
@@ -133,8 +156,8 @@ const ACTOR_QUERY_CODE = `
 
     onUpdate(({ dt }) => {
       for (const e of members) {
-        const pos = useComponentFor(e, Position)
-        const vel = useComponentFor(e, Velocity)
+        const pos = useComponent(e, Position)
+        const vel = useComponent(e, Velocity)
         pos.x += vel.x * dt
         pos.y += vel.y * dt
       }
@@ -235,7 +258,7 @@ describe("AstWalker — useActorQuery support", () => {
 
         onUpdate(({ dt }) => {
           for (const e of targets) {
-            const pos = useComponentFor(e, Position)
+            const pos = useComponent(e, Position)
             pos.x += 1
           }
         })

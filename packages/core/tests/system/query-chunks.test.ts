@@ -10,7 +10,7 @@ import {
   onBeforeUpdate,
   onRender,
   onUpdate,
-  useComponentFor,
+  useComponent,
   useQuery,
 } from "../../src/system/index";
 
@@ -499,7 +499,7 @@ describe("per-entity query path", () => {
     });
   });
 
-  it("useComponentFor warns once and is a separate api from Query.each", async () => {
+  it("useComponent warns once and is a separate api from Query.each", async () => {
     await withEngine(async (engine) => {
       const events = collectErrors(engine);
       const id = engine.createEntity();
@@ -509,8 +509,8 @@ describe("per-entity query path", () => {
         defineSystem("per-entity-both", () => {
           const query = useQuery([Position]);
           onUpdate(() => {
-            const first = useComponentFor(id, Position);
-            const second = useComponentFor(id, Position);
+            const first = useComponent(id, Position);
+            const second = useComponent(id, Position);
             seen = first.x + second.x;
             for (const row of query.each()) seen += row.get(Position).x;
           });
@@ -524,7 +524,7 @@ describe("per-entity query path", () => {
         const warnings = perEntityEvents(events);
         expect(warnings).toHaveLength(2);
         const apis = warnings.map((event) => contextString(event.context, "api")).sort();
-        expect(apis).toEqual(["Query.each", "useComponentFor"]);
+        expect(apis).toEqual(["Query.each", "useComponent"]);
         for (const event of warnings) {
           const api = contextString(event.context, "api");
           expect(event.level).toBe("warning");

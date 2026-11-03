@@ -49,14 +49,14 @@ describe("gwenOptimizerPlugin", () => {
     // PatternDetector therefore marks it non-optimizable and the plugin returns null.
     // Full transformation is covered by integration / build-level tests.
     const code = `                                                                                                                                                                                                                                                                                                                                                                                                           
-        import { useQuery, onUpdate, useComponentFor } from '@gwenjs/core/system';       
+        import { useQuery, onUpdate, useComponent } from '@gwenjs/core/system';       
         import { Position, Velocity } from './components';                
         export const s = defineSystem(() => {                                                                                                                                                                                                                                                                                                                                                                                  
           const entities = useQuery([Position, Velocity]);                            
           onUpdate((dt) => {                                                                                                                                                                                                                                                                                                                                                                                                   
             for (const e of entities) {                                            
-              const pos = useComponentFor(e.id, Position);                               
-              const vel = useComponentFor(e.id, Velocity);                                                                                                                                                                                                                                                                                                                                                                        
+              const pos = useComponent(e.id, Position);                               
+              const vel = useComponent(e.id, Velocity);                                                                                                                                                                                                                                                                                                                                                                        
               pos.x += vel.x * dt;                                                                                                                                                                                                                                                                                                                                                                                             
               pos.y += vel.y * dt;                                                                                                                                                                                                                                                                                                                                                                                             
             }                                                                                                                                                                                                                                                                                                                                                                                                                  
@@ -95,7 +95,7 @@ describe("gwenOptimizerPlugin", () => {
         const members = useActorQuery(BoidActor, [Position, Velocity])
         onUpdate(({ dt }) => {
           for (const e of members) {
-            const pos = useComponentFor(e, Position)
+            const pos = useComponent(e, Position)
             pos.x += 1
           }
         })
@@ -115,7 +115,7 @@ describe("gwenOptimizerPlugin", () => {
         const boids = useQuery([Position, Velocity])
         onUpdate(({ dt }) => {
           for (const e of boids) {
-            const pos = useComponentFor(e, Position)
+            const pos = useComponent(e, Position)
             pos.x += 1
           }
         })
