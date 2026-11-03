@@ -15,7 +15,8 @@ Un `onUpdate` d'acteur s'exécute une fois par instance. Beaucoup d'acteurs, cel
 
 ```ts check
 import { defineComponent, Types } from "@gwenjs/core";
-import { defineActor, definePrefab, onUpdate, useTransform } from "@gwenjs/core/actor";
+import { defineActor, definePrefab, useTransform } from "@gwenjs/core/actor";
+import { onUpdate } from "@gwenjs/core/system";
 
 const Marker = defineComponent({
   name: "EnemyMarker",

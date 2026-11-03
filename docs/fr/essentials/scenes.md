@@ -47,7 +47,7 @@ Tous les systèmes de toutes les scènes sont installés au bootstrap, mais le f
 Lors d'une navigation de la scène **A** vers la scène **B**, les callbacks se déclenchent dans cet ordre :
 
 ```
-A: onTransitionLeave({ from: 'A', to: 'B' })   ← jouer l'animation de sortie, attendu
+A: onTransitionExit({ from: 'A', to: 'B' })    ← jouer l'animation de sortie, attendu
 A: onExit()                                      ← despawner les acteurs, disposer les layouts
    scene:leave
    scene:enter
@@ -117,11 +117,11 @@ Si une superposition de scène met la scène sous-jacente en pause, les système
 
 ## Animations de transition
 
-Utilisez `onTransitionLeave` et `onTransitionEnter` pour jouer des animations autour des changements de scène. Les deux callbacks sont attendus avant que le moteur continue.
+Utilisez `onTransitionExit` et `onTransitionEnter` pour jouer des animations autour des changements de scène. Les deux callbacks sont attendus avant que le moteur continue.
 
 ```ts
 export const GameScene = defineScene('game', () => {
-  onTransitionLeave(async ({ from, to }) => {
+  onTransitionExit(async ({ from, to }) => {
     await fadeOut(300)   // attendu avant onExit
   })
 
@@ -157,7 +157,7 @@ export const GameScene = defineScene('game', () => {
 | `useActor(def)` | Enregistre un acteur pour cette scène → `ActorHandle` |
 | `onEnter(cb)` | S'exécute à l'activation de la scène ; reçoit des paramètres optionnels |
 | `onExit(cb)` | S'exécute à la désactivation de la scène |
-| `onTransitionLeave(cb)` | Avant l'animation de sortie ; reçoit `{ from, to }` |
+| `onTransitionExit(cb)` | Avant l'animation de sortie ; reçoit `{ from, to }` |
 | `onTransitionEnter(cb)` | Après l'animation d'entrée ; reçoit `{ from, to }` |
 | `useSceneRouter(router)` | Accéder au routeur de scènes (ex : lire `nav.params`) |
 | `SystemHandle.pause()` | Mettre en pause les callbacks de frame du système |

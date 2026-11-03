@@ -198,7 +198,7 @@ unsubscribe()
 
 ## Transition Animations
 
-To play animations around scene changes, use `onTransitionLeave` and `onTransitionEnter` in the scene. See [Scenes — Transition Animations](/essentials/scenes#transition-animations).
+To play animations around scene changes, use `onTransitionExit` and `onTransitionEnter` in the scene. See [Scenes — Transition Animations](/essentials/scenes#transition-animations).
 
 ## Validation
 
