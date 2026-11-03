@@ -194,8 +194,6 @@ const lobby = await createEngine({ variant: "physics2d", wasmInstance: "auto", w
 | `wasmMemoryBytes` | `number` | WASM linear memory in bytes. Omitted when the bridge has no memory |
 | `phaseMs` | `object` | Per-phase timings in ms. Present only when `__GWEN_DEV__` and `debug` are both true |
 | `overBudget` | `boolean` | Present only with `phaseMs`. `true` when `phaseMs.total` exceeds `budgetMs` |
-| `hookListeners` | `number` | Listeners registered on `engine.hooks`, every hook name included. A `hookOnce` listener counts until it fires |
-| `plugins` | `string[]` | Installed plugin names in install order. A new array on each call |
 
 `deltaTime` is in seconds. A fresh engine reports `frameCount` `0`. One `advance(1 / 60)` reports that step as `deltaTime`.
 
