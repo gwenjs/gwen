@@ -102,7 +102,6 @@ describe("kit scope slot", () => {
         const slot = kit.getCurrentScope();
         expect(slot).not.toBeNull();
         if (slot === null) return;
-        expect(kit.useCurrentScope()).toBe(slot);
         expect(GwenScope.current()).toBe(slot);
         seen.push(slot);
       })(),

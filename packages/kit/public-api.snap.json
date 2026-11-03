@@ -10,7 +10,6 @@
       "_setCurrentScope",
       "getCurrentScope",
       "tryUseEngine",
-      "useCurrentScope",
       "useErrorReporter",
       "useLogger",
       "usePerfMark"

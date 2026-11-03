@@ -7,7 +7,7 @@
  * - LIFO cleanup callbacks registered via `onCleanup()`
  * - A parent-child hierarchy — disposing a parent automatically disposes all children first
  *
- * @internal Framework use only. Plugin authors use `useCurrentScope()` from `@gwenjs/kit`.
+ * @internal Framework use only. Plugin authors use `getCurrentScope()` from `@gwenjs/kit`.
  *
  * @module
  */
@@ -41,7 +41,7 @@ let _scopeIdCounter = 0;
  * - LIFO cleanup callbacks registered via `onCleanup()`
  * - A parent-child hierarchy — disposing a parent automatically disposes all children first
  *
- * @internal Framework use only. Plugin authors use `useCurrentScope()` from `@gwenjs/kit`.
+ * @internal Framework use only. Plugin authors use `getCurrentScope()` from `@gwenjs/kit`.
  */
 export class GwenScope implements IGwenScope {
   readonly meta: GwenScopeMeta;

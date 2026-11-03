@@ -106,7 +106,7 @@ A `setup` throw reaches the error bus as `CORE:PLUGIN_SETUP_ERROR`, then `engine
 
 ### `.`
 
-Values: `GWEN_CONTEXT_BOUNDARIES`, `GwenContextError`, `GwenContextErrorCodes`, `GwenModuleDefinitionError`, `KitErrorCodes`, `_engineSlot`, `_setCurrentScope`, `getCurrentScope`, `tryUseEngine`, `useCurrentScope`, `useErrorReporter`, `useLogger`, `usePerfMark`
+Values: `GWEN_CONTEXT_BOUNDARIES`, `GwenContextError`, `GwenContextErrorCodes`, `GwenModuleDefinitionError`, `KitErrorCodes`, `_engineSlot`, `_setCurrentScope`, `getCurrentScope`, `tryUseEngine`, `useErrorReporter`, `useLogger`, `usePerfMark`
 
 `tryUseEngine` returns the engine `useEngine()` returns, or `undefined` where `useEngine()` would throw `CORE:OUTSIDE_ENGINE_CONTEXT`, and never throws.
 
