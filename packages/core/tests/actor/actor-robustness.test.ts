@@ -19,7 +19,7 @@ import { definePrefab } from "../../src/actor/runtime/define-prefab";
 import { defineActor, onStart, onDestroy, useEntityId } from "../../src/actor/runtime/define-actor";
 import { useHook } from "../../src/hooks/use-hook";
 import { onUpdate } from "../../src/system/runtime/define-system";
-import { useComponent } from "../../src/actor/runtime/use-actor";
+import { useComponent } from "../../src/system/index";
 import { defineActorPool } from "../../src/actor/runtime/pool/define-actor-pool";
 import { createEngine } from "../../src/node";
 import type { ActorDefinition } from "../../src/actor/runtime/types";
