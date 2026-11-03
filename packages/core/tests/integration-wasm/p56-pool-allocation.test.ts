@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { defineActor, defineActorPool, definePrefab } from "../../src/actor/index.js";
+import { defineActor, defineActorPool, definePrefab, useActorPool } from "../../src/actor/index.js";
 import { defineComponent, Types } from "../../src/index.js";
 import type { EntityId } from "../../src/types/entity.js";
 import { defineSystem, onUpdate, useQuery } from "../../src/system/runtime/define-system.js";
@@ -44,8 +44,9 @@ describe("pool acquire/release allocation (#56)", () => {
       const prefab = definePrefab([{ def: Bullet, defaults: { n: 1 } }]);
       const Actor = defineActor("p56-bullet", prefab, () => {});
       await engine.use(Actor._plugin);
-      const pool = defineActorPool(Actor, { size: 20_000 });
-      await engine.use(pool.plugin);
+      const poolDef = defineActorPool(Actor, { size: 20_000 });
+      await engine.use(poolDef.plugin);
+      const pool = engine.run(() => useActorPool(poolDef));
 
       const cycle = 10_000;
       const ops = cycle * 2;

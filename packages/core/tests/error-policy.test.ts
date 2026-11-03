@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { GwenErrorPayload } from "@gwenjs/schema";
 import { defineActor, definePrefab } from "../src/actor/index";
 import { defineActorPool } from "../src/actor/runtime/pool/define-actor-pool";
+import { useActorPool } from "../src/actor/runtime/pool/use-actor-pool";
 import { createDisposable } from "../src/disposable";
 import {
   CoreErrorCodes,
@@ -289,8 +290,9 @@ describe("frame isolation", () => {
       });
     });
     await engine.use(Actor._plugin);
-    const pool = defineActorPool(Actor, { size: 2 });
-    await engine.use(pool.plugin);
+    const poolDef = defineActorPool(Actor, { size: 2 });
+    await engine.use(poolDef.plugin);
+    const pool = engine.run(() => useActorPool(poolDef));
 
     const firstId = pool.acquire();
     await engine.advance(0.016);

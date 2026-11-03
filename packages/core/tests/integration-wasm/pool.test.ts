@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { defineActor, definePrefab } from "../../src/actor/index.js";
 import { defineActorPool } from "../../src/actor/runtime/pool/define-actor-pool.js";
+import { useActorPool } from "../../src/actor/runtime/pool/use-actor-pool.js";
 import { PoolExhaustedError } from "../../src/actor/runtime/pool/errors.js";
 import { defineComponent, Types } from "../../src/index.js";
 import { createRealEngine } from "./harness.js";
@@ -28,8 +29,9 @@ describe("real WASM actor pool", () => {
       const prefab = definePrefab([{ def: Marker, defaults: { v: 1 } }]);
       const Actor = defineActor("pool-probe", prefab, () => {});
       await engine.use(Actor._plugin);
-      const pool = defineActorPool(Actor, { size: 2 });
-      await engine.use(pool.plugin);
+      const poolDef = defineActorPool(Actor, { size: 2 });
+      await engine.use(poolDef.plugin);
+      const pool = engine.run(() => useActorPool(poolDef));
 
       const id = pool.acquire();
       expect(engine.isAlive(id)).toBe(true);

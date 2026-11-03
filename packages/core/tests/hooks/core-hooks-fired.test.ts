@@ -15,6 +15,7 @@ import { entityIndex } from "../../src/types/entity.js";
 import {
   defineActor,
   defineActorPool,
+  useActorPool,
   defineLayout,
   definePrefab,
   placeActor,
@@ -204,8 +205,9 @@ describe("core hooks fired", () => {
     await withEngine(32, async (engine, offs) => {
       const Actor = defineActor(plain, () => ({}));
       await engine.use(Actor._plugin);
-      const pool = defineActorPool(Actor, { size: 2 });
-      await engine.use(pool.plugin);
+      const poolDef = defineActorPool(Actor, { size: 2 });
+      await engine.use(poolDef.plugin);
+      const pool = engine.run(() => useActorPool(poolDef));
       const seen: bigint[] = [];
       offs.push(engine.hooks.hook("actor:enable", (id) => seen.push(id)));
       const id = pool.acquire();
@@ -222,8 +224,9 @@ describe("core hooks fired", () => {
     await withEngine(32, async (engine, offs) => {
       const Actor = defineActor(plain, () => ({}));
       await engine.use(Actor._plugin);
-      const pool = defineActorPool(Actor, { size: 2 });
-      await engine.use(pool.plugin);
+      const poolDef = defineActorPool(Actor, { size: 2 });
+      await engine.use(poolDef.plugin);
+      const pool = engine.run(() => useActorPool(poolDef));
       const seen: bigint[] = [];
       offs.push(engine.hooks.hook("actor:disable", (id) => seen.push(id)));
       const id = pool.acquire();
@@ -400,8 +403,9 @@ describe("core hooks fired", () => {
 
       const Actor = defineActor(plain, () => ({}));
       await engine.use(Actor._plugin);
-      const pool = defineActorPool(Actor, { size: 4 });
-      await engine.use(pool.plugin);
+      const poolDef = defineActorPool(Actor, { size: 4 });
+      await engine.use(poolDef.plugin);
+      const pool = engine.run(() => useActorPool(poolDef));
 
       const enableOnce: bigint[] = [];
       const enableOnceOff = engine.hooks.hookOnce("actor:enable", (id) => enableOnce.push(id));
@@ -618,8 +622,9 @@ describe("core hooks fired", () => {
     await withEngine(32, async (engine, offs) => {
       const Actor = defineActor(plain, () => ({}));
       await engine.use(Actor._plugin);
-      const pool = defineActorPool(Actor, { size: 2 });
-      await engine.use(pool.plugin);
+      const poolDef = defineActorPool(Actor, { size: 2 });
+      await engine.use(poolDef.plugin);
+      const pool = engine.run(() => useActorPool(poolDef));
       const oldId = pool.acquire();
       engine.destroyEntity(oldId);
       const seen: bigint[] = [];

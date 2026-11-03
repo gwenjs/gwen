@@ -122,8 +122,9 @@ describe("actor and layout error grammar", () => {
     engines.push(engine);
     const Actor = defineActor(definePrefab([]), () => ({}));
     await engine.use(Actor._plugin);
-    const pool = defineActorPool(Actor, { size: 2 });
-    await engine.use(pool.plugin);
+    const definition = defineActorPool(Actor, { size: 2 });
+    await engine.use(definition.plugin);
+    const pool = engine.run(() => useActorPool(definition));
     const first = pool.acquire();
     const second = pool.acquire();
     expect(typeof first).toBe("bigint");
@@ -268,15 +269,22 @@ describe("actor and layout error grammar", () => {
     expect(error.composable).toBe("useActorPool");
   });
 
-  it("pool.acquire before install throws CORE:ACTOR_PLUGIN_NOT_READY naming pool.acquire", () => {
-    const pool = defineActorPool(
+  it("pool.acquire before install throws CORE:ACTOR_PLUGIN_NOT_READY naming pool.acquire", async () => {
+    const engine = await createEngine({ maxEntities: 32 });
+    engines.push(engine);
+    const definition = defineActorPool(
       defineActor(definePrefab([]), () => ({})),
       { size: 1 },
     );
+    const pool = engine.run(() => useActorPool(definition));
     const error = caught(() => pool.acquire());
     expect(isGwen(error)).toBe(true);
     if (!isGwen(error)) return;
     expect(error.code).toBe("CORE:ACTOR_PLUGIN_NOT_READY");
     expect(error.composable).toBe("pool.acquire");
+    if (__GWEN_DEV__) {
+      expect(error.hint).toContain("engine.use(Actor.plugin)");
+      expect(error.hint).not.toContain("_plugin");
+    }
   });
 });

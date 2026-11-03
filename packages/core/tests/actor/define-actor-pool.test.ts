@@ -19,7 +19,8 @@ import { onDisable, onRelease, onReset, useEntityId } from "../../src/actor/runt
 import { defineActorPool } from "../../src/actor/runtime/pool/define-actor-pool";
 import { PoolExhaustedError } from "../../src/actor/runtime/pool/errors";
 import { entityIndex } from "../../src/types/entity";
-import type { ActorPool } from "../../src/actor/runtime/pool/types";
+import { GwenPluginDependencyError } from "../../src/engine/engine-errors";
+import type { ActorPool, ActorPoolDefinition } from "../../src/actor/runtime/pool/types";
 import { useActorPool } from "../../src/actor/runtime/pool/use-actor-pool";
 import { defineScene } from "../../src/scene/index";
 import { defineSceneRouter } from "../../src/router/defines/define-scene-router";
@@ -295,9 +296,18 @@ async function makePool(size: number, opts?: Partial<Parameters<typeof defineAct
   const engine = await createEngine();
   const Actor = defineActor(TestPrefab, () => {});
   await engine.use(Actor._plugin);
-  const pool = defineActorPool(Actor, { size, ...opts });
-  await engine.use(pool.plugin);
-  return { engine, Actor, pool };
+  const definition = defineActorPool(Actor, { size, ...opts });
+  await engine.use(definition.plugin);
+  const pool = handleOf(engine, definition);
+  return { engine, Actor, definition, pool };
+}
+
+/** The public handle of a definition, obtained the way game code gets it. */
+function handleOf<Props, PublicAPI>(
+  engine: Awaited<ReturnType<typeof createEngine>>,
+  definition: ActorPoolDefinition<Props, PublicAPI>,
+): ActorPool<Props, PublicAPI> {
+  return engine.run(() => useActorPool(definition));
 }
 
 async function flush(engine: Awaited<ReturnType<typeof createEngine>>) {
@@ -344,8 +354,9 @@ describe("defineActorPool — acquire", () => {
       onReset(resetSpy);
     });
     await engine.use(Actor._plugin);
-    const pool = defineActorPool(Actor, { size: 5 });
-    await engine.use(pool.plugin);
+    const definition = defineActorPool(Actor, { size: 5 });
+    await engine.use(definition.plugin);
+    const pool = handleOf(engine, definition);
 
     pool.acquire();
     expect(resetSpy).not.toHaveBeenCalled();
@@ -358,8 +369,9 @@ describe("defineActorPool — acquire", () => {
       onReset(resetSpy);
     });
     await engine.use(Actor._plugin);
-    const pool = defineActorPool(Actor, { size: 5 });
-    await engine.use(pool.plugin);
+    const definition = defineActorPool(Actor, { size: 5 });
+    await engine.use(definition.plugin);
+    const pool = handleOf(engine, definition);
 
     const id = pool.acquire({ value: 0 });
     pool.release(id);
@@ -402,8 +414,9 @@ describe("defineActorPool — acquire", () => {
     try {
       const Actor = defineActor(definePrefab([{ def: Pair, defaults: { a: 7 } }]), () => {});
       await engine.use(Actor._plugin);
-      const pool = defineActorPool(Actor, { size: 2 });
-      await engine.use(pool.plugin);
+      const definition = defineActorPool(Actor, { size: 2 });
+      await engine.use(definition.plugin);
+      const pool = handleOf(engine, definition);
 
       const id = pool.acquire();
       const pair = engine.getComponent(id, Pair);
@@ -448,8 +461,9 @@ describe("defineActorPool — acquire", () => {
     const engine = await createEngine();
     const Actor = defineActor(TestPrefab, () => {});
     await engine.use(Actor._plugin);
-    const pool = defineActorPool(Actor, { size: 5 });
-    // NOT calling engine.use(pool.plugin)
+    const definition = defineActorPool(Actor, { size: 5 });
+    const pool = handleOf(engine, definition);
+    // NOT calling engine.use(definition.plugin)
 
     expect(() => pool.acquire()).toThrow(/CORE:ACTOR_PLUGIN_NOT_READY/);
   });
@@ -479,8 +493,9 @@ describe("defineActorPool — release", () => {
       onRelease(releaseSpy);
     });
     await engine.use(Actor._plugin);
-    const pool = defineActorPool(Actor, { size: 5 });
-    await engine.use(pool.plugin);
+    const definition = defineActorPool(Actor, { size: 5 });
+    await engine.use(definition.plugin);
+    const pool = handleOf(engine, definition);
 
     const id = pool.acquire();
     pool.release(id);
@@ -541,8 +556,9 @@ describe("defineActorPool — destroyAll", () => {
       onRelease(releaseSpy);
     });
     await engine.use(Actor._plugin);
-    const pool = defineActorPool(Actor, { size: 5 });
-    await engine.use(pool.plugin);
+    const definition = defineActorPool(Actor, { size: 5 });
+    await engine.use(definition.plugin);
+    const pool = handleOf(engine, definition);
 
     pool.acquire();
     pool.acquire();
@@ -710,13 +726,15 @@ describe("defineActorPool — scope", () => {
     await engine.use(Actor._plugin);
 
     const mountSpy = vi.fn();
-    const pool = defineActorPool(Actor, {
+    const definition = defineActorPool(Actor, {
       size: 5,
       scope: { onMount: mountSpy, onUnmount: vi.fn() },
     });
-    await engine.use(pool.plugin);
+    await engine.use(definition.plugin);
+    const pool = handleOf(engine, definition);
 
     expect(mountSpy).toHaveBeenCalledOnce();
+    expect(mountSpy.mock.calls[0]?.[0]).toBe(pool);
   });
 
   it("scope: CustomScope calls onUnmount on engine:stop", async () => {
@@ -725,17 +743,19 @@ describe("defineActorPool — scope", () => {
     await engine.use(Actor._plugin);
 
     const unmountSpy = vi.fn();
-    const pool = defineActorPool(Actor, {
+    const definition = defineActorPool(Actor, {
       size: 5,
       scope: { onMount: vi.fn(), onUnmount: unmountSpy },
     });
-    await engine.use(pool.plugin);
+    await engine.use(definition.plugin);
+    const pool = handleOf(engine, definition);
 
     activateTestWasm(engine);
     await engine.start();
     await engine.stop();
 
     expect(unmountSpy).toHaveBeenCalledOnce();
+    expect(unmountSpy.mock.calls[0]?.[0]).toBe(pool);
   });
 });
 
@@ -747,30 +767,32 @@ describe("useActorPool — scene integration", () => {
     const engine = await createEngine();
     const Actor = defineActor(TestPrefab, () => {});
     await engine.use(Actor._plugin);
-    const pool = defineActorPool(Actor, { size: 5 });
-    await engine.use(pool.plugin);
+    const definition = defineActorPool(Actor, { size: 5 });
+    await engine.use(definition.plugin);
 
     let handle: ActorPool<void, void> | undefined;
     engine.run(() => {
       defineScene("test-di-return", () => {
-        handle = useActorPool(pool);
+        handle = useActorPool(definition);
       })({ register: () => {} });
     });
 
-    expect(handle).toBe(pool);
+    expect(handle).toBe(handleOf(engine, definition));
   });
 
   it("calls destroyAll() automatically on scene exit", async () => {
     const engine = await createEngine();
     const Actor = defineActor(TestPrefab, () => {});
     await engine.use(Actor._plugin);
-    const pool = defineActorPool(Actor, { size: 5 });
-    await engine.use(pool.plugin);
-
-    const destroySpy = vi.spyOn(pool, "destroyAll");
+    const definition = defineActorPool(Actor, { size: 5 });
+    await engine.use(definition.plugin);
+    const pool = handleOf(engine, definition);
+    pool.acquire();
+    pool.acquire();
+    expect(pool.stats().active).toBe(2);
 
     const SceneA = defineScene("a", () => {
-      useActorPool(pool);
+      useActorPool(definition);
     });
     const SceneB = defineScene("b", () => {});
 
@@ -787,16 +809,17 @@ describe("useActorPool — scene integration", () => {
       await nav.send("GO");
     });
 
-    expect(destroySpy).toHaveBeenCalledOnce();
+    expect(pool.stats().active).toBe(0);
+    expect(pool.stats().available).toBe(0);
   });
 
-  it("throws when called outside a defineScene factory", () => {
-    const pool = defineActorPool(
+  it("throws CORE:OUTSIDE_ENGINE_CONTEXT outside an engine context", () => {
+    const definition = defineActorPool(
       defineActor(TestPrefab, () => {}),
       { size: 5 },
     );
-    expect(() => useActorPool(pool)).toThrow(
-      /^\[useEngine\(\)\] Called outside defineSystem\(\) or defineActor\(\) or defineScene\(\) or plugin setup\(\) or engine\.run\(\)\.[\s\S]*\(CORE:OUTSIDE_ENGINE_CONTEXT\)$/,
+    expect(() => useActorPool(definition)).toThrow(
+      /^\[useActorPool\(\)\] Called outside defineSystem\(\) or defineActor\(\) or defineScene\(\) or plugin setup\(\) or engine\.run\(\)\.[\s\S]*\(CORE:OUTSIDE_ENGINE_CONTEXT\)$/,
     );
   });
 
@@ -806,10 +829,10 @@ describe("useActorPool — scene integration", () => {
     // install them via engine.use() without any manual calls from the user.
     const engine = await createEngine();
     const Actor = defineActor(TestPrefab, () => {});
-    const pool = defineActorPool(Actor, { size: 5 });
+    const definition = defineActorPool(Actor, { size: 5 });
 
     const Scene = defineScene("test", () => {
-      useActorPool(pool);
+      useActorPool(definition);
     });
 
     // Simulate the Vite-generated bootstrap: resolve the scene definition
@@ -820,6 +843,7 @@ describe("useActorPool — scene integration", () => {
     }
 
     // pool.acquire() must succeed — both plugins are now installed.
+    const pool = handleOf(engine, definition);
     const id = pool.acquire();
     expect(typeof id).toBe("bigint");
     expect(pool.stats().active).toBe(1);
@@ -830,15 +854,15 @@ describe("useActorPool — scene integration", () => {
     // that engine.use() installs them in the correct dependency order.
     const engine = await createEngine();
     const Actor = defineActor(TestPrefab, () => {});
-    const pool = defineActorPool(Actor, { size: 5 });
+    const definition = defineActorPool(Actor, { size: 5 });
 
     const Scene = defineScene("test", () => {
-      useActorPool(pool);
+      useActorPool(definition);
     });
 
     const sceneDef = engine.run(() => Scene({ register: () => {} }));
     const actorIdx = sceneDef.systems.indexOf(Actor._plugin);
-    const poolIdx = sceneDef.systems.indexOf(pool.plugin);
+    const poolIdx = sceneDef.systems.indexOf(definition.plugin);
 
     expect(actorIdx).toBeGreaterThanOrEqual(0);
     expect(poolIdx).toBeGreaterThanOrEqual(0);
@@ -853,8 +877,9 @@ describe("DeferredReleaseQueue — double-release guard", () => {
     const prefab = definePrefab([{ def: Position, defaults: { x: 0 } }]);
     const Actor = defineActor(prefab, () => {});
     await engine.use(Actor._plugin);
-    const pool = defineActorPool(Actor, { size: 2 });
-    await engine.use(pool.plugin);
+    const definition = defineActorPool(Actor, { size: 2 });
+    await engine.use(definition.plugin);
+    const pool = handleOf(engine, definition);
 
     const id = pool.acquire();
     pool.release(id);
@@ -869,21 +894,21 @@ describe("DeferredReleaseQueue — double-release guard", () => {
 // ─── teardown ────────────────────────────────────────────────────────────────
 
 describe("defineActorPool — teardown", () => {
-  it("acquire() throws after engine.unuse(pool.plugin.name)", async () => {
-    const { engine, pool } = await makePool(5);
+  it("acquire() throws after engine.unuse(definition.plugin.name)", async () => {
+    const { engine, definition, pool } = await makePool(5);
     pool.acquire(); // ensure at least one slot is active
 
-    await engine.unuse(pool.plugin.name);
+    await engine.unuse(definition.plugin.name);
 
     expect(() => pool.acquire()).toThrow(/CORE:ACTOR_PLUGIN_NOT_READY/);
   });
 
   it("resets stats to zero after teardown", async () => {
-    const { engine, pool } = await makePool(5);
+    const { engine, definition, pool } = await makePool(5);
     pool.acquire();
     pool.acquire();
 
-    await engine.unuse(pool.plugin.name);
+    await engine.unuse(definition.plugin.name);
 
     const s = pool.stats();
     expect(s.active).toBe(0);
@@ -893,13 +918,13 @@ describe("defineActorPool — teardown", () => {
   });
 
   it("pool can be re-registered on the same engine after teardown", async () => {
-    const { engine, pool } = await makePool(5);
+    const { engine, definition, pool } = await makePool(5);
     pool.acquire();
 
-    await engine.unuse(pool.plugin.name);
+    await engine.unuse(definition.plugin.name);
 
     // Re-register — must succeed and produce a working pool
-    await engine.use(pool.plugin);
+    await engine.use(definition.plugin);
     const id = pool.acquire();
     expect(typeof id).toBe("bigint");
     expect(pool.stats().active).toBe(1);
@@ -984,8 +1009,9 @@ describe("defineActorPool — dormancy (#56)", () => {
     const prefab = definePrefab([{ def: Mark, defaults: { value: 7 } }]);
     const Actor = defineActor(prefab, () => {});
     await engine.use(Actor._plugin);
-    const pool = defineActorPool(Actor, { size });
-    await engine.use(pool.plugin);
+    const definition = defineActorPool(Actor, { size });
+    await engine.use(definition.plugin);
+    const pool = handleOf(engine, definition);
     const seen: bigint[] = [];
     await engine.use(
       defineSystem("pool-mark-56", () => {
@@ -1172,8 +1198,9 @@ describe("defineActorPool — dormancy (#56)", () => {
       });
     });
     await engine.use(Actor._plugin);
-    const pool = defineActorPool(Actor, { size: 4 });
-    await engine.use(pool.plugin);
+    const definition = defineActorPool(Actor, { size: 4 });
+    await engine.use(definition.plugin);
+    const pool = handleOf(engine, definition);
 
     const first = pool.acquire();
     releaseHeld = () => pool.release(first);
@@ -1194,8 +1221,9 @@ describe("defineActorPool — dormancy (#56)", () => {
     const prefab = definePrefab([{ def: Mark, defaults: { value: 1 } }]);
     const Actor = defineActor(prefab, (_props: { value: number }) => {});
     await engine.use(Actor._plugin);
-    const pool = defineActorPool(Actor, { size: 2 });
-    await engine.use(pool.plugin);
+    const definition = defineActorPool(Actor, { size: 2 });
+    await engine.use(definition.plugin);
+    const pool = handleOf(engine, definition);
     const acquired: { id: bigint; props: unknown }[] = [];
     const released: { id: bigint }[] = [];
     pool.hooks.hook("pool:acquire", (payload) => {
@@ -1238,8 +1266,9 @@ describe("defineActorPool — dormancy (#56)", () => {
       });
     });
     await engine.use(Actor._plugin);
-    const pool = defineActorPool(Actor, { size: 2 });
-    await engine.use(pool.plugin);
+    const definition = defineActorPool(Actor, { size: 2 });
+    await engine.use(definition.plugin);
+    const pool = handleOf(engine, definition);
 
     const oldId = pool.acquire();
     pool.release(oldId);
@@ -1297,5 +1326,58 @@ describe("defineActorPool — dormancy (#56)", () => {
     await flush(engine);
     expect(engine.isAlive(fresh)).toBe(true);
     expect(seen).toContain(fresh);
+  });
+});
+
+describe("defineActorPool — definition", () => {
+  it("defineActorPool returns only plugin, actorName and _pool", () => {
+    const Actor = defineActor(TestPrefab, () => {});
+    const definition = defineActorPool(Actor, { size: 2 });
+
+    expect(Object.keys(definition).sort()).toEqual(["_pool", "actorName", "plugin"]);
+    expect("acquire" in definition).toBe(false);
+  });
+
+  it("engine.use(definition.plugin) without the actor plugin rejects with GwenPluginDependencyError", async () => {
+    const engine = await createEngine();
+    try {
+      const Actor = defineActor(TestPrefab, () => {});
+      const definition = defineActorPool(Actor, { size: 2 });
+
+      let thrown: unknown;
+      try {
+        await engine.use(definition.plugin);
+      } catch (error) {
+        thrown = error;
+      }
+      expect(thrown).toBeInstanceOf(GwenPluginDependencyError);
+      if (!(thrown instanceof GwenPluginDependencyError)) return;
+      expect(thrown.code).toBe("CORE:PLUGIN_DEPENDENCY_MISSING");
+      expect(thrown.missing).toEqual([{ kind: "plugin", name: Actor._plugin.name }]);
+    } finally {
+      await engine.stop();
+    }
+  });
+
+  it("engine.unuse(Actor.plugin.name) rejects CORE:PLUGIN_IN_USE while the pool plugin is installed", async () => {
+    const engine = await createEngine();
+    try {
+      const Actor = defineActor(TestPrefab, () => {});
+      const definition = defineActorPool(Actor, { size: 2 });
+      await engine.use(Actor._plugin);
+      await engine.use(definition.plugin);
+
+      let thrown: unknown;
+      try {
+        await engine.unuse(Actor._plugin.name);
+      } catch (error) {
+        thrown = error;
+      }
+      expect(thrown).toBeInstanceOf(GwenPluginDependencyError);
+      if (!(thrown instanceof GwenPluginDependencyError)) return;
+      expect(thrown.code).toBe("CORE:PLUGIN_IN_USE");
+    } finally {
+      await engine.stop();
+    }
   });
 });

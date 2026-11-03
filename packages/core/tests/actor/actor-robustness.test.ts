@@ -21,6 +21,7 @@ import { useHook } from "../../src/hooks/use-hook";
 import { onUpdate } from "../../src/system/runtime/define-system";
 import { useComponent } from "../../src/system/index";
 import { defineActorPool } from "../../src/actor/runtime/pool/define-actor-pool";
+import { useActorPool } from "../../src/actor/runtime/pool/use-actor-pool";
 import { createEngine } from "../../src/node";
 import type { ActorDefinition } from "../../src/actor/runtime/types";
 
@@ -262,8 +263,9 @@ describe("useHook — ScopedHookable silences dormant actors", () => {
       useHook("entity:create" as never, handler as never);
     });
     await engine.use(Actor._plugin);
-    const pool = defineActorPool(Actor, { size: 1 });
-    await engine.use(pool.plugin);
+    const poolDef = defineActorPool(Actor, { size: 1 });
+    await engine.use(poolDef.plugin);
+    const pool = engine.run(() => useActorPool(poolDef));
 
     const id = pool.acquire();
     pool.release(id);
@@ -284,8 +286,9 @@ describe("useHook — ScopedHookable silences dormant actors", () => {
       useHook("entity:create" as never, handler as never);
     });
     await engine.use(Actor._plugin);
-    const pool = defineActorPool(Actor, { size: 1 });
-    await engine.use(pool.plugin);
+    const poolDef = defineActorPool(Actor, { size: 1 });
+    await engine.use(poolDef.plugin);
+    const pool = engine.run(() => useActorPool(poolDef));
 
     const id = pool.acquire();
     pool.release(id);
