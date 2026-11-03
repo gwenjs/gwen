@@ -41,7 +41,8 @@ L'acteur possède l'entité et l'API publique. `useComponent(def)` prend la déf
 
 ```ts check
 import { defineComponent, Types } from "@gwenjs/core";
-import { defineActor, definePrefab, useComponent } from "@gwenjs/core/actor";
+import { defineActor, definePrefab } from "@gwenjs/core/actor";
+import { useComponent } from "@gwenjs/core/system";
 import { defineSystem, onUpdate, useQuery } from "@gwenjs/core/system";
 
 const Position = defineComponent({
@@ -265,7 +266,7 @@ Un jeu ne livre pas de fichier de config `vite` et n'appelle pas lui-même le pl
 | `true` | `{ mode: "transform" }` |
 | un objet d'options | `{ mode: "transform" }`, plus `componentsDir`, `tier` et `debug` quand ils sont définis |
 
-Deprecated: `useComponentFor` est l'appel que l'optimiseur reconnaît. Écrivez la boucle de chunks de la section 3. Réécrire cette boucle est un changement à part.
+`useComponent(entityId, def)` est l'appel que l'optimiseur reconnaît. Écrivez la boucle de chunks de la section 3. Réécrire cette boucle est un changement à part.
 
 ## Chemin chaud
 

@@ -174,16 +174,21 @@ schema: {
 }
 ```
 
-### useComponent(ComponentDef)
+### useComponent(def) / useComponent(entityId, def)
 
 **Signature:**
 ```ts
-function useComponent<D extends ComponentDef>(def: D): InferComponent<D> & { $set(patch: Partial<InferComponent<D>>): void }
+function useComponent<D extends ComponentDef>(def: D): ComponentHandle<D>
+function useComponent<D extends ComponentDef>(entityId: EntityId, def: D, engine?: GwenEngine): ComponentHandle<D>
+
+type ComponentHandle<D extends ComponentDef> = InferComponent<D> & { $set(patch: Partial<InferComponent<D>>): void }
 ```
 
-**Description.** Retourne un proxy live sur les données du composant de l'acteur courant. Les lectures et écritures de champs sont transmises directement à l'ECS. Doit être appelé pendant la phase de setup.
+**Description.** Retourne un handle live sur un composant. `useComponent(def)` cible l'entité de l'acteur courant et doit être appelé pendant la factory de l'acteur (phase de setup) ; hors d'une factory `defineActor()`, il lève `CORE:OUTSIDE_ACTOR_CONTEXT`. `useComponent(entityId, def)` cible n'importe quelle entité et fonctionne dans les systèmes et les acteurs. Les deux formes retournent le même type `ComponentHandle`. Les lectures et écritures de champs sont transmises directement à l'ECS.
 
-**Retourne:** `T` — objet proxy exposant les champs du composant directement (ex. `health.hp`, pas `health.value.hp`).
+`useComponent` est le chemin par entité. Les deux formes émettent `CORE:QUERY_PER_ENTITY_PATH` une fois par moteur quand elles sont appelées pendant `onBeforeUpdate`, `onUpdate` ou `onAfterUpdate`. Cela inclut `useComponent(def)` dans une factory d'acteur lancée depuis un hook d'update de système. Préférez une boucle de chunks dans le code chaud.
+
+**Retourne:** `ComponentHandle<D>` — handle exposant les champs du composant directement (ex. `health.hp`, pas `health.value.hp`).
 
 **Exemple:**
 ```ts
@@ -191,6 +196,18 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
   const health = useComponent(Health)
   onStart(() => {
     console.log('hp:', health.hp)
+  })
+})
+
+export const HealthSystem = defineSystem(() => {
+  const query = useQuery([Health])
+  onUpdate(() => {
+    for (const chunk of query) {
+      for (let row = 0; row < chunk.count; row++) {
+        const id = chunk.entityId(row)
+        console.log('hp:', useComponent(id, Health).hp)
+      }
+    }
   })
 })
 ```
@@ -504,7 +521,8 @@ function defineActor<Props = void>(
 **Exemple:**
 ```ts check
 import { defineComponent, Types } from "@gwenjs/core";
-import { defineActor, definePrefab, onDestroy, onStart, useActor, useComponent } from "@gwenjs/core/actor";
+import { defineActor, definePrefab, onDestroy, onStart, useActor } from "@gwenjs/core/actor";
+import { useComponent } from "@gwenjs/core/system";
 import { defineSystem } from "@gwenjs/core/system";
 
 const Position = defineComponent({

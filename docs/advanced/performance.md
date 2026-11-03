@@ -41,7 +41,8 @@ The actor owns the entity and the public API. `useComponent(def)` takes the comp
 
 ```ts check
 import { defineComponent, Types } from "@gwenjs/core";
-import { defineActor, definePrefab, useComponent } from "@gwenjs/core/actor";
+import { defineActor, definePrefab } from "@gwenjs/core/actor";
+import { useComponent } from "@gwenjs/core/system";
 import { defineSystem, onUpdate, useQuery } from "@gwenjs/core/system";
 
 const Position = defineComponent({
@@ -265,7 +266,7 @@ A game does not ship a `vite` config file and does not call the optimizer plugin
 | `true` | `{ mode: "transform" }` |
 | an options object | `{ mode: "transform" }`, plus `componentsDir`, `tier`, and `debug` when set |
 
-Deprecated: `useComponentFor` is the call the optimizer matches. Write the chunk loop in section 3. Rewriting that loop is a separate change.
+`useComponent(entityId, def)` is the call the optimizer matches. Write the chunk loop in section 3. Rewriting that loop is a separate change.
 
 ## Hot path
 

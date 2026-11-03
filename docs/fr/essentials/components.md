@@ -114,7 +114,7 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
 ```
 
 ::: warning Contexte acteur uniquement
-`useComponent()` ne fonctionne que dans `defineActor`.
+`useComponent(def)` ne fonctionne que dans `defineActor`. `useComponent(entityId, def)` fonctionne dans les systèmes et les acteurs (tout contexte moteur), ou passez le moteur en troisième argument. Il lit une seule entité.
 :::
 
 Voir [Acteurs](/fr/essentials/actors) pour la documentation complète de `useComponent`.
@@ -136,7 +136,7 @@ export * from './Health'
 |---|---|
 | `defineComponent({ name, schema, defaults? })` | Déclare un type de composant |
 | `Types.f32 / f64 / i32 / i64 / u32 / u64 / bool / string` | Descripteurs de type de champ |
-| `useComponent(def)` | Proxy réactif de composant dans `defineActor` |
+| `useComponent(def)` | Handle de composant dans `defineActor` (`useComponent(entityId, def)` pour une entité) |
 
 ## Étapes suivantes
 
