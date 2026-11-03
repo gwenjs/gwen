@@ -1,7 +1,9 @@
+import { checkAttw } from "./check-attw.js";
 import { CONFORMANCE_CHECK_IDS } from "./check-ids.js";
 import { checkExports } from "./check-exports.js";
 import { checkHooks } from "./check-hooks.js";
 import { checkManifest } from "./check-manifest.js";
+import { checkPublint } from "./check-publint.js";
 import { checkReadme } from "./check-readme.js";
 import { ConformanceErrorCodes } from "./error-codes.js";
 import { packageReadFinding } from "./manifest-finding.js";
@@ -37,9 +39,9 @@ function invalidProfileReport(profile: string): ConformanceReport {
 
 /**
  * Run the implemented checks for the package at `opts.root`.
- * `package.json` is read once. The snapshot and readme checks run only when `exports` has no
- * finding. With `write`, the snapshot is rewritten from the build before it is compared. When
- * `package.json` is missing or not JSON, only the manifest check is reported.
+ * `package.json` is read once. The snapshot, publint, attw and readme checks run only when
+ * `exports` has no finding. With `write`, the snapshot is rewritten from the build before it is
+ * compared. When `package.json` is missing or not JSON, only the manifest check is reported.
  * An unknown `profile` (from a JS caller) is one `INVALID_SPEC` finding, not a throw. A `src` file
  * that cannot be read (any error but a missing file) rejects with that error: a silent pass would
  * hide a violation.
@@ -68,12 +70,19 @@ export async function checkPluginPackage(
     hooks: hooksFindings,
     manifest: manifestFindings,
   };
-  // A missing target already is an `exports` finding; the snapshot checks would repeat it.
+  // A missing target already is an `exports` finding; the artifact checks would repeat it.
   if (exportsFindings.length === 0) {
     const snapshot = await snapshotFindings(context, opts.write === true);
+    const [publintFindings, attwFindings, readmeFindings] = await Promise.all([
+      checkPublint(context),
+      checkAttw(context),
+      checkReadme(context),
+    ]);
     byId["snapshot-values"] = snapshot.values;
     byId["snapshot-types"] = snapshot.types;
-    byId.readme = await checkReadme(context);
+    byId.publint = publintFindings;
+    byId.attw = attwFindings;
+    byId.readme = readmeFindings;
   }
   const checks = CONFORMANCE_CHECK_IDS.filter((id) => byId[id] !== undefined);
   const findings = checks.flatMap((id) => byId[id] ?? []).sort(compareFindings);
