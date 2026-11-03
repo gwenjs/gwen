@@ -275,7 +275,8 @@ Use `useEntityId()` during the factory to read this actor's `bigint` id. That id
 
 ```ts check
 import { defineComponent, Types } from "@gwenjs/core";
-import { defineActor, definePrefab, useComponent } from "@gwenjs/core/actor";
+import { defineActor, definePrefab } from "@gwenjs/core/actor";
+import { useComponent } from "@gwenjs/core/system";
 
 const Health = defineComponent({
   name: "Health",
@@ -299,7 +300,8 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
 ```ts run
 import assert from "node:assert/strict";
 import { defineComponent, Types } from "@gwenjs/core";
-import { defineActor, definePrefab, useComponent } from "@gwenjs/core/actor";
+import { defineActor, definePrefab } from "@gwenjs/core/actor";
+import { useComponent } from "@gwenjs/core/system";
 
 const Health = defineComponent({
   name: "DocsStorageActorHealth",

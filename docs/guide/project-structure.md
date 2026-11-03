@@ -148,7 +148,8 @@ Actors are named, singleton-like entities defined with `defineActor()`. Use them
 
 **src/actors/Player.ts**
 ```typescript
-import { defineActor, definePrefab, onStart, useComponent } from "@gwenjs/core/actor";
+import { defineActor, definePrefab, onStart } from "@gwenjs/core/actor";
+import { useComponent } from "@gwenjs/core/system";
 import { useBoxCollider, useDynamicBody } from "@gwenjs/physics2d";
 import { Position, Health } from "../components";
 

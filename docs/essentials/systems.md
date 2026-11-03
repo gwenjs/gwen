@@ -140,7 +140,7 @@ assert.equal(readBack, 7);
 
 ## Reading one entity
 
-The chunk loop is the default. `query.each()` reads one entity. During an update phase it logs code `CORE:QUERY_PER_ENTITY_PATH`. Deprecated: `useComponentFor` reads one entity and logs the same code. Deprecated: `createLiveQuery` does not log it.
+The chunk loop is the default. `query.each()` reads one entity. During an update phase it logs code `CORE:QUERY_PER_ENTITY_PATH`. `useComponent` reads one entity. Either form logs the same code when it is called during an update phase. Deprecated: `createLiveQuery` does not log it.
 
 ## Frame Phases
 

@@ -51,8 +51,10 @@ The same unit must contain a markdown link whose path names a file in `packages/
 
 ## Deprecated names
 
-`docs-deprecated.test.ts` reads the deprecated public exports the same way as `deprecatedPublicExports` in `packages/core/tests/readme-public-exports.test.ts`. Today that function returns one name. A method tagged `@deprecated` that the function does not return is not in the set.
+`docs-deprecated.test.ts` reads the deprecated public exports the same way as `deprecatedPublicExports` in `packages/core/tests/readme-public-exports.test.ts`. The checked set is the deprecated exports (none today) plus the deprecated interface members.
+
+Deprecated: `GwenEngine.createLiveQuery` is the only such member today.
 
 The name may appear in `docs/` (including `docs/fr`), a README, or the root `CLAUDE.md` only inside a sentence that begins `Deprecated:`. A blank line starts a new sentence. A table row does not. Example:
 
-Deprecated: `useComponentFor` reads one entity and logs `CORE:QUERY_PER_ENTITY_PATH`.
+Deprecated: `createLiveQuery` does not log `CORE:QUERY_PER_ENTITY_PATH`.

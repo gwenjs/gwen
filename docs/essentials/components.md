@@ -152,7 +152,7 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
 ```
 
 ::: warning Actor context only
-`useComponent()` only works inside `defineActor`. In systems, iterate the query by chunk.
+`useComponent(def)` only works inside `defineActor`. In systems, iterate the query by chunk. `useComponent(entityId, def)` works in systems and actors (any engine context), or pass the engine as the third argument. It reads one entity.
 :::
 
 See [Actors](/essentials/actors) for full documentation of `useComponent`.
@@ -203,7 +203,7 @@ assert.equal(aliveDuring, true);
 assert.equal(engine.isAlive(id), false);
 ```
 
-`query.each()` is the per-entity path. During `onBeforeUpdate`, `onUpdate`, and `onAfterUpdate` it logs code `CORE:QUERY_PER_ENTITY_PATH`. The message names the API and says to iterate the query by chunk. Deprecated: `useComponentFor` is the other per-entity call and logs the same code. Deprecated: `createLiveQuery` does not log that warning.
+`query.each()` is the per-entity path. During `onBeforeUpdate`, `onUpdate`, and `onAfterUpdate` it logs code `CORE:QUERY_PER_ENTITY_PATH`. The message names the API and says to iterate the query by chunk. `useComponent` is the other per-entity call. Either form logs the same code when it is called during an update phase. Deprecated: `createLiveQuery` does not log that warning.
 
 ## API Summary
 
@@ -212,7 +212,7 @@ assert.equal(engine.isAlive(id), false);
 | `defineComponent({ name, schema, defaults? })` | Declare a component type |
 | `Types.f32 / f64 / i32 / i64 / u32 / u64 / bool / string` | Field type descriptors |
 | `chunk.get(Def).field[row]` | Live column inside a chunk loop |
-| `useComponent(def)` | Component proxy inside `defineActor` |
+| `useComponent(def)` | Component handle inside `defineActor` (`useComponent(entityId, def)` for one entity) |
 
 ## Next Steps
 

@@ -10,7 +10,8 @@ et à ses bornes monde — sans dépendance à `window.*` ou aux APIs navigateur
 
 ```ts check
 import { defineComponent, Types } from "@gwenjs/core";
-import { defineActor, definePrefab, onUpdate, useComponent } from "@gwenjs/core/actor";
+import { defineActor, definePrefab, onUpdate } from "@gwenjs/core/actor";
+import { useComponent } from "@gwenjs/core/system";
 import { useScreen } from "@gwenjs/renderer-core";
 
 const Position = defineComponent({
@@ -185,7 +186,8 @@ La fonction `subscribe` doit retourner une fonction de nettoyage — GWEN l'appe
 
 ```ts check
 import { defineComponent, Types } from "@gwenjs/core";
-import { defineActor, definePrefab, onStart, useComponent } from "@gwenjs/core/actor";
+import { defineActor, definePrefab, onStart } from "@gwenjs/core/actor";
+import { useComponent } from "@gwenjs/core/system";
 import { useScreen } from "@gwenjs/renderer-core";
 
 const Position = defineComponent({

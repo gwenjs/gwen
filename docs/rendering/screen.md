@@ -10,7 +10,8 @@ world-space bounds — without coupling to `window.*` or browser APIs.
 
 ```ts check
 import { defineComponent, Types } from "@gwenjs/core";
-import { defineActor, definePrefab, onUpdate, useComponent } from "@gwenjs/core/actor";
+import { defineActor, definePrefab, onUpdate } from "@gwenjs/core/actor";
+import { useComponent } from "@gwenjs/core/system";
 import { useScreen } from "@gwenjs/renderer-core";
 
 const Position = defineComponent({
@@ -183,7 +184,8 @@ The `subscribe` function must return a cleanup function — GWEN calls it automa
 
 ```ts check
 import { defineComponent, Types } from "@gwenjs/core";
-import { defineActor, definePrefab, onStart, useComponent } from "@gwenjs/core/actor";
+import { defineActor, definePrefab, onStart } from "@gwenjs/core/actor";
+import { useComponent } from "@gwenjs/core/system";
 import { useScreen } from "@gwenjs/renderer-core";
 
 const Position = defineComponent({

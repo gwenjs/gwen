@@ -161,12 +161,12 @@ onUpdate(() => {
 
 System definition and frame-loop composables.
 
-**Exports:** `defineSystem`, `onUpdate`, `onBeforeUpdate`, `onAfterUpdate`, `onRender`, `useQuery`, `useService`, `useWasmModule`
+**Exports:** `defineSystem`, `onUpdate`, `onBeforeUpdate`, `onAfterUpdate`, `onRender`, `useQuery`, `useService`, `useWasmModule`, `useComponent`
 
 **Usage:**
 ```ts
 import { defineSystem, onUpdate, onBeforeUpdate, onAfterUpdate, onRender } from '@gwenjs/core/system'
-import { useQuery, useService, useWasmModule } from '@gwenjs/core/system'
+import { useQuery, useService, useWasmModule, useComponent } from '@gwenjs/core/system'
 ```
 
 ### Systems
@@ -300,11 +300,49 @@ function useWasmModule<K extends keyof GwenWasmModules>(name: K): WasmModuleHand
 
 **Returns:** `any` — the WASM module handle.
 
+#### useComponent(def) / useComponent(entityId, def)
+
+**Signature:**
+```ts
+function useComponent<D extends ComponentDef>(def: D): ComponentHandle<D>
+function useComponent<D extends ComponentDef>(entityId: EntityId, def: D, engine?: GwenEngine): ComponentHandle<D>
+
+type ComponentHandle<D extends ComponentDef> = InferComponent<D> & { $set(patch: Partial<InferComponent<D>>): void }
+```
+
+**Description.** Returns a live handle over one component. `useComponent(def)` targets the current actor's entity and must be called during the actor factory (setup phase); outside a `defineActor()` factory it throws `CORE:OUTSIDE_ACTOR_CONTEXT`. `useComponent(entityId, def)` targets any entity and works in systems and actors. Both forms return the same `ComponentHandle` type. Field reads and writes are forwarded directly to the ECS.
+
+`useComponent` is the per-entity path. Either form logs `CORE:QUERY_PER_ENTITY_PATH` once per engine when it is called during `onBeforeUpdate`, `onUpdate`, or `onAfterUpdate`. That includes `useComponent(def)` in an actor factory that runs from a system update hook. Prefer a chunk loop in hot code.
+
+**Returns:** `ComponentHandle<D>` — handle exposing component fields directly (e.g. `health.hp`, not `health.value.hp`).
+
+**Example:**
+```ts
+export const PlayerActor = defineActor(PlayerPrefab, () => {
+  const health = useComponent(Health)
+  onStart(() => {
+    console.log('hp:', health.hp)
+  })
+})
+
+export const HealthSystem = defineSystem(() => {
+  const query = useQuery([Health])
+  onUpdate(() => {
+    for (const chunk of query) {
+      for (let row = 0; row < chunk.count; row++) {
+        const id = chunk.entityId(row)
+        console.log('hp:', useComponent(id, Health).hp)
+      }
+    }
+  })
+})
+```
+
 ## `@gwenjs/core/actor`
 
 Actor definition, instance lifecycle, and all actor composables.
 
-**Exports:** `defineActor`, `onStart`, `onDestroy`, `onEnable`, `onDisable`, `onUpdate`, `onBeforeUpdate`, `onAfterUpdate`, `onRender`, `definePrefab`, `useActor`, `useComponent`, `usePrefab`, `useEntityId`, `useTransform`, `useChildren`, `defineLayout`, `useLayout`, `placeActor`, `placeGroup`, `placePrefab`, `defineActorPool`, `useActorPool`
+**Exports:** `defineActor`, `onStart`, `onDestroy`, `onEnable`, `onDisable`, `onUpdate`, `onBeforeUpdate`, `onAfterUpdate`, `onRender`, `definePrefab`, `useActor`, `usePrefab`, `useEntityId`, `useTransform`, `useChildren`, `defineLayout`, `useLayout`, `placeActor`, `placeGroup`, `placePrefab`, `defineActorPool`, `useActorPool`
 
 **Usage:**
 ```ts
@@ -317,7 +355,7 @@ import {
   onAfterUpdate,
   onRender,
 } from '@gwenjs/core/actor'
-import { definePrefab, useActor, useComponent, usePrefab } from '@gwenjs/core/actor'
+import { definePrefab, useActor, usePrefab } from '@gwenjs/core/actor'
 import { useTransform, defineLayout, useLayout, placeActor, placeGroup, placePrefab } from '@gwenjs/core/actor'
 ```
 
@@ -346,7 +384,8 @@ function defineActor<Props = void>(
 **Example:**
 ```ts check
 import { defineComponent, Types } from "@gwenjs/core";
-import { defineActor, definePrefab, onDestroy, onStart, useActor, useComponent } from "@gwenjs/core/actor";
+import { defineActor, definePrefab, onDestroy, onStart, useActor } from "@gwenjs/core/actor";
+import { useComponent } from "@gwenjs/core/system";
 import { defineSystem } from "@gwenjs/core/system";
 
 const Position = defineComponent({
@@ -436,27 +475,6 @@ defineSystem(() => {
 ::: tip Why does it accept a query instead of component definitions?
 `useActorQuery` lives in `@gwenjs/core/actor` and does not depend on the system layer. Accepting `query.each()` keeps the two layers decoupled and makes the function composable with any iterable that exposes an `id`.
 :::
-
-#### useComponent(ComponentDef)
-
-**Signature:**
-```ts
-function useComponent<D extends ComponentDef>(def: D): InferComponent<D> & { $set(patch: Partial<InferComponent<D>>): void }
-```
-
-**Description.** Returns a live proxy over the current actor's component data. Field reads and writes are forwarded directly to the ECS. Must be called during the setup phase.
-
-**Returns:** `T` — proxy object exposing component fields directly (e.g. `health.hp`, not `health.value.hp`).
-
-**Example:**
-```ts
-export const PlayerActor = defineActor(PlayerPrefab, () => {
-  const health = useComponent(Health)
-  onStart(() => {
-    console.log('hp:', health.hp)
-  })
-})
-```
 
 #### usePrefab(PrefabDef)
 
