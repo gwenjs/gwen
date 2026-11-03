@@ -337,7 +337,7 @@ function defineActor<Props = void>(
 | `prefab` | `PrefabDefinition` | Component set and defaults, defined with `definePrefab()` |
 | `factory` | `(props?) => object` | Runs once per spawn — register lifecycle hooks here, return public API |
 
-**Returns:** `ActorDef` — use `ActorDef.plugin` to install the actor, and `ActorDef._plugin` to spawn and despawn instances.
+**Returns:** `ActorDef` — use `ActorDef.plugin` to install the actor, and `useActor(ActorDef).spawn()` / `.despawn()` to spawn and despawn instances.
 
 **Example:**
 ```ts check

@@ -300,7 +300,7 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
 ```ts run
 import assert from "node:assert/strict";
 import { defineComponent, Types } from "@gwenjs/core";
-import { defineActor, definePrefab } from "@gwenjs/core/actor";
+import { defineActor, definePrefab, useActor } from "@gwenjs/core/actor";
 import { useComponent } from "@gwenjs/core/system";
 
 const Health = defineComponent({
@@ -318,7 +318,7 @@ const Actor = defineActor(Prefab, () => {
 
 await engine.use(Actor.plugin);
 engine.run(() => {
-  Actor._plugin.spawn();
+  useActor(Actor).spawn();
 });
 assert.equal(seen, 40);
 ```

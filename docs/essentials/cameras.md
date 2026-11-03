@@ -254,7 +254,6 @@ cam.getViewport()             // read current viewport id
 cam.setPriority(10)           // override render priority
 cam.setActive(false)          // disable the camera
 cam.getHeadPosition()         // world-space head position derived from view matrix, or undefined
-cam._setViews(views)          // called by the XR renderer plugin each frame — do not call manually
 ```
 
 `getHeadPosition()` derives the camera world position from the first view matrix using the column-major formula `p = -Rᵀ · t`. Returns `undefined` until the first `_setViews()` call.

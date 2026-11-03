@@ -31,11 +31,18 @@ because `useActor()` inside an actor factory runs at **spawn time** (inside
 
 When `@gwenjs/vite` is configured (via `gwenVitePlugin()`), this is handled
 automatically at build time. The Vite plugin statically analyzes each
-`defineActor` factory and injects a `_deps` list on the resulting plugin:
+`defineActor` factory and injects a `_deps` list on the resulting plugin.
+
+Outside Vite (tests), declare the same list with the public `deps` option:
 
 ```ts
-// What the Vite transform produces — you never write this by hand:
-BulletManagerActor._plugin._deps = [BulletActor._plugin]
+// The public `deps` option declares the same list by hand.
+// Use it in tests, where the Vite transform is not active:
+export const BulletManagerActor = defineActor(BulletManagerPrefab, () => {
+  const bullet = useActor(BulletActor)
+  // ...
+  return {}
+}, { deps: [BulletActor] })
 ```
 
 At runtime, when `useActor(BulletManagerActor)` is called in a scene factory,
