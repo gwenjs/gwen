@@ -1,15 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import {
-  copyFileSync,
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  symlinkSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -17,7 +8,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
-const mod = await import("./public-api-entry.mjs").catch(() => ({}));
+const conformanceDir = join(repoRoot, "packages", "plugin-conformance");
 
 const wasmMagic = Buffer.from([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
 
@@ -30,42 +21,31 @@ function childEnv() {
 }
 
 /**
- * The script's root is the parent of its own directory.
- * @param {{ wasmFile: boolean, factory?: boolean, writeSource?: boolean, glue?: boolean }} options
+ * The pins of the real snapshot-known-findings.json for one package.
+ * @param {string} name
+ * @returns {Record<string, string[]>}
  */
-function runTypes(options) {
+function realPins(name) {
+  const all = JSON.parse(
+    readFileSync(join(repoRoot, "scripts", "snapshot-known-findings.json"), "utf8"),
+  );
+  return { [name]: all[name] };
+}
+
+/**
+ * Run the real script on a fixture root that holds one package, with its own pin file.
+ * @param {{ name?: string, wasmFile: boolean, factory?: boolean, glue?: boolean, values?: string[], pins?: Record<string, string[]> }} options
+ */
+function runScript(options) {
   const root = mkdtempSync(join(tmpdir(), "public-api-types-"));
   try {
-    const scriptsDir = join(root, "scripts");
     const pkgDir = join(root, "packages", "demo");
-    mkdirSync(scriptsDir, { recursive: true });
     mkdirSync(join(pkgDir, "dist"), { recursive: true });
-    copyFileSync(
-      join(repoRoot, "scripts", "public-api-types.mjs"),
-      join(scriptsDir, "public-api-types.mjs"),
-    );
-    const entrySrc = join(repoRoot, "scripts", "public-api-entry.mjs");
-    if (existsSync(entrySrc)) copyFileSync(entrySrc, join(scriptsDir, "public-api-entry.mjs"));
-    symlinkSync(join(repoRoot, "node_modules"), join(root, "node_modules"), "junction");
+    const values = options.values ?? ["a"];
     writeFileSync(
-      join(root, "tsconfig.base.json"),
-      `${JSON.stringify(
-        {
-          compilerOptions: {
-            module: "esnext",
-            target: "es2022",
-            moduleResolution: "bundler",
-          },
-        },
-        null,
-        2,
-      )}\n`,
+      join(pkgDir, "dist", "index.d.ts"),
+      values.map((name) => `export const ${name} = 1;\n`).join(""),
     );
-    writeFileSync(join(pkgDir, "dist", "index.d.ts"), "export const a = 1;\n");
-    if (options.writeSource) {
-      mkdirSync(join(pkgDir, "src"), { recursive: true });
-      writeFileSync(join(pkgDir, "src", "index.ts"), "export const a = 1;\n");
-    }
 
     /** @type {Record<string, string | { types: string, import?: string }>} */
     const exportsField = {
@@ -73,7 +53,7 @@ function runTypes(options) {
     };
     /** @type {Record<string, { values: string[], types: string[] }>} */
     const snap = {
-      ".": { values: ["a"], types: options.writeSource ? ["Stale"] : [] },
+      ".": { values: [...values].sort(), types: [] },
     };
     if (options.glue) {
       mkdirSync(join(pkgDir, "wasm", "light"), { recursive: true });
@@ -104,113 +84,118 @@ function runTypes(options) {
     }
     writeFileSync(
       join(pkgDir, "package.json"),
-      `${JSON.stringify({ name: "@gwenjs/demo", exports: exportsField }, null, 2)}\n`,
+      `${JSON.stringify({ name: options.name ?? "@gwenjs/demo", exports: exportsField }, null, 2)}\n`,
     );
     writeFileSync(join(pkgDir, "public-api.snap.json"), `${JSON.stringify(snap, null, 2)}\n`);
 
-    const args = [join(scriptsDir, "public-api-types.mjs")];
-    if (options.writeSource) args.push("--write-source");
-    const result = spawnSync(process.execPath, args, {
-      cwd: root,
-      env: childEnv(),
-      encoding: "utf8",
-    });
-    const snapshot = readFileSync(join(pkgDir, "public-api.snap.json"), "utf8");
-    return { status: result.status, stderr: `${result.stderr ?? ""}`, snapshot };
+    const knownFile = join(root, "known-findings.json");
+    writeFileSync(knownFile, `${JSON.stringify(options.pins ?? {}, null, 2)}\n`);
+
+    const result = spawnSync(
+      process.execPath,
+      [join(repoRoot, "scripts", "public-api-types.mjs"), "--root", root, "--known", knownFile],
+      { cwd: root, env: childEnv(), encoding: "utf8" },
+    );
+    return { status: result.status, stderr: `${result.stderr ?? ""}` };
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
 }
 
-test("a .wasm export target is not a module entry", () => {
-  assert.equal(typeof mod.isModuleEntry, "function");
-  assert.equal(mod.isModuleEntry("./wasm/light/gwen_core_bg.wasm"), false);
-  assert.equal(mod.isModuleEntry("./wasm/physics2d/gwen_core_bg.wasm"), false);
-  assert.equal(mod.isModuleEntry("./wasm/physics3d/gwen_core_bg.wasm"), false);
-  assert.equal(mod.isModuleEntry(""), false);
-  assert.equal(mod.isModuleEntry("./wasm/light/gwen_core_bg"), false);
-});
-
-test("d.ts, ts and js targets are module entries", () => {
-  assert.equal(typeof mod.isModuleEntry, "function");
-  assert.equal(mod.isModuleEntry("./dist/index.d.ts"), true);
-  assert.equal(mod.isModuleEntry("./wasm/light/gwen_core_factory.d.ts"), true);
-  assert.equal(mod.isModuleEntry("./dist/index.d.mts"), true);
-  assert.equal(mod.isModuleEntry("./src/node.ts"), true);
-  assert.equal(mod.isModuleEntry("./src/view.tsx"), true);
-  assert.equal(mod.isModuleEntry("./dist/index.js"), true);
-  assert.equal(mod.isModuleEntry("./dist/index.mjs"), true);
-});
-
-test("a json target is not a module entry", () => {
-  assert.equal(typeof mod.isModuleEntry, "function");
-  assert.equal(mod.isModuleEntry("./package.json"), false);
-  assert.equal(mod.isModuleEntry("./styles.css"), false);
-  assert.equal(mod.isModuleEntry("./dist/index.cjs"), false);
-  assert.equal(mod.isModuleEntry("./dist/index.d.ts.map"), false);
-});
-
-// Agent hygiene runs node --test without pnpm install (.github/workflows/ci.yml:876).
-const skipWithoutTypescript = (() => {
+// The script reads the built plugin-conformance. Agent hygiene runs node --test without
+// pnpm install or a build (.github/workflows/ci.yml:945); the api-surface job runs this file after the build.
+const skipWithoutBuild = (() => {
+  if (!existsSync(join(conformanceDir, "dist", "index.js"))) {
+    return "packages/plugin-conformance is not built: the api-surface job runs this test after pnpm build:ts";
+  }
   try {
-    createRequire(import.meta.url).resolve("typescript");
+    createRequire(join(conformanceDir, "package.json")).resolve("typescript");
     return false;
   } catch {
-    return "typescript is not installed: the Agent hygiene job runs node --test without pnpm install; pnpm test:scripts runs this test";
+    return "typescript is not installed: the Agent hygiene job runs node --test without pnpm install; the api-surface job runs this test";
   }
 })();
 
-test("the script skips a .wasm subpath whose file exists", { skip: skipWithoutTypescript }, () => {
-  const result = runTypes({ wasmFile: true });
+test("the script skips a .wasm subpath whose file exists", { skip: skipWithoutBuild }, () => {
+  const result = runScript({ wasmFile: true });
   assert.equal(result.status, 0, result.stderr);
-  assert.equal(result.stderr.includes("Missing source file"), false, result.stderr);
+  assert.equal(result.stderr, "");
 });
 
 test(
   "the script does not report a missing .wasm file as missing built types",
-  { skip: skipWithoutTypescript },
+  { skip: skipWithoutBuild },
   () => {
-    const result = runTypes({ wasmFile: false });
+    const result = runScript({ wasmFile: false });
     assert.equal(result.status, 0, result.stderr);
-    assert.equal(result.stderr.includes("missing built types"), false, result.stderr);
+    assert.equal(result.stderr.includes("is not built"), false, result.stderr);
   },
 );
 
 test(
   "the script still compares a .d.ts subpath while it skips the .wasm one",
-  { skip: skipWithoutTypescript },
+  { skip: skipWithoutBuild },
   () => {
-    const result = runTypes({ wasmFile: true, factory: true });
+    const result = runScript({ wasmFile: true, factory: true });
     assert.equal(result.status, 1, result.stderr);
-    assert.equal(result.stderr.includes("types differ"), true, result.stderr);
     assert.equal(result.stderr.includes("./wasm/light/factory"), true, result.stderr);
-    assert.equal(result.stderr.includes("Missing source file"), false, result.stderr);
+    assert.equal(result.stderr.includes('exports type "Glue"'), true, result.stderr);
   },
 );
 
 test(
   "the script still compares the . and ./wasm/light subpaths while it skips the .wasm one",
-  { skip: skipWithoutTypescript },
+  { skip: skipWithoutBuild },
   () => {
-    const result = runTypes({ wasmFile: true, glue: true });
+    const result = runScript({ wasmFile: true, glue: true });
     assert.equal(result.status, 1, result.stderr);
-    assert.equal(result.stderr.includes("@gwenjs/demo . types differ"), true, result.stderr);
-    assert.equal(result.stderr.includes("./wasm/light types differ"), true, result.stderr);
-    assert.equal(result.stderr.includes("Missing source file"), false, result.stderr);
+    assert.equal(result.stderr.includes('lists type "Ghost" for subpath "."'), true, result.stderr);
+    assert.equal(
+      result.stderr.includes('subpath "./wasm/light" exports type "Core"'),
+      true,
+      result.stderr,
+    );
+  },
+);
+
+test("the script fails on a finding that is not pinned", { skip: skipWithoutBuild }, () => {
+  const result = runScript({
+    name: "@gwenjs/kit",
+    wasmFile: true,
+    values: ["_engineSlot", "_setCurrentScope", "_extra"],
+    pins: realPins("@gwenjs/kit"),
+  });
+  assert.equal(result.status, 1, result.stderr);
+  assert.equal(result.stderr.includes('value "_extra"'), true, result.stderr);
+});
+
+test(
+  "the script fails when a pinned finding is no longer reported",
+  { skip: skipWithoutBuild },
+  () => {
+    const result = runScript({
+      name: "@gwenjs/kit",
+      wasmFile: true,
+      values: ["_engineSlot"],
+      pins: realPins("@gwenjs/kit"),
+    });
+    assert.equal(result.status, 1, result.stderr);
+    assert.equal(result.stderr.includes("known finding no longer reported"), true, result.stderr);
+    assert.equal(result.stderr.includes("_setCurrentScope"), true, result.stderr);
   },
 );
 
 test(
-  "the script skips a .wasm subpath in --write-source mode and writes no snapshot key for it",
-  { skip: skipWithoutTypescript },
+  "the script fails when known findings name a package that is not scanned",
+  { skip: skipWithoutBuild },
   () => {
-    const result = runTypes({ wasmFile: true, writeSource: true });
-    assert.equal(result.status, 0, result.stderr);
-    assert.equal(result.stderr.includes("Missing source file"), false, result.stderr);
-    assert.equal(result.stderr.includes("No source for"), false, result.stderr);
-    const written = JSON.parse(result.snapshot);
-    assert.equal(Object.hasOwn(written, "./wasm/light.wasm"), false);
-    assert.equal(Object.hasOwn(written, "."), true);
-    assert.deepEqual(written["."].types, []);
+    const result = runScript({ wasmFile: true, pins: { "@gwenjs/kitt": ["CONFORMANCE:X y"] } });
+    assert.equal(result.status, 1, result.stderr);
+    assert.equal(result.stderr.includes("@gwenjs/kitt"), true, result.stderr);
+    assert.equal(
+      result.stderr.includes("known findings name no scanned package"),
+      true,
+      result.stderr,
+    );
   },
 );

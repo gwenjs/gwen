@@ -1,0 +1,16 @@
+{
+  "@gwenjs/core": [
+    "CONFORMANCE:PRIVATE_EXPORT value \"_getActorContext\" of subpath \"./internal\" starts with \"_\"",
+    "CONFORMANCE:PRIVATE_EXPORT value \"_getActorEntityId\" of subpath \"./internal\" starts with \"_\"",
+    "CONFORMANCE:SNAPSHOT_MISMATCH subpath \"./wasm/light\" exports value \"gwen_abi_fingerprint\" that public-api.snap.json does not list",
+    "CONFORMANCE:SNAPSHOT_MISMATCH subpath \"./wasm/light-dev\" exports value \"gwen_abi_fingerprint\" that public-api.snap.json does not list",
+    "CONFORMANCE:SNAPSHOT_MISMATCH subpath \"./wasm/physics2d\" exports value \"gwen_abi_fingerprint\" that public-api.snap.json does not list",
+    "CONFORMANCE:SNAPSHOT_MISMATCH subpath \"./wasm/physics2d-dev\" exports value \"gwen_abi_fingerprint\" that public-api.snap.json does not list",
+    "CONFORMANCE:SNAPSHOT_MISMATCH subpath \"./wasm/physics3d\" exports value \"gwen_abi_fingerprint\" that public-api.snap.json does not list",
+    "CONFORMANCE:SNAPSHOT_MISMATCH subpath \"./wasm/physics3d-dev\" exports value \"gwen_abi_fingerprint\" that public-api.snap.json does not list"
+  ],
+  "@gwenjs/kit": [
+    "CONFORMANCE:PRIVATE_EXPORT value \"_engineSlot\" of subpath \".\" starts with \"_\"",
+    "CONFORMANCE:PRIVATE_EXPORT value \"_setCurrentScope\" of subpath \".\" starts with \"_\""
+  ]
+}
