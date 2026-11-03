@@ -456,6 +456,25 @@ export function logIfRunning(message: string): void {
 }
 ```
 
+### Test the composable surface
+
+`@gwenjs/plugin-conformance` exports `runComposableSurfaceSuite(entry, { allow })`. Call it at the top of a test file with the main entry of your package:
+
+```ts
+// tests/composable-surface.test.ts
+import { runComposableSurfaceSuite } from '@gwenjs/plugin-conformance'
+import * as entry from '../src/index'
+
+runComposableSurfaceSuite(entry, { allow: ['formatScore'] })
+```
+
+It registers two kinds of rows in a `composable surface` describe:
+
+- `every function export matches a prefix rule` fails on a function export whose name does not match `^(define|use|on|place|create|get|with)[A-Z]`. Classes are skipped. A name in `allow` is exempt. An `allow` name that is not a function export fails the row. A name that already follows the prefix rule is accepted and has no effect.
+- `<name> outside any context throws GwenContextError` is registered for each `use*` and `on*` function export. It calls the export with no argument and requires an instance of `GwenContextError` from `@gwenjs/kit`. An export that returns, or that throws another error, fails.
+
+The suite needs `vitest` and `@gwenjs/kit` in your project.
+
 ## Error Handling
 
 `onError` runs when this plugin's `setup()`, `teardown()` or a hook handler it registered before the first `await` in `setup()` throws:

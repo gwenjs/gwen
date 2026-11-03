@@ -1,8 +1,14 @@
 {
   ".": {
-    "values": ["ConformanceErrorCodes", "checkPluginPackage", "checkSnapshot"],
+    "values": [
+      "ConformanceErrorCodes",
+      "checkPluginPackage",
+      "checkSnapshot",
+      "runComposableSurfaceSuite"
+    ],
     "types": [
       "CheckPluginPackageOptions",
+      "ComposableSurfaceOptions",
       "ConformanceCheckId",
       "ConformanceCode",
       "ConformanceFinding",
