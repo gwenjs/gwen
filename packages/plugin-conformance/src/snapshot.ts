@@ -1,4 +1,4 @@
-import { readFile, stat } from "node:fs/promises";
+import { readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import ts from "typescript";
 import { ConformanceErrorCodes } from "./error-codes.js";
@@ -21,7 +21,13 @@ type Snapshot = Record<string, SnapEntry>;
 
 type SnapshotRead =
   | { readonly ok: true; readonly snapshot: Snapshot }
-  | { readonly ok: false; readonly problem: string; readonly hint: string };
+  | {
+      readonly ok: false;
+      readonly problem: string;
+      readonly hint: string;
+      /** True when the read failed for a reason other than a missing file: a write must not replace it. */
+      readonly unreadable?: true;
+    };
 
 /** One subpath read from its built types file. */
 interface BuiltEntry extends SnapEntry {
@@ -48,7 +54,7 @@ function quote(text: string): string {
   return JSON.stringify(text);
 }
 
-const UPDATE_HINT = `Update ${SNAPSHOT_FILE} to match the build, or change the export.`;
+const UPDATE_HINT = `Run gwen-conformance check --write to update ${SNAPSHOT_FILE}, or change the export.`;
 
 function mismatch(message: string, hint = UPDATE_HINT): ConformanceFinding {
   return { code: ConformanceErrorCodes.SNAPSHOT_MISMATCH, message, hint, file: SNAPSHOT_FILE };
@@ -60,17 +66,23 @@ function isNameList(value: unknown): value is string[] {
 
 const CREATE_HINT = `Create ${SNAPSHOT_FILE} with a "values" and a "types" list for each subpath.`;
 
+function errorCode(error: unknown): string {
+  return isRecord(error) && typeof error.code === "string" ? error.code : "unknown error";
+}
+
 function unreadable(error: unknown): SnapshotRead {
-  const code = isRecord(error) && typeof error.code === "string" ? error.code : "unknown error";
+  const code = errorCode(error);
   if (code === "ENOENT") return { ok: false, problem: "is missing", hint: CREATE_HINT };
   return {
     ok: false,
     problem: `cannot be read (${code})`,
     hint: `Make ${SNAPSHOT_FILE} a readable JSON file.`,
+    unreadable: true,
   };
 }
 
-async function readSnapshot(root: string): Promise<SnapshotRead> {
+/** Read and parse the snapshot file at `root`. */
+export async function readSnapshot(root: string): Promise<SnapshotRead> {
   let parsed: unknown;
   try {
     parsed = JSON.parse(await readFile(path.join(root, SNAPSHOT_FILE), "utf8"));
@@ -195,6 +207,51 @@ function readBuilt(root: string, files: ReadonlyMap<string, string>): Map<string
   return built;
 }
 
+function sameSnapshot(left: Snapshot, right: Snapshot): boolean {
+  const keys = Object.keys(left);
+  return (
+    keys.length === Object.keys(right).length &&
+    keys.every((key) => JSON.stringify(left[key]) === JSON.stringify(right[key]))
+  );
+}
+
+/**
+ * The snapshot the build implies. The subpaths of `previous` keep their order, those it lacks follow
+ * in `exports` order, and those no longer in `exports` are dropped. A subpath not built keeps its
+ * old entry.
+ */
+function snapshotOf(
+  subpaths: Record<string, unknown>,
+  built: ReadonlyMap<string, BuiltEntry>,
+  previous: Snapshot,
+): Snapshot {
+  const wanted = Object.keys(subpaths);
+  const known = Object.keys(previous);
+  const order = [
+    ...known.filter((subpath) => wanted.includes(subpath)),
+    ...wanted.filter((subpath) => !known.includes(subpath)),
+  ];
+  const next: Snapshot = {};
+  for (const subpath of order) {
+    const entry = built.get(subpath) ?? previous[subpath];
+    if (entry !== undefined) next[subpath] = { values: entry.values, types: entry.types };
+  }
+  return next;
+}
+
+/** Replace the snapshot file with `snapshot` through a temp file, so a failure leaves the old one. */
+async function writeSnapshot(root: string, snapshot: Snapshot): Promise<void> {
+  const target = path.join(root, SNAPSHOT_FILE);
+  const temp = `${target}.tmp`;
+  try {
+    await writeFile(temp, `${JSON.stringify(snapshot, null, 2)}\n`);
+    await rename(temp, target);
+  } catch (error) {
+    await rm(temp, { force: true }).catch(() => undefined);
+    throw error;
+  }
+}
+
 function nameFindings(
   kind: "value" | "type",
   subpath: string,
@@ -273,37 +330,71 @@ function compareSnapshot(
 }
 
 /**
- * Compare the snapshot with the build, read-only. A missing, invalid or malformed snapshot file
- * is one finding, reported with the values. A subpath whose module entry is not built, or whose
- * target names no file, is one finding too.
+ * Compare the snapshot with the build. With `write`, the snapshot is first rewritten from the
+ * build in the gwen layout (2-space JSON, final newline), unless it already holds the same names;
+ * the keys keep the order of the old file, new subpaths follow in `exports` order, and a subpath
+ * whose target is not a module entry keeps its old entry. Nothing is written, and the findings are
+ * those of a read, while a subpath is not built or declares no types or import file, while
+ * `exports` names no subpath, or while the snapshot exists and cannot be read. A write that fails is
+ * one finding. A missing, invalid or malformed snapshot file is one finding, reported with the
+ * values. A subpath whose module entry is not built, or whose target names no file, is one finding
+ * too.
  */
 export async function snapshotFindings(
   context: Pick<PackageContext, "root" | "manifest">,
+  write = false,
 ): Promise<SnapshotFindings> {
   const subpaths = exportsOf(context.manifest);
   const declared = await declaredFiles(context.root, subpaths);
   const built = readBuilt(context.root, declared.files);
-  const extra = [...notBuiltFindings(declared), ...privateFindings(built)];
-  const current = await readSnapshot(context.root);
+  const notBuilt = notBuiltFindings(declared);
+  const extra = [...notBuilt, ...privateFindings(built)];
+  let current = await readSnapshot(context.root);
+  let failure: ConformanceFinding | undefined;
+  const writable =
+    write &&
+    notBuilt.length === 0 &&
+    Object.keys(subpaths).length > 0 &&
+    (current.ok || current.unreadable !== true);
+  if (writable) {
+    const next = snapshotOf(subpaths, built, current.ok ? current.snapshot : {});
+    if (!current.ok || !sameSnapshot(current.snapshot, next)) {
+      try {
+        await writeSnapshot(context.root, next);
+      } catch (error) {
+        failure = mismatch(
+          `${SNAPSHOT_FILE} cannot be written (${errorCode(error)})`,
+          `Make the package directory writable, or fix ${SNAPSHOT_FILE} by hand.`,
+        );
+      }
+    }
+    if (failure === undefined) current = { ok: true, snapshot: next };
+  }
+  const reported = failure === undefined ? [] : [failure];
   if (!current.ok) {
     const problem = mismatch(`${SNAPSHOT_FILE} ${current.problem}`, current.hint);
-    return { values: [problem, ...extra], types: [] };
+    return { values: [problem, ...reported, ...extra], types: [] };
   }
   const compared = compareSnapshot(subpaths, built, current.snapshot);
-  return { values: [...compared.values, ...extra], types: compared.types };
+  return { values: [...reported, ...compared.values, ...extra], types: compared.types };
 }
 
 /**
  * Compare `public-api.snap.json` with the built package at `pkgRoot`, as the checks
- * `snapshot-values` and `snapshot-types` do. It reads the package and writes nothing.
+ * `snapshot-values` and `snapshot-types` do. `opts.write` rewrites the snapshot from the build
+ * first, when it can (see {@link snapshotFindings}); the findings then describe what the new file
+ * still disagrees with, such as the `_` names. Without it the package is only read.
  */
 export async function checkSnapshot(
   pkgRoot: string,
-  _opts?: { write?: boolean },
+  opts?: { write?: boolean },
 ): Promise<ConformanceReport> {
   const checks = ["snapshot-values", "snapshot-types"] as const;
   const loaded = await readPackageJson(pkgRoot);
   if (!loaded.ok) return { checks, findings: [packageReadFinding(loaded.reason)] };
-  const found = await snapshotFindings({ root: pkgRoot, manifest: loaded.manifest });
+  const found = await snapshotFindings(
+    { root: pkgRoot, manifest: loaded.manifest },
+    opts?.write === true,
+  );
   return { checks, findings: [...found.values, ...found.types].sort(compareFindings) };
 }

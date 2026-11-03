@@ -37,8 +37,9 @@ function invalidProfileReport(profile: string): ConformanceReport {
 
 /**
  * Run the implemented checks for the package at `opts.root`.
- * `package.json` is read once. The snapshot checks run only when `exports` has no finding. When it
- * is missing or not JSON, only the manifest check is reported.
+ * `package.json` is read once. The snapshot and readme checks run only when `exports` has no
+ * finding. With `write`, the snapshot is rewritten from the build before it is compared. When
+ * `package.json` is missing or not JSON, only the manifest check is reported.
  * An unknown `profile` (from a JS caller) is one `INVALID_SPEC` finding, not a throw. A `src` file
  * that cannot be read (any error but a missing file) rejects with that error: a silent pass would
  * hide a violation.
@@ -69,7 +70,7 @@ export async function checkPluginPackage(
   };
   // A missing target already is an `exports` finding; the snapshot checks would repeat it.
   if (exportsFindings.length === 0) {
-    const snapshot = await snapshotFindings(context);
+    const snapshot = await snapshotFindings(context, opts.write === true);
     byId["snapshot-values"] = snapshot.values;
     byId["snapshot-types"] = snapshot.types;
     byId.readme = await checkReadme(context);

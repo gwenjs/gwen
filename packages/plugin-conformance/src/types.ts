@@ -26,7 +26,7 @@ export interface CheckPluginPackageOptions {
   readonly root: string;
   /** `plugin` requires `.` and `./module`. `package` does not. */
   readonly profile: "plugin" | "package";
-  /** Accepted, not used yet (PC-1a2b). */
+  /** Rewrite `public-api.snap.json` from the build before the snapshot checks compare it. */
   readonly write?: boolean;
   /** Accepted, not used yet (PC-1c). */
   readonly lockfileBase?: string;
