@@ -27,14 +27,24 @@ export interface Fixture {
   readonly cleanup: () => Promise<void>;
 }
 
+const hooksFixturesDir = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../fixtures/hooks",
+);
+
 export function goodPluginRoot(): string {
   return fixtureDir;
 }
 
-export async function createFixture(): Promise<Fixture> {
+/** Read-only root of a `tests/fixtures/hooks/<name>` package. */
+export function hooksFixtureRoot(name: string): string {
+  return path.join(hooksFixturesDir, name);
+}
+
+async function copyFixture(source: string): Promise<Fixture> {
   const parent = await mkdtemp(path.join(tmpdir(), "gwen-conformance-"));
   const root = path.join(parent, "pkg");
-  await cp(fixtureDir, root, { recursive: true });
+  await cp(source, root, { recursive: true });
   let removed = false;
   return {
     root,
@@ -44,6 +54,15 @@ export async function createFixture(): Promise<Fixture> {
       await rm(parent, { recursive: true, force: true });
     },
   };
+}
+
+export async function createFixture(): Promise<Fixture> {
+  return copyFixture(fixtureDir);
+}
+
+/** Temp copy of `tests/fixtures/hooks/<name>`, so a test can edit it. */
+export async function createHooksFixture(name: string): Promise<Fixture> {
+  return copyFixture(hooksFixtureRoot(name));
 }
 
 export async function readPackageText(root: string): Promise<string> {
@@ -63,6 +82,23 @@ export async function editManifest(
   const manifest = JSON.parse(text) as FixtureManifest;
   edit(manifest);
   await writeFile(path.join(root, "package.json"), `${JSON.stringify(manifest, null, 2)}\n`);
+}
+
+interface HooksManifest {
+  gwen: { type: string; hookNamespace?: unknown };
+}
+
+/** Set `gwen.hookNamespace` to `value` as is (any JSON value), or remove it for `undefined`. */
+export async function setHookNamespace(root: string, value: unknown): Promise<void> {
+  const manifest = JSON.parse(await readPackageText(root)) as HooksManifest;
+  if (value === undefined) delete manifest.gwen.hookNamespace;
+  else manifest.gwen.hookNamespace = value;
+  await writeFile(path.join(root, "package.json"), `${JSON.stringify(manifest, null, 2)}\n`);
+}
+
+/** Write `text` to `relative` under `root`, replacing the file. */
+export async function writeSource(root: string, relative: string, text: string): Promise<void> {
+  await writeFile(path.join(root, relative), text);
 }
 
 export function manifestExports(

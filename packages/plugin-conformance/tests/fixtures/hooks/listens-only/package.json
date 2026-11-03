@@ -1,0 +1,9 @@
+{
+  "name": "@fixture/hooks-listens-only",
+  "version": "0.0.0",
+  "license": "MPL-2.0",
+  "type": "module",
+  "gwen": {
+    "type": "plugin"
+  }
+}
