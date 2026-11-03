@@ -300,6 +300,9 @@ importers:
         specifier: ^6.0.2
         version: 6.0.2
     devDependencies:
+      '@gwenjs/kit':
+        specifier: workspace:^
+        version: link:../kit
       '@gwenjs/schema':
         specifier: workspace:^
         version: link:../schema
