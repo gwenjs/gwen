@@ -42,6 +42,7 @@ import type {
 
 import { CoreErrorCodes, GwenEngineStateError } from "./engine-errors.js";
 import { EngineCollaborators } from "./engine-collaborators.js";
+import { countHookListeners } from "./hook-dispatch.js";
 import { registerEngineLeak, unregisterEngineLeak } from "./leak-warning.js";
 
 import type {
@@ -564,7 +565,11 @@ export class GwenEngineImpl extends EngineCollaborators implements GwenEngine {
     return this._stats.fps;
   }
   getStats(): EngineStats {
-    return this._stats.snapshot();
+    return {
+      ...this._stats.snapshot(),
+      hookListeners: countHookListeners(this.hooks),
+      plugins: this._pluginRegistry.pluginNames(),
+    };
   }
 
   getCapacity(): EngineCapacity {

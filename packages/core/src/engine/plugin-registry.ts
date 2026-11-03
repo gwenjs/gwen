@@ -102,6 +102,11 @@ export class PluginRegistry {
     return this._plugins.find((plugin) => plugin.name === name);
   }
 
+  /** Installed plugin names in install order. A fresh array on each call. */
+  pluginNames(): string[] {
+    return this._plugins.map((plugin) => plugin.name);
+  }
+
   clearHooks(): void {
     this.deps.tracker.clearAll(this.deps.hooks);
   }

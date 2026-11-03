@@ -130,6 +130,8 @@ type TrackedHook = (typeof TRACKED_HOOKS)[number];
 
 export interface CoreHookCounts {
   listeners: Record<TrackedHook, unknown[]>;
+  /** Listeners on every other resolved hook name. Counted by {@link countHookListeners}, never gated. */
+  others: Map<string, unknown[]>;
   spyCount: number;
   /** Listeners plus spies. `createEntity` reads `entitySpawn` and skips the call at zero. */
   entitySpawn: number;
@@ -161,6 +163,7 @@ function emptyCounts(): CoreHookCounts {
       "actor:disable": [],
       "prefab:instantiate": [],
     },
+    others: new Map<string, unknown[]>(),
     spyCount: 0,
     entitySpawn: 0,
     actorEnable: 0,
@@ -181,8 +184,19 @@ function syncSpies(counts: CoreHookCounts): void {
   for (const name of TRACKED_HOOKS) syncGate(counts, name);
 }
 
+/** Listener list for a resolved hook name. `create` adds an empty list for an untracked name. */
+function listenersOf(counts: CoreHookCounts, name: string, create: boolean): unknown[] | undefined {
+  if (isTrackedHook(name)) return counts.listeners[name];
+  const existing = counts.others.get(name);
+  if (existing !== undefined || !create) return existing;
+  const added: unknown[] = [];
+  counts.others.set(name, added);
+  return added;
+}
+
 /**
- * Count listeners for the four core hooks on this hooks object.
+ * Count listeners for the four core hooks on this hooks object, and every other
+ * listener for {@link countHookListeners}.
  * `hookOnce` and `addHooks` go through `hook`. Spies count as a listener.
  * A hooks object that was never wrapped still dispatches.
  */
@@ -201,44 +215,44 @@ export function trackCoreHookListeners(hooks: Hookable<GwenRuntimeHooks>): CoreH
   const rawDeprecate = hooks.deprecateHook.bind(hooks);
   const rawDeprecateHooks = hooks.deprecateHooks.bind(hooks);
 
-  function resolveTracked(name: string): TrackedHook | undefined {
+  function resolveName(name: string): string {
     let current = name;
     for (let hop = 0; hop < 8; hop += 1) {
       const next = aliases.get(current);
       if (next === undefined) break;
       current = next;
     }
-    return isTrackedHook(current) ? current : undefined;
+    return current;
   }
 
   hooks.hook = (name, fn, hookOptions) => {
     const off = rawHook(name, fn, hookOptions);
-    const tracked = typeof fn === "function" ? resolveTracked(name) : undefined;
-    if (tracked !== undefined) {
-      counts.listeners[tracked].push(fn);
-      syncGate(counts, tracked);
+    if (typeof fn === "function" && name) {
+      const resolved = resolveName(name);
+      listenersOf(counts, resolved, true)?.push(fn);
+      if (isTrackedHook(resolved)) syncGate(counts, resolved);
     }
     return off;
   };
   hooks.removeHook = (name, fn) => {
-    const tracked = resolveTracked(name);
-    if (tracked !== undefined) {
-      const list = counts.listeners[tracked];
+    const resolved = resolveName(name);
+    const list = listenersOf(counts, resolved, false);
+    if (list !== undefined) {
       const at = list.indexOf(fn);
       if (at >= 0) list.splice(at, 1);
-      syncGate(counts, tracked);
     }
+    if (isTrackedHook(resolved)) syncGate(counts, resolved);
     rawRemoveHook(name, fn);
   };
   hooks.clearHook = (name) => {
-    if (isTrackedHook(name)) {
-      counts.listeners[name].length = 0;
-      syncGate(counts, name);
-    }
+    const list = listenersOf(counts, name, false);
+    if (list !== undefined) list.length = 0;
+    if (isTrackedHook(name)) syncGate(counts, name);
     rawClear(name);
   };
   hooks.removeAllHooks = () => {
     for (const name of TRACKED_HOOKS) counts.listeners[name].length = 0;
+    counts.others.clear();
     syncSpies(counts);
     rawRemoveAll();
   };
@@ -271,16 +285,31 @@ export function trackCoreHookListeners(hooks: Hookable<GwenRuntimeHooks>): CoreH
   hooks.deprecateHook = (name, deprecated) => {
     const to = typeof deprecated === "string" ? deprecated : deprecated.to;
     aliases.set(name, to);
-    if (isTrackedHook(name)) {
-      counts.listeners[name].length = 0;
-      syncGate(counts, name);
-    }
+    // `rawDeprecate` re-hooks the existing listeners through the wrapped `hook`.
+    const list = listenersOf(counts, name, false);
+    if (list !== undefined) list.length = 0;
+    if (isTrackedHook(name)) syncGate(counts, name);
     rawDeprecate(name, deprecated);
   };
   hooks.deprecateHooks = (deprecatedHooks) => {
     rawDeprecateHooks(deprecatedHooks);
   };
   return counts;
+}
+
+/**
+ * Listeners currently registered on `hooks`, every hook name included.
+ * `beforeEach` and `afterEach` spies are not counted. Returns `0` for a hooks
+ * object that `trackCoreHookListeners` never wrapped.
+ * @internal
+ */
+export function countHookListeners(hooks: Hookable<GwenRuntimeHooks>): number {
+  const counts = coreHookCounts.get(hooks);
+  if (counts === undefined) return 0;
+  let total = 0;
+  for (const name of TRACKED_HOOKS) total += counts.listeners[name].length;
+  for (const list of counts.others.values()) total += list.length;
+  return total;
 }
 
 function hooksOf(engine: GwenEngine): Hookable<GwenRuntimeHooks> {

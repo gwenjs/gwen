@@ -6,7 +6,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { createEngine } from "../engine/engine-factory.js";
 import { SceneEnginePlugin } from "../scene/engine-plugin.js";
-import type { GwenEngine } from "../engine/engine-types.js";
+import type { GwenEngine, GwenEngineOptions } from "../engine/engine-types.js";
 import { WasmBridgeImpl } from "../engine/wasm-bridge.js";
 import { resetAutoFallbackLog as clearAutoFallbackFlags } from "../engine/wasm-instance-provider.js";
 import type { CoreVariant } from "../engine/wasm-bridge-types.js";
@@ -26,6 +26,8 @@ export interface CreateRealEngineOptions {
   readonly debug?: boolean;
   /** Fixed-step rate forwarded to `createEngine`. Absent means the engine default. */
   readonly physicsHz?: number;
+  /** Logger options forwarded to `createEngine`. Absent means the engine default. */
+  readonly logger?: GwenEngineOptions["logger"];
   /**
    * Installs `SceneEnginePlugin` the way the bootstrap does, so plugin repositories
    * test scenes through `@gwenjs/core/testing` and never import `@gwenjs/core/internal`.
@@ -85,6 +87,7 @@ export async function createRealEngine(
     maxEntities: options.maxEntities,
     debug: options.debug ?? false,
     ...(options.physicsHz !== undefined ? { physicsHz: options.physicsHz } : {}),
+    ...(options.logger !== undefined ? { logger: options.logger } : {}),
     _bridge: bridge,
   });
   if (options.scenes === true) {
