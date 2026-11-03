@@ -152,6 +152,54 @@ describe("hooks check", () => {
     expect(hookCodes(report)).toEqual([]);
   });
 
+  it("resolves a const string written with as const, satisfies or parentheses", async () => {
+    const report = await checkHooksFixture("const-as-const");
+    expect(report.checks).toContain("hooks");
+    expect(hookCodes(report)).toEqual([]);
+  });
+
+  it("declares identifier keys and flags them as foreign", async () => {
+    const report = await checkHooksFixture("identifier-key");
+    const found = hookFindings(report);
+    expect(found).toHaveLength(2);
+    expectSite(found[0], {
+      code: "CONFORMANCE:HOOK_FOREIGN_NAMESPACE",
+      pkg: "@fixture/hooks-identifier-key",
+      name: "ready",
+      file: "src/index.ts",
+      line: 4,
+    });
+    expectSite(found[1], {
+      code: "CONFORMANCE:HOOK_FOREIGN_NAMESPACE",
+      pkg: "@fixture/hooks-identifier-key",
+      name: "started",
+      file: "src/index.ts",
+      line: 9,
+    });
+  });
+
+  it("counts an identifier key as a declared hook when the hookNamespace is missing", async () => {
+    const { report } = await checkCopy("identifier-key", (root) =>
+      setHookNamespace(root, undefined),
+    );
+    expect(hookCodes(report)).toEqual(["CONFORMANCE:HOOK_NAMESPACE_INVALID"]);
+  });
+
+  it("reads defineHooks written with as const or satisfies", async () => {
+    const report = await checkHooksFixture("define-hooks-as-const");
+    expect(report.checks).toContain("hooks");
+    expect(hookCodes(report)).toEqual([]);
+  });
+
+  it("does not resolve a const shadowed by a parameter", async () => {
+    const report = await checkHooksFixture("shadowed-const");
+    const found = hookFindings(report);
+    expect(found.map((finding) => finding.code)).toEqual(["CONFORMANCE:HOOK_DYNAMIC_NAME"]);
+    expect(found[0]?.file).toBe("src/index.ts");
+    expect(found[0]?.line).toBe(6);
+    expect(found[0]?.message).toContain("@fixture/hooks-shadowed-const");
+  });
+
   it("reports a missing hookNamespace once when the package declares a hook", async () => {
     const report = await checkHooksFixture("namespace-missing-with-hooks");
     const found = hookFindings(report);
