@@ -109,6 +109,25 @@ onStart(async () => {
 })
 ```
 
+### Composable surface
+
+In kit, physics2d, physics3d, camera-core and renderer-core, every function export of a package
+entry starts with `define`, `use`, `on`, `place`, `create`, `get` or `with` followed by a capital
+letter. A function export that is a pure helper and not a composable keeps its name and is listed,
+with its reason, in the `allow` record of its package test. The `@gwenjs/core` entries carry their
+own allowlist in `packages/core/tests/composable-surface.test.ts`. Every `use*` and `on*` export
+throws `GwenContextError` when called outside a context: it neither returns `null` nor does
+nothing.
+
+`runComposableSurfaceSuite(entry, { allow })` from `@gwenjs/plugin-conformance` registers both
+rules as vitest rows. A package calls it from `tests/composable-surface.test.ts`. A name in
+`allow` that is not a function export fails the prefix row.
+
+A guide never tells the reader to read or assign a field that starts with an underscore. The test
+`packages/docs-check/tests/docs-underscore.test.ts` scans every ts fence of `docs/`, `CLAUDE.md`
+and the package READMEs, and fails on `receiver._field` (`this._field` is not flagged). Use
+the public API in the fence.
+
 ### ECS — chunk columns
 
 Components live in the WASM chunk store. Record: [ADR-0001](internals-docs/adr/0001-component-storage.md).
