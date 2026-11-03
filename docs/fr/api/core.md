@@ -526,7 +526,7 @@ function defineActor<Props = void>(
 | `prefab` | `PrefabDefinition` | Ensemble de composants et valeurs par défaut, défini avec `definePrefab()` |
 | `factory` | `(props?) => object` | Exécutée une fois par spawn — enregistrez les hooks ici, retournez l'API publique |
 
-**Retourne:** `ActorDef` — utilisez `ActorDef._plugin` pour spawner et despawner des instances.
+**Retourne:** `ActorDef` — utilisez `ActorDef.plugin` pour installer l'acteur, et `ActorDef._plugin` pour spawner et despawner des instances.
 
 **Exemple:**
 ```ts check
@@ -571,7 +571,7 @@ export const SpawnSystem = defineSystem(() => {
 });
 ```
 
-Enregistrez l'acteur avec `engine.use(EnemyActor._plugin)` avant la scène. `spawn()` dans une factory `defineScene()` lève `CORE:ACTOR_PLUGIN_NOT_READY`. Le système ci-dessus est l'appel qui passe le contrôle de types.
+Enregistrez l'acteur avec `engine.use(EnemyActor.plugin)` avant la scène. `spawn()` dans une factory `defineScene()` lève `CORE:ACTOR_PLUGIN_NOT_READY`. Le système ci-dessus est l'appel qui passe le contrôle de types.
 
 ### useActor(ActorDef)
 

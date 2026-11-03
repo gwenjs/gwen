@@ -151,7 +151,7 @@ const EnemyActor = defineActor(EnemyPrefab, (props: { hp: number }) => {
 });
 
 // Register and spawn
-await engine.use(EnemyActor._plugin);
+await engine.use(EnemyActor.plugin);
 const id = EnemyActor._plugin.spawn({ hp: 50 });
 EnemyActor._plugin.despawn(id);
 ```
@@ -236,9 +236,9 @@ import { setupGwen } from "@gwenjs/core";
 
 const engine = await setupGwen();
 
-// Plugins are GwenPlugin objects returned by defineSystem, defineActor._plugin, etc.
+// Plugins are GwenPlugin objects returned by defineSystem, defineActor().plugin, etc.
 await engine.use(MovementSystem);
-await engine.use(EnemyActor._plugin);
+await engine.use(EnemyActor.plugin);
 
 await engine.start();
 await engine.stop();

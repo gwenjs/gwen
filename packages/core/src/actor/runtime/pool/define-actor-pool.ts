@@ -107,9 +107,9 @@ class DeferredReleaseQueue {
 
 const actorPlugins = new WeakMap<object, GwenPlugin>();
 
-/** Actor plugin stored for `useActorPool()`. Not part of the public pool handle. */
-export function actorPluginOf(pool: object): GwenPlugin {
-  const plugin = actorPlugins.get(pool);
+/** Actor plugin stored for `useActorPool()`. Not part of the public pool definition. */
+export function actorPluginOf(definition: object): GwenPlugin {
+  const plugin = actorPlugins.get(definition);
   if (!plugin) {
     throw new GwenActorError(ActorErrorCodes.PLUGIN_NOT_READY, "The pool has no actor plugin.", {
       composable: "useActorPool",
@@ -159,13 +159,16 @@ function listOf(lists: ListenerLists, name: keyof PoolHooks): PoolListener[] {
  *
  * Install the actor plugin, then the pool plugin:
  * ```ts
- * await engine.use(Actor._plugin)
+ * await engine.use(Actor.plugin)
  * await engine.use(EnemyPool.plugin)
  * ```
+ * `EnemyPool.plugin` requires the actor plugin: without it, `engine.use()` rejects
+ * `CORE:PLUGIN_DEPENDENCY_MISSING`.
  *
  * @param actor - The actor definition to pool (result of `defineActor()`).
  * @param options - Pool configuration.
- * @returns A pool definition. `useActorPool()` returns the public handle.
+ * @returns A pool definition with no `acquire()`. `useActorPool(EnemyPool)` returns the
+ *   handle that acquires and releases.
  *
  * ### Dormancy behaviour
  *
@@ -190,11 +193,6 @@ export function defineActorPool<Props, PublicAPI>(
   const hookSource = `pool:${actorName}`;
 
   let _engine: GwenEngine | null = null;
-  // CustomScope takes ActorPool<unknown, unknown>. A generic definition is not
-  // assignable to that, so mount receives the base handle type.
-  const asHandle = (value: ActorPoolDefinition<Props, PublicAPI>): ActorPool<Props, PublicAPI> =>
-    value;
-
   const available: EntityId[] = new Array(size);
   let availableCount = 0;
   const activeIds: EntityId[] = new Array(size);
@@ -385,7 +383,7 @@ export function defineActorPool<Props, PublicAPI>(
         {
           composable: "pool.acquire",
           hint: __GWEN_DEV__
-            ? "await engine.use(pool.plugin) after engine.use(Actor._plugin)."
+            ? "await engine.use(Pool.plugin) after engine.use(Actor.plugin)."
             : undefined,
         },
       );
@@ -584,6 +582,7 @@ export function defineActorPool<Props, PublicAPI>(
 
   const plugin: GwenPlugin = {
     name: hookSource,
+    requires: { plugins: [actor._plugin.name] },
     teardown(): void {
       _engine = null;
       availableCount = 0;
@@ -612,16 +611,15 @@ export function defineActorPool<Props, PublicAPI>(
 
       if (options.scope && typeof options.scope === "object") {
         const scope = options.scope;
-        scope.onMount(asHandle(pool));
+        scope.onMount(handle);
         useHook("engine:stop", () => {
-          scope.onUnmount(asHandle(pool));
+          scope.onUnmount(handle);
         });
       }
     },
   };
 
-  const pool: ActorPoolDefinition<Props, PublicAPI> = {
-    plugin,
+  const handle: ActorPool<Props, PublicAPI> = {
     actorName,
     acquire,
     release,
@@ -629,6 +627,11 @@ export function defineActorPool<Props, PublicAPI>(
     stats,
     hooks,
   };
-  actorPlugins.set(pool, actor._plugin);
-  return pool;
+  const definition: ActorPoolDefinition<Props, PublicAPI> = {
+    plugin,
+    actorName,
+    _pool: handle,
+  };
+  actorPlugins.set(definition, actor._plugin);
+  return definition;
 }

@@ -43,7 +43,7 @@ export interface PoolOptions {
  * User-supplied lifecycle hooks for a custom pool scope.
  */
 export interface CustomScope {
-  /** Called once when the pool plugin is installed via `engine.use(pool.plugin)`. */
+  /** Called once when the pool plugin is installed via `engine.use(Pool.plugin)`. */
   onMount: (pool: ActorPool<unknown, unknown>) => void;
   /** Called when the engine stops or the scope is torn down. */
   onUnmount: (pool: ActorPool<unknown, unknown>) => void;
@@ -123,9 +123,14 @@ export interface ActorPool<Props, _PublicAPI> {
 
 /**
  * Value returned by `defineActorPool()`.
- * `useActorPool()` returns the narrower {@link ActorPool} handle.
+ * It is a definition, not a pool: it has no `acquire()`. `useActorPool()` returns
+ * the {@link ActorPool} handle.
  */
-export interface ActorPoolDefinition<Props, PublicAPI> extends ActorPool<Props, PublicAPI> {
-  /** Plugin to register with `engine.use()`. Install the actor plugin first. */
+export interface ActorPoolDefinition<Props, PublicAPI> {
+  /** Plugin to register with `engine.use()`. It requires the actor plugin, installed first. */
   readonly plugin: GwenPlugin;
+  /** Name of the pooled actor, used in logs and diagnostics. */
+  readonly actorName: string;
+  /** The pool behind the definition. Read it through `useActorPool()`. @internal */
+  readonly _pool: ActorPool<Props, PublicAPI>;
 }

@@ -2,6 +2,7 @@ import { readInterpolatedTransform2D } from "../../src/engine/transform-pair";
 import { defineActor, useEntityId } from "../../src/actor/runtime/define-actor";
 import { definePrefab } from "../../src/actor/runtime/define-prefab";
 import { defineActorPool } from "../../src/actor/runtime/pool/define-actor-pool";
+import { useActorPool } from "../../src/actor/runtime/pool/use-actor-pool";
 import { componentStaging } from "../../src/engine/chunk-lanes";
 import { useEngine } from "../../src/engine/context";
 import { componentRegistryFor } from "../../src/engine/engine-component-registry";
@@ -247,9 +248,10 @@ export function createScenario(path: AllocPathName, options?: ScenarioOptions): 
           // usage warning, and no actor onUpdate means no per-handler hook
           // closure (update.actor already measures that dispatch cost).
           const actor = defineActor("alloc-pool-actor", prefab, () => {});
-          const pool = defineActorPool(actor, { size: 2 * entities });
+          const poolDef = defineActorPool(actor, { size: 2 * entities });
           await handle.engine.use(actor._plugin);
-          await handle.engine.use(pool.plugin);
+          await handle.engine.use(poolDef.plugin);
+          const pool = handle.engine.run(() => useActorPool(poolDef));
           const system = defineSystem("alloc-pool-driver", () => {
             const held: EntityId[] = Array.from({ length: entities });
             let frame = 0;
