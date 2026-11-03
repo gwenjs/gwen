@@ -15,6 +15,7 @@ import {
 const run = promisify(execFile);
 const here = path.dirname(fileURLToPath(import.meta.url));
 const script = path.resolve(here, "../scripts/generate-framework-entries.mjs");
+const manifest = path.resolve(here, "../package.json");
 const committed = path.resolve(here, "../src/framework-entries.generated.ts");
 const packagesDir = path.resolve(here, "../..");
 
@@ -90,6 +91,23 @@ async function withTree<T>(body: (root: string) => Promise<T>): Promise<T> {
   }
 }
 
+interface ScriptResult {
+  readonly code: number;
+  readonly stdout: string;
+  readonly stderr: string;
+}
+
+/** Run the generator and return its exit code and streams, whatever the code is. */
+async function runScript(args: readonly string[]): Promise<ScriptResult> {
+  try {
+    const { stdout, stderr } = await run(process.execPath, [script, ...args]);
+    return { code: 0, stdout, stderr };
+  } catch (error) {
+    const failure = error as { code?: number; stdout?: string; stderr?: string };
+    return { code: failure.code ?? -1, stdout: failure.stdout ?? "", stderr: failure.stderr ?? "" };
+  }
+}
+
 async function generate(root: string): Promise<Generated> {
   const { stdout } = await run(process.execPath, [script, "--stdout", "--packages", root]);
   return load(stdout, root);
@@ -105,6 +123,8 @@ async function writeTree(root: string): Promise<void> {
     "./system/module": { values: ["default"], types: [] },
     "./testing": { values: ["createRealEngine"], types: [] },
     "./internal": { values: ["secret"], types: [] },
+    "./internal/module": { values: ["secretModule"], types: [] },
+    "./wasm/module": { values: ["wasmModule"], types: [] },
     "./wasm/light": { values: ["wasmBytes"], types: [] },
     "./wasm/light/factory": { values: ["wasmFactory"], types: [] },
     "./node": { values: ["setupGwen"], types: [] },
@@ -231,6 +251,105 @@ describe("framework entries", () => {
       expect(stdout).toBe("");
       const printed = await run(process.execPath, [script, "--stdout", "--packages", root]);
       expect(await readFile(out, "utf8")).toBe(printed.stdout);
+    });
+  });
+
+  it("checks the committed file before build and keeps generate for writing", async () => {
+    const scripts = JSON.parse(await readFile(manifest, "utf8")).scripts as Record<string, string>;
+    expect(scripts.prebuild).toBe("node scripts/generate-framework-entries.mjs --check");
+    expect(scripts.generate).toBe("node scripts/generate-framework-entries.mjs");
+  });
+
+  it("--check passes on the committed file", async () => {
+    const result = await runScript(["--check"]);
+    expect(result).toEqual({ code: 0, stdout: "", stderr: "" });
+  });
+
+  it("--check exits 1 and names the file when it differs, without writing it", async () => {
+    await withTree(async (root) => {
+      await writeTree(root);
+      const out = path.join(root, "stale.ts");
+      await writeFile(out, "// stale\n");
+      const result = await runScript(["--check", "--packages", root, "--out", out]);
+      expect(result.code).toBe(1);
+      expect(result.stderr).toContain(out);
+      expect(await readFile(out, "utf8")).toBe("// stale\n");
+    });
+  });
+
+  it("--check exits 1 and does not create a missing file", async () => {
+    await withTree(async (root) => {
+      await writeTree(root);
+      const out = path.join(root, "missing.ts");
+      const result = await runScript(["--check", "--packages", root, "--out", out]);
+      expect(result.code).toBe(1);
+      expect(result.stderr).toContain(out);
+      await expect(readFile(out, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+    });
+  });
+
+  it("--check exits 0 and prints nothing when the file is up to date", async () => {
+    await withTree(async (root) => {
+      await writeTree(root);
+      const out = path.join(root, "fresh.ts");
+      expect((await runScript(["--packages", root, "--out", out])).code).toBe(0);
+      const result = await runScript(["--check", "--packages", root, "--out", out]);
+      expect(result).toEqual({ code: 0, stdout: "", stderr: "" });
+    });
+  });
+
+  it("rethrows a readdir error other than a missing src directory", async () => {
+    await withTree(async (root) => {
+      await writeSnapshot(root, "schema", { ".": { values: ["alpha"], types: [] } });
+      const blocker = path.join(root, "schema/src");
+      await writeFile(blocker, "not a directory");
+      const result = await runScript(["--stdout", "--packages", root]);
+      expect(result.code).not.toBe(0);
+      expect(result.stderr).toContain(blocker);
+    });
+  });
+
+  it("names the snapshot file when values is not a string array", async () => {
+    await withTree(async (root) => {
+      await writeSnapshot(root, "core", { "./system": { values: "abc", types: [] } } as never);
+      const result = await runScript(["--stdout", "--packages", root]);
+      expect(result.code).not.toBe(0);
+      expect(result.stderr).toContain(
+        "core/public-api.snap.json: ./system.values is not a string array",
+      );
+    });
+  });
+
+  it("names the snapshot file when types is not a string array", async () => {
+    await withTree(async (root) => {
+      await writeSnapshot(root, "core", { "./system": { values: [], types: [1, 2] } } as never);
+      const result = await runScript(["--stdout", "--packages", root]);
+      expect(result.code).not.toBe(0);
+      expect(result.stderr).toContain(
+        "core/public-api.snap.json: ./system.types is not a string array",
+      );
+    });
+  });
+
+  it("rejects a GwenProvides key declared by two packages", async () => {
+    await withTree(async (root) => {
+      await mkdir(path.join(root, "schema/src"), { recursive: true });
+      const declaration = "export interface GwenProvides {\n  shared: number;\n}\n";
+      await writeFile(path.join(root, "schema/src/a.ts"), declaration);
+      await writeFile(path.join(root, "schema/src/b.ts"), declaration);
+      const samePackage = await runScript(["--stdout", "--packages", root]);
+      expect(samePackage.code).toBe(0);
+
+      await mkdir(path.join(root, "core/src"), { recursive: true });
+      await writeFile(
+        path.join(root, "core/src/augment.ts"),
+        'declare module "@gwenjs/schema" {\n  interface GwenProvides {\n    shared: number;\n  }\n}\nexport {};\n',
+      );
+      const result = await runScript(["--stdout", "--packages", root]);
+      expect(result.code).not.toBe(0);
+      expect(result.stderr).toContain(
+        'GwenProvides key "shared" declared by @gwenjs/core and @gwenjs/schema',
+      );
     });
   });
 });
