@@ -123,7 +123,7 @@ const PhysicsSystem = defineSystem("PhysicsSystem", () => {
 Actors are entity-bound objects with a lifecycle. Use `defineActor` for interactive game objects.
 
 ```ts
-import { defineActor, onStart, onDestroy, definePrefab } from "@gwenjs/core/actor";
+import { defineActor, onStart, onDestroy, definePrefab, useActor } from "@gwenjs/core/actor";
 import { useComponent } from "@gwenjs/core/system";
 
 const EnemyPrefab = definePrefab([
@@ -152,8 +152,11 @@ const EnemyActor = defineActor(EnemyPrefab, (props: { hp: number }) => {
 
 // Register and spawn
 await engine.use(EnemyActor.plugin);
-const id = EnemyActor._plugin.spawn({ hp: 50 });
-EnemyActor._plugin.despawn(id);
+engine.run(() => {
+  const enemies = useActor(EnemyActor);
+  const id = enemies.spawn({ hp: 50 });
+  enemies.despawn(id);
+});
 ```
 
 ### Lifecycle hooks (actor only)

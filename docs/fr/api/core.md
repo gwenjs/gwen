@@ -526,7 +526,7 @@ function defineActor<Props = void>(
 | `prefab` | `PrefabDefinition` | Ensemble de composants et valeurs par défaut, défini avec `definePrefab()` |
 | `factory` | `(props?) => object` | Exécutée une fois par spawn — enregistrez les hooks ici, retournez l'API publique |
 
-**Retourne:** `ActorDef` — utilisez `ActorDef.plugin` pour installer l'acteur, et `ActorDef._plugin` pour spawner et despawner des instances.
+**Retourne:** `ActorDef` — utilisez `ActorDef.plugin` pour installer l'acteur, et `useActor(ActorDef).spawn()` / `.despawn()` pour spawner et despawner des instances.
 
 **Exemple:**
 ```ts check

@@ -161,11 +161,12 @@ onEnter(() => {
 
 ## Tester le cycle de vie des acteurs
 
-Écrivez des tests qui assertent que `_instances.size === 0` après la sortie d'une scène — ils échouent immédiatement si un despawn est manquant :
+Écrivez des tests qui assertent que `useActor(Actor).count()` vaut 0 après la sortie d'une scène — ils échouent immédiatement si un despawn est manquant :
 
 ```ts
 import { describe, it, expect } from 'vitest'
 import { createEngine } from '@gwenjs/core/node'
+import { useActor } from '@gwenjs/core/actor'
 
 describe('GameScene lifecycle', () => {
   it('despawne tous les acteurs quand la scène sort', async () => {
@@ -173,15 +174,15 @@ describe('GameScene lifecycle', () => {
 
     // entrer dans la scène
     await engine.hooks.callHook('scene:enter', {})
-    expect(PlayerActor._instances.size).toBe(1)
-    expect(EnemyActor._instances.size).toBe(3)
+    expect(engine.run(() => useActor(PlayerActor).count())).toBe(1)
+    expect(engine.run(() => useActor(EnemyActor).count())).toBe(3)
 
     // sortir de la scène
     await engine.hooks.callHook('scene:exit', {})
 
     // ✅ rien ne reste — pas de fuite
-    expect(PlayerActor._instances.size).toBe(0)
-    expect(EnemyActor._instances.size).toBe(0)
+    expect(engine.run(() => useActor(PlayerActor).count())).toBe(0)
+    expect(engine.run(() => useActor(EnemyActor).count())).toBe(0)
   })
 })
 ```

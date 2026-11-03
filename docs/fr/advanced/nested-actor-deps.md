@@ -31,11 +31,18 @@ installé : `useActor()` dans un factory d'acteur s'exécute au moment du
 
 Quand `@gwenjs/vite` est configuré (via `gwenVitePlugin()`), cela est géré
 automatiquement à la compilation. Le plugin Vite analyse statiquement chaque
-factory `defineActor` et injecte une liste `_deps` sur le plugin résultant :
+factory `defineActor` et injecte une liste `_deps` sur le plugin résultant.
+
+Hors Vite (tests), déclarez la même liste avec l'option publique `deps` :
 
 ```ts
-// Ce que le transform Vite génère — vous n'écrivez jamais cela à la main :
-BulletManagerActor._plugin._deps = [BulletActor._plugin]
+// L'option publique `deps` déclare la même liste à la main.
+// Utilisez-la dans les tests, où le transform Vite n'est pas actif :
+export const BulletManagerActor = defineActor(BulletManagerPrefab, () => {
+  const bullet = useActor(BulletActor)
+  // ...
+  return {}
+}, { deps: [BulletActor] })
 ```
 
 Au runtime, quand `useActor(BulletManagerActor)` est appelé dans un factory de
