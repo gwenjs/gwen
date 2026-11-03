@@ -297,7 +297,10 @@ export async function snapshotFindings(
  * Compare `public-api.snap.json` with the built package at `pkgRoot`, as the checks
  * `snapshot-values` and `snapshot-types` do. It reads the package and writes nothing.
  */
-export async function checkSnapshot(pkgRoot: string): Promise<ConformanceReport> {
+export async function checkSnapshot(
+  pkgRoot: string,
+  _opts?: { write?: boolean },
+): Promise<ConformanceReport> {
   const checks = ["snapshot-values", "snapshot-types"] as const;
   const loaded = await readPackageJson(pkgRoot);
   if (!loaded.ok) return { checks, findings: [packageReadFinding(loaded.reason)] };
