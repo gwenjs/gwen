@@ -32,6 +32,9 @@ const hooksFixturesDir = path.resolve(
   "../fixtures/hooks",
 );
 
+/** Name of the snapshot file at a package root. */
+export const SNAPSHOT_FILE = "public-api.snap.json";
+
 export function goodPluginRoot(): string {
   return fixtureDir;
 }
