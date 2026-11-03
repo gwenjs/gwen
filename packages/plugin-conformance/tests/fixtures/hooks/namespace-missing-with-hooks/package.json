@@ -1,0 +1,9 @@
+{
+  "name": "@fixture/hooks-namespace-missing-with-hooks",
+  "version": "0.0.0",
+  "license": "MPL-2.0",
+  "type": "module",
+  "gwen": {
+    "type": "plugin"
+  }
+}
