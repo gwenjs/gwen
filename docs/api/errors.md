@@ -67,6 +67,8 @@ Cause. The call is outside `defineActor()`. Fix. Capture the handle synchronousl
 
 Cause. The call is outside `defineSystem()` or `defineActor()`. Fix. Capture the handle synchronously in the factory, then use it as a closure after await.
 
+`onBeforeUpdate`, `onUpdate`, `onAfterUpdate`, and `onRender` throw this code. They throw it inside a `defineScene()` factory and inside a plugin `setup()` too: only a system or an actor owns a frame loop.
+
 ### CORE:OUTSIDE_SCENE_CONTEXT {#core-outside-scene-context}
 
 Cause. The call is outside `defineScene()`. Fix. Capture the handle synchronously in the factory, then use it as a closure after await.

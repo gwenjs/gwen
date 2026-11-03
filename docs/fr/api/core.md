@@ -619,6 +619,8 @@ defineSystem(() => {
 
 **Retourne:** `Iterable<A>` — paresseux. Les entités présentes dans `query` sans instance d'acteur vivante sont silencieusement ignorées.
 
+**Lève:** `GwenContextError` `CORE:OUTSIDE_ENGINE_CONTEXT`, au nom de `useActorQuery`, quand aucun contexte moteur n'est actif.
+
 ::: tip Pourquoi accepter une query plutôt que des définitions de composants ?
 `useActorQuery` appartient à `@gwenjs/core/actor` et ne dépend pas de la couche système. Accepter `query.each()` découple les deux couches et rend la fonction composable avec tout itérable exposant un `id`.
 :::

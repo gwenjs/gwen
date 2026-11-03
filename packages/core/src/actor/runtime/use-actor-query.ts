@@ -8,6 +8,7 @@ import {
   readQueryEngine,
 } from "../../engine/engine-internals";
 import type { ComponentDef } from "../../system/runtime/define-system";
+import { useEngine } from "../../engine/context";
 
 /**
  * Returns a lazy iterable of the public APIs of actor instances whose entity
@@ -20,6 +21,7 @@ import type { ComponentDef } from "../../system/runtime/define-system";
  * @param def - The actor definition produced by {@link defineActor}.
  * @param query - A chunk {@link Query}, or an iterable of objects with an `id`.
  * @returns A lazy iterable of the public APIs. Entities with no live instance are skipped.
+ * @throws {GwenContextError} `CORE:OUTSIDE_ENGINE_CONTEXT` naming `useActorQuery` when no engine is current.
  *
  * @example
  * ```ts
@@ -40,6 +42,7 @@ export function useActorQuery<
   A,
   const C extends readonly ComponentDef[] = readonly ComponentDef[],
 >(def: ActorDefinition<P, A>, query: Query<C> | Iterable<{ readonly id: EntityId }>): Iterable<A> {
+  useEngine("useActorQuery");
   return {
     [Symbol.iterator](): Iterator<A> {
       return (function* (): Generator<A> {

@@ -41,7 +41,7 @@ import type { TweenableValue, TweenOptions, TweenHandle } from "./tween-types";
 export function useTween<T extends TweenableValue>(
   options: TweenOptions<T>,
 ): TweenHandle<T> | null {
-  const engine = useEngine();
+  const engine = useEngine("useTween");
   const manager = getTweenManager(engine);
   return manager.claim(options);
 }

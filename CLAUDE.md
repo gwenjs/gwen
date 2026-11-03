@@ -236,7 +236,7 @@ For bullets, particles, and other high-frequency spawns, `defineActorPool` keeps
 of entities alive and marks them dormant instead of destroying them. After warm-up, reuse keeps that entity. It still allocates.
 `defineActorPool` returns a definition (`plugin`, `actorName`) with no `acquire`. The pool handle
 is obtained via `useActorPool(def)` in any engine context and passed explicitly to the systems
-that need it. Inside a scene it also installs the pool and destroys it on scene exit.
+that need it. Inside a scene it also installs the pool and destroys it on scene exit, unless the pool is defined with `scope: "global"` or a custom scope.
 
 ### Module system (framework extensions)
 

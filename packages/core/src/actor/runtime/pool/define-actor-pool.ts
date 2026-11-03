@@ -626,6 +626,7 @@ export function defineActorPool<Props, PublicAPI>(
     destroyAll,
     stats,
     hooks,
+    scope: options.scope,
   };
   const definition: ActorPoolDefinition<Props, PublicAPI> = {
     plugin,

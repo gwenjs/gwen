@@ -47,7 +47,7 @@ export function emit<K extends GwenUserHookName>(
   name: K,
   ...args: Parameters<GwenRuntimeHooks[K]>
 ): void {
-  const engine = useEngine();
+  const engine = useEngine("emit");
   assertHookName(name, "emit", true);
   reportRejectedHook(engine, "emit", String(name), engine.hooks.callHook(name, ...args));
 }

@@ -52,18 +52,32 @@ type RenderFn = (alpha: number) => void;
 // ─── Lifecycle composables ───────────────────────────────────────────────────
 
 /**
+ * Returns the active scope when it is a system or an actor scope.
+ *
+ * A scene factory and a plugin setup run in a scope too (`scene`, `plugin`).
+ * They do not own a frame loop, so they are rejected.
+ *
+ * @param composable - Public name reported in the error.
+ * @throws {GwenContextError} `CORE:OUTSIDE_SYSTEM_CONTEXT` for any other scope.
+ */
+function frameScope(composable: string): GwenScope {
+  const scope = GwenScope.current();
+  if (scope?.meta.type !== "system" && scope?.meta.type !== "actor") {
+    throw new GwenContextError(GwenContextErrorCodes.OUTSIDE_SYSTEM_CONTEXT, composable);
+  }
+  return scope;
+}
+
+/**
  * Registers a callback to run every frame during the `engine:before-update`
  * phase — before physics. Must be called synchronously inside a
  * {@link defineSystem} setup callback or a {@link defineActor} factory.
  *
  * @param fn - Callback receiving delta time in seconds.
- * @throws {GwenContextError} If called outside an active scope context.
+ * @throws {GwenContextError} `CORE:OUTSIDE_SYSTEM_CONTEXT` outside a system or an actor factory.
  */
 export function onBeforeUpdate(fn: UpdateFn): void {
-  const scope = GwenScope.current();
-  if (!scope) {
-    throw new GwenContextError(GwenContextErrorCodes.OUTSIDE_SYSTEM_CONTEXT, "onBeforeUpdate");
-  }
+  const scope = frameScope("onBeforeUpdate");
   scope.hook("engine:before-update", fn);
 }
 
@@ -73,13 +87,10 @@ export function onBeforeUpdate(fn: UpdateFn): void {
  * setup callback or a {@link defineActor} factory.
  *
  * @param fn - Callback receiving delta time in seconds.
- * @throws {GwenContextError} If called outside an active scope context.
+ * @throws {GwenContextError} `CORE:OUTSIDE_SYSTEM_CONTEXT` outside a system or an actor factory.
  */
 export function onUpdate(fn: UpdateFn): void {
-  const scope = GwenScope.current();
-  if (!scope) {
-    throw new GwenContextError(GwenContextErrorCodes.OUTSIDE_SYSTEM_CONTEXT, "onUpdate");
-  }
+  const scope = frameScope("onUpdate");
   scope.hook("engine:update", fn);
 }
 
@@ -89,13 +100,10 @@ export function onUpdate(fn: UpdateFn): void {
  * callback or a {@link defineActor} factory.
  *
  * @param fn - Callback receiving delta time in seconds.
- * @throws {GwenContextError} If called outside an active scope context.
+ * @throws {GwenContextError} `CORE:OUTSIDE_SYSTEM_CONTEXT` outside a system or an actor factory.
  */
 export function onAfterUpdate(fn: UpdateFn): void {
-  const scope = GwenScope.current();
-  if (!scope) {
-    throw new GwenContextError(GwenContextErrorCodes.OUTSIDE_SYSTEM_CONTEXT, "onAfterUpdate");
-  }
+  const scope = frameScope("onAfterUpdate");
   scope.hook("engine:after-update", fn);
 }
 
@@ -106,13 +114,10 @@ export function onAfterUpdate(fn: UpdateFn): void {
  * {@link defineActor} factory.
  *
  * @param fn - Render callback. Receives `alpha`.
- * @throws {GwenContextError} If called outside an active scope context.
+ * @throws {GwenContextError} `CORE:OUTSIDE_SYSTEM_CONTEXT` outside a system or an actor factory.
  */
 export function onRender(fn: RenderFn): void {
-  const scope = GwenScope.current();
-  if (!scope) {
-    throw new GwenContextError(GwenContextErrorCodes.OUTSIDE_SYSTEM_CONTEXT, "onRender");
-  }
+  const scope = frameScope("onRender");
   scope.hook("engine:render", fn);
 }
 
@@ -385,7 +390,7 @@ export function useQuery<const C extends readonly ComponentDef[]>(
   components: C,
   cacheKey?: string,
 ): Query<C> {
-  const engine = useEngine();
+  const engine = useEngine("useQuery");
   const query = engine.createQuery(components, cacheKey);
   GwenScope.current()?.onCleanup(() => {
     releaseChunkQuery(query);
@@ -435,7 +440,7 @@ export function useQuery<const C extends readonly ComponentDef[]>(
  *
  */
 export function useService<K extends keyof GwenProvides>(key: K): GwenProvides[K] {
-  return useEngine().inject(key);
+  return useEngine("useService").inject(key);
 }
 
 // ─── useWasmModule ────────────────────────────────────────────────────────────
@@ -459,6 +464,6 @@ export function useService<K extends keyof GwenProvides>(key: K): GwenProvides[K
 export function useWasmModule<K extends keyof GwenWasmModules>(
   name: K,
 ): WasmModuleHandle<GwenWasmModules[K]> {
-  const engine = useEngine();
+  const engine = useEngine("useWasmModule");
   return engine.getWasmModule(name);
 }

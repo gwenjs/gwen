@@ -66,7 +66,8 @@ export const GameScene = defineScene('game', () => {
     player.spawnOnce()
     // bulletPool.acquire() is ready here — all plugins are installed
   })
-  // bulletPool.destroyAll() is called automatically when the scene exits
+  // bulletPool.destroyAll() is called automatically when the scene exits,
+  // unless the pool is defined with scope: 'global'
 })
 ```
 
@@ -75,7 +76,7 @@ export const GameScene = defineScene('game', () => {
 `acquire()`. `useActorPool()` is the only way to get the handle that acquires and releases —
 pass that handle to systems and actors.
 
-Inside a scene factory, `useActorPool()` also installs the pool and destroys it on scene exit.
+Inside a scene factory, `useActorPool()` also installs the pool. It destroys the pool on scene exit, unless the pool is defined with `scope: 'global'` or a `CustomScope`: such a pool survives scene changes.
 In any other engine context (`engine.run()`, a plugin `setup()`, a system) it only returns the
 handle and registers nothing. Outside an engine it throws `CORE:OUTSIDE_ENGINE_CONTEXT`.
 :::
@@ -340,9 +341,9 @@ onEnter(async () => {
 
 | Scope | Behaviour |
 |---|---|
-| `useActorPool(definition)` in a scene | `destroyAll()` on scene exit |
-| `scope: 'global'` | `destroyAll()` on `engine:stop` |
-| `scope: CustomScope` | `onMount` on install, `onUnmount` on engine stop |
+| `useActorPool(definition)` in a scene, no `scope` | `destroyAll()` on scene exit |
+| `scope: 'global'` | Survives scene changes. `destroyAll()` on `engine:stop` |
+| `scope: CustomScope` | `onMount` on install, `onUnmount` on engine stop. Survives scene changes |
 | None (default) | Manual `destroyAll()` management |
 
 ## API Reference
