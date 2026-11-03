@@ -208,6 +208,7 @@ describe("checkPluginPackage", () => {
         "attw",
         "readme",
         "hooks",
+        "test-mocks",
         "manifest",
       ]);
       expect(report.findings).toEqual([]);
@@ -753,7 +754,7 @@ describe("snapshot checks of checkPluginPackage", () => {
     await rm(path.join(root, SNAPSHOT_FILE));
 
     const report = await checkPluginPackage({ root, profile: "plugin" });
-    expect(report.checks).toEqual(["exports", "hooks", "manifest"]);
+    expect(report.checks).toEqual(["exports", "hooks", "test-mocks", "manifest"]);
     expect(messagesOf(report)).toEqual(['export "./dist/index.js" of subpath "." is missing']);
   });
 });
@@ -1503,7 +1504,7 @@ describe("readme check of checkPluginPackage", () => {
     await writeSource(root, "README.md", "Nothing to see.\n");
 
     const report = await checkPluginPackage({ root, profile: "plugin" });
-    expect(report.checks).toEqual(["exports", "hooks", "manifest"]);
+    expect(report.checks).toEqual(["exports", "hooks", "test-mocks", "manifest"]);
     expect(messagesOf(report)).toEqual(['export "./dist/index.js" of subpath "." is missing']);
   });
 
@@ -1703,7 +1704,7 @@ describe("artifact checks of checkPluginPackage", () => {
     await rm(path.join(root, "dist/index.js"));
 
     const report = await checkPluginPackage({ root, profile: "plugin" });
-    expect(report.checks).toEqual(["exports", "hooks", "manifest"]);
+    expect(report.checks).toEqual(["exports", "hooks", "test-mocks", "manifest"]);
     expect(messagesOf(report)).toEqual(['export "./dist/index.js" of subpath "." is missing']);
   });
 });
