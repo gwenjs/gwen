@@ -5,6 +5,8 @@ const alias = gwenSourceAliases();
 
 const shared = {
   environment: "node" as const,
+  // Tests pack the fixture and run publint and attw: same budget as SLOW_TEST_MS.
+  testTimeout: 60_000,
 };
 
 export default defineConfig({
