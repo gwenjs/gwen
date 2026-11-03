@@ -152,8 +152,8 @@ onEnter(() => {
 Ajoutez `onRelease` et `onReset` à côté de vos hooks lifecycle existants :
 
 ```ts
-import { defineActor, onStart, onUpdate, onDestroy, onRelease, onReset } from '@gwenjs/core/actor'
-import { useComponent } from '@gwenjs/core/system'
+import { defineActor, onStart, onDestroy, onRelease, onReset } from '@gwenjs/core/actor'
+import { onUpdate, useComponent } from '@gwenjs/core/system'
 
 export const BulletActor = defineActor(BulletPrefab, (props: BulletProps) => {
   const id = useEntityId()

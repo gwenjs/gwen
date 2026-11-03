@@ -290,6 +290,8 @@ onUpdate(() => {
 
 ## Hooks de cycle de vie
 
+Les phases de frame `onUpdate`, `onBeforeUpdate`, `onAfterUpdate` et `onRender` s'importent depuis `@gwenjs/core/system`. Elles sont valides dans un acteur comme dans un système.
+
 ### onUpdate(cb)
 
 **Signature:**
@@ -369,6 +371,14 @@ function onDestroy(cb: () => void): void
 **Retourne:** `void`
 
 ## Scènes
+
+**Exports :** `defineScene`, `useSystem`, `onEnter`, `onExit`, `onTransitionEnter`, `onTransitionExit`, `defineSceneRouter`, `useSceneRouter`
+
+```ts
+import { onTransitionEnter, onTransitionExit } from '@gwenjs/core/scene'
+```
+
+`onTransitionExit(cb)` s'exécute sur `scene:transition:leave` et `onTransitionEnter(cb)` sur `scene:transition:enter`. Chaque callback reçoit `{ from, to }`, est attendu, et doit être appelé dans la factory d'un `defineScene()` ; `GwenContextError` sinon.
 
 ### defineScene(name, factory)
 
@@ -942,6 +952,8 @@ log.warn('Player spawned');
 
 ### useTween(options)
 
+Import : `import { useTween, useSequence } from '@gwenjs/core/tween'`. Les deux composables demandent un contexte moteur actif.
+
 **Signature:**
 ```ts
 function useTween(options: {
@@ -973,6 +985,27 @@ const tween = useTween({
   onProgress: (t) => { entity.x = lerp(0, 100, t); }
 });
 tween.play();
+```
+
+### useSequence(steps)
+
+**Signature:**
+```ts
+function useSequence(steps: SequenceStep[]): SequenceHandle
+```
+
+**Description.** Joue des tweens et des attentes chronométrées dans l'ordre. Une étape est `{ tween, from, to }` ou `{ wait }` (secondes). Appeler `play()` à nouveau relance la séquence depuis la première étape. Doit être appelé dans un contexte moteur ; lève `GwenContextError` sinon.
+
+**Retourne:** `SequenceHandle` — `.play()`, `.pause()`, `.reset()`, `.onComplete(cb)`.
+
+**Exemple:**
+```ts
+const seq = useSequence([
+  { tween: fadeIn, from: 0, to: 1 },
+  { wait: 0.5 },
+  { tween: fadeOut, from: 1, to: 0 },
+])
+seq.play()
 ```
 
 ### createGwenHooks()

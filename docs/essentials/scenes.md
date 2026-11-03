@@ -47,7 +47,7 @@ All scene systems are installed at bootstrap time, but the framework automatical
 When navigating from scene **A** to scene **B**, callbacks fire in this order:
 
 ```
-A: onTransitionLeave({ from: 'A', to: 'B' })   ← play leave animation, awaited
+A: onTransitionExit({ from: 'A', to: 'B' })    ← play leave animation, awaited
 A: onExit()                                      ← despawn actors, dispose layouts
    scene:leave
    scene:enter
@@ -117,11 +117,11 @@ If a scene overlay pauses the underlying scene, systems are automatically scene-
 
 ## Transition Animations
 
-Use `onTransitionLeave` and `onTransitionEnter` to play animations around scene changes. Both callbacks are awaited before the engine proceeds.
+Use `onTransitionExit` and `onTransitionEnter` to play animations around scene changes. Both callbacks are awaited before the engine proceeds.
 
 ```ts
 export const GameScene = defineScene('game', () => {
-  onTransitionLeave(async ({ from, to }) => {
+  onTransitionExit(async ({ from, to }) => {
     await fadeOut(300)   // awaited before onExit
   })
 
@@ -157,7 +157,7 @@ export const GameScene = defineScene('game', () => {
 | `useActor(def)` | Register actor for this scene → `ActorHandle` |
 | `onEnter(cb)` | Run when scene activates; receives optional params |
 | `onExit(cb)` | Run when scene deactivates |
-| `onTransitionLeave(cb)` | Before leave animation; receives `{ from, to }` |
+| `onTransitionExit(cb)` | Before leave animation; receives `{ from, to }` |
 | `onTransitionEnter(cb)` | After enter animation; receives `{ from, to }` |
 | `useSceneRouter(router)` | Access scene router (e.g. to read `nav.params`) |
 | `SystemHandle.pause()` | Pause system frame callbacks |

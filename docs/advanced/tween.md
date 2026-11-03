@@ -12,7 +12,7 @@ Tweens are the standard way to animate numeric values, vectors, and colors in GW
 Create a tween inside a system using `useTween()`:
 
 ```ts
-import { useTween } from '@gwenjs/core'
+import { useTween } from '@gwenjs/core/tween'
 import { defineSystem, onUpdate } from '@gwenjs/core/system'
 
 export const FadeSystem = defineSystem(() => {
@@ -54,10 +54,10 @@ You can also provide a custom easing function: `(t: number) => number` where `t`
 
 ## Sequencing Animations
 
-`defineSequence` chains multiple tweens and timed waits into a single ordered sequence. Useful for intro animations, cutscenes, or any multi-step flow:
+`useSequence` chains multiple tweens and timed waits into a single ordered sequence. Useful for intro animations, cutscenes, or any multi-step flow:
 
 ```typescript
-import { useTween, defineSequence } from '@gwenjs/core'
+import { useTween, useSequence } from '@gwenjs/core/tween'
 import { defineSystem } from '@gwenjs/core/system'
 import { onStart } from '@gwenjs/core/actor'
 
@@ -66,7 +66,7 @@ export const IntroSystem = defineSystem(() => {
   const moveUp  = useTween<number>({ duration: 0.6, easing: 'easeInOutCubic' })
   const fadeOut = useTween<number>({ duration: 0.3, easing: 'easeInQuad' })
 
-  const seq = defineSequence([
+  const seq = useSequence([
     { tween: fadeIn,  from: 0,   to: 1   },  // fade in
     { wait: 0.5 },                             // hold for 0.5s
     { tween: moveUp,  from: 0,   to: -80 },  // move up
@@ -102,7 +102,7 @@ Register `onComplete` on the sequence, not on individual tween handles. Calling 
 Queue multiple segments with `.to()`:
 
 ```ts
-import { useTween } from '@gwenjs/core'
+import { useTween } from '@gwenjs/core/tween'
 import { defineSystem, onUpdate } from '@gwenjs/core/system'
 
 const AnimationSystem = defineSystem(() => {
@@ -161,7 +161,7 @@ scale.onLoop(() => {
 Repeat animations indefinitely or reverse them:
 
 ```ts
-import { useTween } from '@gwenjs/core'
+import { useTween } from '@gwenjs/core/tween'
 import { defineSystem, onUpdate } from '@gwenjs/core/system'
 
 const BobbingSystem = defineSystem(() => {
@@ -189,7 +189,8 @@ Enemies scale from 0 to 1 over 0.2 seconds when spawned:
 
 ```ts
 import { usePrefab } from '@gwenjs/core/actor'
-import { useEngine, useTween } from '@gwenjs/core'
+import { useEngine } from '@gwenjs/core'
+import { useTween } from '@gwenjs/core/tween'
 import { defineSystem, onUpdate } from '@gwenjs/core/system'
 import { Scale } from './components'
 import { EnemyPrefab } from './prefabs'
@@ -216,7 +217,7 @@ export const EnemySpawnSystem = defineSystem(() => {
 Fade a dialog panel in when a scene starts:
 
 ```ts
-import { useTween } from '@gwenjs/core'
+import { useTween } from '@gwenjs/core/tween'
 import { defineSystem, onUpdate } from '@gwenjs/core/system'
 
 export const DialogSystem = defineSystem(() => {
@@ -247,6 +248,7 @@ If you need to stop a tween early, call `reset()`. The slot is not released auto
 | Function | Description |
 |---|---|
 | `useTween<T>(options)` | Create a tween inside a system; returns a `TweenHandle<T>`, or `null` if a `drop` pool is exhausted |
+| `useSequence(steps)` | Chain tweens and `{ wait }` steps in order; returns a `SequenceHandle` with `play`, `pause`, `reset`, `onComplete` |
 | `tween.play(segment)` | Start animation from `from` to `to` over `duration` |
 | `tween.pause()` | Freeze at current value (don't reset) |
 | `tween.reset()` | Stop and reset to initial state |

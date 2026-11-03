@@ -15,7 +15,8 @@ An actor `onUpdate` runs once per instance. Many actors means many callbacks.
 
 ```ts check
 import { defineComponent, Types } from "@gwenjs/core";
-import { defineActor, definePrefab, onUpdate, useTransform } from "@gwenjs/core/actor";
+import { defineActor, definePrefab, useTransform } from "@gwenjs/core/actor";
+import { onUpdate } from "@gwenjs/core/system";
 
 const Marker = defineComponent({
   name: "EnemyMarker",

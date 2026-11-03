@@ -179,7 +179,7 @@ export const GameScene = defineScene('game', () => {
 **Transition order** when navigating from scene A to scene B:
 
 ```
-onTransitionLeave({ from: A, to: B })   ← play leave animation
+onTransitionExit({ from: A, to: B })    ← play leave animation
 onExit()                                 ← layout.dispose() — actors despawned
 scene:leave
 scene:enter

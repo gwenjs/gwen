@@ -9,14 +9,13 @@ description: "API reference for @gwenjs/core."
 
 ## `@gwenjs/core` — Engine
 
-The flat import. Engine bootstrap, shared types, WASM utilities, tween.
+The flat import. Engine bootstrap, shared types, WASM utilities.
 
-**Key exports:** `createEngine`, `useEngine`, `GwenContextError`, `GwenPlugin` (type), `GwenEngine` (type), `GwenProvides` (type), `GwenRuntimeHooks` (type), `createLogger`, `setupGwen`, tween utilities.
+**Key exports:** `createEngine`, `useEngine`, `GwenContextError`, `GwenPlugin` (type), `GwenEngine` (type), `GwenProvides` (type), `GwenRuntimeHooks` (type), `createLogger`, `setupGwen`.
 
 **Usage:**
 ```ts
 import { createEngine, useEngine, createLogger } from '@gwenjs/core'
-import { useTween } from '@gwenjs/core'
 ```
 
 ### Engine
@@ -120,42 +119,6 @@ engine.timeScale = 1
 ::: tip Step dt
 `engine.timeScale` scales the step `dt` only. There is no `pause()` and no `paused` state. `timeScale` of `0` makes the step `dt` `0`. The state does not change.
 :::
-
-### useTween(options)
-
-**Signature:**
-```ts
-function useTween<T>(options: {
-  duration: number
-  easing?: string
-  loop?: boolean
-  yoyo?: boolean
-}): TweenHandle<T> | null
-```
-
-**Description.** Creates an animation tween. Returns a handle with methods to play, pause, reset, queue follow-ups, and register completion callbacks. Returns `null` when the pool policy is `drop` and the pool is exhausted. The default policy grows the pool instead.
-
-**Parameters:**
-| Param | Type | Description |
-|---|---|---|
-| options.duration | `number` | Duration in seconds |
-| options.easing | `string` | Easing function name (optional) |
-| options.loop | `boolean` | Loop animation (optional) |
-| options.yoyo | `boolean` | Reverse animation on loop (optional) |
-
-**Returns:** `TweenHandle<T> | null` — tween controller with methods: `.play({ from, to })`, `.pause()`, `.reset()`, `.to({ value, duration })`, `.onComplete(cb)`, `.onLoop(cb)`, and properties: `.value`, `.playing`. `null` when a `drop` pool is exhausted.
-
-**Example:**
-```ts
-const opacity = useTween<number>({ duration: 0.5, easing: 'easeInOut' })
-
-onUpdate(() => {
-  if (!opacity.playing) {
-    opacity.play({ from: 0, to: 1 })
-  }
-  mesh.material.opacity = opacity.value
-})
-```
 
 ## `@gwenjs/core/system`
 
@@ -342,19 +305,14 @@ export const HealthSystem = defineSystem(() => {
 
 Actor definition, instance lifecycle, and all actor composables.
 
-**Exports:** `defineActor`, `onStart`, `onDestroy`, `onEnable`, `onDisable`, `onUpdate`, `onBeforeUpdate`, `onAfterUpdate`, `onRender`, `definePrefab`, `useActor`, `usePrefab`, `useEntityId`, `useTransform`, `useChildren`, `defineLayout`, `useLayout`, `placeActor`, `placeGroup`, `placePrefab`, `defineActorPool`, `useActorPool`
+**Exports:** `defineActor`, `onStart`, `onDestroy`, `onRelease`, `onReset`, `onEnable`, `onDisable`, `definePrefab`, `useActor`, `usePrefab`, `useEntityId`, `useTransform`, `useChildren`, `defineLayout`, `useLayout`, `placeActor`, `placeGroup`, `placePrefab`, `defineActorPool`, `useActorPool`, `useActorQuery`, `watchActorLeaks`
+
+The frame phases `onUpdate`, `onBeforeUpdate`, `onAfterUpdate` and `onRender` are exported by `@gwenjs/core/system` only. They are valid in actors and in systems.
 
 **Usage:**
 ```ts
-import {
-  defineActor,
-  onStart,
-  onDestroy,
-  onUpdate,
-  onBeforeUpdate,
-  onAfterUpdate,
-  onRender,
-} from '@gwenjs/core/actor'
+import { defineActor, onStart, onDestroy } from '@gwenjs/core/actor'
+import { onUpdate, onBeforeUpdate, onAfterUpdate, onRender } from '@gwenjs/core/system'
 import { definePrefab, useActor, usePrefab } from '@gwenjs/core/actor'
 import { useTransform, defineLayout, useLayout, placeActor, placeGroup, placePrefab } from '@gwenjs/core/actor'
 ```
@@ -598,6 +556,8 @@ function onDestroy(cb: () => void): void
 
 #### onUpdate(cb)
 
+Import from `@gwenjs/core/system`.
+
 **Signature:**
 ```ts
 function onUpdate(cb: (deltaTime: number) => void): void
@@ -621,6 +581,8 @@ onUpdate((dt) => {
 
 #### onBeforeUpdate(cb)
 
+Import from `@gwenjs/core/system`.
+
 **Signature:**
 ```ts
 function onBeforeUpdate(cb: () => void): void
@@ -632,6 +594,8 @@ function onBeforeUpdate(cb: () => void): void
 
 #### onAfterUpdate(cb)
 
+Import from `@gwenjs/core/system`.
+
 **Signature:**
 ```ts
 function onAfterUpdate(cb: () => void): void
@@ -642,6 +606,8 @@ function onAfterUpdate(cb: () => void): void
 **Returns:** `void`
 
 #### onRender(cb)
+
+Import from `@gwenjs/core/system`.
 
 **Signature:**
 ```ts
@@ -860,11 +826,12 @@ transform.x += 10;
 
 Scene and router definition.
 
-**Exports:** `defineScene`, `useSystem`, `onEnter`, `onExit`, `defineSceneRouter`, `useSceneRouter`
+**Exports:** `defineScene`, `useSystem`, `onEnter`, `onExit`, `onTransitionEnter`, `onTransitionExit`, `defineSceneRouter`, `useSceneRouter`
 
 **Usage:**
 ```ts
 import { defineScene, useSystem, onEnter, onExit } from '@gwenjs/core/scene'
+import { onTransitionEnter, onTransitionExit } from '@gwenjs/core/scene'
 import { defineSceneRouter, useSceneRouter } from '@gwenjs/core/scene'
 ```
 
@@ -1008,6 +975,76 @@ const nav = useSceneRouter(AppRouter)
 await nav.send('START')        // trigger transition
 nav.can('START')               // check if valid
 nav.current                    // current state name
+```
+
+## `@gwenjs/core/tween`
+
+Tweens and tween sequences. Both composables need an active engine context.
+
+**Exports:** `useTween`, `useSequence`, and the easing functions (`linear`, `easeInQuad`, `spring`, …).
+
+**Usage:**
+```ts
+import { useTween, useSequence } from '@gwenjs/core/tween'
+```
+
+### Tweens
+
+#### useTween(options)
+
+**Signature:**
+```ts
+function useTween<T>(options: {
+  duration: number
+  easing?: string
+  loop?: boolean
+  yoyo?: boolean
+}): TweenHandle<T> | null
+```
+
+**Description.** Creates an animation tween. Returns a handle with methods to play, pause, reset, queue follow-ups, and register completion callbacks. Returns `null` when the pool policy is `drop` and the pool is exhausted. The default policy grows the pool instead.
+
+**Parameters:**
+| Param | Type | Description |
+|---|---|---|
+| options.duration | `number` | Duration in seconds |
+| options.easing | `string` | Easing function name (optional) |
+| options.loop | `boolean` | Loop animation (optional) |
+| options.yoyo | `boolean` | Reverse animation on loop (optional) |
+
+**Returns:** `TweenHandle<T> | null` — tween controller with methods: `.play({ from, to })`, `.pause()`, `.reset()`, `.to({ value, duration })`, `.onComplete(cb)`, `.onLoop(cb)`, and properties: `.value`, `.playing`. `null` when a `drop` pool is exhausted.
+
+**Example:**
+```ts
+const opacity = useTween<number>({ duration: 0.5, easing: 'easeInOut' })
+
+onUpdate(() => {
+  if (!opacity.playing) {
+    opacity.play({ from: 0, to: 1 })
+  }
+  mesh.material.opacity = opacity.value
+})
+```
+
+#### useSequence(steps)
+
+**Signature:**
+```ts
+function useSequence(steps: SequenceStep[]): SequenceHandle
+```
+
+**Description.** Plays tweens and timed waits in order. A step is `{ tween, from, to }` or `{ wait }` (seconds). Calling `play()` again restarts the sequence from the first step. Must be called inside an engine context; throws `GwenContextError` otherwise.
+
+**Returns:** `SequenceHandle` — `.play()`, `.pause()`, `.reset()`, `.onComplete(cb)`.
+
+**Example:**
+```ts
+const seq = useSequence([
+  { tween: fadeIn, from: 0, to: 1 },
+  { wait: 0.5 },
+  { tween: fadeOut, from: 1, to: 0 },
+])
+seq.play()
 ```
 
 ## `@gwenjs/core/node`

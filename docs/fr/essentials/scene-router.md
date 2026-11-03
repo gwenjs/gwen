@@ -198,7 +198,7 @@ unsubscribe()
 
 ## Animations de transition
 
-Pour jouer des animations autour des changements de scène, utilisez `onTransitionLeave` et `onTransitionEnter` dans la scène. Voir [Scènes — Animations de transition](/fr/essentials/scenes#animations-de-transition).
+Pour jouer des animations autour des changements de scène, utilisez `onTransitionExit` et `onTransitionEnter` dans la scène. Voir [Scènes — Animations de transition](/fr/essentials/scenes#animations-de-transition).
 
 ## Validation
 
