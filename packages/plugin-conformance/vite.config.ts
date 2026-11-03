@@ -29,7 +29,7 @@ export default defineConfig({
     },
     target: "node18",
     rollupOptions: {
-      external: [/^node:/, /^@gwenjs\//, "typescript"],
+      external: [/^node:/, /^@gwenjs\//, "typescript", "publint", /^publint\//],
       output: {
         banner(chunk) {
           return chunk.name === "cli" ? "#!/usr/bin/env node\n" : "";

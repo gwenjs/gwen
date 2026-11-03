@@ -30,6 +30,8 @@
     "watch": "vite build --watch"
   },
   "dependencies": {
+    "@arethetypeswrong/cli": "^0.18.5",
+    "publint": "^0.3.25",
     "typescript": "^6.0.2"
   },
   "devDependencies": {

@@ -1,4 +1,4 @@
-import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -12,8 +12,10 @@ import {
   editManifest,
   goodPluginRoot,
   manifestExports,
+  SLOW_TEST_MS,
   SNAPSHOT_FILE,
   writeManifestText,
+  withPrivateTmpdir,
   writeSource,
 } from "./helpers/fixture.js";
 
@@ -178,7 +180,7 @@ describe("checkPluginPackage", () => {
     );
   });
 
-  it("accepts a package profile without ./module", async () => {
+  it("accepts a package profile without ./module", { timeout: SLOW_TEST_MS }, async () => {
     const root = await openPackage();
     await editManifest(root, (manifest) => {
       delete manifestExports(manifest)["./module"];
@@ -190,23 +192,29 @@ describe("checkPluginPackage", () => {
     expect(report.findings).toEqual([]);
   });
 
-  it("runs the exports and manifest checks on the clean fixture and reports nothing", async () => {
-    const report: ConformanceReport = await checkPluginPackage({
-      root: goodPluginRoot(),
-      profile: "plugin",
-    });
-    expect(report.checks).toEqual([
-      "exports",
-      "snapshot-values",
-      "snapshot-types",
-      "readme",
-      "hooks",
-      "manifest",
-    ]);
-    expect(report.findings).toEqual([]);
-  });
+  it(
+    "runs the exports and manifest checks on the clean fixture and reports nothing",
+    { timeout: SLOW_TEST_MS },
+    async () => {
+      const report: ConformanceReport = await checkPluginPackage({
+        root: goodPluginRoot(),
+        profile: "plugin",
+      });
+      expect(report.checks).toEqual([
+        "exports",
+        "snapshot-values",
+        "snapshot-types",
+        "publint",
+        "attw",
+        "readme",
+        "hooks",
+        "manifest",
+      ]);
+      expect(report.findings).toEqual([]);
+    },
+  );
 
-  it("does not existence-check a subpath pattern target", async () => {
+  it("does not existence-check a subpath pattern target", { timeout: SLOW_TEST_MS }, async () => {
     const root = await openPackage();
     await editManifest(root, (manifest) => {
       manifestExports(manifest)["./x/*"] = "./dist/x/*.js";
@@ -214,7 +222,16 @@ describe("checkPluginPackage", () => {
 
     const report = await checkPluginPackage({ root, profile: "plugin" });
     expect(report.checks).toContain("exports");
-    expect(report.findings).toEqual([]);
+    // Only publint reports the pattern: `exports` does not existence-check it.
+    expect(report.findings.map((finding) => [finding.code, finding.line, finding.message])).toEqual(
+      [
+        [
+          ConformanceErrorCodes.PUBLINT,
+          15,
+          'pkg.exports["./x/*"] is ./dist/x/*.js but does not match any files.',
+        ],
+      ],
+    );
   });
 
   it("reports the target line inside exports when main repeats it", async () => {
@@ -541,12 +558,14 @@ describe("checkPluginPackage", () => {
     expect(finding.message).toBe('export "./dist/missing.js" of subpath "." is missing');
   });
 
-  it("accepts a null exports target", async () => {
+  it("accepts a null exports target", { timeout: SLOW_TEST_MS }, async () => {
     const root = await openPackage();
     await writeManifestText(
       root,
       `{
   "name": "@fixture/null-target",
+  "version": "0.0.0",
+  "type": "module",
   "license": "MPL-2.0",
   "exports": {
     ".": null,
@@ -739,6 +758,9 @@ describe("snapshot checks of checkPluginPackage", () => {
   });
 });
 
+const FALLBACK_ARRAY_MESSAGE =
+  'pkg.exports["./list"] uses fallback arrays which is not recommended. It picks the first value that can be parsed and does not have a use case in Node.js currently. It also works differently in some tools and may face inconsistent behaviors.';
+
 describe("checkSnapshot", () => {
   it("reports a value added and a value removed against public-api.snap.json", async () => {
     const root = await openPackage();
@@ -765,7 +787,7 @@ describe("checkSnapshot", () => {
     }
   });
 
-  it("reports a type export missing from the snapshot", async () => {
+  it("reports a type export missing from the snapshot", { timeout: SLOW_TEST_MS }, async () => {
     const root = await openPackage();
     await appendTo(root, "dist/index.d.ts", "export interface Extra {}\n");
     const message = 'subpath "." exports type "Extra" that public-api.snap.json does not list';
@@ -962,41 +984,45 @@ describe("checkSnapshot", () => {
     expect(messagesOf(await checkSnapshot(full))).toEqual(extra);
   });
 
-  it("reports a subpath whose target declares no types or import file", async () => {
-    const root = await openPackage();
-    await setExports(root, {
-      ".": { import: { types: "./dist/index.d.ts", default: "./dist/index.js" } },
-      "./module": { types: "./dist/module.d.ts", import: "./dist/module.js" },
-      "./extra": { default: "./dist/index.js" },
-      "./list": ["./dist/index.js"],
-      "./blocked": null,
-    });
-    await writeSource(
-      root,
-      SNAPSHOT_FILE,
-      snapshotText({
-        ".": { values: ["WRONG"], types: [] },
-        "./module": { values: ["default"], types: [] },
-        "./extra": { values: ["WRONG"], types: [] },
-        "./list": { values: ["WRONG"], types: [] },
-      }),
-    );
-    await writeSource(root, "README.md", "The names ready and WRONG are listed.\n");
-    const messages = [
-      'subpath "." declares no types or import file',
-      'subpath "./extra" declares no types or import file',
-      'subpath "./list" declares no types or import file',
-    ];
+  it(
+    "reports a subpath whose target declares no types or import file",
+    { timeout: SLOW_TEST_MS },
+    async () => {
+      const root = await openPackage();
+      await setExports(root, {
+        ".": { import: { types: "./dist/index.d.ts", default: "./dist/index.js" } },
+        "./module": { types: "./dist/module.d.ts", import: "./dist/module.js" },
+        "./extra": { default: "./dist/index.js" },
+        "./list": ["./dist/index.js"],
+        "./blocked": null,
+      });
+      await writeSource(
+        root,
+        SNAPSHOT_FILE,
+        snapshotText({
+          ".": { values: ["WRONG"], types: [] },
+          "./module": { values: ["default"], types: [] },
+          "./extra": { values: ["WRONG"], types: [] },
+          "./list": { values: ["WRONG"], types: [] },
+        }),
+      );
+      await writeSource(root, "README.md", "The names ready and WRONG are listed.\n");
+      const messages = [
+        'subpath "." declares no types or import file',
+        'subpath "./extra" declares no types or import file',
+        'subpath "./list" declares no types or import file',
+      ];
 
-    const report = await checkSnapshot(root);
-    expect(messagesOf(report)).toEqual(messages);
-    for (const finding of report.findings) {
-      expect(finding.code).toBe(ConformanceErrorCodes.SNAPSHOT_MISMATCH);
-      expect(finding.file).toBe(SNAPSHOT_FILE);
-    }
-    const full = await checkPluginPackage({ root, profile: "plugin" });
-    expect(messagesOf(full)).toEqual(messages);
-  });
+      const report = await checkSnapshot(root);
+      expect(messagesOf(report)).toEqual(messages);
+      for (const finding of report.findings) {
+        expect(finding.code).toBe(ConformanceErrorCodes.SNAPSHOT_MISMATCH);
+        expect(finding.file).toBe(SNAPSHOT_FILE);
+      }
+      const full = await checkPluginPackage({ root, profile: "plugin" });
+      expect(messagesOf(full)).toEqual([FALLBACK_ARRAY_MESSAGE, ...messages]);
+    },
+  );
 
   it("splits re-exports into values and types", async () => {
     const root = await openPackage();
@@ -1325,7 +1351,7 @@ function readmeMessages(report: ConformanceReport): string[] {
 }
 
 describe("readme check of checkPluginPackage", () => {
-  it("reports a snapshot name absent from README", async () => {
+  it("reports a snapshot name absent from README", { timeout: SLOW_TEST_MS }, async () => {
     const root = await openPackage();
     await writeSource(root, "README.md", "Nothing to see.\n");
 
@@ -1339,28 +1365,32 @@ describe("readme check of checkPluginPackage", () => {
     expect(finding.hint.length).toBeGreaterThan(0);
   });
 
-  it("asks for each README name once and never requires default", async () => {
-    const root = await openPackage();
-    await writeSource(
-      root,
-      "dist/module.d.ts",
-      "export declare const ready: boolean;\nexport default function setup(): void;\n",
-    );
-    await writeSource(
-      root,
-      SNAPSHOT_FILE,
-      snapshotText({
-        ".": { values: ["ready"], types: [] },
-        "./module": { values: ["default", "ready"], types: [] },
-      }),
-    );
-    await writeSource(root, "README.md", "Nothing to see.\n");
+  it(
+    "asks for each README name once and never requires default",
+    { timeout: SLOW_TEST_MS },
+    async () => {
+      const root = await openPackage();
+      await writeSource(
+        root,
+        "dist/module.d.ts",
+        "export declare const ready: boolean;\nexport default function setup(): void;\n",
+      );
+      await writeSource(
+        root,
+        SNAPSHOT_FILE,
+        snapshotText({
+          ".": { values: ["ready"], types: [] },
+          "./module": { values: ["default", "ready"], types: [] },
+        }),
+      );
+      await writeSource(root, "README.md", "Nothing to see.\n");
 
-    const report = await checkPluginPackage({ root, profile: "plugin" });
-    expect(messagesOf(report)).toEqual(['README.md does not mention "ready" (subpath ".")']);
-  });
+      const report = await checkPluginPackage({ root, profile: "plugin" });
+      expect(messagesOf(report)).toEqual(['README.md does not mention "ready" (subpath ".")']);
+    },
+  );
 
-  it("reports a missing README once", async () => {
+  it("reports a missing README once", { timeout: SLOW_TEST_MS }, async () => {
     const root = await openPackage();
     await appendTo(root, "dist/index.d.ts", "export interface Extra {}\n");
     await writeSource(
@@ -1378,7 +1408,7 @@ describe("readme check of checkPluginPackage", () => {
     expect(report.findings[0]?.code).toBe(ConformanceErrorCodes.README_EXPORT_MISSING);
   });
 
-  it("matches README names as whole identifiers", async () => {
+  it("matches README names as whole identifiers", { timeout: SLOW_TEST_MS }, async () => {
     const root = await openPackage();
     await writeSource(root, "README.md", "readyState, $ready and ready_ are other names.\n");
     expect(readmeMessages(await checkPluginPackage({ root, profile: "plugin" }))).toEqual([
@@ -1389,7 +1419,7 @@ describe("readme check of checkPluginPackage", () => {
     expect((await checkPluginPackage({ root, profile: "plugin" })).findings).toEqual([]);
   });
 
-  it("matches a README name that holds regexp characters", async () => {
+  it("matches a README name that holds regexp characters", { timeout: SLOW_TEST_MS }, async () => {
     const root = await openPackage();
     await writeSource(
       root,
@@ -1408,52 +1438,60 @@ describe("readme check of checkPluginPackage", () => {
     ]);
   });
 
-  it("does not need a README when the snapshot holds only default", async () => {
-    const named = await openPackage();
-    await editManifest(named, (manifest) => {
-      delete manifestExports(manifest)["./module"];
-    });
-    await writeSource(
-      named,
-      "dist/index.d.ts",
-      "export default function setup(): void;\nexport declare const extra: number;\n",
-    );
-    await writeSource(
-      named,
-      SNAPSHOT_FILE,
-      snapshotText({ ".": { values: ["default", "extra"], types: [] } }),
-    );
-    await writeSource(named, "README.md", "Nothing to see.\n");
-    expect(messagesOf(await checkPluginPackage({ root: named, profile: "package" }))).toEqual([
-      'README.md does not mention "extra" (subpath ".")',
-    ]);
+  it(
+    "does not need a README when the snapshot holds only default",
+    { timeout: SLOW_TEST_MS },
+    async () => {
+      const named = await openPackage();
+      await editManifest(named, (manifest) => {
+        delete manifestExports(manifest)["./module"];
+      });
+      await writeSource(
+        named,
+        "dist/index.d.ts",
+        "export default function setup(): void;\nexport declare const extra: number;\n",
+      );
+      await writeSource(
+        named,
+        SNAPSHOT_FILE,
+        snapshotText({ ".": { values: ["default", "extra"], types: [] } }),
+      );
+      await writeSource(named, "README.md", "Nothing to see.\n");
+      expect(messagesOf(await checkPluginPackage({ root: named, profile: "package" }))).toEqual([
+        'README.md does not mention "extra" (subpath ".")',
+      ]);
 
-    const root = await openPackage();
-    await editManifest(root, (manifest) => {
-      delete manifestExports(manifest)["./module"];
-    });
-    await writeSource(root, "dist/index.d.ts", "export default function setup(): void;\n");
-    await writeSource(
-      root,
-      SNAPSHOT_FILE,
-      snapshotText({ ".": { values: ["default"], types: [] } }),
-    );
-    await rm(path.join(root, "README.md"));
+      const root = await openPackage();
+      await editManifest(root, (manifest) => {
+        delete manifestExports(manifest)["./module"];
+      });
+      await writeSource(root, "dist/index.d.ts", "export default function setup(): void;\n");
+      await writeSource(
+        root,
+        SNAPSHOT_FILE,
+        snapshotText({ ".": { values: ["default"], types: [] } }),
+      );
+      await rm(path.join(root, "README.md"));
 
-    expect((await checkPluginPackage({ root, profile: "package" })).findings).toEqual([]);
-  });
+      expect((await checkPluginPackage({ root, profile: "package" })).findings).toEqual([]);
+    },
+  );
 
-  it("reports a README that cannot be read, not a missing one", async () => {
-    const root = await openPackage();
-    await rm(path.join(root, "README.md"));
-    await mkdir(path.join(root, "README.md"));
+  it(
+    "reports a README that cannot be read, not a missing one",
+    { timeout: SLOW_TEST_MS },
+    async () => {
+      const root = await openPackage();
+      await rm(path.join(root, "README.md"));
+      await mkdir(path.join(root, "README.md"));
 
-    expect(readmeMessages(await checkPluginPackage({ root, profile: "plugin" }))).toEqual([
-      expect.stringMatching(/^README\.md cannot be read \(E[A-Z]+\)$/),
-    ]);
-  });
+      expect(readmeMessages(await checkPluginPackage({ root, profile: "plugin" }))).toEqual([
+        expect.stringMatching(/^README\.md cannot be read \(E[A-Z]+\)$/),
+      ]);
+    },
+  );
 
-  it("skips the readme check when exports has a finding", async () => {
+  it("skips the readme check when exports has a finding", { timeout: SLOW_TEST_MS }, async () => {
     const clean = await openPackage();
     await writeSource(clean, "README.md", "Nothing to see.\n");
     expect(messagesOf(await checkPluginPackage({ root: clean, profile: "plugin" }))).toEqual([
@@ -1469,7 +1507,7 @@ describe("readme check of checkPluginPackage", () => {
     expect(messagesOf(report)).toEqual(['export "./dist/index.js" of subpath "." is missing']);
   });
 
-  it("reads the snapshot after a write", async () => {
+  it("reads the snapshot after a write", { timeout: SLOW_TEST_MS }, async () => {
     const root = await openPackage();
     await writeSource(root, SNAPSHOT_FILE, STALE_SNAPSHOT);
     await writeSource(root, "README.md", "Nothing to see.\n");
@@ -1477,5 +1515,195 @@ describe("readme check of checkPluginPackage", () => {
     const report = await checkPluginPackage({ root, profile: "plugin", write: true });
     expect(messagesOf(report)).toEqual(['README.md does not mention "ready" (subpath ".")']);
     expect(await snapshotBytes(root)).toBe(EXPECTED_SNAPSHOT);
+  });
+});
+
+describe("artifact checks of checkPluginPackage", () => {
+  const SLOW = { timeout: SLOW_TEST_MS };
+
+  function summary(
+    report: ConformanceReport,
+  ): Array<[string, string | undefined, number | undefined, string]> {
+    return report.findings.map((finding) => [
+      finding.code,
+      finding.file,
+      finding.line,
+      finding.message,
+    ]);
+  }
+
+  it("reports a publint strict error verbatim", SLOW, async () => {
+    const root = await openPackage();
+    await editManifest(root, (manifest) => {
+      manifest.repository = "nope";
+    });
+
+    const report = await checkPluginPackage({ root, profile: "plugin" });
+    expect(summary(report)).toEqual([
+      [
+        ConformanceErrorCodes.PUBLINT,
+        "package.json",
+        19,
+        "pkg.repository is nope which isn't a valid shorthand value supported by npm. Consider using an object that references a repository.",
+      ],
+    ]);
+  });
+
+  /** The fixture with `./module` declared without types: attw reports it as untyped. */
+  async function openUntypedModule(): Promise<string> {
+    const root = await openPackage();
+    await editManifest(root, (manifest) => {
+      manifestExports(manifest)["./module"] = { import: "./dist/module.js" };
+    });
+    await rm(path.join(root, "dist/module.d.ts"));
+    return root;
+  }
+
+  const UNTYPED_MODULE = [
+    [
+      ConformanceErrorCodes.ATTW,
+      "package.json",
+      11,
+      'UntypedResolution at "./module" (node16-esm, bundler)',
+    ],
+  ];
+
+  it("reports an attw problem", SLOW, async () => {
+    const root = await openUntypedModule();
+
+    const report = await checkPluginPackage({ root, profile: "plugin" });
+    expect(summary(report)).toEqual(UNTYPED_MODULE);
+  });
+
+  it(
+    "reports one attw finding per untyped subpath, whatever the size of the attw report",
+    SLOW,
+    async () => {
+      // attw writes about 30 KiB per subpath and exits at once: a piped stdout is cut at 64 KiB.
+      const root = await openPackage();
+      const names = ["a", "b", "c", "d"];
+      await editManifest(root, (manifest) => {
+        for (const name of names) {
+          manifestExports(manifest)[`./${name}`] = { import: `./dist/${name}.js` };
+        }
+      });
+      for (const name of names) await writeSource(root, `dist/${name}.js`, "export {};\n");
+
+      const report = await checkPluginPackage({ root, profile: "plugin" });
+      expect(summary(report).filter(([code]) => code === ConformanceErrorCodes.ATTW)).toEqual(
+        names.map((name, index) => [
+          ConformanceErrorCodes.ATTW,
+          "package.json",
+          15 + index * 3,
+          `UntypedResolution at "./${name}" (node16-esm, bundler)`,
+        ]),
+      );
+    },
+  );
+
+  it("ignores the .attw.json of the package", SLOW, async () => {
+    for (const config of [{ excludeEntrypoints: ["./module"] }, { entrypoints: ["."] }]) {
+      const root = await openUntypedModule();
+      await writeSource(root, ".attw.json", JSON.stringify(config));
+
+      const report = await checkPluginPackage({ root, profile: "plugin" });
+      expect(summary(report), JSON.stringify(config)).toEqual(UNTYPED_MODULE);
+    }
+  });
+
+  it("leaves no temp directory behind", SLOW, async () => {
+    const root = await openUntypedModule();
+
+    await withPrivateTmpdir(async (tmp) => {
+      const report = await checkPluginPackage({ root, profile: "plugin" });
+      expect(summary(report)).toEqual(UNTYPED_MODULE);
+      expect(
+        (await readdir(tmp)).filter((name) => name.startsWith("gwen-conformance-attw-")),
+      ).toEqual([]);
+    });
+  });
+
+  it("reports an attw problem that names a file, not an entry point", SLOW, async () => {
+    const root = await openPackage();
+    await writeSource(root, "dist/index.d.cts", "export declare const ready: boolean;\n");
+    await editManifest(root, (manifest) => {
+      manifestExports(manifest)["."] = { types: "./dist/index.d.cts", import: "./dist/index.js" };
+    });
+
+    const report = await checkPluginPackage({ root, profile: "plugin" });
+    expect(summary(report)).toEqual([
+      [ConformanceErrorCodes.ATTW, "package.json", 6, 'FalseCJS in "dist/index.d.cts"'],
+    ]);
+  });
+
+  it("reports a package that ships no types", SLOW, async () => {
+    const root = await openPackage();
+    await editManifest(root, (manifest) => {
+      manifest.exports = { ".": "./dist/index.js", "./module": "./dist/module.js" };
+    });
+    await rm(path.join(root, "dist/index.d.ts"));
+    await rm(path.join(root, "dist/module.d.ts"));
+    await rm(path.join(root, "src"), { recursive: true });
+
+    const report = await checkPluginPackage({ root, profile: "plugin" });
+    expect(report.findings.map((finding) => [finding.code, finding.message])).toEqual([
+      [ConformanceErrorCodes.ATTW, "the package ships no TypeScript types"],
+    ]);
+  });
+
+  it("reports a package that npm cannot pack", SLOW, async () => {
+    const root = await openPackage();
+    const manifest = {
+      license: "MPL-2.0",
+      exports: { ".": "./dist/index.js", "./module": "./dist/module.js" },
+      gwen: { type: "plugin" },
+    };
+    await writeManifestText(root, `${JSON.stringify(manifest, null, 2)}\n`);
+
+    // publint leaves an empty publint-pack-* directory when it cannot pack (@publint/pack
+    // creates it before its try block): keep it out of the real temp dir.
+    const report = await withPrivateTmpdir(() => checkPluginPackage({ root, profile: "plugin" }));
+    expect(report.findings.map((finding) => [finding.code, finding.message])).toEqual([
+      [
+        ConformanceErrorCodes.PUBLINT,
+        "publint failed: npm error Invalid package, must have name and version",
+      ],
+      [
+        ConformanceErrorCodes.ATTW,
+        "npm pack failed: npm error Invalid package, must have name and version",
+      ],
+    ]);
+  });
+
+  it("drops the node10 and node16-cjs resolutions of attw", SLOW, async () => {
+    // attw reports NoResolution (node10) and CJSResolvesToESM (node16-cjs) for this ESM-only package.
+    const report = await checkPluginPackage({ root: goodPluginRoot(), profile: "plugin" });
+    expect(report.checks).toContain("attw");
+    expect(
+      report.findings.filter((finding) => finding.code === ConformanceErrorCodes.ATTW),
+    ).toEqual([]);
+  });
+
+  it("skips publint and attw when exports has a finding", SLOW, async () => {
+    const clean = await openPackage();
+    await editManifest(clean, (manifest) => {
+      manifest.repository = "nope";
+    });
+    const cleanReport = await checkPluginPackage({ root: clean, profile: "plugin" });
+    expect(cleanReport.checks).toContain("publint");
+    expect(cleanReport.checks).toContain("attw");
+    expect(cleanReport.findings.map((finding) => finding.code)).toEqual([
+      ConformanceErrorCodes.PUBLINT,
+    ]);
+
+    const root = await openPackage();
+    await editManifest(root, (manifest) => {
+      manifest.repository = "nope";
+    });
+    await rm(path.join(root, "dist/index.js"));
+
+    const report = await checkPluginPackage({ root, profile: "plugin" });
+    expect(report.checks).toEqual(["exports", "hooks", "manifest"]);
+    expect(messagesOf(report)).toEqual(['export "./dist/index.js" of subpath "." is missing']);
   });
 });

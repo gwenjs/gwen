@@ -7,6 +7,7 @@ import {
   goodPluginRoot,
   hooksFixtureRoot,
   setHookNamespace,
+  SLOW_TEST_MS,
   writeSource,
 } from "./helpers/fixture.js";
 
@@ -295,11 +296,15 @@ describe("hooks check", () => {
     }
   });
 
-  it("a package with no hook and no hookNamespace reports nothing", async () => {
-    const report = await checkPluginPackage({ root: goodPluginRoot(), profile: "plugin" });
-    expect(report.checks).toContain("hooks");
-    expect(hookCodes(report)).toEqual([]);
-  });
+  it(
+    "a package with no hook and no hookNamespace reports nothing",
+    { timeout: SLOW_TEST_MS },
+    async () => {
+      const report = await checkPluginPackage({ root: goodPluginRoot(), profile: "plugin" });
+      expect(report.checks).toContain("hooks");
+      expect(hookCodes(report)).toEqual([]);
+    },
+  );
 
   it("reports all 200 undeclared emits of one file", async () => {
     const lines = Array.from({ length: 200 }, (_, index) => {
