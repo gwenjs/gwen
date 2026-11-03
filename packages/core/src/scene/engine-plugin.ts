@@ -62,8 +62,8 @@ export class SceneHookRegistry {
       this._cleanups.push(() => engine.hooks.removeHook("scene:beforeLeave", handler));
     }
 
-    if (def.onTransitionLeave) {
-      const leaveCb = def.onTransitionLeave;
+    if (def.onTransitionExit) {
+      const leaveCb = def.onTransitionExit;
       const handler = async (payload: { from: GwenSceneName; to: GwenSceneName }) => {
         if (payload.from !== name) return;
         const previous = pushEngine(engine);

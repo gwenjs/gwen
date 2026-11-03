@@ -3,6 +3,8 @@
  * Wall-clock budgets for the same operations live in `bench/timing-gate.test.ts`.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { createEngine } from "@gwenjs/core/node";
+import { defineSystem } from "@gwenjs/core/system";
 
 let _bodyIdCounter = 0;
 
@@ -22,9 +24,6 @@ vi.mock("../../src/composables.js", () => ({
 
 vi.mock("@gwenjs/core/internal", () => ({
   _getActorEntityId: vi.fn(() => 1n),
-}));
-vi.mock("@gwenjs/core/actor", () => ({
-  onBeforeUpdate: vi.fn(),
 }));
 
 vi.mock("@gwenjs/core", () => ({
@@ -53,10 +52,21 @@ describe("Bulk operations", () => {
 
   it("forwards 1000 impulses to the physics service", async () => {
     const { useDynamicBody } = await import("../../src/composables/use-dynamic-body.js");
-    const body = useDynamicBody();
-    for (let i = 0; i < 1_000; i++) {
-      body.applyImpulse(1, 0);
+    const engine = await createEngine();
+    let body!: ReturnType<typeof useDynamicBody>;
+    try {
+      // The real onBeforeUpdate needs a scope: a system is the lightest one.
+      await engine.use(
+        defineSystem("bulk-operations-test", () => {
+          body = useDynamicBody();
+        })(),
+      );
+      for (let i = 0; i < 1_000; i++) {
+        body.applyImpulse(1, 0);
+      }
+      expect(mockPhysics.applyImpulse).toHaveBeenCalledTimes(1_000);
+    } finally {
+      await engine.stop();
     }
-    expect(mockPhysics.applyImpulse).toHaveBeenCalledTimes(1_000);
   });
 });

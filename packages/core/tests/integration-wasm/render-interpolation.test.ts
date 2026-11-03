@@ -1,13 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { readInterpolatedTransform2D, type InterpolatedTransform2D } from "../../src/index.js";
-import {
-  defineActor,
-  definePrefab,
-  onRender,
-  onUpdate,
-  useTransform,
-} from "../../src/actor/index.js";
+import { defineActor, definePrefab, useTransform } from "../../src/actor/index.js";
+import { onRender, onUpdate } from "../../src/system/index.js";
 import { entityIndex } from "../../src/internal.js";
 import { CoreErrorCodes } from "../../src/engine/engine-errors.js";
 import { createRealEngine } from "./harness.js";

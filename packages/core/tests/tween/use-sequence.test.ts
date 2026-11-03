@@ -15,7 +15,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { createEngine } from "../../src/node";
 import { useTween } from "../../src/tween/runtime/use-tween";
-import { defineSequence } from "../../src/tween/runtime/define-sequence";
+import { useSequence } from "../../src/tween/runtime/use-sequence";
 import { getTweenManager } from "../../src/tween/runtime/tween-manager";
 import { TweenPlugin } from "../../src/tween/engine-plugin";
 
@@ -29,7 +29,7 @@ describe("defineSequence() step ordering", () => {
       const tween1 = useTween<number>({ duration: 0.5, easing: "linear" })!;
       const tween2 = useTween<number>({ duration: 0.5, easing: "linear" })!;
 
-      const seq = defineSequence([
+      const seq = useSequence([
         { tween: tween1, from: 0, to: 1 },
         { tween: tween2, from: 0, to: 1 },
       ]);
@@ -60,7 +60,7 @@ describe("defineSequence() step ordering", () => {
       const tween1 = useTween<number>({ duration: 0.5, easing: "linear" })!;
       const tween2 = useTween<number>({ duration: 1.0, easing: "linear" })!;
 
-      const seq = defineSequence([
+      const seq = useSequence([
         { tween: tween1, from: 0, to: 50 },
         { tween: tween2, from: 50, to: 100 },
       ]);
@@ -86,7 +86,7 @@ describe("defineSequence() step ordering", () => {
       ];
       const completedSteps: number[] = [];
 
-      const seq = defineSequence([
+      const seq = useSequence([
         { tween: tweens[0]!, from: 0, to: 1 },
         { tween: tweens[1]!, from: 1, to: 2 },
         { tween: tweens[2]!, from: 2, to: 3 },
@@ -124,7 +124,7 @@ describe("defineSequence() wait steps", () => {
       const tween2 = useTween<number>({ duration: 0.5, easing: "linear" })!;
       capturedTween2 = tween2;
 
-      const seq = defineSequence([
+      const seq = useSequence([
         { tween: tween1, from: 0, to: 1 },
         { wait: 0.5 },
         { tween: tween2, from: 0, to: 1 },
@@ -153,7 +153,7 @@ describe("defineSequence() wait steps", () => {
       const tween1 = useTween<number>({ duration: 0.5, easing: "linear" })!;
       const tween2 = useTween<number>({ duration: 0.5, easing: "linear" })!;
 
-      const seq = defineSequence([
+      const seq = useSequence([
         { tween: tween1, from: 0, to: 1 },
         { wait: 0.5 },
         { tween: tween2, from: 0, to: 1 },
@@ -183,7 +183,7 @@ describe("defineSequence() onComplete", () => {
       const tween2 = useTween<number>({ duration: 0.5, easing: "linear" })!;
       const cb = vi.fn();
 
-      const seq = defineSequence([
+      const seq = useSequence([
         { tween: tween1, from: 0, to: 1 },
         { tween: tween2, from: 0, to: 1 },
       ]);
@@ -206,7 +206,7 @@ describe("defineSequence() onComplete", () => {
       const tween2 = useTween<number>({ duration: 0.5, easing: "linear" })!;
       const cb = vi.fn();
 
-      const seq = defineSequence([
+      const seq = useSequence([
         { tween: tween1, from: 0, to: 1 },
         { tween: tween2, from: 0, to: 1 },
       ]);
@@ -227,7 +227,7 @@ describe("defineSequence() onComplete", () => {
       const cb1 = vi.fn();
       const cb2 = vi.fn();
 
-      const seq = defineSequence([{ tween, from: 0, to: 1 }]);
+      const seq = useSequence([{ tween, from: 0, to: 1 }]);
 
       seq.onComplete(cb1);
       seq.onComplete(cb2);
@@ -248,7 +248,7 @@ describe("defineSequence() with empty steps array", () => {
     await engine.use(TweenPlugin());
     engine.run(() => {
       const cb = vi.fn();
-      const seq = defineSequence([]);
+      const seq = useSequence([]);
       seq.onComplete(cb);
       seq.play();
       expect(cb).toHaveBeenCalledTimes(1);
@@ -264,7 +264,7 @@ describe("defineSequence() pause()", () => {
     await engine.use(TweenPlugin());
     engine.run(() => {
       const tween = useTween<number>({ duration: 1, easing: "linear" })!;
-      const seq = defineSequence([{ tween, from: 0, to: 100 }]);
+      const seq = useSequence([{ tween, from: 0, to: 100 }]);
 
       seq.play();
       tween.tick(0.25); // 25%
@@ -283,7 +283,7 @@ describe("defineSequence() pause()", () => {
       const tween2 = useTween<number>({ duration: 0.5 })!;
       const cb = vi.fn();
 
-      const seq = defineSequence([
+      const seq = useSequence([
         { tween: tween1, from: 0, to: 1 },
         { wait: 1.0 },
         { tween: tween2, from: 0, to: 1 },
@@ -316,7 +316,7 @@ describe("defineSequence() reset()", () => {
     engine.run(() => {
       const tween = useTween<number>({ duration: 1, easing: "linear" })!;
       const cb = vi.fn();
-      const seq = defineSequence([{ tween, from: 0, to: 1 }]);
+      const seq = useSequence([{ tween, from: 0, to: 1 }]);
 
       seq.onComplete(cb);
       seq.play();
@@ -338,7 +338,7 @@ describe("defineSequence() reset()", () => {
       const tween2 = useTween<number>({ duration: 0.5, easing: "linear" })!;
       const order: string[] = [];
 
-      const seq = defineSequence([
+      const seq = useSequence([
         { tween: tween1, from: 0, to: 1 },
         { tween: tween2, from: 0, to: 1 },
       ]);
@@ -371,7 +371,7 @@ describe("defineSequence() reset()", () => {
       const pool = manager["_pool"];
       const tween1 = useTween<number>({ duration: 0.1 })!;
 
-      const seq = defineSequence([{ tween: tween1, from: 0, to: 1 }, { wait: 1.0 }]);
+      const seq = useSequence([{ tween: tween1, from: 0, to: 1 }, { wait: 1.0 }]);
 
       seq.play();
       tween1.tick(0.1); // advance to wait step
@@ -390,6 +390,6 @@ describe("defineSequence() reset()", () => {
 
 describe("defineSequence() outside engine context", () => {
   it("throws when called outside any engine context", () => {
-    expect(() => defineSequence([])).toThrow();
+    expect(() => useSequence([])).toThrow();
   });
 });

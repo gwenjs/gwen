@@ -15,7 +15,7 @@ export default {
     gwen.addPlugin({ src: "@gwenjs/core/internal", export: "TweenPlugin", options: opts });
     gwen.addAutoImports([
       { name: "useTween", from: "@gwenjs/core/tween" },
-      { name: "defineSequence", from: "@gwenjs/core/tween" },
+      { name: "useSequence", from: "@gwenjs/core/tween" },
     ]);
   },
 } satisfies GwenModule<TweenPluginOptions>;

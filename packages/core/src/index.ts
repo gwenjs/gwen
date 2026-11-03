@@ -3,7 +3,7 @@
 //   @gwenjs/core/system  — defineSystem, onUpdate, useQuery, ...
 //   @gwenjs/core/actor   — defineActor, onStart, onDestroy, definePrefab, ...
 //   @gwenjs/core/scene   — defineScene, defineSceneRouter, ...
-//   @gwenjs/core/tween   — easing functions
+//   @gwenjs/core/tween   — useTween, useSequence, easing functions
 // Framework-only symbols live in @gwenjs/core/internal.
 
 export type {
@@ -103,6 +103,3 @@ export type { MemoryRegion } from "./hooks/wasm/shared-memory";
 export { FLAG_TELEPORT } from "./hooks/wasm/shared-memory";
 export { readInterpolatedTransform2D } from "./engine/transform-pair";
 export type { InterpolatedTransform2D, TransformPair2D } from "./engine/transform-pair";
-
-export type { EasingName, TweenableValue, TweenOptions, TweenHandle } from "./tween/index";
-export { useTween, defineSequence } from "./tween/index";

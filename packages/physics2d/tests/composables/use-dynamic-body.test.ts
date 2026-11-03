@@ -1,7 +1,9 @@
 /**
  * @file useDynamicBody() composable tests.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { createEngine } from "@gwenjs/core/node";
+import { defineSystem } from "@gwenjs/core/system";
 
 const mockPhysics = {
   addRigidBody: vi.fn(() => 99),
@@ -13,8 +15,6 @@ const mockPhysics = {
   getLinearVelocity: vi.fn(() => ({ x: 1.5, y: 2.5 })),
 };
 
-let capturedOnBeforeUpdate: ((dt: number) => void) | undefined;
-
 vi.mock("../../src/composables.js", () => ({
   usePhysics2D: vi.fn(() => mockPhysics),
 }));
@@ -22,26 +22,42 @@ vi.mock("../../src/composables.js", () => ({
 vi.mock("@gwenjs/core/internal", () => ({
   _getActorEntityId: vi.fn(() => 42n),
 }));
-vi.mock("@gwenjs/core/actor", () => ({
-  onBeforeUpdate: vi.fn((cb: (dt: number) => void) => {
-    capturedOnBeforeUpdate = cb;
-  }),
-}));
 
 vi.mock("@gwenjs/core", () => ({}));
 
 import { useDynamicBody } from "../../src/composables/use-dynamic-body.js";
 
 describe("useDynamicBody", () => {
+  let engine: Awaited<ReturnType<typeof createEngine>>;
+
+  beforeEach(async () => {
+    // maxDeltaSeconds 10: advance() caps dt at 0.1 by default, which would hide the dt 0.5 and 1.0 cases.
+    engine = await createEngine({ maxDeltaSeconds: 10 });
+  });
+
+  afterEach(async () => {
+    await engine.stop();
+  });
+
+  // The real onBeforeUpdate needs a scope: a system is the lightest one, and advance() runs the real frame.
+  async function mount<T>(setup: () => T): Promise<T> {
+    let result!: T;
+    await engine.use(
+      defineSystem("use-dynamic-body-test", () => {
+        result = setup();
+      })(),
+    );
+    return result;
+  }
+
   beforeEach(() => {
     vi.clearAllMocks();
-    capturedOnBeforeUpdate = undefined;
     mockPhysics.addRigidBody.mockReturnValue(99);
     mockPhysics.getLinearVelocity.mockReturnValue({ x: 1.5, y: 2.5 });
   });
 
-  it('calls addRigidBody with type "dynamic"', () => {
-    useDynamicBody();
+  it('calls addRigidBody with type "dynamic"', async () => {
+    await mount(() => useDynamicBody());
     expect(mockPhysics.addRigidBody).toHaveBeenCalledWith(
       expect.anything(),
       "dynamic",
@@ -51,42 +67,42 @@ describe("useDynamicBody", () => {
     );
   });
 
-  it("returns the bodyHandle as bodyId", () => {
-    const h = useDynamicBody();
+  it("returns the bodyHandle as bodyId", async () => {
+    const h = await mount(() => useDynamicBody());
     expect(h.bodyId).toBe(99);
   });
 
-  it("is active by default", () => {
-    expect(useDynamicBody().active).toBe(true);
+  it("is active by default", async () => {
+    expect((await mount(() => useDynamicBody())).active).toBe(true);
   });
 
-  it("applyImpulse delegates to physics.applyImpulse", () => {
-    const h = useDynamicBody();
+  it("applyImpulse delegates to physics.applyImpulse", async () => {
+    const h = await mount(() => useDynamicBody());
     h.applyImpulse(10, 20);
     expect(mockPhysics.applyImpulse).toHaveBeenCalledWith(expect.anything(), 10, 20);
   });
 
-  it("setVelocity delegates to physics.setLinearVelocity", () => {
-    const h = useDynamicBody();
+  it("setVelocity delegates to physics.setLinearVelocity", async () => {
+    const h = await mount(() => useDynamicBody());
     h.setVelocity(3, 4);
     expect(mockPhysics.setLinearVelocity).toHaveBeenCalledWith(expect.anything(), 3, 4);
   });
 
-  it("velocity getter returns current velocity from physics", () => {
-    const h = useDynamicBody();
+  it("velocity getter returns current velocity from physics", async () => {
+    const h = await mount(() => useDynamicBody());
     expect(h.velocity).toEqual({ x: 1.5, y: 2.5 });
   });
 
-  it("velocity getter returns { x:0, y:0 } when getLinearVelocity returns null", () => {
+  it("velocity getter returns { x:0, y:0 } when getLinearVelocity returns null", async () => {
     mockPhysics.getLinearVelocity.mockReturnValue(null);
-    const h = useDynamicBody();
+    const h = await mount(() => useDynamicBody());
     expect(h.velocity).toEqual({ x: 0, y: 0 });
   });
 
-  it("passes fixedRotation on create and again after disable and enable", () => {
+  it("passes fixedRotation on create and again after disable and enable", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
-      const body = useDynamicBody({ fixedRotation: true });
+      const body = await mount(() => useDynamicBody({ fixedRotation: true }));
       expect(mockPhysics.addRigidBody).toHaveBeenCalledWith(
         expect.anything(),
         "dynamic",
@@ -111,8 +127,8 @@ describe("useDynamicBody", () => {
     }
   });
 
-  it("passes mass and linearDamping options to addRigidBody", () => {
-    useDynamicBody({ mass: 5, linearDamping: 0.1 });
+  it("passes mass and linearDamping options to addRigidBody", async () => {
+    await mount(() => useDynamicBody({ mass: 5, linearDamping: 0.1 }));
     expect(mockPhysics.addRigidBody).toHaveBeenCalledWith(
       expect.anything(),
       "dynamic",
@@ -122,8 +138,8 @@ describe("useDynamicBody", () => {
     );
   });
 
-  it("passes angularDamping and gravityScale options to addRigidBody", () => {
-    useDynamicBody({ angularDamping: 0.2, gravityScale: 2.5 });
+  it("passes angularDamping and gravityScale options to addRigidBody", async () => {
+    await mount(() => useDynamicBody({ angularDamping: 0.2, gravityScale: 2.5 }));
     expect(mockPhysics.addRigidBody).toHaveBeenCalledWith(
       expect.anything(),
       "dynamic",
@@ -133,38 +149,38 @@ describe("useDynamicBody", () => {
     );
   });
 
-  it('uses addBallCollider when shape is "ball"', () => {
-    useDynamicBody({ shape: "ball" });
+  it('uses addBallCollider when shape is "ball"', async () => {
+    await mount(() => useDynamicBody({ shape: "ball" }));
     expect(mockPhysics.addBallCollider).toHaveBeenCalled();
     expect(mockPhysics.addBoxCollider).not.toHaveBeenCalled();
   });
 
-  it("uses addBoxCollider by default", () => {
-    useDynamicBody();
+  it("uses addBoxCollider by default", async () => {
+    await mount(() => useDynamicBody());
     expect(mockPhysics.addBoxCollider).toHaveBeenCalled();
   });
 
-  it("disable() calls removeBody and sets active to false", () => {
-    const h = useDynamicBody();
+  it("disable() calls removeBody and sets active to false", async () => {
+    const h = await mount(() => useDynamicBody());
     h.disable();
     expect(mockPhysics.removeBody).toHaveBeenCalled();
     expect(h.active).toBe(false);
   });
 
-  it("enable() restores active after disable", () => {
-    const h = useDynamicBody();
+  it("enable() restores active after disable", async () => {
+    const h = await mount(() => useDynamicBody());
     h.disable();
     h.enable();
     expect(h.active).toBe(true);
   });
 
-  it("applyForce accumulates and flushes as impulse * dt on the next frame", () => {
-    const h = useDynamicBody();
+  it("applyForce accumulates and flushes as impulse * dt on the next frame", async () => {
+    const h = await mount(() => useDynamicBody());
     h.applyForce(100, 200);
     // Before the frame ticks, no impulse yet
     expect(mockPhysics.applyImpulse).not.toHaveBeenCalled();
     // Simulate a frame tick
-    capturedOnBeforeUpdate!(0.016);
+    await engine.advance(0.016);
     expect(mockPhysics.applyImpulse).toHaveBeenCalledWith(
       expect.anything(),
       100 * 0.016,
@@ -172,11 +188,11 @@ describe("useDynamicBody", () => {
     );
   });
 
-  it("applyForce accumulates multiple calls within a frame", () => {
-    const h = useDynamicBody();
+  it("applyForce accumulates multiple calls within a frame", async () => {
+    const h = await mount(() => useDynamicBody());
     h.applyForce(100, 0);
     h.applyForce(0, 200);
-    capturedOnBeforeUpdate!(0.016);
+    await engine.advance(0.016);
     expect(mockPhysics.applyImpulse).toHaveBeenCalledWith(
       expect.anything(),
       100 * 0.016,
@@ -184,18 +200,18 @@ describe("useDynamicBody", () => {
     );
   });
 
-  it("applyForce accumulator resets after each frame flush", () => {
-    const h = useDynamicBody();
+  it("applyForce accumulator resets after each frame flush", async () => {
+    const h = await mount(() => useDynamicBody());
     h.applyForce(100, 200);
-    capturedOnBeforeUpdate!(0.016);
+    await engine.advance(0.016);
     vi.clearAllMocks();
     // No force applied this frame — no impulse should fire
-    capturedOnBeforeUpdate!(0.016);
+    await engine.advance(0.016);
     expect(mockPhysics.applyImpulse).not.toHaveBeenCalled();
   });
 
-  it("passes layer/mask as membershipLayers/filterLayers", () => {
-    useDynamicBody({ layer: 2, mask: 1 });
+  it("passes layer/mask as membershipLayers/filterLayers", async () => {
+    await mount(() => useDynamicBody({ layer: 2, mask: 1 }));
     expect(mockPhysics.addBoxCollider).toHaveBeenCalledWith(
       expect.anything(),
       expect.anything(),

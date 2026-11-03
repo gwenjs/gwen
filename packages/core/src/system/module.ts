@@ -19,6 +19,7 @@ export default {
       { name: "useService", from: "@gwenjs/core/system" },
       { name: "useWasmModule", from: "@gwenjs/core/system" },
       { name: "useComponent", from: "@gwenjs/core/system" },
+      { name: "defineHooks", from: "@gwenjs/core" },
     ]);
   },
 } satisfies GwenModule;

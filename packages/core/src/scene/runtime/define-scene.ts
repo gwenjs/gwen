@@ -59,7 +59,7 @@ export interface SceneDefinition<N extends GwenSceneName = GwenSceneName> {
   /** Optional callback fired when the engine routes away from this scene. */
   readonly onExit?: () => void | Promise<void>;
   /** Optional async callback fired before the leave animation (scene:transition:leave). */
-  readonly onTransitionLeave?: (payload: {
+  readonly onTransitionExit?: (payload: {
     from: GwenSceneName;
     to: GwenSceneName;
   }) => void | Promise<void>;
@@ -162,8 +162,8 @@ export function defineScene<const N extends GwenSceneName>(
       });
     }
 
-    if (def.onTransitionLeave) {
-      const leaveCb = def.onTransitionLeave;
+    if (def.onTransitionExit) {
+      const leaveCb = def.onTransitionExit;
       engine.hooks.hook("scene:transition:leave", async (payload) => {
         if (payload.from !== name) return;
         const previous = pushEngine(engine);
@@ -199,8 +199,8 @@ export function defineScene<const N extends GwenSceneName>(
         handles: ctx.handles,
         ...(ctx.onEnterCb !== undefined ? { onEnter: ctx.onEnterCb } : {}),
         ...(ctx.onExitCb !== undefined ? { onExit: ctx.onExitCb } : {}),
-        ...(ctx.onTransitionLeaveCb !== undefined
-          ? { onTransitionLeave: ctx.onTransitionLeaveCb }
+        ...(ctx.onTransitionExitCb !== undefined
+          ? { onTransitionExit: ctx.onTransitionExitCb }
           : {}),
         ...(ctx.onTransitionEnterCb !== undefined
           ? { onTransitionEnter: ctx.onTransitionEnterCb }

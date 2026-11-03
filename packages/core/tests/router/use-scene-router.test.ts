@@ -9,7 +9,7 @@ import { useActor } from "../../src/actor/runtime/use-actor";
 import {
   onEnter,
   onExit,
-  onTransitionLeave,
+  onTransitionExit,
   onTransitionEnter,
 } from "../../src/scene/runtime/scene-context";
 import { defineSceneRouter } from "../../src/router/defines/define-scene-router";
@@ -239,10 +239,10 @@ describe("useSceneRouter()", () => {
     expect(PlayerActor._instances.size).toBe(1);
   });
 
-  it("onTransitionLeave fires before leave with correct payload", async () => {
+  it("onTransitionExit fires before leave with correct payload", async () => {
     const leaveSpy = vi.fn();
     const SceneFrom = defineScene("TransFrom", () => {
-      onTransitionLeave(leaveSpy);
+      onTransitionExit(leaveSpy);
     });
     const SceneTo = defineScene("TransTo", () => {});
     const router = defineSceneRouter({
