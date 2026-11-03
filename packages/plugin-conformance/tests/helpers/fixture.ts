@@ -19,6 +19,7 @@ export interface FixtureManifest {
   license?: string;
   type?: string;
   gwen?: { type: string };
+  repository?: string;
   exports?: Record<string, string | ExportCondition>;
 }
 
@@ -119,6 +120,26 @@ export async function stripPluginManifest(root: string): Promise<void> {
     delete manifest.gwen;
   });
   await rm(path.join(root, "LICENSE"), { force: true });
+}
+
+/** Time budget for a test that packs the fixture and runs publint and attw. */
+export const SLOW_TEST_MS = 60_000;
+
+/**
+ * Run `body` with `TMPDIR` pointing to a fresh directory, then restore it and remove the
+ * directory: whatever a check leaves in the temp dir is found there, and cleaned up.
+ */
+export async function withPrivateTmpdir<T>(body: (dir: string) => Promise<T>): Promise<T> {
+  const dir = await mkdtemp(path.join(tmpdir(), "gwen-conformance-tmp-"));
+  const previous = process.env.TMPDIR;
+  process.env.TMPDIR = dir;
+  try {
+    return await body(dir);
+  } finally {
+    if (previous === undefined) delete process.env.TMPDIR;
+    else process.env.TMPDIR = previous;
+    await rm(dir, { recursive: true, force: true });
+  }
 }
 
 export const BARE_MANIFEST_MESSAGES = [

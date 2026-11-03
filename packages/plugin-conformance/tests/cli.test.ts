@@ -9,6 +9,7 @@ import {
   editManifest,
   goodPluginRoot,
   manifestExports,
+  SLOW_TEST_MS,
   SNAPSHOT_FILE,
   stripPluginManifest,
   writeSource,
@@ -46,29 +47,37 @@ function capture(cwd: string): { io: CliIo; stdout: () => string; stderr: () => 
 }
 
 describe("gwen-conformance", () => {
-  it("prints one line per finding and the summary and returns 1", async () => {
-    const fixture = await createFixture();
-    cleanups.push(fixture.cleanup);
-    await stripPluginManifest(fixture.root);
-    const captured = capture(fixture.root);
+  it(
+    "prints one line per finding and the summary and returns 1",
+    { timeout: SLOW_TEST_MS },
+    async () => {
+      const fixture = await createFixture();
+      cleanups.push(fixture.cleanup);
+      await stripPluginManifest(fixture.root);
+      const captured = capture(fixture.root);
 
-    const code = await runCli(["check"], captured.io);
-    const lines = BARE_MANIFEST_MESSAGES.map(
-      (message) => `CONFORMANCE:MANIFEST package.json:1 ${message}`,
-    );
-    expect(captured.stdout()).toBe(`${lines.join("\n")}\nCONFORMANCE: 3 findings (6 checks)\n`);
-    expect(code).toBe(1);
-    expect(captured.stderr()).toBe("");
-  });
+      const code = await runCli(["check"], captured.io);
+      const lines = BARE_MANIFEST_MESSAGES.map(
+        (message) => `CONFORMANCE:MANIFEST package.json:1 ${message}`,
+      );
+      expect(captured.stdout()).toBe(`${lines.join("\n")}\nCONFORMANCE: 3 findings (8 checks)\n`);
+      expect(code).toBe(1);
+      expect(captured.stderr()).toBe("");
+    },
+  );
 
-  it("returns 0 on the clean fixture and prints the summary", async () => {
-    const captured = capture(goodPluginRoot());
+  it(
+    "returns 0 on the clean fixture and prints the summary",
+    { timeout: SLOW_TEST_MS },
+    async () => {
+      const captured = capture(goodPluginRoot());
 
-    const code = await runCli(["check"], captured.io);
-    expect(captured.stdout()).toBe("CONFORMANCE: 0 findings (6 checks)\n");
-    expect(code).toBe(0);
-    expect(captured.stderr()).toBe("");
-  });
+      const code = await runCli(["check"], captured.io);
+      expect(captured.stdout()).toBe("CONFORMANCE: 0 findings (8 checks)\n");
+      expect(code).toBe(0);
+      expect(captured.stderr()).toBe("");
+    },
+  );
 
   it("returns 2 and prints usage on an unknown option", async () => {
     const captured = capture(goodPluginRoot());
@@ -79,21 +88,25 @@ describe("gwen-conformance", () => {
     expect(captured.stdout()).toBe("");
   });
 
-  it("returns 0 for profile package when ./module and gwen.type are absent", async () => {
-    const fixture = await createFixture();
-    cleanups.push(fixture.cleanup);
-    await editManifest(fixture.root, (manifest) => {
-      delete manifest.gwen;
-      delete manifestExports(manifest)["./module"];
-    });
-    await writeSource(fixture.root, SNAPSHOT_FILE, '{".":{"values":["ready"],"types":[]}}\n');
-    const captured = capture(fixture.root);
+  it(
+    "returns 0 for profile package when ./module and gwen.type are absent",
+    { timeout: SLOW_TEST_MS },
+    async () => {
+      const fixture = await createFixture();
+      cleanups.push(fixture.cleanup);
+      await editManifest(fixture.root, (manifest) => {
+        delete manifest.gwen;
+        delete manifestExports(manifest)["./module"];
+      });
+      await writeSource(fixture.root, SNAPSHOT_FILE, '{".":{"values":["ready"],"types":[]}}\n');
+      const captured = capture(fixture.root);
 
-    const code = await runCli(["check", "--profile", "package"], captured.io);
-    expect(captured.stdout()).toBe("CONFORMANCE: 0 findings (6 checks)\n");
-    expect(code).toBe(0);
-    expect(captured.stderr()).toBe("");
-  });
+      const code = await runCli(["check", "--profile", "package"], captured.io);
+      expect(captured.stdout()).toBe("CONFORMANCE: 0 findings (8 checks)\n");
+      expect(code).toBe(0);
+      expect(captured.stderr()).toBe("");
+    },
+  );
 
   it("returns 2 when --profile has no value", async () => {
     const captured = capture(goodPluginRoot());
@@ -122,7 +135,7 @@ describe("gwen-conformance", () => {
     expect(captured.stdout()).toBe("");
   });
 
-  it("writes the snapshot with --write and returns 0", async () => {
+  it("writes the snapshot with --write and returns 0", { timeout: SLOW_TEST_MS }, async () => {
     const fixture = await createFixture();
     cleanups.push(fixture.cleanup);
     await rm(path.join(fixture.root, SNAPSHOT_FILE));
@@ -130,11 +143,11 @@ describe("gwen-conformance", () => {
 
     expect(await runCli(["check"], plain.io)).toBe(1);
     expect(plain.stdout()).toBe(
-      "CONFORMANCE:SNAPSHOT_MISMATCH public-api.snap.json public-api.snap.json is missing\nCONFORMANCE: 1 findings (6 checks)\n",
+      "CONFORMANCE:SNAPSHOT_MISMATCH public-api.snap.json public-api.snap.json is missing\nCONFORMANCE: 1 findings (8 checks)\n",
     );
     const written = capture(fixture.root);
     expect(await runCli(["check", "--write", "--profile", "plugin"], written.io)).toBe(0);
-    expect(written.stdout()).toBe("CONFORMANCE: 0 findings (6 checks)\n");
+    expect(written.stdout()).toBe("CONFORMANCE: 0 findings (8 checks)\n");
     const text = await readFile(path.join(fixture.root, SNAPSHOT_FILE), "utf8");
     expect(JSON.parse(text)).toEqual({
       ".": { values: ["ready"], types: [] },
