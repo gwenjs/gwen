@@ -41,8 +41,8 @@ export function componentIdExpr(name: string): string {
  * Input pattern (ergonomic):
  * ```ts
  * for (const e of entities) {
- *   const pos = useComponentFor(e, Position)
- *   useComponentFor(e, Position, { x: pos.x + 1, y: pos.y })
+ *   const pos = useComponent(e.id, Position)
+ *   pos.x += vel.x * dt
  * }
  * ```
  *

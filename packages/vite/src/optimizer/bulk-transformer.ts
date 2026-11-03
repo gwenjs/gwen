@@ -7,8 +7,8 @@
  * Before (ergonomic):
  * ```ts
  * for (const entity of entities) {
- *   const pos = useComponentFor(entity.id, Position)
- *   const vel = useComponentFor(entity.id, Velocity)
+ *   const pos = useComponent(entity.id, Position)
+ *   const vel = useComponent(entity.id, Velocity)
  *   pos.x += vel.x * dt
  *   pos.y += vel.y * dt
  * }
