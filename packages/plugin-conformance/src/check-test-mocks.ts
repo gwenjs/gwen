@@ -100,7 +100,7 @@ function viNames(source: ts.SourceFile): ReadonlySet<string> {
   return names;
 }
 
-/** `mock` or `doMock` when `callee` is `vi.mock`, `vi.doMock` or `vi["mock"]` (or a renamed `vi`). */
+/** `mock` or `doMock` when `callee` is a `mock` or `doMock` call on `vi`, by name or by element access with a string (also on a renamed `vi`). */
 function mockMethod(callee: ts.Expression, vi: ReadonlySet<string>): string | undefined {
   let method: string | undefined;
   if (ts.isPropertyAccessExpression(callee) && ts.isIdentifier(callee.expression)) {
