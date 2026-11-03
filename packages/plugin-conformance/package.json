@@ -24,7 +24,7 @@
   "scripts": {
     "dev": "vite",
     "generate": "node scripts/generate-framework-entries.mjs",
-    "prebuild": "pnpm generate",
+    "prebuild": "node scripts/generate-framework-entries.mjs --check",
     "build": "vite build",
     "postbuild": "node ../../scripts/fix-dts-extensions.mjs .",
     "test": "vitest run",

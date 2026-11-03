@@ -1,6 +1,7 @@
 // Generates src/framework-entries.generated.ts: the public names of every framework entry that a
 // plugin may import, and the GwenProvides keys the framework already declares.
-// Usage: node scripts/generate-framework-entries.mjs [--stdout] [--packages <dir>] [--out <file>]
+// Usage: node scripts/generate-framework-entries.mjs [--stdout] [--check] [--packages <dir>] [--out <file>]
+// --check writes nothing: it exits 1 and names the file when it differs from the generator output.
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -40,11 +41,13 @@ function readErrorCode(error) {
 }
 
 function parseArguments(argv) {
-  const options = { stdout: false, packages: DEFAULT_PACKAGES, out: DEFAULT_OUT };
+  const options = { stdout: false, check: false, packages: DEFAULT_PACKAGES, out: DEFAULT_OUT };
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
     if (argument === "--stdout") {
       options.stdout = true;
+    } else if (argument === "--check") {
+      options.check = true;
     } else if (argument === "--packages" || argument === "--out") {
       const value = argv[index + 1];
       if (value === undefined) throw new Error(`${argument} needs a value`);
@@ -68,6 +71,21 @@ async function readSnapshot(packagesDir, directory) {
   }
 }
 
+function stringArray(directory, subpath, field, value) {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || !value.every((item) => typeof item === "string")) {
+    throw new Error(`${directory}/public-api.snap.json: ${subpath}.${field} is not a string array`);
+  }
+  return value;
+}
+
+/** Subpaths that are never importable by a plugin, whatever the table says. */
+function isInternalSubpath(subpath) {
+  return (
+    subpath === "./internal" || subpath.startsWith("./internal/") || subpath.startsWith("./wasm/")
+  );
+}
+
 function specifierOf(directory, subpath) {
   return subpath === "." ? `@gwenjs/${directory}` : `@gwenjs/${directory}${subpath.slice(1)}`;
 }
@@ -80,7 +98,9 @@ async function collectEntries(packagesDir) {
     if (snapshot === undefined) continue;
     const moduleEntries =
       rule.modules === true
-        ? Object.keys(snapshot).filter((subpath) => /^\.\/[^/]+\/module$/.test(subpath))
+        ? Object.keys(snapshot).filter(
+            (subpath) => /^\.\/[^/]+\/module$/.test(subpath) && !isInternalSubpath(subpath),
+          )
         : [];
     const wanted = [
       ...rule.src.map((subpath) => ({ subpath, onlyInTests: false })),
@@ -91,7 +111,10 @@ async function collectEntries(packagesDir) {
       const entry = snapshot[subpath];
       if (entry === undefined) continue;
       const specifier = specifierOf(directory, subpath);
-      const names = [...(entry.values ?? []), ...(entry.types ?? [])];
+      const names = [
+        ...stringArray(directory, subpath, "values", entry.values),
+        ...stringArray(directory, subpath, "types", entry.types),
+      ];
       entries[specifier] = [...new Set(names)].sort(compareText);
       if (onlyInTests) testOnly.push(specifier);
     }
@@ -103,8 +126,10 @@ async function listSources(directory) {
   let found;
   try {
     found = await readdir(directory, { withFileTypes: true });
-  } catch {
-    return [];
+  } catch (error) {
+    // A package with no src directory declares no GwenProvides key.
+    if (readErrorCode(error) === "ENOENT") return [];
+    throw error;
   }
   const files = [];
   for (const entry of found) {
@@ -159,8 +184,13 @@ async function collectProvidesKeys(packagesDir) {
               ts.isPropertySignature(member) || ts.isMethodSignature(member)
                 ? memberName(member.name)
                 : undefined;
-            if (name !== undefined && !Object.hasOwn(keys, name))
-              keys[name] = `@gwenjs/${directory}`;
+            if (name === undefined) continue;
+            const owner = `@gwenjs/${directory}`;
+            if (!Object.hasOwn(keys, name)) {
+              keys[name] = owner;
+            } else if (keys[name] !== owner) {
+              throw new Error(`GwenProvides key "${name}" declared by ${keys[name]} and ${owner}`);
+            }
           }
         }
         ts.forEachChild(node, visit);
@@ -213,6 +243,16 @@ async function main() {
   const text = render({ entries, testOnly, provides });
   if (options.stdout) {
     process.stdout.write(text);
+    return;
+  }
+  if (options.check) {
+    const committed = await readFile(options.out, "utf8").catch((error) => {
+      if (readErrorCode(error) === "ENOENT") return undefined;
+      throw error;
+    });
+    if (committed !== text) {
+      throw new Error(`${options.out} is out of date: run "pnpm generate" and commit it`);
+    }
     return;
   }
   await mkdir(path.dirname(options.out), { recursive: true });
