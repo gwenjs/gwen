@@ -30,8 +30,14 @@ const EMIT_METHOD_ARGUMENT: ReadonlyMap<string, number> = new Map([
   ["callHookWith", 1],
 ]);
 
-/** `null` marks a name that is declared twice or not initialised with a string literal. */
+/** `null` marks a name bound more than once in the file, or bound to anything but a string literal. */
 type ConstStrings = ReadonlyMap<string, string | null>;
+
+function readErrorCode(error: unknown): string | undefined {
+  if (typeof error !== "object" || error === null || !("code" in error)) return undefined;
+  const code = error.code;
+  return typeof code === "string" ? code : undefined;
+}
 
 function compareText(left: string, right: string): number {
   if (left < right) return -1;
@@ -65,18 +71,70 @@ function isStringLiteralLike(
   return ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node);
 }
 
+/** Strip the wrappers that only exist for the type checker: `( )`, `as`, `satisfies`. */
+function unwrapTypeOnly(node: ts.Expression): ts.Expression {
+  let current = node;
+  while (
+    ts.isParenthesizedExpression(current) ||
+    ts.isAsExpression(current) ||
+    ts.isSatisfiesExpression(current)
+  ) {
+    current = current.expression;
+  }
+  return current;
+}
+
+function bindingNames(name: ts.BindingName): string[] {
+  if (ts.isIdentifier(name)) return [name.text];
+  const names: string[] = [];
+  for (const element of name.elements) {
+    if (!ts.isOmittedExpression(element)) names.push(...bindingNames(element.name));
+  }
+  return names;
+}
+
+/**
+ * Same-file `const` names initialised with a string literal. Resolution ignores scope, so a name
+ * that any other binding shares (parameter, `let`, `var`, function, class, import, catch) is
+ * unresolvable.
+ */
 function collectConstStrings(source: ts.SourceFile): ConstStrings {
   const consts = new Map<string, string | null>();
+  const bind = (name: string, value: string | null): void => {
+    consts.set(name, consts.has(name) ? null : value);
+  };
+  const bindOther = (name: ts.BindingName): void => {
+    for (const text of bindingNames(name)) bind(text, null);
+  };
   const visit = (node: ts.Node): void => {
-    if (
-      ts.isVariableDeclaration(node) &&
-      ts.isIdentifier(node.name) &&
-      ts.isVariableDeclarationList(node.parent) &&
-      (node.parent.flags & ts.NodeFlags.Const) !== 0
+    if (ts.isVariableDeclaration(node)) {
+      const isConst =
+        ts.isVariableDeclarationList(node.parent) && (node.parent.flags & ts.NodeFlags.Const) !== 0;
+      if (isConst && ts.isIdentifier(node.name)) {
+        const initializer =
+          node.initializer === undefined ? undefined : unwrapTypeOnly(node.initializer);
+        bind(
+          node.name.text,
+          initializer !== undefined && isStringLiteralLike(initializer) ? initializer.text : null,
+        );
+      } else {
+        bindOther(node.name);
+      }
+    } else if (ts.isParameter(node)) {
+      bindOther(node.name);
+    } else if (
+      (ts.isFunctionDeclaration(node) ||
+        ts.isFunctionExpression(node) ||
+        ts.isClassDeclaration(node) ||
+        ts.isClassExpression(node) ||
+        ts.isEnumDeclaration(node) ||
+        ts.isImportClause(node) ||
+        ts.isImportSpecifier(node) ||
+        ts.isNamespaceImport(node) ||
+        ts.isImportEqualsDeclaration(node)) &&
+      node.name !== undefined
     ) {
-      const literal = node.initializer !== undefined && isStringLiteralLike(node.initializer);
-      const value = literal ? node.initializer.text : null;
-      consts.set(node.name.text, consts.has(node.name.text) ? null : value);
+      bind(node.name.text, null);
     }
     ts.forEachChild(node, visit);
   };
@@ -85,14 +143,17 @@ function collectConstStrings(source: ts.SourceFile): ConstStrings {
 }
 
 /** A string literal, or an identifier that names a same-file `const` string literal. */
-function stringValue(node: ts.Node, consts: ConstStrings): string | undefined {
-  if (isStringLiteralLike(node)) return node.text;
-  if (ts.isIdentifier(node)) return consts.get(node.text) ?? undefined;
+function stringValue(node: ts.Expression, consts: ConstStrings): string | undefined {
+  const value = unwrapTypeOnly(node);
+  if (isStringLiteralLike(value)) return value.text;
+  if (ts.isIdentifier(value)) return consts.get(value.text) ?? undefined;
   return undefined;
 }
 
 function keyName(name: ts.PropertyName, consts: ConstStrings): string | undefined {
-  if (ts.isStringLiteral(name)) return name.text;
+  if (ts.isIdentifier(name) || ts.isStringLiteral(name) || ts.isNumericLiteral(name)) {
+    return name.text;
+  }
   if (ts.isComputedPropertyName(name)) return stringValue(name.expression, consts);
   return undefined;
 }
@@ -146,7 +207,8 @@ function scanSource(file: string, text: string): HookSources {
           line: lineOf(nameNode),
         });
       }
-      const literal = node.arguments[0];
+      const first = node.arguments[0];
+      const literal = first === undefined ? undefined : unwrapTypeOnly(first);
       if (
         calleeName(node) === "defineHooks" &&
         literal !== undefined &&
@@ -180,24 +242,26 @@ function scanSource(file: string, text: string): HookSources {
 /**
  * Parse every `*.ts` file under `<root>/src` (not `*.d.ts`, not `node_modules`) and collect
  * the hook names it declares and the emit sites it holds. Files come in path order.
+ * A file that disappears between the listing and the read is skipped; any other read error rejects.
  */
 export async function scanHookSources(root: string): Promise<HookSources> {
   const absolute = await listDirectory(path.join(root, "src"));
   const files = absolute
     .map((full) => ({ full, relative: path.relative(root, full).split(path.sep).join("/") }))
     .sort((left, right) => compareText(left.relative, right.relative));
-  const scans = await Promise.all(
-    files.map(async ({ full, relative }) => {
-      let text: string;
-      try {
-        text = await readFile(full, "utf8");
-      } catch {
-        // An unreadable file holds no hook source for this check.
-        return { declarations: [], emits: [] };
-      }
-      return scanSource(relative, text);
-    }),
-  );
+  // One read at a time: a wide `src` must not exhaust file descriptors.
+  const scans: HookSources[] = [];
+  for (const { full, relative } of files) {
+    let text: string;
+    try {
+      text = await readFile(full, "utf8");
+    } catch (error) {
+      // A file removed since the listing holds no hook source. Any other read error rejects.
+      if (readErrorCode(error) === "ENOENT") continue;
+      throw error;
+    }
+    scans.push(scanSource(relative, text));
+  }
   return {
     declarations: scans.flatMap((scan) => scan.declarations),
     emits: scans.flatMap((scan) => scan.emits),

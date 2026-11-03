@@ -72,7 +72,9 @@ function invalidProfileReport(profile: string): ConformanceReport {
 /**
  * Run the implemented checks for the package at `opts.root`.
  * `package.json` is read once. When it is missing or not JSON, only the manifest check is reported.
- * It never throws: an unknown `profile` (from a JS caller) is one `INVALID_SPEC` finding.
+ * An unknown `profile` (from a JS caller) is one `INVALID_SPEC` finding, not a throw. A `src` file
+ * that cannot be read (any error but a missing file) rejects with that error: a silent pass would
+ * hide a violation.
  */
 export async function checkPluginPackage(
   opts: CheckPluginPackageOptions,
