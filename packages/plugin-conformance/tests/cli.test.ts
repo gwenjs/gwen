@@ -52,7 +52,7 @@ describe("gwen-conformance", () => {
     const lines = BARE_MANIFEST_MESSAGES.map(
       (message) => `CONFORMANCE:MANIFEST package.json:1 ${message}`,
     );
-    expect(captured.stdout()).toBe(`${lines.join("\n")}\nCONFORMANCE: 3 findings (2 checks)\n`);
+    expect(captured.stdout()).toBe(`${lines.join("\n")}\nCONFORMANCE: 3 findings (3 checks)\n`);
     expect(code).toBe(1);
     expect(captured.stderr()).toBe("");
   });
@@ -61,7 +61,7 @@ describe("gwen-conformance", () => {
     const captured = capture(goodPluginRoot());
 
     const code = await runCli(["check"], captured.io);
-    expect(captured.stdout()).toBe("CONFORMANCE: 0 findings (2 checks)\n");
+    expect(captured.stdout()).toBe("CONFORMANCE: 0 findings (3 checks)\n");
     expect(code).toBe(0);
     expect(captured.stderr()).toBe("");
   });
@@ -85,7 +85,7 @@ describe("gwen-conformance", () => {
     const captured = capture(fixture.root);
 
     const code = await runCli(["check", "--profile", "package"], captured.io);
-    expect(captured.stdout()).toBe("CONFORMANCE: 0 findings (2 checks)\n");
+    expect(captured.stdout()).toBe("CONFORMANCE: 0 findings (3 checks)\n");
     expect(code).toBe(0);
     expect(captured.stderr()).toBe("");
   });

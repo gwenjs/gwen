@@ -497,6 +497,26 @@ Warn only. Declared on `CameraErrorCodes` and never thrown (`packages/camera-cor
 
 Cause. A string `exports` target must start with `./` and be a file inside the package. A target that is not a string, an array, an object, or `null` is rejected. `null` is skipped. `exports` missing, not an object, or empty is rejected, and so is a mix of subpath keys and condition keys. In a condition object, `types` must be first. `./internal`, `./internal/…`, and a key that starts with `./internal*` are rejected. Profile `plugin` also requires `.` and `./module`. A subpath pattern (`*`) is not existence-checked. Fix. Point each string target at a `./` file inside the package, keep `exports` a non-empty object of one shape, put `types` first, remove internal subpaths, and add `.` and `./module` for a plugin.
 
+### CONFORMANCE:HOOK_DYNAMIC_NAME {#conformance-hook-dynamic-name}
+
+Cause. The name passed to `emit`, `callHook`, `callHookParallel`, or `callHookWith` is not a string literal, a template literal without substitution, or an identifier that names a `const` string literal of the same file, so the check cannot read it. One finding per call. A call through an alias (`const fire = engine.hooks.callHook`) is not an emit site and is not checked. Fix. Pass a string literal, or a `const` initialised with one, as the hook name.
+
+### CONFORMANCE:HOOK_FOREIGN_NAMESPACE {#conformance-hook-foreign-namespace}
+
+Cause. A name declared with `defineHooks` or in a `GwenRuntimeHooks` augmentation of `@gwenjs/schema`, or a name passed to an emit call, does not start with `<hookNamespace>:`. `hookNamespace` is `gwen.hookNamespace` in `package.json`. The check is skipped when that value is missing or invalid. Fix. Rename the hook to `<hookNamespace>:<action>`.
+
+### CONFORMANCE:HOOK_NAMESPACE_INVALID {#conformance-hook-namespace-invalid}
+
+Cause. `gwen.hookNamespace` is not a string, does not match `^[a-z][a-z0-9-]*$`, is one of the reserved core namespaces (`engine`, `entity`, `scene`, `plugin`, `actor`, `prefab`, `service`), or is a framework namespace (`viewport`, `camera`, `physics`, `physics3d`). It is also reported when it is missing and the package declares or emits a hook. One finding per package, on `package.json` line 1. Fix. Set `gwen.hookNamespace` to a lowercase name of your own, for example `"myplug"`.
+
+### CONFORMANCE:HOOK_RESERVED {#conformance-hook-reserved}
+
+Cause. An emit call (`emit`, `callHook`, `callHookParallel`, `callHookWith`) uses a name whose namespace is reserved by the core (`engine`, `entity`, `scene`, `plugin`, `actor`, `prefab`, `service`) or owned by a framework package (`viewport`, `camera`, `physics`, `physics3d`). Fix. Listen to that hook with `useHook`, and emit a hook from your own namespace.
+
+### CONFORMANCE:HOOK_UNDECLARED {#conformance-hook-undeclared}
+
+Cause. An emit call uses a name in the package namespace that no file of the package declares, neither with `defineHooks` nor in a `GwenRuntimeHooks` augmentation of `@gwenjs/schema`. The check is skipped when `gwen.hookNamespace` is missing or invalid. Fix. Declare the hook with `defineHooks`, or add it to a `GwenRuntimeHooks` augmentation.
+
 ### CONFORMANCE:INVALID_SPEC {#conformance-invalid-spec}
 
 Cause. `checkPluginPackage` received a `profile` that is not `"plugin"` or `"package"`. It returns this one finding and runs no check. Fix. Pass `"plugin"` or `"package"` as `profile`.

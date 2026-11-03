@@ -289,13 +289,17 @@ importers:
         version: 3.2.4(@types/node@25.6.0)(happy-dom@18.0.1)(lightningcss@1.32.0)(supports-color@8.1.1)
 
   packages/plugin-conformance:
-    devDependencies:
-      '@types/node':
-        specifier: ^25.6.0
-        version: 25.6.0
+    dependencies:
       typescript:
         specifier: ^6.0.2
         version: 6.0.2
+    devDependencies:
+      '@gwenjs/schema':
+        specifier: workspace:^
+        version: link:../schema
+      '@types/node':
+        specifier: ^25.6.0
+        version: 25.6.0
       vite:
         specifier: ^8.0.3
         version: 8.0.5(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@25.6.0)(jiti@2.6.1)
