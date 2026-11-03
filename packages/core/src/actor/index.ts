@@ -12,9 +12,6 @@ export {
   useEntityId,
 } from "./runtime/define-actor";
 
-// Frame hooks (re-exported — also valid in system context)
-export { onUpdate, onBeforeUpdate, onAfterUpdate, onRender } from "../system/runtime/define-system";
-
 // Prefab
 export { definePrefab } from "./runtime/define-prefab";
 

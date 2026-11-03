@@ -6,7 +6,7 @@
  * is driven entirely by {@link KinematicBodyHandle3D.setVelocity} +
  * `onBeforeUpdate` integration, or by explicit {@link KinematicBodyHandle3D.moveTo} calls.
  */
-import { onBeforeUpdate } from "@gwenjs/core/actor";
+import { onBeforeUpdate } from "@gwenjs/core/system";
 import { _getActorEntityId } from "@gwenjs/core/internal";
 import type {
   KinematicBodyOptions3D,

@@ -26,7 +26,7 @@ export interface SceneSetupContext {
   handles: SystemHandle[];
   onEnterCb?: (params?: Record<string, unknown>) => void | Promise<void>;
   onExitCb?: () => void | Promise<void>;
-  onTransitionLeaveCb?: (payload: { from: string; to: string }) => void | Promise<void>;
+  onTransitionExitCb?: (payload: { from: string; to: string }) => void | Promise<void>;
   onTransitionEnterCb?: (payload: { from: string; to: string }) => void | Promise<void>;
   registrar?: SceneRegistrar;
 }
@@ -215,20 +215,20 @@ export function onExit(cb: () => void | Promise<void>): void {
  * @example
  * ```ts
  * defineScene('Game', () => {
- *   onTransitionLeave(async ({ to }) => {
+ *   onTransitionExit(async ({ to }) => {
  *     await fadeOut(300)
  *   })
  * })
  * ```
  */
-export function onTransitionLeave(
+export function onTransitionExit(
   cb: (payload: { from: string; to: string }) => void | Promise<void>,
 ): void {
   const ctx = _getActiveSceneContext();
   if (!ctx) {
-    throw new GwenContextError(GwenContextErrorCodes.OUTSIDE_SCENE_CONTEXT, "onTransitionLeave");
+    throw new GwenContextError(GwenContextErrorCodes.OUTSIDE_SCENE_CONTEXT, "onTransitionExit");
   }
-  ctx.onTransitionLeaveCb = cb;
+  ctx.onTransitionExitCb = cb;
 }
 
 /**

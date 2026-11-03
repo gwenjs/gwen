@@ -1,7 +1,7 @@
 /**
  * @file useDynamicBody() — registers a dynamic physics body for the current actor.
  */
-import { onBeforeUpdate } from "@gwenjs/core/actor";
+import { onBeforeUpdate } from "@gwenjs/core/system";
 import { _getActorEntityId } from "@gwenjs/core/internal";
 import type { DynamicBodyHandle, DynamicBodyOptions, ColliderOptions } from "../types";
 import { usePhysics2D } from "../composables";

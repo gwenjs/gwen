@@ -8,6 +8,8 @@ export default {
       { name: "definePrefab", from: "@gwenjs/core/actor" },
       { name: "onStart", from: "@gwenjs/core/actor" },
       { name: "onDestroy", from: "@gwenjs/core/actor" },
+      { name: "onRelease", from: "@gwenjs/core/actor" },
+      { name: "onReset", from: "@gwenjs/core/actor" },
       { name: "onEnable", from: "@gwenjs/core/actor" },
       { name: "onDisable", from: "@gwenjs/core/actor" },
       { name: "useActor", from: "@gwenjs/core/actor" },
@@ -17,12 +19,13 @@ export default {
       { name: "usePrefab", from: "@gwenjs/core/actor" },
       { name: "defineActorPool", from: "@gwenjs/core/actor" },
       { name: "useActorPool", from: "@gwenjs/core/actor" },
+      { name: "useActorQuery", from: "@gwenjs/core/actor" },
+      { name: "watchActorLeaks", from: "@gwenjs/core/actor" },
       { name: "defineLayout", from: "@gwenjs/core/actor" },
       { name: "useLayout", from: "@gwenjs/core/actor" },
       { name: "placeActor", from: "@gwenjs/core/actor" },
       { name: "placeGroup", from: "@gwenjs/core/actor" },
       { name: "placePrefab", from: "@gwenjs/core/actor" },
-      { name: "defineHooks", from: "@gwenjs/core" },
     ]);
   },
 } satisfies GwenModule;

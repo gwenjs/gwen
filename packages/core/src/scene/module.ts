@@ -15,7 +15,7 @@ export default {
       { name: "useSystem", from: "@gwenjs/core/scene" },
       { name: "onEnter", from: "@gwenjs/core/scene" },
       { name: "onExit", from: "@gwenjs/core/scene" },
-      { name: "onTransitionLeave", from: "@gwenjs/core/scene" },
+      { name: "onTransitionExit", from: "@gwenjs/core/scene" },
       { name: "onTransitionEnter", from: "@gwenjs/core/scene" },
     ]);
   },

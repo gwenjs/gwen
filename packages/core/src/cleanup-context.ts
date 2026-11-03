@@ -31,8 +31,6 @@ const _cleanupStack: Array<(() => void)[]> = [];
  * All callbacks registered via {@link onCleanup} or {@link onCleanupIfActive} during
  * execution are collected and returned as a dispose function.
  *
- * @internal
- *
  * @param fn - Function to execute within the cleanup context
  * @returns Tuple of [result, dispose] where result is the function's return value
  *   and dispose is a function that executes all collected cleanup callbacks in

@@ -20,7 +20,7 @@ export {
   useSystem,
   onEnter,
   onExit,
-  onTransitionLeave,
+  onTransitionExit,
   onTransitionEnter,
 } from "./runtime/scene-context";
 export type { SystemHandle } from "./runtime/system-handle";

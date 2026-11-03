@@ -6,7 +6,7 @@
 import { describe, expect, it } from "vitest";
 import { useEngine } from "../src/index";
 import { createEngine } from "../src/node";
-import { defineSequence } from "../src/tween/runtime/define-sequence";
+import { useSequence } from "../src/tween/runtime/use-sequence";
 import { TweenPlugin } from "../src/tween/engine-plugin";
 import { TweenPool } from "../src/tween/runtime/tween-pool";
 import type {
@@ -128,7 +128,7 @@ describe("Performance: defineSequence with 10 steps × 1,000 instances", () => {
     // Larger warm-up to stabilize JIT before measurement
     engine.run(() => {
       for (let w = 0; w < 50; w++) {
-        const seq = defineSequence([{ tween: slotAt(preClaimed, w), from: 0, to: 1 }]);
+        const seq = useSequence([{ tween: slotAt(preClaimed, w), from: 0, to: 1 }]);
         seq.play();
       }
     });
@@ -144,7 +144,7 @@ describe("Performance: defineSequence with 10 steps × 1,000 instances", () => {
           idx += 1;
           steps.push({ tween, from: i * 10, to: (i + 1) * 10 });
         }
-        defineSequence(steps).play();
+        useSequence(steps).play();
       }
     });
 

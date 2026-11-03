@@ -36,4 +36,4 @@ export {
 export type { EasingName } from "./runtime/easing";
 export type { TweenableValue, TweenOptions, TweenHandle } from "./runtime/tween-types";
 export { useTween } from "./runtime/use-tween";
-export { defineSequence } from "./runtime/define-sequence";
+export { useSequence } from "./runtime/use-sequence";

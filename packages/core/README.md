@@ -262,9 +262,9 @@ log.error("oops");
 
 ### `.`
 
-Values: `ActorErrorCodes`, `CoreErrorCodes`, `EngineMemory`, `FLAG_TELEPORT`, `GwenActorError`, `GwenComponentLimitError`, `GwenConfigError`, `GwenContextError`, `GwenEngineStateError`, `GwenHookNameError`, `GwenLogger`, `GwenPluginDependencyError`, `GwenPluginNotFoundError`, `GwenPluginShapeError`, `GwenSceneRouterError`, `GwenWasmAbiError`, `GwenWasmError`, `GwenWasmMismatchError`, `GwenWasmPanicError`, `Types`, `consoleLogProvider`, `createEngine`, `createEngineLocal`, `createEntityId`, `createErrorBus`, `createLogger`, `defineComponent`, `defineHooks`, `defineSequence`, `emit`, `onCleanup`, `readInterpolatedTransform2D`, `setupGwen`, `unpackEntityId`, `useEngine`, `useHook`, `useTween`, `withAsyncContext`, `withCleanup`
+Values: `ActorErrorCodes`, `CoreErrorCodes`, `EngineMemory`, `FLAG_TELEPORT`, `GwenActorError`, `GwenComponentLimitError`, `GwenConfigError`, `GwenContextError`, `GwenEngineStateError`, `GwenHookNameError`, `GwenLogger`, `GwenPluginDependencyError`, `GwenPluginNotFoundError`, `GwenPluginShapeError`, `GwenSceneRouterError`, `GwenWasmAbiError`, `GwenWasmError`, `GwenWasmMismatchError`, `GwenWasmPanicError`, `Types`, `consoleLogProvider`, `createEngine`, `createEngineLocal`, `createEntityId`, `createErrorBus`, `createLogger`, `defineComponent`, `defineHooks`, `emit`, `onCleanup`, `readInterpolatedTransform2D`, `setupGwen`, `unpackEntityId`, `useEngine`, `useHook`, `withAsyncContext`, `withCleanup`
 
-Types: `Color`, `ComponentAccessor`, `ComponentBody`, `ComponentDefinition`, `ComponentSchema`, `ComponentType`, `CoreVariant`, `CoreWasmErrorCode`, `CreateLoggerOptions`, `EasingName`, `EngineCapacity`, `EngineConfig`, `EngineErrorBus`, `EngineErrorPayload`, `EngineFrame`, `EngineFramePhaseMs`, `EngineLocal`, `EngineStateChangePayload`, `EngineStats`, `EntityId`, `GwenDisposable`, `GwenEngine`, `GwenEngineOptions`, `GwenEngineState`, `GwenEngineStateChangeReason`, `GwenEngineStateMethod`, `GwenHookable`, `GwenPlugin`, `GwenPluginNotFoundErrorOptions`, `GwenProvides`, `GwenRuntimeHooks`, `GwenWasmMismatchReason`, `GwenWasmModules`, `HookHandlerMap`, `IGwenLogger`, `InferComponent`, `InferHooks`, `InferSchemaType`, `InterpolatedTransform2D`, `MemoryRegion`, `MemoryView`, `MemoryViewArray`, `MemoryViewDescriptor`, `MemoryViewType`, `PlacementBridge`, `PluginErrorContext`, `SchemaLayout`, `SchemaType`, `TransformPair2D`, `TweenHandle`, `TweenOptions`, `TweenableValue`, `Vector2D`, `WasmBridge`, `WasmChannelOptions`, `WasmMemoryOptions`, `WasmMemoryRegion`, `WasmModuleHandle`, `WasmModuleOptions`, `WasmRegionView`, `WasmRingBuffer`
+Types: `Color`, `ComponentAccessor`, `ComponentBody`, `ComponentDefinition`, `ComponentSchema`, `ComponentType`, `CoreVariant`, `CoreWasmErrorCode`, `CreateLoggerOptions`, `EngineCapacity`, `EngineConfig`, `EngineErrorBus`, `EngineErrorPayload`, `EngineFrame`, `EngineFramePhaseMs`, `EngineLocal`, `EngineStateChangePayload`, `EngineStats`, `EntityId`, `GwenDisposable`, `GwenEngine`, `GwenEngineOptions`, `GwenEngineState`, `GwenEngineStateChangeReason`, `GwenEngineStateMethod`, `GwenHookable`, `GwenPlugin`, `GwenPluginNotFoundErrorOptions`, `GwenProvides`, `GwenRuntimeHooks`, `GwenWasmMismatchReason`, `GwenWasmModules`, `HookHandlerMap`, `IGwenLogger`, `InferComponent`, `InferHooks`, `InferSchemaType`, `InterpolatedTransform2D`, `MemoryRegion`, `MemoryView`, `MemoryViewArray`, `MemoryViewDescriptor`, `MemoryViewType`, `PlacementBridge`, `PluginErrorContext`, `SchemaLayout`, `SchemaType`, `TransformPair2D`, `Vector2D`, `WasmBridge`, `WasmChannelOptions`, `WasmMemoryOptions`, `WasmMemoryRegion`, `WasmModuleHandle`, `WasmModuleOptions`, `WasmRegionView`, `WasmRingBuffer`
 
 `EngineMemory` — Per-engine views over gwen-core linear memory.
 
@@ -314,7 +314,7 @@ Types: `ChunkColumns`, `ComponentDef`, `ComponentHandle`, `DiscoverablePlugin`, 
 
 ### `./actor`
 
-Values: `PoolExhaustedError`, `defineActor`, `defineActorPool`, `defineLayout`, `definePrefab`, `onAfterUpdate`, `onBeforeUpdate`, `onDestroy`, `onDisable`, `onEnable`, `onRelease`, `onRender`, `onReset`, `onStart`, `onUpdate`, `placeActor`, `placeGroup`, `placePrefab`, `useActor`, `useActorPool`, `useActorQuery`, `useChildren`, `useEntityId`, `useLayout`, `usePrefab`, `useTransform`, `watchActorLeaks`
+Values: `PoolExhaustedError`, `defineActor`, `defineActorPool`, `defineLayout`, `definePrefab`, `onDestroy`, `onDisable`, `onEnable`, `onRelease`, `onReset`, `onStart`, `placeActor`, `placeGroup`, `placePrefab`, `useActor`, `useActorPool`, `useActorQuery`, `useChildren`, `useEntityId`, `useLayout`, `usePrefab`, `useTransform`, `watchActorLeaks`
 
 Types: `ActorDefinition`, `ActorHandle`, `ActorInstance`, `ActorPlugin`, `ActorPool`, `ActorPoolDefinition`, `ChildrenHandle`, `CustomScope`, `LayoutDefinition`, `LayoutHandle`, `PlaceHandle`, `PoolHooks`, `PoolOptions`, `PoolStats`, `PrefabComponentEntry`, `PrefabDefinition`, `PrefabEntries`, `PrefabHandle`, `PrefabOverrides`, `RenderFn`, `TransformHandle`, `UpdateFn`, `UseLayoutOptions`, `VoidFn`, `WatchActorLeaksOptions`
 
@@ -324,13 +324,13 @@ Types: `ActorDefinition`, `ActorHandle`, `ActorInstance`, `ActorPlugin`, `ActorP
 
 ### `./scene`
 
-Values: `defineScene`, `defineSceneRouter`, `onEnter`, `onExit`, `onTransitionEnter`, `onTransitionLeave`, `useSceneRouter`, `useSystem`
+Values: `defineScene`, `defineSceneRouter`, `onEnter`, `onExit`, `onTransitionEnter`, `onTransitionExit`, `useSceneRouter`, `useSystem`
 
 Types: `EventsOf`, `RouteConfig`, `SceneDefinition`, `SceneFactory`, `SceneInput`, `SceneRegistry`, `SceneRouterDefinition`, `SceneRouterHandle`, `SceneRouterOptions`, `StatesOf`, `SystemHandle`, `TransitionEffect`
 
 ### `./tween`
 
-Values: `defineSequence`, `easeInBack`, `easeInBounce`, `easeInCubic`, `easeInElastic`, `easeInExpo`, `easeInOutBack`, `easeInOutBounce`, `easeInOutCubic`, `easeInOutElastic`, `easeInOutExpo`, `easeInOutQuad`, `easeInOutQuart`, `easeInOutSine`, `easeInQuad`, `easeInQuart`, `easeInSine`, `easeOutBack`, `easeOutBounce`, `easeOutCubic`, `easeOutElastic`, `easeOutExpo`, `easeOutQuad`, `easeOutQuart`, `easeOutSine`, `linear`, `spring`, `useTween`
+Values: `easeInBack`, `easeInBounce`, `easeInCubic`, `easeInElastic`, `easeInExpo`, `easeInOutBack`, `easeInOutBounce`, `easeInOutCubic`, `easeInOutElastic`, `easeInOutExpo`, `easeInOutQuad`, `easeInOutQuart`, `easeInOutSine`, `easeInQuad`, `easeInQuart`, `easeInSine`, `easeOutBack`, `easeOutBounce`, `easeOutCubic`, `easeOutElastic`, `easeOutExpo`, `easeOutQuad`, `easeOutQuart`, `easeOutSine`, `linear`, `spring`, `useSequence`, `useTween`
 
 Types: `EasingName`, `TweenHandle`, `TweenOptions`, `TweenableValue`
 

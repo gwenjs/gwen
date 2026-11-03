@@ -36,7 +36,7 @@ import {
   onEnter,
   onExit,
   onTransitionEnter,
-  onTransitionLeave,
+  onTransitionExit,
   useSceneRouter,
   useSystem,
 } from "@gwenjs/core/scene";
@@ -196,7 +196,7 @@ describe("context error names", () => {
       ["useSystem", () => useSystem(defineSystem("Inner", () => {})())],
       ["onEnter", () => onEnter(() => {})],
       ["onExit", () => onExit(() => {})],
-      ["onTransitionLeave", () => onTransitionLeave(() => {})],
+      ["onTransitionExit", () => onTransitionExit(() => {})],
       ["onTransitionEnter", () => onTransitionEnter(() => {})],
     ];
     for (const [name, hook] of hooks) {

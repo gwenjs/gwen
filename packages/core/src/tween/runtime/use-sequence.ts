@@ -1,7 +1,7 @@
 /**
- * @file RFC-03 — defineSequence factory
+ * @file RFC-03 — useSequence factory
  *
- * Provides the {@link defineSequence} factory for composing multiple tween
+ * Provides the {@link useSequence} factory for composing multiple tween
  * animations and timed delays into a single ordered sequence.
  *
  * @since 1.0.0
@@ -11,7 +11,7 @@ import { useEngine } from "../../engine/context";
 import { getTweenManager } from "./tween-manager";
 import type { SequenceHandle, SequenceStep, TweenHandle } from "./tween-types";
 
-// ── defineSequence ────────────────────────────────────────────────────────────
+// ── useSequence ────────────────────────────────────────────────────────────
 
 /**
  * Creates a {@link SequenceHandle} that plays a series of tween animations
@@ -44,7 +44,7 @@ import type { SequenceHandle, SequenceStep, TweenHandle } from "./tween-types";
  *
  * @example
  * ```typescript
- * const seq = defineSequence([
+ * const seq = useSequence([
  *   { tween: fadeIn,  from: 0, to: 1   },
  *   { wait: 0.5 },
  *   { tween: moveX,   from: 0, to: 200 },
@@ -57,7 +57,7 @@ import type { SequenceHandle, SequenceStep, TweenHandle } from "./tween-types";
  *
  * @since 1.0.0
  */
-export function defineSequence(steps: SequenceStep[]): SequenceHandle {
+export function useSequence(steps: SequenceStep[]): SequenceHandle {
   const engine = useEngine();
   const manager = getTweenManager(engine);
 
@@ -113,7 +113,7 @@ export function defineSequence(steps: SequenceStep[]): SequenceHandle {
       const waitDuration = step.wait;
       // Policy is 'grow' (default) or 'throw' in typical engine usage.
       // Under 'drop' policy with an exhausted pool, claim() returns null and the
-      // sequence will crash — callers must not use 'drop' policy with defineSequence.
+      // sequence will crash — callers must not use 'drop' policy with useSequence.
       _activeWaitSlot = manager.claim<number>({ duration: waitDuration })!;
       _activeWaitSlot.play({ from: 0, to: 1 });
       _activeWaitSlot.onComplete(() => {

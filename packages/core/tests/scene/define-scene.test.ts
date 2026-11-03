@@ -5,7 +5,7 @@ import {
   useSystem,
   onEnter,
   onExit,
-  onTransitionLeave,
+  onTransitionExit,
   onTransitionEnter,
 } from "../../src/scene/runtime/scene-context";
 import { GwenContextError } from "../../src/engine/context";
@@ -83,21 +83,61 @@ describe("defineScene composable API", () => {
     expect(() => onExit(() => {})).toThrow(GwenContextError);
   });
 
-  it("onTransitionLeave throws GwenContextError if called outside a factory", () => {
-    expect(() => onTransitionLeave(() => {})).toThrow(GwenContextError);
+  it("onTransitionExit throws GwenContextError if called outside a factory", () => {
+    expect(() => onTransitionExit(() => {})).toThrow(GwenContextError);
   });
 
   it("onTransitionEnter throws GwenContextError if called outside a factory", () => {
     expect(() => onTransitionEnter(() => {})).toThrow(GwenContextError);
   });
 
-  it("onTransitionLeave callback is captured and stored", () => {
+  it("onTransitionExit callback is captured and stored", () => {
     const cb = vi.fn();
     const MyScene = defineScene("Test", () => {
-      onTransitionLeave(cb);
+      onTransitionExit(cb);
     });
     const def = MyScene(REGISTRY);
-    expect(def.onTransitionLeave).toBe(cb);
+    expect(def.onTransitionExit).toBe(cb);
+  });
+
+  it("onTransitionExit fires on scene:transition:leave and is awaited", async () => {
+    const steps: string[] = [];
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const MyScene = defineScene("TransitionExitScene", () => {
+      onTransitionExit(async (payload) => {
+        steps.push(`start ${payload.from}->${payload.to}`);
+        await gate;
+        steps.push("end");
+      });
+    });
+    const engine = await createEngine();
+    try {
+      engine.run(() => {
+        MyScene(REGISTRY);
+      });
+      let settled = false;
+      const hookDone = (async () => {
+        await engine.hooks.callHook("scene:transition:leave", {
+          from: "TransitionExitScene",
+          to: "Other",
+        });
+        settled = true;
+      })();
+      // Let every pending microtask and one macrotask run: a hook that does not
+      // await the callback would settle here, while the callback is still gated.
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      expect(steps).toEqual(["start TransitionExitScene->Other"]);
+      expect(settled).toBe(false);
+      release();
+      await hookDone;
+      steps.push("after hook");
+      expect(steps).toEqual(["start TransitionExitScene->Other", "end", "after hook"]);
+    } finally {
+      await engine.stop();
+    }
   });
 
   it("onTransitionEnter callback is captured and stored", () => {
