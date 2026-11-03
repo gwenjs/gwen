@@ -58,7 +58,7 @@ import type { SequenceHandle, SequenceStep, TweenHandle } from "./tween-types";
  * @since 1.0.0
  */
 export function useSequence(steps: SequenceStep[]): SequenceHandle {
-  const engine = useEngine();
+  const engine = useEngine("useSequence");
   const manager = getTweenManager(engine);
 
   // ── Internal state ──────────────────────────────────────────────────────────

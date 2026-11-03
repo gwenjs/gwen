@@ -430,6 +430,8 @@ defineSystem(() => {
 
 **Returns:** `Iterable<A>` — lazy. Entities in `query` with no live actor instance are silently skipped.
 
+**Throws:** `GwenContextError` `CORE:OUTSIDE_ENGINE_CONTEXT`, naming `useActorQuery`, when no engine context is active.
+
 ::: tip Why does it accept a query instead of component definitions?
 `useActorQuery` lives in `@gwenjs/core/actor` and does not depend on the system layer. Accepting `query.each()` keeps the two layers decoupled and makes the function composable with any iterable that exposes an `id`.
 :::

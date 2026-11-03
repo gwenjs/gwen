@@ -6,9 +6,12 @@
  * `defineActor()`, `definePlugin()` setup, or `engine.run()`. Inside a scene
  * factory (the active scope is a scene scope) it also registers the underlying
  * actor plugin and the pool plugin via the `scene:registrar` service, so that
- * `pool.acquire()` works as soon as `onEnter` fires, and `pool.destroyAll()` is
- * called when the scene emits `scene:beforeLeave`. In any other context it
- * registers nothing, even after a scene factory has run on the same engine.
+ * `pool.acquire()` works as soon as `onEnter` fires. A pool with no `scope`
+ * option is destroyed (`pool.destroyAll()`) when the scene emits
+ * `scene:beforeLeave`. A pool defined with `scope: "global"` or a custom scope
+ * is not: it survives scene changes and follows its own scope. In any other
+ * context the composable registers nothing, even after a scene factory has run
+ * on the same engine.
  *
  * Pools must **only** be used through the handle returned by this composable —
  * the `defineActorPool` value has no `acquire()`.
@@ -46,10 +49,13 @@ export function useActorPool<Props, PublicAPI>(
     registrar.register(actorPluginOf(definition));
     registrar.register(definition.plugin);
 
-    // Auto-destroy pool when the scene leaves.
-    scope.hook("scene:beforeLeave", () => {
-      definition._pool.destroyAll();
-    });
+    // Auto-destroy an unscoped pool when the scene leaves. A `"global"` or
+    // custom-scope pool outlives scenes: its own scope owns its lifecycle.
+    if (definition._pool.scope === undefined) {
+      scope.hook("scene:beforeLeave", () => {
+        definition._pool.destroyAll();
+      });
+    }
   }
 
   return definition._pool;

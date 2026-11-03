@@ -67,6 +67,8 @@ Cause. L'appel est hors de `defineActor()`. Fix. Capturez la poignée dans la fa
 
 Cause. L'appel est hors de `defineSystem()` ou `defineActor()`. Fix. Capturez la poignée dans la fabrique, puis utilisez-la comme closure après `await`.
 
+`onBeforeUpdate`, `onUpdate`, `onAfterUpdate` et `onRender` lancent ce code. Ils le lancent aussi dans une fabrique `defineScene()` et dans le `setup()` d'un plugin : seul un système ou un acteur possède une boucle de frame.
+
 ### CORE:OUTSIDE_SCENE_CONTEXT {#core-outside-scene-context}
 
 Cause. L'appel est hors de `defineScene()`. Fix. Capturez la poignée dans la fabrique, puis utilisez-la comme closure après `await`.

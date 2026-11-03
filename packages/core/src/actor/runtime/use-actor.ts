@@ -200,7 +200,7 @@ const _HANDLE_OWN_KEYS = new Set<string>([
 export function useActor<Props, PublicAPI>(
   actorDef: ActorDefinition<Props, PublicAPI>,
 ): ActorHandle<Props, PublicAPI> & (PublicAPI extends void ? unknown : PublicAPI) {
-  const engine = useEngine();
+  const engine = useEngine("useActor");
   try {
     const registrar = engine.inject(SCENE_REGISTRAR_KEY);
     registrar.register(actorDef._plugin);
@@ -374,7 +374,7 @@ export function useActor<Props, PublicAPI>(
 export function usePrefab<E extends readonly ComponentDef[]>(
   prefabDef: PrefabDefinition<E>,
 ): PrefabHandle<E> {
-  const engine = useEngine();
+  const engine = useEngine("usePrefab");
 
   return {
     spawn(overrides: PrefabOverrides<E> = {}): EntityId {

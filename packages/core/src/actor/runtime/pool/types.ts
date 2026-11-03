@@ -30,7 +30,8 @@ export interface PoolOptions {
    *
    * - `'global'` — pool survives scene transitions; `destroyAll()` is called
    *   automatically on `engine:stop`.
-   * - `CustomScope` — caller provides mount/unmount hooks.
+   * - `CustomScope` — caller provides mount/unmount hooks; the pool survives
+   *   scene transitions too.
    *
    * For scene-scoped cleanup, use `useActorPool()` inside a `defineScene` factory.
    *
@@ -119,6 +120,12 @@ export interface ActorPool<Props, _PublicAPI> {
   stats(): PoolStats;
   /** Subscribe to pool lifecycle events. */
   readonly hooks: Hookable<PoolHooks>;
+  /**
+   * The `scope` option the pool was defined with. `useActorPool()` reads it:
+   * only a pool with no scope is destroyed when a scene leaves.
+   * @internal
+   */
+  readonly scope?: PoolOptions["scope"];
 }
 
 /**

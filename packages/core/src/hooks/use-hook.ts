@@ -73,7 +73,7 @@ export function useHook<K extends GwenRuntimeHookName>(
   name: K,
   fn: GwenRuntimeHooks[K],
 ): UnsubscribeFn {
-  const engine = useEngine();
+  const engine = useEngine("useHook");
   assertHookName(name, "useHook", false);
 
   // Phase 5: GwenScope is the unified context system
