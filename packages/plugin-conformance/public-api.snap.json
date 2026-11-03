@@ -2,6 +2,7 @@
   ".": {
     "values": [
       "ConformanceErrorCodes",
+      "FRAMEWORK_ENTRIES",
       "checkPluginPackage",
       "checkSnapshot",
       "runComposableSurfaceSuite"
