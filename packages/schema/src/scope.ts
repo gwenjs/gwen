@@ -31,7 +31,7 @@ export interface GwenScopeMeta {
  *
  * Plugin authors type their scope references as `IGwenScope` (from `@gwenjs/schema`)
  * rather than `GwenScope` (from `@gwenjs/core`) to avoid a hard dependency on core.
- * Obtain an instance via `useCurrentScope()` from `@gwenjs/kit`.
+ * Obtain an instance via `getCurrentScope()` from `@gwenjs/kit`.
  */
 export interface IGwenScope {
   readonly meta: GwenScopeMeta;

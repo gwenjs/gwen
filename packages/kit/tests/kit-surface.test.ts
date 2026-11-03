@@ -12,7 +12,7 @@ const kitIndex = path.resolve(here, "../src/index.ts");
 const pluginIndex = path.resolve(here, "../src/plugin/index.ts");
 
 const KEPT_NAMES = {
-  kit: ["useCurrentScope", "useLogger", "useErrorReporter", "usePerfMark"],
+  kit: ["getCurrentScope", "useLogger", "useErrorReporter", "usePerfMark"],
   plugin: [
     "definePlugin",
     "satisfiesPluginContract",
@@ -96,7 +96,7 @@ describe("@gwenjs/kit surface", () => {
   it("kit no longer exports createErrorBus or createChildScope", () => {
     expect("createErrorBus" in kit).toBe(false);
     expect("createChildScope" in kit).toBe(false);
-    expect(typeof kit.useCurrentScope).toBe("function");
+    expect(typeof kit.getCurrentScope).toBe("function");
   });
 
   it("kit/plugin re-exports the schema entity functions", () => {
