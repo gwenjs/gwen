@@ -11,6 +11,7 @@
   },
   "include": ["src", "tests"],
   "exclude": [
+    "tests/composable-surface.test.ts",
     "tests/exports-map.test.ts",
     "tests/kit-surface.test.ts",
     "tests/package-deps.test.ts",
