@@ -1,4 +1,4 @@
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -199,6 +199,7 @@ describe("checkPluginPackage", () => {
       "exports",
       "snapshot-values",
       "snapshot-types",
+      "readme",
       "hooks",
       "manifest",
     ]);
@@ -980,6 +981,7 @@ describe("checkSnapshot", () => {
         "./list": { values: ["WRONG"], types: [] },
       }),
     );
+    await writeSource(root, "README.md", "The names ready and WRONG are listed.\n");
     const messages = [
       'subpath "." declares no types or import file',
       'subpath "./extra" declares no types or import file',
@@ -1063,5 +1065,417 @@ describe("checkSnapshot", () => {
       'public-api.snap.json lists value "WRONG" for subpath "." that the build does not export',
       'subpath "." exports value "ready" that public-api.snap.json does not list',
     ]);
+  });
+});
+
+const EXPECTED_SNAPSHOT = [
+  "{",
+  '  ".": {',
+  '    "values": [',
+  '      "ready"',
+  "    ],",
+  '    "types": []',
+  "  },",
+  '  "./module": {',
+  '    "values": [',
+  '      "default"',
+  "    ],",
+  '    "types": []',
+  "  }",
+  "}",
+  "",
+].join("\n");
+
+const STALE_SNAPSHOT = snapshotText({
+  ".": { values: ["ghost"], types: [] },
+  "./module": { values: ["default"], types: [] },
+});
+
+function snapshotBytes(root: string): Promise<string> {
+  return readFile(path.join(root, SNAPSHOT_FILE), "utf8");
+}
+
+/** Positive control: on a valid built package, `write` replaces a stale snapshot. */
+async function expectWriteRepairsStaleSnapshot(root: string): Promise<void> {
+  await writeSource(root, SNAPSHOT_FILE, STALE_SNAPSHOT);
+  expect((await checkSnapshot(root, { write: true })).findings).toEqual([]);
+  expect(await snapshotBytes(root)).toBe(EXPECTED_SNAPSHOT);
+}
+
+describe("checkSnapshot with write", () => {
+  it("points a value mismatch to gwen-conformance check --write", async () => {
+    const root = await openPackage();
+    await writeSource(root, SNAPSHOT_FILE, STALE_SNAPSHOT);
+
+    const hints = (await checkSnapshot(root)).findings.map((finding) => finding.hint);
+    expect(hints).toEqual([
+      "Run gwen-conformance check --write to update public-api.snap.json, or change the export.",
+      "Run gwen-conformance check --write to update public-api.snap.json, or change the export.",
+    ]);
+  });
+
+  it("writes the gwen snapshot format byte for byte", async () => {
+    const root = await openPackage();
+    await rm(path.join(root, SNAPSHOT_FILE));
+
+    expect((await checkSnapshot(root, { write: true })).findings).toEqual([]);
+    expect(await snapshotBytes(root)).toBe(EXPECTED_SNAPSHOT);
+    expect((await checkSnapshot(root, { write: true })).findings).toEqual([]);
+    expect(await snapshotBytes(root)).toBe(EXPECTED_SNAPSHOT);
+
+    const compact = snapshotText({
+      ".": { values: ["ready"], types: [] },
+      "./module": { values: ["default"], types: [] },
+    });
+    await writeSource(root, SNAPSHOT_FILE, compact);
+    expect((await checkSnapshot(root, { write: true })).findings).toEqual([]);
+    expect(await snapshotBytes(root)).toBe(compact);
+  });
+
+  it("keeps reporting an underscore value after a write", async () => {
+    const root = await openPackage();
+    await appendTo(root, "dist/index.d.ts", "export declare const _hidden: number;\n");
+    await writeSource(root, SNAPSHOT_FILE, STALE_SNAPSHOT);
+
+    const report = await checkSnapshot(root, { write: true });
+    expect(report.findings.map((finding) => finding.code)).toEqual([
+      ConformanceErrorCodes.PRIVATE_EXPORT,
+    ]);
+    expect(JSON.parse(await snapshotBytes(root))).toEqual({
+      ".": { values: ["_hidden", "ready"], types: [] },
+      "./module": { values: ["default"], types: [] },
+    });
+  });
+
+  it("writes empty arrays for a package with no public value", async () => {
+    const root = await openPackage();
+    await editManifest(root, (manifest) => {
+      delete manifestExports(manifest)["./module"];
+    });
+    await writeSource(root, "dist/index.d.ts", "export {};\n");
+    await rm(path.join(root, SNAPSHOT_FILE));
+
+    expect((await checkSnapshot(root, { write: true })).findings).toEqual([]);
+    expect(await snapshotBytes(root)).toBe(
+      '{\n  ".": {\n    "values": [],\n    "types": []\n  }\n}\n',
+    );
+  });
+
+  it("refuses to write when a subpath is not built or declares no types", async () => {
+    await expectWriteRepairsStaleSnapshot(await openPackage());
+
+    const unbuilt = await openPackage();
+    const untyped = await openPackage();
+    await rm(path.join(unbuilt, "dist/module.d.ts"));
+    await setExports(untyped, {
+      ".": { types: "./dist/index.d.ts", import: "./dist/index.js" },
+      "./module": { types: "./dist/module.d.ts", import: "./dist/module.js" },
+      "./extra": { default: "./dist/index.js" },
+    });
+
+    for (const [root, message] of [
+      [unbuilt, 'subpath "./module" declares "./dist/module.d.ts", which is not built'],
+      [untyped, 'subpath "./extra" declares no types or import file'],
+    ] as const) {
+      await writeSource(root, SNAPSHOT_FILE, STALE_SNAPSHOT);
+      const read = await checkSnapshot(root);
+      const written = await checkSnapshot(root, { write: true });
+      expect(messagesOf(written)).toContain(message);
+      expect(messagesOf(written)).toEqual(messagesOf(read));
+      expect(await snapshotBytes(root)).toBe(STALE_SNAPSHOT);
+    }
+  });
+
+  it("keeps the snapshot entry of a subpath whose target is not a module entry on write", async () => {
+    const root = await openPackage();
+    await writeSource(root, "dist/data.json", "{}\n");
+    await editManifest(root, (manifest) => {
+      manifestExports(manifest)["./data"] = "./dist/data.json";
+    });
+    await writeSource(
+      root,
+      SNAPSHOT_FILE,
+      snapshotText({
+        ".": { values: ["ghost"], types: [] },
+        "./data": { values: ["kept"], types: ["Kept"] },
+      }),
+    );
+
+    expect((await checkSnapshot(root, { write: true })).findings).toEqual([]);
+    expect(JSON.parse(await snapshotBytes(root))).toEqual({
+      ".": { values: ["ready"], types: [] },
+      "./module": { values: ["default"], types: [] },
+      "./data": { values: ["kept"], types: ["Kept"] },
+    });
+  });
+
+  it("keeps the key order of the existing snapshot, appends new subpaths and drops removed ones", async () => {
+    const root = await openPackage();
+    await writeSource(root, "dist/extra.d.ts", "export declare const extra: number;\n");
+    await editManifest(root, (manifest) => {
+      manifestExports(manifest)["./extra"] = "./dist/extra.d.ts";
+    });
+    await writeSource(
+      root,
+      SNAPSHOT_FILE,
+      snapshotText({
+        "./module": { values: ["default"], types: [] },
+        "./gone": { values: ["gone"], types: [] },
+        ".": { values: ["ghost"], types: [] },
+      }),
+    );
+
+    expect((await checkSnapshot(root, { write: true })).findings).toEqual([]);
+    expect(await snapshotBytes(root)).toBe(
+      [
+        "{",
+        '  "./module": {',
+        '    "values": [',
+        '      "default"',
+        "    ],",
+        '    "types": []',
+        "  },",
+        '  ".": {',
+        '    "values": [',
+        '      "ready"',
+        "    ],",
+        '    "types": []',
+        "  },",
+        '  "./extra": {',
+        '    "values": [',
+        '      "extra"',
+        "    ],",
+        '    "types": []',
+        "  }",
+        "}",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("does not write when exports is missing", async () => {
+    await expectWriteRepairsStaleSnapshot(await openPackage());
+
+    const missing = await openPackage();
+    const array = await openPackage();
+    await editManifest(missing, (manifest) => {
+      delete manifest.exports;
+    });
+    await setExports(array, ["./dist/index.js"]);
+
+    for (const root of [missing, array]) {
+      await writeSource(root, SNAPSHOT_FILE, STALE_SNAPSHOT);
+      const read = await checkSnapshot(root);
+      expect(read.findings).not.toEqual([]);
+      expect(await checkSnapshot(root, { write: true })).toEqual(read);
+      expect(await snapshotBytes(root)).toBe(STALE_SNAPSHOT);
+    }
+  });
+
+  it("reports a snapshot that cannot be read instead of writing over it", async () => {
+    await expectWriteRepairsStaleSnapshot(await openPackage());
+
+    const root = await openPackage();
+    await rm(path.join(root, SNAPSHOT_FILE));
+    await mkdir(path.join(root, SNAPSHOT_FILE));
+
+    const read = await checkSnapshot(root);
+    expect(messagesOf(read)).toEqual([
+      expect.stringMatching(/^public-api\.snap\.json cannot be read \(E[A-Z]+\)$/),
+    ]);
+    await expect(checkSnapshot(root, { write: true })).resolves.toEqual(read);
+    expect((await stat(path.join(root, SNAPSHOT_FILE))).isDirectory()).toBe(true);
+  });
+
+  it("reports a finding when the snapshot cannot be written", async () => {
+    const root = await openPackage();
+    await writeSource(root, SNAPSHOT_FILE, STALE_SNAPSHOT);
+    await mkdir(path.join(root, `${SNAPSHOT_FILE}.tmp`));
+
+    const read = await checkSnapshot(root);
+    const pending = checkSnapshot(root, { write: true });
+    await expect(pending).resolves.toHaveProperty("findings.length", read.findings.length + 1);
+    const written = await pending;
+    const failed = written.findings.filter((finding) => finding.message.includes("cannot be"));
+    expect(failed).toHaveLength(1);
+    const finding = requireFinding(failed[0]);
+    expect(finding.code).toBe(ConformanceErrorCodes.SNAPSHOT_MISMATCH);
+    expect(finding.file).toBe(SNAPSHOT_FILE);
+    expect(finding.message).toMatch(/^public-api\.snap\.json cannot be written \(E[A-Z]+\)$/);
+    expect(finding.hint.length).toBeGreaterThan(0);
+    expect(messagesOf(written)).toEqual(expect.arrayContaining(messagesOf(read)));
+    expect(await snapshotBytes(root)).toBe(STALE_SNAPSHOT);
+
+    await rm(path.join(root, SNAPSHOT_FILE));
+    const absent = await checkSnapshot(root, { write: true });
+    expect(messagesOf(absent)).toEqual(
+      expect.arrayContaining([
+        "public-api.snap.json is missing",
+        expect.stringMatching(/^public-api\.snap\.json cannot be written/),
+      ]),
+    );
+    expect(absent.findings).toHaveLength(2);
+  });
+});
+
+function readmeMessages(report: ConformanceReport): string[] {
+  return report.findings
+    .filter((finding) => finding.code === ConformanceErrorCodes.README_EXPORT_MISSING)
+    .map((finding) => finding.message);
+}
+
+describe("readme check of checkPluginPackage", () => {
+  it("reports a snapshot name absent from README", async () => {
+    const root = await openPackage();
+    await writeSource(root, "README.md", "Nothing to see.\n");
+
+    const report = await checkPluginPackage({ root, profile: "plugin" });
+    expect(report.checks).toContain("readme");
+    expect(report.findings).toHaveLength(1);
+    const finding = requireFinding(report.findings[0]);
+    expect(finding.code).toBe(ConformanceErrorCodes.README_EXPORT_MISSING);
+    expect(finding.file).toBe("README.md");
+    expect(finding.message).toBe('README.md does not mention "ready" (subpath ".")');
+    expect(finding.hint.length).toBeGreaterThan(0);
+  });
+
+  it("asks for each README name once and never requires default", async () => {
+    const root = await openPackage();
+    await writeSource(
+      root,
+      "dist/module.d.ts",
+      "export declare const ready: boolean;\nexport default function setup(): void;\n",
+    );
+    await writeSource(
+      root,
+      SNAPSHOT_FILE,
+      snapshotText({
+        ".": { values: ["ready"], types: [] },
+        "./module": { values: ["default", "ready"], types: [] },
+      }),
+    );
+    await writeSource(root, "README.md", "Nothing to see.\n");
+
+    const report = await checkPluginPackage({ root, profile: "plugin" });
+    expect(messagesOf(report)).toEqual(['README.md does not mention "ready" (subpath ".")']);
+  });
+
+  it("reports a missing README once", async () => {
+    const root = await openPackage();
+    await appendTo(root, "dist/index.d.ts", "export interface Extra {}\n");
+    await writeSource(
+      root,
+      SNAPSHOT_FILE,
+      snapshotText({
+        ".": { values: ["ready"], types: ["Extra"] },
+        "./module": { values: ["default"], types: [] },
+      }),
+    );
+    await rm(path.join(root, "README.md"));
+
+    const report = await checkPluginPackage({ root, profile: "plugin" });
+    expect(messagesOf(report)).toEqual(["README.md is missing"]);
+    expect(report.findings[0]?.code).toBe(ConformanceErrorCodes.README_EXPORT_MISSING);
+  });
+
+  it("matches README names as whole identifiers", async () => {
+    const root = await openPackage();
+    await writeSource(root, "README.md", "readyState, $ready and ready_ are other names.\n");
+    expect(readmeMessages(await checkPluginPackage({ root, profile: "plugin" }))).toEqual([
+      'README.md does not mention "ready" (subpath ".")',
+    ]);
+
+    await writeSource(root, "README.md", "Call ready() first.\n");
+    expect((await checkPluginPackage({ root, profile: "plugin" })).findings).toEqual([]);
+  });
+
+  it("matches a README name that holds regexp characters", async () => {
+    const root = await openPackage();
+    await writeSource(
+      root,
+      SNAPSHOT_FILE,
+      snapshotText({
+        ".": { values: ["$store", "ready"], types: [] },
+        "./module": { values: ["default"], types: [] },
+      }),
+    );
+    await writeSource(root, "README.md", "Call ready() and $store.\n");
+    expect(readmeMessages(await checkPluginPackage({ root, profile: "plugin" }))).toEqual([]);
+
+    await writeSource(root, "README.md", "Call ready() and store.\n");
+    expect(readmeMessages(await checkPluginPackage({ root, profile: "plugin" }))).toEqual([
+      'README.md does not mention "$store" (subpath ".")',
+    ]);
+  });
+
+  it("does not need a README when the snapshot holds only default", async () => {
+    const named = await openPackage();
+    await editManifest(named, (manifest) => {
+      delete manifestExports(manifest)["./module"];
+    });
+    await writeSource(
+      named,
+      "dist/index.d.ts",
+      "export default function setup(): void;\nexport declare const extra: number;\n",
+    );
+    await writeSource(
+      named,
+      SNAPSHOT_FILE,
+      snapshotText({ ".": { values: ["default", "extra"], types: [] } }),
+    );
+    await writeSource(named, "README.md", "Nothing to see.\n");
+    expect(messagesOf(await checkPluginPackage({ root: named, profile: "package" }))).toEqual([
+      'README.md does not mention "extra" (subpath ".")',
+    ]);
+
+    const root = await openPackage();
+    await editManifest(root, (manifest) => {
+      delete manifestExports(manifest)["./module"];
+    });
+    await writeSource(root, "dist/index.d.ts", "export default function setup(): void;\n");
+    await writeSource(
+      root,
+      SNAPSHOT_FILE,
+      snapshotText({ ".": { values: ["default"], types: [] } }),
+    );
+    await rm(path.join(root, "README.md"));
+
+    expect((await checkPluginPackage({ root, profile: "package" })).findings).toEqual([]);
+  });
+
+  it("reports a README that cannot be read, not a missing one", async () => {
+    const root = await openPackage();
+    await rm(path.join(root, "README.md"));
+    await mkdir(path.join(root, "README.md"));
+
+    expect(readmeMessages(await checkPluginPackage({ root, profile: "plugin" }))).toEqual([
+      expect.stringMatching(/^README\.md cannot be read \(E[A-Z]+\)$/),
+    ]);
+  });
+
+  it("skips the readme check when exports has a finding", async () => {
+    const clean = await openPackage();
+    await writeSource(clean, "README.md", "Nothing to see.\n");
+    expect(messagesOf(await checkPluginPackage({ root: clean, profile: "plugin" }))).toEqual([
+      'README.md does not mention "ready" (subpath ".")',
+    ]);
+
+    const root = await openPackage();
+    await rm(path.join(root, "dist/index.js"));
+    await writeSource(root, "README.md", "Nothing to see.\n");
+
+    const report = await checkPluginPackage({ root, profile: "plugin" });
+    expect(report.checks).toEqual(["exports", "hooks", "manifest"]);
+    expect(messagesOf(report)).toEqual(['export "./dist/index.js" of subpath "." is missing']);
+  });
+
+  it("reads the snapshot after a write", async () => {
+    const root = await openPackage();
+    await writeSource(root, SNAPSHOT_FILE, STALE_SNAPSHOT);
+    await writeSource(root, "README.md", "Nothing to see.\n");
+
+    const report = await checkPluginPackage({ root, profile: "plugin", write: true });
+    expect(messagesOf(report)).toEqual(['README.md does not mention "ready" (subpath ".")']);
+    expect(await snapshotBytes(root)).toBe(EXPECTED_SNAPSHOT);
   });
 });

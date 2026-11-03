@@ -2,6 +2,7 @@ import { CONFORMANCE_CHECK_IDS } from "./check-ids.js";
 import { checkExports } from "./check-exports.js";
 import { checkHooks } from "./check-hooks.js";
 import { checkManifest } from "./check-manifest.js";
+import { checkReadme } from "./check-readme.js";
 import { ConformanceErrorCodes } from "./error-codes.js";
 import { packageReadFinding } from "./manifest-finding.js";
 import type { PackageContext } from "./package-context.js";
@@ -71,6 +72,7 @@ export async function checkPluginPackage(
     const snapshot = await snapshotFindings(context);
     byId["snapshot-values"] = snapshot.values;
     byId["snapshot-types"] = snapshot.types;
+    byId.readme = await checkReadme(context);
   }
   const checks = CONFORMANCE_CHECK_IDS.filter((id) => byId[id] !== undefined);
   const findings = checks.flatMap((id) => byId[id] ?? []).sort(compareFindings);

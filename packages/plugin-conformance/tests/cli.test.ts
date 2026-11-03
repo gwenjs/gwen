@@ -1,3 +1,5 @@
+import { readFile, rm } from "node:fs/promises";
+import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { runCli } from "../src/run-cli.js";
 import type { CliIo } from "../src/run-cli.js";
@@ -54,7 +56,7 @@ describe("gwen-conformance", () => {
     const lines = BARE_MANIFEST_MESSAGES.map(
       (message) => `CONFORMANCE:MANIFEST package.json:1 ${message}`,
     );
-    expect(captured.stdout()).toBe(`${lines.join("\n")}\nCONFORMANCE: 3 findings (5 checks)\n`);
+    expect(captured.stdout()).toBe(`${lines.join("\n")}\nCONFORMANCE: 3 findings (6 checks)\n`);
     expect(code).toBe(1);
     expect(captured.stderr()).toBe("");
   });
@@ -63,7 +65,7 @@ describe("gwen-conformance", () => {
     const captured = capture(goodPluginRoot());
 
     const code = await runCli(["check"], captured.io);
-    expect(captured.stdout()).toBe("CONFORMANCE: 0 findings (5 checks)\n");
+    expect(captured.stdout()).toBe("CONFORMANCE: 0 findings (6 checks)\n");
     expect(code).toBe(0);
     expect(captured.stderr()).toBe("");
   });
@@ -88,7 +90,7 @@ describe("gwen-conformance", () => {
     const captured = capture(fixture.root);
 
     const code = await runCli(["check", "--profile", "package"], captured.io);
-    expect(captured.stdout()).toBe("CONFORMANCE: 0 findings (5 checks)\n");
+    expect(captured.stdout()).toBe("CONFORMANCE: 0 findings (6 checks)\n");
     expect(code).toBe(0);
     expect(captured.stderr()).toBe("");
   });
@@ -118,6 +120,37 @@ describe("gwen-conformance", () => {
     );
     expect(code).toBe(2);
     expect(captured.stdout()).toBe("");
+  });
+
+  it("writes the snapshot with --write and returns 0", async () => {
+    const fixture = await createFixture();
+    cleanups.push(fixture.cleanup);
+    await rm(path.join(fixture.root, SNAPSHOT_FILE));
+    const plain = capture(fixture.root);
+
+    expect(await runCli(["check"], plain.io)).toBe(1);
+    expect(plain.stdout()).toBe(
+      "CONFORMANCE:SNAPSHOT_MISMATCH public-api.snap.json public-api.snap.json is missing\nCONFORMANCE: 1 findings (6 checks)\n",
+    );
+    const written = capture(fixture.root);
+    expect(await runCli(["check", "--write", "--profile", "plugin"], written.io)).toBe(0);
+    expect(written.stdout()).toBe("CONFORMANCE: 0 findings (6 checks)\n");
+    const text = await readFile(path.join(fixture.root, SNAPSHOT_FILE), "utf8");
+    expect(JSON.parse(text)).toEqual({
+      ".": { values: ["ready"], types: [] },
+      "./module": { values: ["default"], types: [] },
+    });
+  });
+
+  it("returns 2 when --write is given twice", async () => {
+    const captured = capture(goodPluginRoot());
+
+    const code = await runCli(["check", "--write", "--write"], captured.io);
+    expect(code).toBe(2);
+    expect(captured.stdout()).toBe("");
+    expect(captured.stderr()).toBe(
+      "Usage: gwen-conformance check [--profile plugin|package] [--write]\n",
+    );
   });
 
   it("returns 2 for an unknown command", async () => {

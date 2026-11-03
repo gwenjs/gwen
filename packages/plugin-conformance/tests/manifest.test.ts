@@ -99,6 +99,7 @@ describe("checkPluginPackage manifest", () => {
       "exports",
       "snapshot-values",
       "snapshot-types",
+      "readme",
       "hooks",
       "manifest",
     ]);
