@@ -12,13 +12,13 @@ npm install @gwenjs/core
 
 `@gwenjs/core` exposes a root entrypoint and additional subpath entrypoints to keep bundle sizes small:
 
-| Subpath               | What it exports                                                                                                                                                                                       |
-| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@gwenjs/core`        | `createEngine`, `useEngine`, `defineComponent`, `Types`, `createLogger`, `setupGwen`, `onCleanup`                                                                                                     |
-| `@gwenjs/core/system` | `defineSystem`, `onUpdate`, `onBeforeUpdate`, `onAfterUpdate`, `onRender`, `useQuery`, `useService`, `useWasmModule`                                                                                  |
-| `@gwenjs/core/actor`  | `defineActor`, `onStart`, `onDestroy`, `useEntityId`, `definePrefab`, `useActor`, `useComponent`, `usePrefab`, `useTransform`, `defineLayout`, `useLayout`, `placeActor`, `placeGroup`, `placePrefab` |
-| `@gwenjs/core/scene`  | `defineScene`, `defineSceneRouter`, `useSceneRouter`                                                                                                                                                  |
-| `@gwenjs/core/node`   | `createEngine`, `setupGwen`, `loadGwenModule` — Node only; importing it declares Node. No options needed, each engine isolated, the compiled module cached per variant                                |
+| Subpath               | What it exports                                                                                                                                                                       |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@gwenjs/core`        | `createEngine`, `useEngine`, `defineComponent`, `Types`, `createLogger`, `setupGwen`, `onCleanup`                                                                                     |
+| `@gwenjs/core/system` | `defineSystem`, `onUpdate`, `onBeforeUpdate`, `onAfterUpdate`, `onRender`, `useQuery`, `useService`, `useWasmModule`, `useComponent`                                                  |
+| `@gwenjs/core/actor`  | `defineActor`, `onStart`, `onDestroy`, `useEntityId`, `definePrefab`, `useActor`, `usePrefab`, `useTransform`, `defineLayout`, `useLayout`, `placeActor`, `placeGroup`, `placePrefab` |
+| `@gwenjs/core/scene`  | `defineScene`, `defineSceneRouter`, `useSceneRouter`                                                                                                                                  |
+| `@gwenjs/core/node`   | `createEngine`, `setupGwen`, `loadGwenModule` — Node only; importing it declares Node. No options needed, each engine isolated, the compiled module cached per variant                |
 
 ## Quick start
 
@@ -123,7 +123,8 @@ const PhysicsSystem = defineSystem("PhysicsSystem", () => {
 Actors are entity-bound objects with a lifecycle. Use `defineActor` for interactive game objects.
 
 ```ts
-import { defineActor, onStart, onDestroy, definePrefab, useComponent } from "@gwenjs/core/actor";
+import { defineActor, onStart, onDestroy, definePrefab } from "@gwenjs/core/actor";
+import { useComponent } from "@gwenjs/core/system";
 
 const EnemyPrefab = definePrefab([
   { def: Position, defaults: { x: 0, y: 0 } },
@@ -131,7 +132,7 @@ const EnemyPrefab = definePrefab([
 ]);
 
 const EnemyActor = defineActor(EnemyPrefab, (props: { hp: number }) => {
-  const health = useComponent<{ hp: number; max: number }>(Health);
+  const health = useComponent(Health);
 
   onStart(() => {
     health.hp = props.hp;
@@ -307,15 +308,13 @@ Types: `Color`, `ComponentAccessor`, `ComponentBody`, `ComponentDefinition`, `Co
 
 ### `./system`
 
-Values: `defineSystem`, `onAfterUpdate`, `onBeforeUpdate`, `onRender`, `onUpdate`, `useQuery`, `useService`, `useWasmModule`.
+Values: `defineSystem`, `onAfterUpdate`, `onBeforeUpdate`, `onRender`, `onUpdate`, `useComponent`, `useQuery`, `useService`, `useWasmModule`.
 
-Deprecated: `useComponentFor`.
-
-Types: `ChunkColumns`, `ComponentDef`, `DiscoverablePlugin`, `EntityAccessor`, `LiveQuery`, `Query`, `QueryChunk`
+Types: `ChunkColumns`, `ComponentDef`, `ComponentHandle`, `DiscoverablePlugin`, `EntityAccessor`, `LiveQuery`, `Query`, `QueryChunk`
 
 ### `./actor`
 
-Values: `PoolExhaustedError`, `defineActor`, `defineActorPool`, `defineLayout`, `definePrefab`, `onAfterUpdate`, `onBeforeUpdate`, `onDestroy`, `onDisable`, `onEnable`, `onRelease`, `onRender`, `onReset`, `onStart`, `onUpdate`, `placeActor`, `placeGroup`, `placePrefab`, `useActor`, `useActorPool`, `useActorQuery`, `useChildren`, `useComponent`, `useEntityId`, `useLayout`, `usePrefab`, `useTransform`, `watchActorLeaks`
+Values: `PoolExhaustedError`, `defineActor`, `defineActorPool`, `defineLayout`, `definePrefab`, `onAfterUpdate`, `onBeforeUpdate`, `onDestroy`, `onDisable`, `onEnable`, `onRelease`, `onRender`, `onReset`, `onStart`, `onUpdate`, `placeActor`, `placeGroup`, `placePrefab`, `useActor`, `useActorPool`, `useActorQuery`, `useChildren`, `useEntityId`, `useLayout`, `usePrefab`, `useTransform`, `watchActorLeaks`
 
 Types: `ActorDefinition`, `ActorHandle`, `ActorInstance`, `ActorPlugin`, `ActorPool`, `ActorPoolDefinition`, `ChildrenHandle`, `CustomScope`, `LayoutDefinition`, `LayoutHandle`, `PlaceHandle`, `PoolHooks`, `PoolOptions`, `PoolStats`, `PrefabComponentEntry`, `PrefabDefinition`, `PrefabEntries`, `PrefabHandle`, `PrefabOverrides`, `RenderFn`, `TransformHandle`, `UpdateFn`, `UseLayoutOptions`, `VoidFn`, `WatchActorLeaksOptions`
 

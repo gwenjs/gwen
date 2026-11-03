@@ -19,7 +19,7 @@ export { onUpdate, onBeforeUpdate, onAfterUpdate, onRender } from "../system/run
 export { definePrefab } from "./runtime/define-prefab";
 
 // Actor composables
-export { useActor, usePrefab, useComponent } from "./runtime/use-actor";
+export { useActor, usePrefab } from "./runtime/use-actor";
 export { defineLayout } from "./runtime/define-layout";
 export { useLayout } from "./runtime/use-layout";
 export { useTransform } from "./runtime/use-transform";

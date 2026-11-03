@@ -1,7 +1,6 @@
 /**
  * These composables are designed to be called inside:
  * - `useActor` / `usePrefab` — inside `engine.run()` or another engine context
- * - `useComponent` — inside a `defineActor()` factory function (actor spawn context)
  *
  * @example
  * ```typescript
@@ -13,25 +12,16 @@
  * // Spawn prefab entities without actor behaviour:
  * const { spawn, despawn } = usePrefab(BulletPrefab);
  * const id = spawn({ x: 10, y: 20 });
- *
- * // Read / write a component on the current actor's entity:
- * const Actor = defineActor(MyPrefab, () => {
- *   const pos = useComponent(Position);
- *   onUpdate(() => { pos.x += 1; });
- * });
  * ```
  */
 
 import { engineContext, useEngine } from "../../engine/context";
 import { queuePrefabInstantiate } from "../../engine/hook-dispatch.js";
-import { _getActorEntityId, _getActorEngine } from "./define-actor";
 import { SCENE_REGISTRAR_KEY } from "../../scene/runtime/scene-registrar";
 import { GwenScope } from "../../context/scope.js";
 import type { ActorDefinition, PrefabDefinition } from "./types";
 import type { PrefabOverrides } from "./define-prefab";
-import type { InferComponent } from "../../schema";
 import type { ComponentDef } from "../../system/runtime/define-system";
-import { useComponentFor } from "../../system/runtime/use-component";
 import { spawnActor } from "./spawn-tuple";
 import type { EntityId } from "../../engine/engine-api";
 import { GwenActorError, ActorErrorCodes } from "../../engine/engine-errors";
@@ -403,71 +393,4 @@ export function usePrefab<E extends readonly ComponentDef[]>(
       engine.destroyEntity(id);
     },
   };
-}
-
-// ─── useComponent ─────────────────────────────────────────────────────────────
-
-/**
- * Returns an ES6 Proxy that transparently reads and writes the specified
- * component on the **current actor's entity**.
- *
- * Must be called synchronously inside a `defineActor()` factory function
- * (i.e. during actor spawn). The entity ID and engine reference are captured
- * in a closure at call time — subsequent property accesses inside `onUpdate`
- * or other frame callbacks use the captured references without requiring an
- * active engine context.
- *
- * **Read** — `proxy.prop` calls `engine.getComponent(entityId, def)` and
- * returns the named field.
- *
- * **Write** — `proxy.prop = value` calls `engine.addComponent(entityId, def,
- * { ...current, prop: value })`, merging the new value with the existing data.
- *
- * **Performance note** — The Proxy object itself is created **once** at spawn
- * time and stored in the actor factory's closure; there is no per-frame
- * overhead from the Proxy wrapper. However, every **property write**
- * (`proxy.x = value`) allocates a new plain object (`{ ...current, [prop]: value }`)
- * because the ECS component model is immutable: `addComponent` always replaces
- * the whole component data record. If your actor writes multiple fields per
- * frame from a hot path, batch them into a single `engine.addComponent()` call
- * to reduce allocation pressure:
- *
- * ```typescript
- * // ❌ Two allocations per frame:
- * pos.x += vx * dt;
- * pos.y += vy * dt;
- *
- * // ✅ One allocation per frame:
- * const cur = engine.getComponent(entityId, Position);
- * engine.addComponent(entityId, Position, { x: cur.x + vx * dt, y: cur.y + vy * dt });
- * ```
- *
- * @performance Property writes via this Proxy each create one object allocation
- *   (the spread merge). Batch writes with direct `engine.addComponent()` calls
- *   in hot paths to avoid per-property GC pressure.
- *
- *   when the component definition is not fully typed).
- * @param def - The component definition to target.
- * @returns A mutable proxy typed as `T & { $set(values: Partial<T>): void }`.
- *
- * @throws {GwenContextError} `CORE:OUTSIDE_ACTOR_CONTEXT` if called outside an active actor spawn context.
- *
- * @example
- * ```typescript
- * const Actor = defineActor(PosPrefab, () => {
- *   const pos = useComponent(Position);
- *   onUpdate((dt) => {
- *     // Single-field write — one allocation:
- *     pos.x += 100 * dt;
- *
- *     // Batch write — one allocation regardless of field count:
- *     pos.$set({ x: pos.x + 100 * dt, y: pos.y + 50 * dt });
- *   });
- * });
- * ```
- */
-export function useComponent<D extends ComponentDef>(
-  def: D,
-): InferComponent<D> & { $set(patch: Partial<InferComponent<D>>): void } {
-  return useComponentFor(_getActorEntityId("useComponent"), def, _getActorEngine("useComponent"));
 }
