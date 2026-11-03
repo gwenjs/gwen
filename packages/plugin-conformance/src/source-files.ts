@@ -1,19 +1,19 @@
+import type { Dirent } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import ts from "typescript";
-
-/** `src` files ship in the package. `test` files are test code and may import test-only entries. */
-export type SourceScope = "src" | "test";
 
 export interface SourceFile {
   /** Path from the package root, with `/` separators. */
   readonly relative: string;
   readonly full: string;
-  readonly scope: SourceScope;
 }
 
-const SOURCE_FILE = /\.(ts|tsx|mts|cts)$/;
-const TEST_FILE = /\.test\./;
+const SCRIPT_FILE = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$/;
+const DECLARATION_FILE = /\.d\.[mc]?ts$/;
+const TEST_NAME = /\.(test|spec)\./;
+const SETUP_NAME = /\.setup\./;
+const TEST_DIRECTORIES: ReadonlySet<string> = new Set(["tests", "test", "__tests__"]);
 
 function readErrorCode(error: unknown): string | undefined {
   if (typeof error !== "object" || error === null || !("code" in error)) return undefined;
@@ -27,65 +27,61 @@ function compareText(left: string, right: string): number {
   return 0;
 }
 
-/** Every file under `directory` that `accept` takes, skipping `node_modules`. Missing means empty. */
-async function listFiles(
-  directory: string,
-  accept: (name: string) => boolean,
-): Promise<readonly string[]> {
-  let entries;
+/** Entries of `directory`. A missing directory is empty; any other error rejects. */
+export async function readDirectory(directory: string): Promise<readonly Dirent[]> {
   try {
-    entries = await readdir(directory, { withFileTypes: true });
-  } catch {
-    // A missing or unreadable directory holds no source.
-    return [];
+    return await readdir(directory, { withFileTypes: true });
+  } catch (error) {
+    const code = readErrorCode(error);
+    if (code === "ENOENT" || code === "ENOTDIR") return [];
+    throw error;
   }
+}
+
+function isSkippedDirectory(name: string): boolean {
+  return name === "node_modules" || name === "dist" || name.startsWith(".");
+}
+
+/** Every file under `directory`, skipping `node_modules`, `dist` and dot directories. */
+async function listFiles(directory: string): Promise<readonly string[]> {
   const files: string[] = [];
-  for (const entry of entries) {
+  for (const entry of await readDirectory(directory)) {
     const full = path.join(directory, entry.name);
     if (entry.isDirectory()) {
-      if (entry.name !== "node_modules") files.push(...(await listFiles(full, accept)));
-    } else if (entry.isFile() && accept(entry.name)) {
+      if (!isSkippedDirectory(entry.name)) files.push(...(await listFiles(full)));
+    } else if (entry.isFile()) {
       files.push(full);
     }
   }
   return files;
 }
 
-function isSourceName(name: string): boolean {
-  return SOURCE_FILE.test(name) && !name.endsWith(".d.ts");
-}
-
 function toRelative(root: string, full: string): string {
   return path.relative(root, full).split(path.sep).join("/");
 }
 
-function scopeOf(relative: string): SourceScope {
-  const first = relative.split("/")[0];
-  return first === "tests" || first === "test" || TEST_FILE.test(path.posix.basename(relative))
-    ? "test"
-    : "src";
+/**
+ * A test file is a script (not a declaration file) that is named `*.test.*` or `*.spec.*`, sits
+ * below a `tests`, `test` or `__tests__` directory, or is a `*.setup.*` file at the package root.
+ */
+function isTestFile(relative: string): boolean {
+  const segments = relative.split("/");
+  const name = segments[segments.length - 1] ?? "";
+  if (!SCRIPT_FILE.test(name) || DECLARATION_FILE.test(name)) return false;
+  if (TEST_NAME.test(name)) return true;
+  if (segments.slice(0, -1).some((directory) => TEST_DIRECTORIES.has(directory))) return true;
+  return segments.length === 1 && SETUP_NAME.test(name);
 }
 
 /**
- * The TypeScript files of a package, in path order: everything under `src`, `tests` and `test`
- * (not `*.d.ts`, not `node_modules`), and the `*.test.*` files at the root.
+ * The test files of a package, in path order, wherever they sit (see {@link isTestFile}). A file
+ * of `src` that is not a test file is not listed. `node_modules`, `dist` and dot directories are
+ * not walked.
  */
-export async function listSourceFiles(root: string): Promise<readonly SourceFile[]> {
-  const rootEntries = await readdir(root, { withFileTypes: true }).catch(() => []);
-  const rootTests = rootEntries
-    .filter((entry) => entry.isFile() && isSourceName(entry.name) && TEST_FILE.test(entry.name))
-    .map((entry) => path.join(root, entry.name));
-  const groups = await Promise.all([
-    listFiles(path.join(root, "src"), isSourceName),
-    listFiles(path.join(root, "tests"), isSourceName),
-    listFiles(path.join(root, "test"), isSourceName),
-  ]);
-  const found = new Set([...rootTests, ...groups.flat()]);
-  return [...found]
-    .map((full) => {
-      const relative = toRelative(root, full);
-      return { relative, full, scope: scopeOf(relative) };
-    })
+export async function listTestFiles(root: string): Promise<readonly SourceFile[]> {
+  return (await listFiles(root))
+    .map((full) => ({ relative: toRelative(root, full), full }))
+    .filter((file) => isTestFile(file.relative))
     .sort((left, right) => compareText(left.relative, right.relative));
 }
 
