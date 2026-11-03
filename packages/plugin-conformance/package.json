@@ -23,6 +23,8 @@
   },
   "scripts": {
     "dev": "vite",
+    "generate": "node scripts/generate-framework-entries.mjs",
+    "prebuild": "pnpm generate",
     "build": "vite build",
     "postbuild": "node ../../scripts/fix-dts-extensions.mjs .",
     "test": "vitest run",
