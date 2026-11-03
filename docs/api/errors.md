@@ -496,6 +496,10 @@ Warn only. Declared on `CameraErrorCodes` and never thrown (`packages/camera-cor
 
 ## @gwenjs/plugin-conformance
 
+### CONFORMANCE:ATTW {#conformance-attw}
+
+Cause. `attw --pack --profile esm-only` reports a problem on the tarball that `npm pack` makes of the package. One finding per problem kind and entry point, with the resolutions that fail, for example `UntypedResolution at "./module" (node16-esm, bundler)`. A problem that names a file and no entry point is one finding per problem kind and file, for example `FalseCJS in "dist/index.d.cts"`. The profile ignores `node10` and `node16-cjs`. The tarball is made with `npm pack --ignore-scripts`: lifecycle scripts do not run, unlike `attw --pack`. The `.attw.json` of the package is ignored: attw runs outside the package, so a package cannot exclude its own entry points. It is also reported when `npm pack` fails (`npm` must be on the `PATH`), when attw output cannot be read, or when the package ships no types. The check runs only when `exports` has no finding. Fix. Follow the link in the hint, and make `exports` and the `.d.ts` files resolve their types for every entry point.
+
 ### CONFORMANCE:EXPORTS_INVALID {#conformance-exports-invalid}
 
 Cause. A string `exports` target must start with `./` and be a file inside the package. A target that is not a string, an array, an object, or `null` is rejected. `null` is skipped. `exports` missing, not an object, or empty is rejected, and so is a mix of subpath keys and condition keys. In a condition object, `types` must be first. `./internal`, `./internal/…`, and a key that starts with `./internal*` are rejected. Profile `plugin` also requires `.` and `./module`. A subpath pattern (`*`) is not existence-checked. Fix. Point each string target at a `./` file inside the package, keep `exports` a non-empty object of one shape, put `types` first, remove internal subpaths, and add `.` and `./module` for a plugin.
@@ -531,6 +535,10 @@ Cause. Profile `plugin` does not set `gwen.type` to `"plugin"`, `license` is emp
 ### CONFORMANCE:PRIVATE_EXPORT {#conformance-private-export}
 
 Cause. A value exported by a subpath of `exports` (any subpath listed there, public or not) starts with `_`. Names that start with `__` are not read. One finding per value, on the built types file. Fix. Rename the value without the underscore, or stop exporting it.
+
+### CONFORMANCE:PUBLINT {#conformance-publint}
+
+Cause. `publint --strict` reports a message, and warnings count as errors. The finding repeats the publint text and points at the line of the field in `package.json`. It is also reported when publint cannot pack or parse the package. The check runs only when `exports` has no finding. Fix. Change the field as the message says.
 
 ### CONFORMANCE:README_EXPORT_MISSING {#conformance-readme-export-missing}
 

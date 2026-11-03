@@ -160,10 +160,14 @@ describe("the built gwen-conformance binary", () => {
       const summary = lines.pop();
       const findings = lines;
       const publint = findings.filter((line) => line.startsWith("CONFORMANCE:PUBLINT "));
-      expect(findings.filter((line) => !line.startsWith("CONFORMANCE:PUBLINT "))).toEqual([attwLine]);
+      expect(findings.filter((line) => !line.startsWith("CONFORMANCE:PUBLINT "))).toEqual([
+        attwLine,
+      ]);
       expect(publint.length).toBeLessThanOrEqual(1);
       for (const line of publint) {
-        expect(line.startsWith("CONFORMANCE:PUBLINT package.json:1 publint failed: "), line).toBe(true);
+        expect(line.startsWith("CONFORMANCE:PUBLINT package.json:1 publint failed: "), line).toBe(
+          true,
+        );
       }
       expect(summary).toBe(`CONFORMANCE: ${findings.length} findings (8 checks)`);
       expect(run.stderr).toBe("");

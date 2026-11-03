@@ -496,6 +496,10 @@ Avertissement seulement. Déclaré sur `CameraErrorCodes` et jamais levé (`pack
 
 ## @gwenjs/plugin-conformance
 
+### CONFORMANCE:ATTW {#conformance-attw}
+
+Cause. `attw --pack --profile esm-only` signale un problème sur l'archive que `npm pack` fait du paquet. Un constat par type de problème et par point d'entrée, avec les résolutions en échec, par exemple `UntypedResolution at "./module" (node16-esm, bundler)`. Un problème qui nomme un fichier et aucun point d'entrée donne un constat par type de problème et par fichier, par exemple `FalseCJS in "dist/index.d.cts"`. Le profil ignore `node10` et `node16-cjs`. L'archive est faite avec `npm pack --ignore-scripts` : les scripts de cycle de vie ne s'exécutent pas, à la différence de `attw --pack`. Le `.attw.json` du paquet est ignoré : attw s'exécute hors du paquet, un paquet ne peut donc pas exclure ses propres points d'entrée. Il est aussi signalé quand `npm pack` échoue (`npm` doit être dans le `PATH`), quand la sortie d'attw est illisible, ou quand le paquet ne livre aucun type. La vérification ne s'exécute que si `exports` n'a aucun constat. Fix. Suivez le lien de l'indice, et faites que `exports` et les fichiers `.d.ts` résolvent leurs types pour chaque point d'entrée.
+
 ### CONFORMANCE:EXPORTS_INVALID {#conformance-exports-invalid}
 
 Cause. Une cible `exports` qui est une chaîne doit commencer par `./` et être un fichier du paquet. Une cible qui n'est ni une chaîne, ni un tableau, ni un objet, ni `null` est refusée. `null` est ignoré. `exports` absent, qui n'est pas un objet, ou vide est refusé, ainsi qu'un mélange de clés de sous-chemin et de clés de condition. Dans un objet de conditions, `types` doit être la première clé. `./internal`, `./internal/…` et une clé qui commence par `./internal*` sont refusés. Le profil `plugin` exige aussi `.` et `./module`. Un motif (`*`) n'est pas vérifié sur le disque. Fix. Faites commencer chaque cible chaîne par `./` vers un fichier du paquet, gardez `exports` comme un objet non vide d'une seule forme, mettez `types` en premier, retirez les sous-chemins internes, et ajoutez `.` et `./module` pour un plugin.
@@ -531,6 +535,10 @@ Cause. Le profil `plugin` ne met pas `gwen.type` à `"plugin"`, `license` est vi
 ### CONFORMANCE:PRIVATE_EXPORT {#conformance-private-export}
 
 Cause. Une valeur exportée par un sous-chemin de `exports` (tout sous-chemin listé, public ou non) commence par `_`. Les noms qui commencent par `__` ne sont pas lus. Un constat par valeur, sur le fichier de types construit. Fix. Renommez la valeur sans le tiret bas, ou cessez de l'exporter.
+
+### CONFORMANCE:PUBLINT {#conformance-publint}
+
+Cause. `publint --strict` signale un message, et les avertissements comptent comme des erreurs. Le constat reprend le texte de publint et pointe la ligne du champ dans `package.json`. Il est aussi signalé quand publint ne peut pas empaqueter ou lire le paquet. La vérification ne s'exécute que si `exports` n'a aucun constat. Fix. Changez le champ comme le message l'indique.
 
 ### CONFORMANCE:README_EXPORT_MISSING {#conformance-readme-export-missing}
 
