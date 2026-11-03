@@ -1,6 +1,7 @@
 // packages/camera-core/src/use-xr-camera.ts
 import { onCleanup, useEngine } from "@gwenjs/core";
-import { useEntityId, useComponent } from "@gwenjs/core/actor";
+import { useEntityId } from "@gwenjs/core/actor";
+import { useComponent } from "@gwenjs/core/system";
 import { Camera } from "./components";
 import { getCameraStores } from "./camera-stores";
 import type { XRCameraHandle, XRViewData } from "./xr-camera-handle";

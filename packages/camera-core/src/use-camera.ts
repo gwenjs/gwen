@@ -1,5 +1,6 @@
 import { onCleanup, useEngine } from "@gwenjs/core";
-import { useEntityId, useComponent } from "@gwenjs/core/actor";
+import { useEntityId } from "@gwenjs/core/actor";
+import { useComponent } from "@gwenjs/core/system";
 import { Camera, CameraBounds, CameraShake } from "./components";
 import { getCameraStores } from "./camera-stores";
 import type { Camera2DHandle, Camera3DHandle, BoundsOpts2D, BoundsOpts3D } from "./camera-handle";
