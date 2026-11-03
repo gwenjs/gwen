@@ -71,11 +71,15 @@ export const GameScene = defineScene('game', () => {
 })
 ```
 
-::: tip Les pools sont gérés par la scène
-`useActorPool()` est la seule façon correcte d'utiliser un pool. N'importez pas la valeur
-de `defineActorPool` pour appeler `.acquire()` directement depuis les systèmes ou acteurs —
-passez plutôt le handle retourné par `useActorPool()`. Cela place l'installation des plugins,
-le cycle de vie et le nettoyage sous le contrôle de la scène.
+::: tip La définition n'est pas le pool
+`defineActorPool()` retourne une définition avec un `plugin` et un `actorName`. Elle n'a pas
+de `acquire()`. `useActorPool()` est le seul moyen d'obtenir le handle qui acquiert et libère —
+passez ce handle aux systèmes et aux acteurs.
+
+Dans une factory de scène, `useActorPool()` installe aussi le pool et le détruit à la sortie de
+la scène. Dans tout autre contexte moteur (`engine.run()`, le `setup()` d'un plugin, un système),
+il retourne seulement le handle et n'enregistre rien. Hors d'un moteur, il lève
+`CORE:OUTSIDE_ENGINE_CONTEXT`.
 :::
 
 ## Passer le pool aux systèmes
@@ -255,7 +259,7 @@ puis réglez `size` sur `peakActive + 20%` de marge de sécurité.
 
 ## Typer un paramètre pool
 
-Trois niveaux de précision selon le besoin :
+Deux niveaux de précision selon le besoin :
 
 ```ts
 import type { ActorPool } from '@gwenjs/core/actor'
@@ -269,17 +273,11 @@ function logStats(pool: ActorPool) {
 function spawnBullet(pool: ActorPool<BulletProps>) {
   pool.acquire({ speed: 800, x: 0, y: 0 })
 }
-
-// Pool exact — inféré depuis la définition, sans génériques à écrire
-function spawnBullet(pool: typeof BulletPool) {
-  pool.acquire({ speed: 800, x: 0, y: 0 })
-}
 ```
 
-`typeof BulletPool` est le plus ergonomique quand on fait référence à un pool précis —
-TypeScript infère `Props` et `PublicAPI` automatiquement depuis l'appel à `defineActorPool`.
-Utilise `ActorPool<Props>` pour écrire un utilitaire qui fonctionne avec n'importe quel pool
-d'un type d'acteur donné.
+`BulletPool` est une définition, pas un pool : `typeof BulletPool` n'a pas de `acquire()`.
+Typez un paramètre pool avec `ActorPool<Props, PublicAPI>` et passez-lui la valeur de
+`useActorPool(BulletPool)`.
 
 ## Hooks observables
 
@@ -344,7 +342,7 @@ onEnter(async () => {
 
 | Scope | Comportement |
 |---|---|
-| `useActorPool(pool)` dans une scène | `destroyAll()` à la sortie de la scène |
+| `useActorPool(definition)` dans une scène | `destroyAll()` à la sortie de la scène |
 | `scope: 'global'` | `destroyAll()` à `engine:stop` |
 | `scope: CustomScope` | `onMount` à l'installation, `onUnmount` à l'arrêt |
 | Aucun (défaut) | Gestion manuelle de `destroyAll()` |
@@ -354,7 +352,7 @@ onEnter(async () => {
 | Export | Depuis |
 |---|---|
 | `defineActorPool(actor, options)` | `@gwenjs/core/actor` |
-| `useActorPool(pool)` → `ActorPool` | `@gwenjs/core/actor` |
+| `useActorPool(definition)` → `ActorPool` | `@gwenjs/core/actor` |
 | `onRelease(fn)` | `@gwenjs/core/actor` |
 | `onReset(fn)` | `@gwenjs/core/actor` |
 | `PoolExhaustedError` | `@gwenjs/core/actor` |
@@ -377,9 +375,16 @@ standard), enregistrez le plugin du pool manuellement **après** le plugin de l'
 
 ```ts
 // main.ts — seulement nécessaire hors d'un projet Gwen standard
-await engine.use(BulletActor._plugin)  // l'acteur en premier
-await engine.use(BulletPool.plugin)    // puis le pool
+await engine.use(BulletActor.plugin)  // l'acteur en premier
+await engine.use(BulletPool.plugin)   // puis le pool
+const bulletPool = engine.run(() => useActorPool(BulletPool))
 ```
+
+`BulletPool.plugin` requiert le plugin de l'acteur. L'installer d'abord est obligatoire : sans lui,
+`engine.use()` rejette `CORE:PLUGIN_DEPENDENCY_MISSING`. Appeler `acquire()` ou `release()` avant
+`engine.use(BulletPool.plugin)` lève `CORE:ACTOR_PLUGIN_NOT_READY`.
+Tant que le plugin du pool est installé, `engine.unuse(BulletActor.plugin.name)` rejette
+`CORE:PLUGIN_IN_USE`. Désinstallez d'abord le pool.
 
 ## Prochaines étapes
 

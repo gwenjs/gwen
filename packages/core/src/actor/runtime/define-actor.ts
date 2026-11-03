@@ -781,6 +781,7 @@ export function defineActor<Props, PublicAPI>(
   }
 
   return {
+    plugin: _plugin,
     _plugin,
     _instances,
     _prefab: prefab,

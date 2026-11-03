@@ -54,8 +54,10 @@ export function _withSceneContext(factory: () => void): SceneSetupContext {
   const ctx: SceneSetupContext = { systems: [], handles: [] };
 
   // Build an idempotent registrar and expose it via engine.provide() so that
-  // useActor() / useActorPool() can call engine.inject(SCENE_REGISTRAR_KEY)
+  // useActor() / useActorPool() can read it with engine.tryInject(SCENE_REGISTRAR_KEY)
   // without importing anything from this module (no actor→scene coupling).
+  // The service is never removed, so useActorPool() also checks that the active
+  // GwenScope is a scene scope before it uses the registrar.
   const registrar: SceneRegistrar = {
     register(plugin: GwenPlugin): void {
       if (ctx.systems.includes(plugin)) return;

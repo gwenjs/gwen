@@ -8,8 +8,9 @@ import { CoreErrorCodes, GwenActorError } from "../../../engine/engine-errors";
  *
  * @example
  * ```ts
+ * const enemyPool = useActorPool(EnemyPool)
  * try {
- *   const id = EnemyPool.acquire({ hp: 100, x: 200, y: 300 })
+ *   const id = enemyPool.acquire({ hp: 100, x: 200, y: 300 })
  * } catch (e) {
  *   if (e instanceof PoolExhaustedError) {
  *     // pool full — skip this spawn

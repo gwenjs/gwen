@@ -316,7 +316,7 @@ const Actor = defineActor(Prefab, () => {
   seen = health.current;
 });
 
-await engine.use(Actor._plugin);
+await engine.use(Actor.plugin);
 engine.run(() => {
   Actor._plugin.spawn();
 });

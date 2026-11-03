@@ -148,11 +148,13 @@ export interface ActorPlugin<Props> extends GwenPlugin {
  * Definition of an actor produced by `defineActor()`.
  */
 export interface ActorDefinition<Props, PublicAPI> {
-  /** Internal ECS plugin — pass to `engine.use()`. */
+  /** ECS plugin of the actor — pass to `engine.use()`. Same object as `_plugin`. */
+  readonly plugin: GwenPlugin;
+  /** Internal ECS plugin, with `spawn` and `despawn`. Same object as `plugin`. @internal */
   readonly _plugin: ActorPlugin<Props>;
-  /** Live instance registry (entityId → instance). */
+  /** Live instance registry (entityId → instance). @internal */
   readonly _instances: Map<EntityId, ActorInstance<PublicAPI>>;
-  /** Prefab declaring memory layout. */
+  /** Prefab declaring memory layout. @internal */
   readonly _prefab: PrefabDefinition<readonly ComponentDef[]>;
   /** Debug name (injected by Vite transform, else 'anonymous'). @internal */
   readonly __actorName__: string;

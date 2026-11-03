@@ -337,7 +337,7 @@ function defineActor<Props = void>(
 | `prefab` | `PrefabDefinition` | Component set and defaults, defined with `definePrefab()` |
 | `factory` | `(props?) => object` | Runs once per spawn — register lifecycle hooks here, return public API |
 
-**Returns:** `ActorDef` — use `ActorDef._plugin` to spawn and despawn instances.
+**Returns:** `ActorDef` — use `ActorDef.plugin` to install the actor, and `ActorDef._plugin` to spawn and despawn instances.
 
 **Example:**
 ```ts check
@@ -382,7 +382,7 @@ export const SpawnSystem = defineSystem(() => {
 });
 ```
 
-Register the actor with `engine.use(EnemyActor._plugin)` before the scene runs. `spawn()` inside a `defineScene()` factory throws `CORE:ACTOR_PLUGIN_NOT_READY`. The system above is the call that type-checks.
+Register the actor with `engine.use(EnemyActor.plugin)` before the scene runs. `spawn()` inside a `defineScene()` factory throws `CORE:ACTOR_PLUGIN_NOT_READY`. The system above is the call that type-checks.
 
 #### useActor(ActorDef)
 
