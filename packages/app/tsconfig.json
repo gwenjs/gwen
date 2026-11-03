@@ -22,6 +22,9 @@
       "path": "../kit"
     },
     {
+      "path": "../plugin-conformance"
+    },
+    {
       "path": "../renderer-core"
     },
     {

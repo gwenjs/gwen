@@ -398,8 +398,10 @@ jobs:
             fi
             pnpm exec attw --pack --profile esm-only "$dir"
           done
-      - name: Public type snapshots
+      - name: Public API snapshots
         run: node scripts/public-api-types.mjs
+      - name: Public API script tests
+        run: node --test scripts/public-api-entry.test.mjs
 
   storage-bench:
     name: Storage bench
