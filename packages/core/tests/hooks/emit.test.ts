@@ -52,7 +52,7 @@ describe("emit()", () => {
   it("throws with [GWEN] prefix when called outside engine context", () => {
     engineContext.unset();
     expect(() => emit("emit-test:died")).toThrow(
-      /^\[useEngine\(\)\] Called outside defineSystem\(\) or defineActor\(\) or defineScene\(\) or plugin setup\(\) or engine\.run\(\)\.[\s\S]*\(CORE:OUTSIDE_ENGINE_CONTEXT\)$/,
+      /^\[emit\(\)\] Called outside defineSystem\(\) or defineActor\(\) or defineScene\(\) or plugin setup\(\) or engine\.run\(\)\.[\s\S]*\(CORE:OUTSIDE_ENGINE_CONTEXT\)$/,
     );
   });
 });
