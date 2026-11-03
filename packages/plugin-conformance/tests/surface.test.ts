@@ -1,14 +1,20 @@
-import { rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { checkPluginPackage, ConformanceErrorCodes } from "@gwenjs/plugin-conformance";
+import {
+  checkPluginPackage,
+  checkSnapshot,
+  ConformanceErrorCodes,
+} from "@gwenjs/plugin-conformance";
 import type { ConformanceFinding, ConformanceReport } from "@gwenjs/plugin-conformance";
 import {
   createFixture,
   editManifest,
   goodPluginRoot,
   manifestExports,
+  SNAPSHOT_FILE,
   writeManifestText,
+  writeSource,
 } from "./helpers/fixture.js";
 
 const cleanups: Array<() => Promise<void>> = [];
@@ -177,6 +183,7 @@ describe("checkPluginPackage", () => {
     await editManifest(root, (manifest) => {
       delete manifestExports(manifest)["./module"];
     });
+    await writeSource(root, SNAPSHOT_FILE, '{".":{"values":["ready"],"types":[]}}\n');
 
     const report = await checkPluginPackage({ root, profile: "package" });
     expect(report.checks).toContain("exports");
@@ -188,7 +195,13 @@ describe("checkPluginPackage", () => {
       root: goodPluginRoot(),
       profile: "plugin",
     });
-    expect(report.checks).toEqual(["exports", "hooks", "manifest"]);
+    expect(report.checks).toEqual([
+      "exports",
+      "snapshot-values",
+      "snapshot-types",
+      "hooks",
+      "manifest",
+    ]);
     expect(report.findings).toEqual([]);
   });
 
@@ -690,5 +703,365 @@ ${subpaths.join(",\n")}
     expect(last.message).toBe(
       `export "./dist/missing-3999.js" of subpath "./subpath-3999-${pad}" is missing`,
     );
+  });
+});
+
+function snapshotText(entries: Record<string, { values: string[]; types: string[] }>): string {
+  return `${JSON.stringify(entries)}\n`;
+}
+
+function messagesOf(report: ConformanceReport): string[] {
+  return report.findings.map((finding) => finding.message);
+}
+
+async function setExports(root: string, value: unknown): Promise<void> {
+  const text = await readFile(path.join(root, "package.json"), "utf8");
+  const manifest: Record<string, unknown> = JSON.parse(text);
+  manifest.exports = value;
+  await writeManifestText(root, JSON.stringify(manifest));
+}
+
+async function appendTo(root: string, relative: string, extra: string): Promise<void> {
+  const text = await readFile(path.join(root, relative), "utf8");
+  await writeSource(root, relative, `${text}${extra}`);
+}
+
+describe("snapshot checks of checkPluginPackage", () => {
+  it("skips the snapshot checks when exports has a finding", async () => {
+    const root = await openPackage();
+    await rm(path.join(root, "dist/index.js"));
+    await rm(path.join(root, SNAPSHOT_FILE));
+
+    const report = await checkPluginPackage({ root, profile: "plugin" });
+    expect(report.checks).toEqual(["exports", "hooks", "manifest"]);
+    expect(messagesOf(report)).toEqual(['export "./dist/index.js" of subpath "." is missing']);
+  });
+});
+
+describe("checkSnapshot", () => {
+  it("reports a value added and a value removed against public-api.snap.json", async () => {
+    const root = await openPackage();
+    await writeSource(
+      root,
+      SNAPSHOT_FILE,
+      snapshotText({
+        ".": { values: ["ghost"], types: [] },
+        "./module": { values: ["default"], types: [] },
+      }),
+    );
+
+    const report = await checkSnapshot(root);
+    expect(report.checks).toEqual(["snapshot-values", "snapshot-types"]);
+    expect(messagesOf(report)).toEqual([
+      'public-api.snap.json lists value "ghost" for subpath "." that the build does not export',
+      'subpath "." exports value "ready" that public-api.snap.json does not list',
+    ]);
+    for (const finding of report.findings) {
+      expect(finding.code).toBe(ConformanceErrorCodes.SNAPSHOT_MISMATCH);
+      expect(finding.file).toBe(SNAPSHOT_FILE);
+      expect(finding.line).toBeUndefined();
+      expect(finding.hint.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("reports a type export missing from the snapshot", async () => {
+    const root = await openPackage();
+    await appendTo(root, "dist/index.d.ts", "export interface Extra {}\n");
+    const message = 'subpath "." exports type "Extra" that public-api.snap.json does not list';
+
+    const report = await checkSnapshot(root);
+    expect(messagesOf(report)).toEqual([message]);
+    expect(report.findings[0]?.code).toBe(ConformanceErrorCodes.SNAPSHOT_MISMATCH);
+    const full = await checkPluginPackage({ root, profile: "plugin" });
+    expect(messagesOf(full)).toEqual([message]);
+  });
+
+  it("lists enums and classes as values and aliases as types", async () => {
+    const root = await openPackage();
+    await writeSource(
+      root,
+      "dist/index.d.ts",
+      [
+        "export declare enum Mode { A }",
+        "export declare class Box {}",
+        "export type Id = string;",
+        "export declare const impl: number;",
+        "export type { impl as Impl };",
+        "",
+      ].join("\n"),
+    );
+    await writeSource(
+      root,
+      SNAPSHOT_FILE,
+      snapshotText({
+        ".": { values: ["Box", "Mode", "impl"], types: ["Id", "Impl"] },
+        "./module": { values: ["default"], types: [] },
+      }),
+    );
+
+    const report = await checkSnapshot(root);
+    expect(report.checks).toEqual(["snapshot-values", "snapshot-types"]);
+    expect(report.findings).toEqual([]);
+  });
+
+  it("reports an underscore value in a public entry", async () => {
+    const root = await openPackage();
+    await appendTo(
+      root,
+      "dist/index.d.ts",
+      "export declare const _hidden: number;\nexport declare const __brand: number;\n",
+    );
+    await writeSource(
+      root,
+      SNAPSHOT_FILE,
+      snapshotText({
+        ".": { values: ["_hidden", "ready"], types: [] },
+        "./module": { values: ["default"], types: [] },
+      }),
+    );
+
+    const report = await checkSnapshot(root);
+    expect(report.findings).toHaveLength(1);
+    const finding = requireFinding(report.findings[0]);
+    expect(finding.code).toBe(ConformanceErrorCodes.PRIVATE_EXPORT);
+    expect(finding.message).toBe('value "_hidden" of subpath "." starts with "_"');
+    expect(finding.file).toBe("dist/index.d.ts");
+  });
+
+  it("reports a missing or invalid snapshot file once", async () => {
+    const missing = await openPackage();
+    const invalid = await openPackage();
+    const shape = await openPackage();
+    const list = await openPackage();
+    const directory = await openPackage();
+    await rm(path.join(missing, SNAPSHOT_FILE));
+    await writeSource(invalid, SNAPSHOT_FILE, "{");
+    await writeSource(shape, SNAPSHOT_FILE, '{".":{"values":"ready","types":[]}}');
+    await writeSource(list, SNAPSHOT_FILE, "[]");
+    await rm(path.join(directory, SNAPSHOT_FILE));
+    await mkdir(path.join(directory, SNAPSHOT_FILE));
+
+    expect(messagesOf(await checkSnapshot(missing))).toEqual(["public-api.snap.json is missing"]);
+    expect(messagesOf(await checkSnapshot(invalid))).toEqual([
+      "public-api.snap.json is not valid JSON",
+    ]);
+    const invalidShape = await checkSnapshot(shape);
+    expect(messagesOf(invalidShape)).toEqual(["public-api.snap.json has an invalid shape"]);
+    expect(invalidShape.findings[0]?.code).toBe(ConformanceErrorCodes.SNAPSHOT_MISMATCH);
+    expect(messagesOf(await checkSnapshot(list))).toEqual([
+      "public-api.snap.json has an invalid shape",
+    ]);
+    const unreadable = await checkSnapshot(directory);
+    expect(messagesOf(unreadable)).toEqual(["public-api.snap.json cannot be read (EISDIR)"]);
+    expect(unreadable.findings[0]?.code).toBe(ConformanceErrorCodes.SNAPSHOT_MISMATCH);
+    expect(unreadable.findings[0]?.hint).not.toContain("Create");
+  });
+
+  it("reports a package.json that is missing", async () => {
+    const root = await openPackage();
+    await rm(path.join(root, "package.json"));
+
+    const report = await checkSnapshot(root);
+    expect(report.checks).toEqual(["snapshot-values", "snapshot-types"]);
+    expect(messagesOf(report)).toEqual(["package.json is missing"]);
+    expect(report.findings[0]?.code).toBe(ConformanceErrorCodes.MANIFEST);
+  });
+
+  it("reports a snapshot subpath that exports does not have and an exports subpath missing from the snapshot", async () => {
+    const root = await openPackage();
+    await writeSource(
+      root,
+      SNAPSHOT_FILE,
+      snapshotText({
+        ".": { values: ["ready"], types: [] },
+        "./extra": { values: [], types: [] },
+      }),
+    );
+
+    const report = await checkSnapshot(root);
+    expect(messagesOf(report)).toEqual([
+      'public-api.snap.json lists subpath "./extra" that exports does not have',
+      'subpath "./module" is in exports but not in public-api.snap.json',
+    ]);
+  });
+
+  it("reports a subpath whose module entry is not built", async () => {
+    const partial = await openPackage();
+    const unbuilt = await openPackage();
+    await rm(path.join(partial, "dist/module.d.ts"));
+    await rm(path.join(partial, "dist/module.js"));
+    await rm(path.join(unbuilt, "dist"), { recursive: true });
+
+    expect(messagesOf(await checkSnapshot(partial))).toEqual([
+      'subpath "./module" declares "./dist/module.d.ts", which is not built',
+    ]);
+    const report = await checkSnapshot(unbuilt);
+    expect(messagesOf(report)).toEqual([
+      'subpath "." declares "./dist/index.d.ts", which is not built',
+      'subpath "./module" declares "./dist/module.d.ts", which is not built',
+    ]);
+    for (const finding of report.findings) {
+      expect(finding.code).toBe(ConformanceErrorCodes.SNAPSHOT_MISMATCH);
+      expect(finding.file).toBe(SNAPSHOT_FILE);
+    }
+  });
+
+  it("never requires a subpath whose target is a pattern or not a module entry", async () => {
+    const root = await openPackage();
+    await writeSource(root, "dist/data.json", "{}\n");
+    await editManifest(root, (manifest) => {
+      const subpaths = manifestExports(manifest);
+      subpaths["./data"] = "./dist/data.json";
+      subpaths["./x/*"] = "./dist/x/*.js";
+      subpaths["./y/*"] = { types: "./dist/y/*.d.ts" };
+    });
+
+    const report = await checkSnapshot(root);
+    expect(report.checks).toEqual(["snapshot-values", "snapshot-types"]);
+    expect(report.findings).toEqual([]);
+  });
+
+  it("accepts an empty snapshot entry for a package with no public value", async () => {
+    const root = await openPackage();
+    await editManifest(root, (manifest) => {
+      delete manifestExports(manifest)["./module"];
+    });
+    await writeSource(root, "dist/index.d.ts", "export interface Only {}\n");
+    await writeSource(root, SNAPSHOT_FILE, snapshotText({ ".": { values: [], types: ["Only"] } }));
+    const bare = await openPackage();
+    await editManifest(bare, (manifest) => {
+      delete manifestExports(manifest)["./module"];
+    });
+    await writeSource(bare, "dist/index.d.ts", "export {};\n");
+    await writeSource(bare, SNAPSHOT_FILE, snapshotText({ ".": { values: [], types: [] } }));
+
+    for (const pkg of [root, bare]) {
+      const report = await checkSnapshot(pkg);
+      expect(report.checks).toEqual(["snapshot-values", "snapshot-types"]);
+      expect(report.findings).toEqual([]);
+    }
+  });
+
+  it("shares no state between two packages checked in sequence", async () => {
+    const full = await openPackage();
+    const single = await openPackage();
+    await editManifest(single, (manifest) => {
+      delete manifestExports(manifest)["./module"];
+    });
+    await writeSource(
+      single,
+      SNAPSHOT_FILE,
+      snapshotText({ ".": { values: ["ready"], types: [] } }),
+    );
+    await appendTo(full, "dist/index.d.ts", "export interface Extra {}\n");
+
+    const extra = ['subpath "." exports type "Extra" that public-api.snap.json does not list'];
+    expect(messagesOf(await checkSnapshot(full))).toEqual(extra);
+    expect((await checkSnapshot(single)).findings).toEqual([]);
+    expect(messagesOf(await checkSnapshot(full))).toEqual(extra);
+  });
+
+  it("reports a subpath whose target declares no types or import file", async () => {
+    const root = await openPackage();
+    await setExports(root, {
+      ".": { import: { types: "./dist/index.d.ts", default: "./dist/index.js" } },
+      "./module": { types: "./dist/module.d.ts", import: "./dist/module.js" },
+      "./extra": { default: "./dist/index.js" },
+      "./list": ["./dist/index.js"],
+      "./blocked": null,
+    });
+    await writeSource(
+      root,
+      SNAPSHOT_FILE,
+      snapshotText({
+        ".": { values: ["WRONG"], types: [] },
+        "./module": { values: ["default"], types: [] },
+        "./extra": { values: ["WRONG"], types: [] },
+        "./list": { values: ["WRONG"], types: [] },
+      }),
+    );
+    const messages = [
+      'subpath "." declares no types or import file',
+      'subpath "./extra" declares no types or import file',
+      'subpath "./list" declares no types or import file',
+    ];
+
+    const report = await checkSnapshot(root);
+    expect(messagesOf(report)).toEqual(messages);
+    for (const finding of report.findings) {
+      expect(finding.code).toBe(ConformanceErrorCodes.SNAPSHOT_MISMATCH);
+      expect(finding.file).toBe(SNAPSHOT_FILE);
+    }
+    const full = await checkPluginPackage({ root, profile: "plugin" });
+    expect(messagesOf(full)).toEqual(messages);
+  });
+
+  it("splits re-exports into values and types", async () => {
+    const root = await openPackage();
+    await writeSource(
+      root,
+      "dist/index.d.ts",
+      [
+        'export { ready } from "./impl.js";',
+        'export { type T, helper as aliased } from "./impl.js";',
+        'export type * from "./shapes.js";',
+        "",
+      ].join("\n"),
+    );
+    await writeSource(
+      root,
+      "dist/impl.d.ts",
+      [
+        "export declare const ready: boolean;",
+        "export declare const helper: number;",
+        "export interface T {}",
+        "",
+      ].join("\n"),
+    );
+    await writeSource(root, "dist/shapes.d.ts", "export interface Shape {}\n");
+    await writeSource(
+      root,
+      SNAPSHOT_FILE,
+      snapshotText({
+        ".": { values: ["aliased", "ready"], types: ["Shape", "T"] },
+        "./module": { values: ["default"], types: [] },
+      }),
+    );
+
+    expect((await checkSnapshot(root)).findings).toEqual([]);
+    await writeSource(
+      root,
+      SNAPSHOT_FILE,
+      snapshotText({
+        ".": { values: ["aliased"], types: ["Shape", "T", "ready"] },
+        "./module": { values: ["default"], types: [] },
+      }),
+    );
+    expect(messagesOf(await checkSnapshot(root))).toEqual([
+      'public-api.snap.json lists type "ready" for subpath "." that the build does not export',
+      'subpath "." exports value "ready" that public-api.snap.json does not list',
+    ]);
+  });
+
+  it.each([
+    ["the string form of exports", "./dist/index.d.ts"],
+    [
+      "conditions at the root of exports",
+      { types: "./dist/index.d.ts", import: "./dist/index.js" },
+    ],
+    ["a types.import target", { types: { import: "./dist/index.d.ts" }, import: "./dist/gone.js" }],
+    ["an import-only target read as JavaScript", { import: "./dist/index.js" }],
+  ])("reads %s", async (_name, exportsField) => {
+    const root = await openPackage();
+    await setExports(root, exportsField);
+    const listing = (values: string[]) => snapshotText({ ".": { values, types: [] } });
+    await writeSource(root, SNAPSHOT_FILE, listing(["ready"]));
+    expect((await checkSnapshot(root)).findings).toEqual([]);
+
+    await writeSource(root, SNAPSHOT_FILE, listing(["WRONG"]));
+    expect(messagesOf(await checkSnapshot(root))).toEqual([
+      'public-api.snap.json lists value "WRONG" for subpath "." that the build does not export',
+      'subpath "." exports value "ready" that public-api.snap.json does not list',
+    ]);
   });
 });

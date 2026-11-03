@@ -1,6 +1,6 @@
 {
   ".": {
-    "values": ["ConformanceErrorCodes", "checkPluginPackage"],
+    "values": ["ConformanceErrorCodes", "checkPluginPackage", "checkSnapshot"],
     "types": [
       "CheckPluginPackageOptions",
       "ConformanceCheckId",
