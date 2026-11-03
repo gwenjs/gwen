@@ -1,7 +1,8 @@
-import { mkdtemp, cp, readFile, writeFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, cp, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { afterEach } from "vitest";
 
 const fixtureDir = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -105,6 +106,13 @@ export async function writeSource(root: string, relative: string, text: string):
   await writeFile(path.join(root, relative), text);
 }
 
+/** Like {@link writeSource}, and creates the missing directories of `relative`. */
+export async function writeDeep(root: string, relative: string, text: string): Promise<void> {
+  const full = path.join(root, relative);
+  await mkdir(path.dirname(full), { recursive: true });
+  await writeFile(full, text);
+}
+
 export function manifestExports(
   manifest: FixtureManifest,
 ): Record<string, string | ExportCondition> {
@@ -120,6 +128,22 @@ export async function stripPluginManifest(root: string): Promise<void> {
     delete manifest.gwen;
   });
   await rm(path.join(root, "LICENSE"), { force: true });
+}
+
+/**
+ * Register an `afterEach` that removes every temp copy of the clean fixture the returned opener
+ * made, and return that opener.
+ */
+export function fixtureOpener(): () => Promise<Fixture> {
+  const opened: Fixture[] = [];
+  afterEach(async () => {
+    for (const fixture of opened.splice(0)) await fixture.cleanup();
+  });
+  return async () => {
+    const fixture = await createFixture();
+    opened.push(fixture);
+    return fixture;
+  };
 }
 
 /** Time budget for a test that packs the fixture and runs publint and attw. */
