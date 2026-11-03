@@ -1,5 +1,8 @@
 import type { EngineFramePhaseMs, EngineStats } from "./engine-types.js";
 
+/** The part of {@link EngineStats} the recorder owns. The facade adds the hook listener count and the plugin names. */
+export type EngineFrameStats = Omit<EngineStats, "hookListeners" | "plugins">;
+
 /**
  * `targetFPS` and `debug` are the facade's readonly fields, copied once.
  * `entityCount` is `EngineEntities.count`, read when `snapshot` runs.
@@ -71,10 +74,10 @@ export class EngineStatsRecorder {
     this._frameCount++;
   }
 
-  snapshot(): EngineStats {
+  snapshot(): EngineFrameStats {
     const budgetMs = 1000 / this.deps.targetFPS;
     const memory = this.deps.linearMemory();
-    const stats: EngineStats = {
+    const stats: EngineFrameStats = {
       fps: this._fps,
       rawFrameTime: this._rawFrameTime,
       deltaTime: this._deltaTime,

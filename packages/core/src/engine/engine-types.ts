@@ -477,6 +477,15 @@ export interface EngineStats {
   phaseMs?: EngineFramePhaseMs;
   /** Present only when `phaseMs` is present. `true` when `phaseMs.total` exceeds `budgetMs`. */
   overBudget?: boolean;
+  /**
+   * Listeners registered on `engine.hooks` at the time of the call, every hook name included.
+   * `hookOnce` counts until it fires. `beforeEach` and `afterEach` spies are not counted.
+   * After `deprecateHook`, a removal made through the old name lowers this count, but the
+   * underlying hookable does not resolve deprecated names on removal and keeps the listener.
+   */
+  hookListeners: number;
+  /** Installed plugin names in install order. A new array on each call. */
+  plugins: readonly string[];
 }
 
 /**

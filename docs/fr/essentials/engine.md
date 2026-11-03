@@ -194,6 +194,8 @@ const lobby = await createEngine({ variant: "physics2d", wasmInstance: "auto", w
 | `wasmMemoryBytes` | `number` | Mémoire linéaire WASM en octets. Absent si le bridge n'a pas de mémoire |
 | `phaseMs` | `object` | Temps par phase en ms. Présent seulement si `__GWEN_DEV__` et `debug` sont vrais |
 | `overBudget` | `boolean` | Présent seulement avec `phaseMs`. `true` si `phaseMs.total` dépasse `budgetMs` |
+| `hookListeners` | `number` | Écouteurs enregistrés sur `engine.hooks`, tous noms de hook confondus. Un écouteur `hookOnce` compte jusqu'à son déclenchement |
+| `plugins` | `string[]` | Noms des plugins installés, dans l'ordre d'installation. Un nouveau tableau à chaque appel |
 
 En mode boucle externe (`engine.loop: 'external'`), avancez les frames manuellement avec `engine.advance(delta)` :
 
