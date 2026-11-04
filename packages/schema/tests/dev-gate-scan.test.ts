@@ -321,7 +321,10 @@ function walkSrc(dir: string, out: string[]): void {
   }
 }
 
-describe("dev gate scan", () => {
+// These tests walk every packages/*/src file and starve on a loaded CI runner (0.3 s alone).
+const SCAN_TEST_MS = 30_000;
+
+describe("dev gate scan", { timeout: SCAN_TEST_MS }, () => {
   it("accepts the lib guard and rejects a bare NODE_ENV read", () => {
     const guarded = `export function read() { if (${GWEN_DEV_GUARD}) return 1; return 0; }`;
     expect(scanSource(guarded, "guard.ts")).toEqual([]);
