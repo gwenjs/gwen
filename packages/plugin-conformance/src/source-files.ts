@@ -97,6 +97,31 @@ export async function listRuntimeFiles(root: string): Promise<readonly SourceFil
     .sort((left, right) => compareText(left.relative, right.relative));
 }
 
+/**
+ * A declaration file that sits under `src` or below a `tests`, `test` or `__tests__` directory.
+ * Only the `augment` check reads these: {@link listRuntimeFiles} and {@link listTestFiles} drop them.
+ */
+function isScannedDeclaration(relative: string): boolean {
+  const segments = relative.split("/");
+  const name = segments[segments.length - 1] ?? "";
+  if (!DECLARATION_FILE.test(name)) return false;
+  const directories = segments.slice(0, -1);
+  return (
+    directories[0] === "src" || directories.some((directory) => TEST_DIRECTORIES.has(directory))
+  );
+}
+
+/**
+ * The declaration files (`.d.ts`, `.d.mts`, `.d.cts`) of `src` and of the test directories, in
+ * path order. `node_modules`, `dist` and dot directories are not walked.
+ */
+export async function listDeclarationFiles(root: string): Promise<readonly SourceFile[]> {
+  return (await listFiles(root))
+    .map((full) => ({ relative: toRelative(root, full), full }))
+    .filter((file) => isScannedDeclaration(file.relative))
+    .sort((left, right) => compareText(left.relative, right.relative));
+}
+
 /** The `.js`, `.mjs`, `.cjs`, `.d.ts`, `.d.mts` and `.d.cts` files under `dist`, in path order. */
 export async function listDistFiles(root: string): Promise<readonly SourceFile[]> {
   return (await listFiles(path.join(root, "dist")))
