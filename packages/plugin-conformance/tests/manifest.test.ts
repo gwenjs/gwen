@@ -110,6 +110,7 @@ describe("checkPluginPackage manifest", () => {
         "publint",
         "attw",
         "readme",
+        "imports",
         "hooks",
         "test-mocks",
         "manifest",

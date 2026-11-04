@@ -11,6 +11,7 @@ export interface SourceFile {
 
 const SCRIPT_FILE = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$/;
 const DECLARATION_FILE = /\.d\.[mc]?ts$/;
+const DIST_FILE = /\.(js|mjs|d\.ts)$/;
 const TEST_NAME = /\.(test|spec)\./;
 const SETUP_NAME = /\.setup\./;
 const TEST_DIRECTORIES: ReadonlySet<string> = new Set(["tests", "test", "__tests__"]);
@@ -82,6 +83,25 @@ export async function listTestFiles(root: string): Promise<readonly SourceFile[]
   return (await listFiles(root))
     .map((full) => ({ relative: toRelative(root, full), full }))
     .filter((file) => isTestFile(file.relative))
+    .sort((left, right) => compareText(left.relative, right.relative));
+}
+
+/**
+ * The script files of `src` (not `*.d.ts`), in path order, whether they are test files or not.
+ * `node_modules`, `dist` and dot directories are not walked.
+ */
+export async function listRuntimeFiles(root: string): Promise<readonly SourceFile[]> {
+  return (await listFiles(path.join(root, "src")))
+    .map((full) => ({ relative: toRelative(root, full), full }))
+    .filter((file) => SCRIPT_FILE.test(file.relative) && !DECLARATION_FILE.test(file.relative))
+    .sort((left, right) => compareText(left.relative, right.relative));
+}
+
+/** The `.js`, `.mjs` and `.d.ts` files under `dist`, in path order. */
+export async function listDistFiles(root: string): Promise<readonly SourceFile[]> {
+  return (await listFiles(path.join(root, "dist")))
+    .map((full) => ({ relative: toRelative(root, full), full }))
+    .filter((file) => DIST_FILE.test(file.relative))
     .sort((left, right) => compareText(left.relative, right.relative));
 }
 
