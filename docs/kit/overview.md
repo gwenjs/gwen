@@ -140,6 +140,10 @@ The module package itself calls `gwen.addPlugin()` in its `setup()`. The `gwen.c
 - Drop a file in `src/modules/` for project-local modules (auto-discovered)
 - Add to `modules` in `gwen.config.ts` for npm packages
 
+## Type casts in the GWEN packages
+
+The sources of the GWEN packages (`packages/*/src`) pass four type gates in `oxlint.json`: no `as X` (except `as const`), no `!` non-null assertion, no `any`, no ts-ignore directive, and no ts-expect-error directive without a description. A cast stays only for a value that comes from WASM, a worker, parsed source code or a third-party type that TypeScript cannot check, or for a generic or heterogeneous storage case that TypeScript cannot express without a public type change (per-engine tables that store actors of different props, for example), or for a value that is built empty or pre-sized and filled afterwards (a Proxy target, a pre-sized buffer), or for a removal that the caller has proven, when TypeScript cannot express the proof. The file is then listed in the override of `oxlint.json` that turns off only `typescript/consistent-type-assertions`, and the cast carries `// boundary: <reason>` on the same line. Small package-local helpers in `src/internal/unchecked.ts` hold the casts that the caller proves: an indexed read inside a loop bound, a `pop()` on a non-empty array, a `Map.get()` on a key that is present, a brand cast, a WASM export table. A plugin `setup()` that needs the full engine calls `asFullEngine(engine)` from `@gwenjs/core/internal`. Plugin authors can follow the same rule: type the value when you can, and mark the boundary when you cannot.
+
 ## Next Steps
 
 - [Writing a Custom Plugin](/kit/custom-plugin) — Learn how to create runtime plugins
