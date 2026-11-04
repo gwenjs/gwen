@@ -4,7 +4,9 @@ import { FRAMEWORK_PROVIDES_KEYS } from "./framework-entries.generated.js";
 import { isRecord } from "./json.js";
 import type { PackageContext } from "./package-context.js";
 import {
+  isStringLiteralLike,
   lineOf,
+  listDeclarationFiles,
   listRuntimeFiles,
   listTestFiles,
   parseSource,
@@ -23,7 +25,7 @@ function memberName(name: ts.PropertyName): string | undefined {
   if (ts.isIdentifier(name) || ts.isStringLiteral(name) || ts.isNumericLiteral(name)) {
     return name.text;
   }
-  if (ts.isComputedPropertyName(name) && ts.isStringLiteral(name.expression)) {
+  if (ts.isComputedPropertyName(name) && isStringLiteralLike(name.expression)) {
     return name.expression.text;
   }
   return undefined;
@@ -73,10 +75,18 @@ function scanFile(file: SourceFile, text: string, own: string): ConformanceFindi
   return findings;
 }
 
-/** The files of `src` and the test files, once each: `src/__tests__/a.ts` is in both lists. */
+/**
+ * The script files of `src`, the test files and the declaration files of `src` and of the test
+ * directories, once each: `src/__tests__/a.ts` is in both of the first two lists.
+ */
 async function listScanned(root: string): Promise<readonly SourceFile[]> {
   const files = new Map<string, SourceFile>();
-  for (const file of [...(await listRuntimeFiles(root)), ...(await listTestFiles(root))]) {
+  const listed = [
+    ...(await listRuntimeFiles(root)),
+    ...(await listTestFiles(root)),
+    ...(await listDeclarationFiles(root)),
+  ];
+  for (const file of listed) {
     if (!files.has(file.relative)) files.set(file.relative, file);
   }
   return [...files.values()];
@@ -85,8 +95,9 @@ async function listScanned(root: string): Promise<readonly SourceFile[]> {
 /**
  * Augmentation rules: a `declare module` of a framework package other than `@gwenjs/schema` (the
  * package's own name and its subpaths are not reported), and a `GwenProvides` key of
- * `@gwenjs/schema` that the framework already declares. Every script file of `src` and every test
- * file is read. A file that cannot be read (any error but a missing one) rejects.
+ * `@gwenjs/schema` that the framework already declares. Every script file and every declaration
+ * file (`.d.ts`, `.d.mts`, `.d.cts`) of `src`, and every test file, is read; `dist` is not. A file
+ * that cannot be read (any error but a missing one) rejects.
  */
 export async function checkAugment(
   context: PackageContext,
