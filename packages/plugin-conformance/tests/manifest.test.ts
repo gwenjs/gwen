@@ -111,6 +111,7 @@ describe("checkPluginPackage manifest", () => {
         "attw",
         "readme",
         "imports",
+        "augment",
         "hooks",
         "test-mocks",
         "manifest",

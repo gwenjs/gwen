@@ -56,7 +56,7 @@ describe("the built gwen-conformance binary", () => {
 
     const run = await runBuiltCli(fixture.root);
 
-    expect(run.stdout).toBe("CONFORMANCE: 0 findings (10 checks)\n");
+    expect(run.stdout).toBe("CONFORMANCE: 0 findings (11 checks)\n");
     expect(run.stderr).toBe("");
     expect(run.code).toBe(0);
   });
@@ -76,7 +76,7 @@ describe("the built gwen-conformance binary", () => {
       [
         "CONFORMANCE:MANIFEST package.json:1 LICENSE file is missing",
         'CONFORMANCE:MANIFEST package.json:1 gwen.type must be "plugin"',
-        "CONFORMANCE: 2 findings (10 checks)",
+        "CONFORMANCE: 2 findings (11 checks)",
         "",
       ].join("\n"),
     );
@@ -169,7 +169,7 @@ describe("the built gwen-conformance binary", () => {
           true,
         );
       }
-      expect(summary).toBe(`CONFORMANCE: ${findings.length} findings (10 checks)`);
+      expect(summary).toBe(`CONFORMANCE: ${findings.length} findings (11 checks)`);
       expect(run.stderr).toBe("");
       expect(run.code).toBe(1);
     });
