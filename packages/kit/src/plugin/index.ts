@@ -1,6 +1,14 @@
 // packages/kit/src/plugin/index.ts
 export { definePlugin } from "../define-plugin.js";
-export type { GwenPluginFactory } from "../define-plugin.js";
+export type {
+  GwenDeclaredPlugin,
+  GwenPluginDeclaration,
+  GwenPluginDefinition,
+  GwenPluginFactory,
+  GwenPluginOptionsInput,
+  GwenPluginProvidedKeys,
+  GwenPluginSetupEngine,
+} from "../define-plugin.js";
 
 export { optionalService, watchService } from "./watch-service.js";
 

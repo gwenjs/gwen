@@ -331,7 +331,7 @@ en le créant au premier appel et en l'enregistrant via `engine.provide('viewpor
 import { getOrCreateViewportManager } from '@gwenjs/renderer-core'
 import { definePlugin } from '@gwenjs/kit/plugin'
 
-export const MyRendererPlugin = definePlugin((opts?: { container?: HTMLElement }) => ({
+export const MyRendererPlugin = definePlugin(() => ({
   name: 'renderer:my',
   setup(engine) {
     const viewports = getOrCreateViewportManager(engine)

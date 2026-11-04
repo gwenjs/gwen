@@ -40,7 +40,7 @@ declare module '@gwenjs/schema' {
   }
 }
 
-export const InputPlugin = definePlugin(() => ({
+export const InputPlugin = definePlugin({ provides: ['input'] }, () => ({
   name: 'input',
   setup(engine) {
     const keys = new Set<string>()
@@ -94,7 +94,7 @@ declare module '@gwenjs/schema' {
   }
 }
 
-export default definePlugin(() => ({
+export default definePlugin({ provides: ['input'] }, () => ({
   name: 'input',
   setup(engine) {
     const keys = new Set<string>()

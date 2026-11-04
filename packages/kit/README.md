@@ -10,34 +10,45 @@ npm install @gwenjs/kit
 
 ## definePlugin
 
-`definePlugin` creates a self-contained, reusable game system. A plugin has a `name`, a `setup(engine)`, and an optional `teardown`. Register frame work with `engine.hooks.hook` inside `setup`.
+`definePlugin` creates a self-contained, reusable game system. A plugin has a `name`, a `setup(engine)`, and an optional `teardown`. Register frame work with `engine.hooks.hook` inside `setup`. The first argument declares the service keys the plugin provides and the options it accepts. `engine.provide` in an unannotated `setup` accepts only the declared keys at compile time, and the factory receives the frozen options with the declared defaults filled in.
 
 ```typescript
 import { definePlugin } from "@gwenjs/kit/plugin";
 
-export const MyPlugin = definePlugin((config: { debug?: boolean } = {}) => {
-  let score = 0;
+declare module "@gwenjs/schema" {
+  interface GwenProvides {
+    "my-plugin": { add(amount: number): void };
+  }
+}
 
-  return {
-    name: "my-plugin",
+export const MyPlugin = definePlugin(
+  { provides: ["my-plugin"], options: { defaults: { debug: false } } },
+  (config) => {
+    let score = 0;
 
-    setup(engine) {
-      engine.provide("my-plugin", {
-        add(amount: number) {
-          score += amount;
-        },
-      });
-      engine.hooks.hook("engine:update", () => {
-        if (config.debug) score += 1;
-      });
-    },
+    return {
+      name: "my-plugin",
 
-    teardown() {
-      score = 0;
-    },
-  };
-});
+      setup(engine) {
+        engine.provide("my-plugin", {
+          add(amount: number) {
+            score += amount;
+          },
+        });
+        engine.hooks.hook("engine:update", () => {
+          if (config.debug) score += 1;
+        });
+      },
+
+      teardown() {
+        score = 0;
+      },
+    };
+  },
+);
 ```
+
+A plugin with no services and no options passes only the factory: `definePlugin(() => ({ name, setup }))`. A plugin with services and no options passes `{ provides: [...] }` first.
 
 ## defineGwenModule
 
@@ -116,7 +127,7 @@ Types: `AutoImport`, `DeepPartial`, `EngineSlot`, `GwenContextBoundary`, `GwenCo
 
 Values: `createEntityId`, `definePlugin`, `optionalService`, `satisfiesPluginContract`, `unpackEntityId`, `watchService`
 
-Types: `ComponentType`, `EntityId`, `GwenPlugin`, `GwenPluginFactory`, `GwenProvides`, `GwenRuntimeHooks`, `PluginErrorContext`
+Types: `ComponentType`, `EntityId`, `GwenDeclaredPlugin`, `GwenPlugin`, `GwenPluginDeclaration`, `GwenPluginDefinition`, `GwenPluginFactory`, `GwenPluginOptionsInput`, `GwenPluginProvidedKeys`, `GwenPluginSetupEngine`, `GwenProvides`, `GwenRuntimeHooks`, `PluginErrorContext`
 
 ### `./module`
 

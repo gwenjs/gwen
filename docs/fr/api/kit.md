@@ -33,25 +33,41 @@ export const mover = defineSystem('Mover', () => {
 
 ## Définition de plugins
 
-### definePlugin(factory)
+### definePlugin(declaration?, factory)
 
 **Signature:**
 ```ts
-function definePlugin<TOptions, TPlugin extends GwenPlugin>(
-  factory: (options?: TOptions) => ExactPlugin<TPlugin>
-): GwenPluginFactory<TOptions extends undefined ? void : TOptions, TPlugin>
+// 1. Ni services ni options
+function definePlugin<TPlugin extends GwenPluginDefinition<never>>(
+  factory: () => ExactPlugin<TPlugin>
+): GwenPluginFactory<void, TPlugin & GwenDeclaredPlugin<never>>
+
+// 3. Des options, avec ou sans services (`provides` peut valoir `[]`)
+function definePlugin<O extends object, const K extends GwenPluginServiceKey, TPlugin extends GwenPluginDefinition<K>>(
+  declaration: GwenPluginDeclaration<O, K>,
+  factory: (options: Readonly<O>) => ExactPlugin<TPlugin>
+): GwenPluginFactory<GwenPluginOptionsInput<O>, TPlugin & GwenDeclaredPlugin<K>>
+
+// 2. Des services, sans options
+function definePlugin<const K extends GwenPluginServiceKey, TPlugin extends GwenPluginDefinition<K>>(
+  declaration: { readonly provides: readonly K[] },
+  factory: () => ExactPlugin<TPlugin>
+): GwenPluginFactory<void, TPlugin & GwenDeclaredPlugin<K>>
 ```
 
-**Description.** Crée une fabrique de plugin. La fabrique reçoit des options et retourne une définition de plugin. Les seules clés sont `name`, `setup(engine)`, `teardown`, `onError` et `requires`. Toute autre clé est une erreur de type, et `engine.use()` rejette un callback de frame comme `onUpdate` avec `CORE:PLUGIN_INVALID_SHAPE`. Enregistrez le travail de frame avec `engine.hooks.hook` dans `setup`. Une erreur de `setup()` n'est pas enveloppée : elle est publiée en `CORE:PLUGIN_SETUP_ERROR`, puis `engine.use()` rejette avec l'erreur d'origine. `optionalService` et `watchService` s'importent aussi depuis `@gwenjs/kit/plugin`.
+**Description.** Crée une fabrique de plugin. Le premier argument, optionnel, déclare les clés de service que le plugin fournit et ses options (`defaults`, `validate` optionnel). La fabrique reçoit les options résolues et gelées, c'est-à-dire `defaults` fusionné sur un niveau avec l'argument de l'appelant, et retourne une définition de plugin. `definePlugin` écrit `provides` et `validateOptions` dessus. Les seules clés sont `name`, `setup(engine)`, `teardown`, `onError` et `requires`. Toute autre clé est une erreur de type, et `engine.use()` rejette un callback de frame comme `onUpdate` avec `CORE:PLUGIN_INVALID_SHAPE`. Enregistrez le travail de frame avec `engine.hooks.hook` dans `setup`. Une erreur de `setup()` n'est pas enveloppée : elle est publiée en `CORE:PLUGIN_SETUP_ERROR`, puis `engine.use()` rejette avec l'erreur d'origine. `optionalService` et `watchService` s'importent aussi depuis `@gwenjs/kit/plugin`.
 
 **Exemple:**
 ```ts
-export const MyPlugin = definePlugin((opts: { debug?: boolean } = {}) => ({
-  name: 'my-plugin',
-  async setup(engine) {
-    if (opts.debug) console.log('MyPlugin loaded');
-  }
-}));
+export const MyPlugin = definePlugin(
+  { provides: [], options: { defaults: { debug: false } } },
+  (opts) => ({
+    name: 'my-plugin',
+    async setup(engine) {
+      if (opts.debug) console.log('MyPlugin loaded');
+    }
+  })
+);
 
 // Dans votre configuration d'app:
 defineConfig({

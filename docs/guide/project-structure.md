@@ -202,7 +202,7 @@ declare module '@gwenjs/schema' {
   }
 }
 
-export default definePlugin(() => ({
+export default definePlugin({ provides: ['audio'] }, () => ({
   name: 'audio',
   setup(engine) {
     const manager = createAudioManager() // your own implementation
@@ -257,17 +257,22 @@ declare module '@gwenjs/schema' {
   }
 }
 
-export const ScorePlugin = definePlugin((opts: ScoreOptions = {}) => ({
-  name: 'score',
-  setup(engine) {
-    let score = 0
-    engine.provide('score', {
-      get: () => score,
-      add: (n: number) => { score = Math.min(score + n, opts.maxScore ?? 999) },
-      reset: () => { score = 0 },
-    })
-  },
-}))
+const scoreDefaults: ScoreOptions = { maxScore: 999 }
+
+export const ScorePlugin = definePlugin(
+  { provides: ['score'], options: { defaults: scoreDefaults } },
+  (opts) => ({
+    name: 'score',
+    setup(engine) {
+      let score = 0
+      engine.provide('score', {
+        get: () => score,
+        add: (n: number) => { score = Math.min(score + n, opts.maxScore ?? 999) },
+        reset: () => { score = 0 },
+      })
+    },
+  }),
+)
 
 export default defineGwenModule<ScoreOptions>({
   meta: { name: 'local:score', configKey: 'score' },

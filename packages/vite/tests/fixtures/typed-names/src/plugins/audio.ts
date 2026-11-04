@@ -10,7 +10,7 @@ declare module "@gwenjs/schema" {
   }
 }
 
-export const AudioPlugin = definePlugin(() => ({
+export const AudioPlugin = definePlugin({ provides: ["audio"] }, () => ({
   name: "audio",
   setup(engine) {
     const api: AudioApi = {

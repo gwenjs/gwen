@@ -19,7 +19,7 @@
  * ```
  */
 
-import { definePlugin } from "@gwenjs/kit/plugin";
+import { definePlugin, type GwenPluginDeclaration } from "@gwenjs/kit/plugin";
 import { getOrCreateScreenService } from "./get-or-create-screen-service.js";
 import { BrowserSizeProvider, StaticSizeProvider } from "./screen-size-providers.js";
 import type { ScreenSizeProvider } from "./screen-size-providers.js";
@@ -35,6 +35,11 @@ export interface ScreenPluginOptions {
   sizeProvider?: ScreenSizeProvider;
 }
 
+const screenPluginDeclaration: GwenPluginDeclaration<ScreenPluginOptions, never> = {
+  provides: [],
+  options: { defaults: {} },
+};
+
 /**
  * Runtime plugin that tracks the game container size and exposes per-viewport
  * pixel dimensions and world-space bounds through `useScreen()`.
@@ -45,7 +50,7 @@ export interface ScreenPluginOptions {
  * await engine.use(ScreenPlugin())
  * ```
  */
-export const ScreenPlugin = definePlugin((opts: ScreenPluginOptions = {}) => ({
+export const ScreenPlugin = definePlugin(screenPluginDeclaration, (opts) => ({
   name: "gwen:screen",
   setup(engine) {
     const log = engine.logger.child("renderer-core:screen");

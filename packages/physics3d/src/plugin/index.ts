@@ -1,4 +1,4 @@
-import { definePlugin } from "@gwenjs/kit/plugin";
+import { definePlugin, type GwenPluginDeclaration } from "@gwenjs/kit/plugin";
 import { engineContext, getWasmBridge, reportRejectedHook } from "@gwenjs/core/internal";
 import { createEngineLocal, useEngine } from "@gwenjs/core";
 import type { GwenEngine } from "@gwenjs/core";
@@ -109,12 +109,17 @@ function emitDisabledBodies(ctx: PluginContext): void {
 
 // ─── Plugin implementation ──────────────────────────────────────────────────────
 
+const physics3dDeclaration: GwenPluginDeclaration<Physics3DConfig, never> = {
+  provides: [],
+  options: { defaults: {} },
+};
+
 /**
  * GWEN plugin providing 3D rigid-body physics via Rapier3D integrated in the
  * core WASM. Falls back to a deterministic TypeScript simulation when the WASM
  * physics3d variant is not loaded (e.g. during tests).
  */
-export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
+export const Physics3DPlugin = definePlugin(physics3dDeclaration, (config) => {
   /** One core bridge per engine. Teardown does not delete the entry. */
   const coreByEngine = new WeakMap<GwenEngine, Physics3DBridgeRuntime>();
 

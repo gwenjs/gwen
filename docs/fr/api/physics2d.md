@@ -348,13 +348,13 @@ onUpdate(() => {
 
 **Signature:**
 ```ts
-const createPhysicsKinematicSyncSystem: (options?: {
+function createPhysicsKinematicSyncSystem(options?: {
   pixelsPerMeter?: number; // 50 par défaut
   positionComponent: ComponentDef;
-}) => GwenPlugin
+}): GwenPlugin
 ```
 
-**Description.** Crée un plugin kit qui copie la position 2D ECS de chaque entité dans son corps cinématique avant chaque mise à jour. `positionComponent` est requis à l'exécution : sans lui, l'appel lève `Physics2DErrorCodes.POSITION_COMPONENT_REQUIRED`. Le paramètre est typé optionnel seulement parce que `definePlugin` le type ainsi.
+**Description.** Crée un plugin kit qui copie la position 2D ECS de chaque entité dans son corps cinématique avant chaque mise à jour. `positionComponent` est requis à l'exécution : sans lui, l'appel lève `Physics2DErrorCodes.POSITION_COMPONENT_REQUIRED`. Le paramètre est typé optionnel.
 
 Physics2DPlugin doit être installé en premier, sinon `engine.use` rejette `CORE:PLUGIN_DEPENDENCY_MISSING`.
 

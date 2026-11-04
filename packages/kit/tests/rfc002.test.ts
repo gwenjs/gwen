@@ -18,7 +18,7 @@ describe("definePlugin", () => {
   });
 
   it("passes options to closure", () => {
-    const Factory = definePlugin((opts: { value?: number } = {}) => ({
+    const Factory = definePlugin({ provides: [], options: { defaults: { value: 0 } } }, (opts) => ({
       name: `WithOpts-${String(opts.value)}`,
       setup() {},
     }));

@@ -53,11 +53,13 @@ interface PlayerPrefabOptions {
   tag?: string;
 }
 
+const playerPrefabDefaults: PlayerPrefabOptions = {};
+
 /**
  * Example plugin that registers a "player prefab" factory on the engine.
  * Demonstrates the recommended pattern for entity templates in GWEN plugins.
  */
-const PlayerPrefabPlugin = definePlugin((defaults: PlayerPrefabOptions = {}) => ({
+const makePlayerPrefabPlugin = (defaults: Readonly<PlayerPrefabOptions>) => ({
   name: "PlayerPrefabPlugin",
 
   setup(engine: GwenEngine): void {
@@ -75,7 +77,12 @@ const PlayerPrefabPlugin = definePlugin((defaults: PlayerPrefabOptions = {}) => 
   teardown(): void {
     // nothing to clean up
   },
-}));
+});
+
+const PlayerPrefabPlugin = definePlugin(
+  { provides: [], options: { defaults: playerPrefabDefaults } },
+  makePlayerPrefabPlugin,
+);
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 

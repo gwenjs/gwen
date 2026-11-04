@@ -4,7 +4,7 @@
  * 2D physics plugin for GWEN — pure adapter providing 2D rigid-body physics via the core WASM.
  */
 
-import { definePlugin } from "@gwenjs/kit/plugin";
+import { definePlugin, type GwenPluginDeclaration } from "@gwenjs/kit/plugin";
 import { createLogger, createEntityId, createEngineLocal, useEngine } from "@gwenjs/core";
 import {
   engineContext,
@@ -133,10 +133,15 @@ function processSensorId(
 
 // ─── Plugin implementation ───────────────────────────────────────────────────
 
+const physics2dDeclaration: GwenPluginDeclaration<Physics2DConfig, never> = {
+  provides: [],
+  options: { defaults: {} },
+};
+
 /**
  * GWEN plugin providing 2D rigid-body physics via Rapier2D integrated in the core WASM.
  */
-export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
+export const Physics2DPlugin = definePlugin(physics2dDeclaration, (config) => {
   const cfg = normalizeConfig(config);
   const layerRegistry = new LayerRegistry(cfg.layers);
 

@@ -18,6 +18,9 @@ declare module "@gwenjs/schema" {
     a: { n: number };
     b: { n: number };
     audio: { n: number };
+    errors: { n: number };
+    "wasm:bridge": { n: number };
+    memory: { n: number };
   }
 }
 
@@ -125,8 +128,8 @@ describe("definePlugin() — TS-only plugin", () => {
   });
 
   it("options are forwarded to the factory", () => {
-    let captured: { volume?: number } = {};
-    const P = definePlugin((opts: { volume?: number } = {}) => {
+    let captured: Readonly<{ volume: number }> = { volume: 0 };
+    const P = definePlugin({ provides: [], options: { defaults: { volume: 1 } } }, (opts) => {
       captured = opts;
       return { name: "P", setup: vi.fn() };
     });
@@ -184,6 +187,16 @@ describe("definePlugin() — setup", () => {
     expect(P().setup).toBe(setup);
   });
 
+  it("a factory that returns a frozen object throws a TypeError at the factory call", () => {
+    const bare = definePlugin(() => Object.freeze({ name: "Bare", setup() {} }));
+    expect(() => bare()).toThrow(TypeError);
+
+    const declared = definePlugin({ provides: ["x"] }, () =>
+      Object.freeze({ name: "Declared", setup() {} }),
+    );
+    expect(() => declared()).toThrow(TypeError);
+  });
+
   it("a throwing setup propagates the same error instance", async () => {
     const cause = new Error("x");
     const P = definePlugin(() => ({
@@ -211,20 +224,20 @@ describe("definePlugin() — options variants", () => {
   });
 
   it("optional options — Plugin() OR Plugin(opts)", () => {
-    let received: { x?: number } | undefined;
-    const P = definePlugin((opts?: { x?: number }) => {
+    let received: Readonly<{ x: number }> = { x: -1 };
+    const P = definePlugin({ provides: [], options: { defaults: { x: 0 } } }, (opts) => {
       received = opts;
       return { name: "P", setup: vi.fn() };
     });
     P();
-    expect(received).toBeUndefined();
+    expect(received.x).toBe(0);
     P({ x: 42 });
-    expect(received?.x).toBe(42);
+    expect(received.x).toBe(42);
   });
 
   it("required options — Plugin(opts) passes values to factory", () => {
     let seen: number | undefined;
-    const P = definePlugin((opts: { speed?: number } = {}) => ({
+    const P = definePlugin({ provides: [], options: { defaults: { speed: 0 } } }, (opts) => ({
       name: "Mover",
       setup(_engine: GwenEngine) {
         seen = opts.speed;
@@ -235,8 +248,8 @@ describe("definePlugin() — options variants", () => {
   });
 
   it("multiple independent instances from same factory", () => {
-    const P = definePlugin((opts: { id?: string } = {}) => ({
-      name: `Plugin-${opts.id ?? ""}`,
+    const P = definePlugin({ provides: [], options: { defaults: { id: "" } } }, (opts) => ({
+      name: `Plugin-${opts.id}`,
       setup() {},
     }));
     const p1 = P({ id: "alpha" });
@@ -473,5 +486,38 @@ describe("definePlugin() — declaration form", () => {
     expect(a.provides).not.toBe(provided);
     expect(Object.isFrozen(provided)).toBe(false);
     expect(provided).toEqual(["x"]);
+  });
+
+  it("overload 1 passes the caller's argument through to the factory", () => {
+    let received: unknown = "unset";
+    const P = definePlugin((input?: unknown) => {
+      received = input;
+      return { name: "Raw", setup() {} };
+    });
+
+    const plugin = Reflect.apply(P, undefined, [{ v: 1 }]);
+    expect(received).toEqual({ v: 1 });
+    expect(plugin.provides).toEqual([]);
+  });
+
+  it("a non-object argument is ignored and the defaults apply", () => {
+    let received: Readonly<Record<string, unknown>> = { unset: true };
+    const P = definePlugin({ provides: [], options: { defaults: { n: 1 } } }, (options) => {
+      received = options;
+      return { name: "Defaults", setup() {} };
+    });
+
+    expect(() => Reflect.apply(P, undefined, [null])).not.toThrow();
+    expect(received).toEqual({ n: 1 });
+  });
+
+  it("a factory that returns the same object twice can be called twice", () => {
+    const shared = { name: "Shared", setup() {} };
+    const P = definePlugin({ provides: ["x"] }, () => shared);
+
+    expect(() => P()).not.toThrow();
+    expect(() => P()).not.toThrow();
+    expect(P()).toBe(shared);
+    expect(shared).toHaveProperty("provides", ["x"]);
   });
 });
