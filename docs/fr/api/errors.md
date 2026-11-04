@@ -524,6 +524,30 @@ Cause. Un appel d'émission (`emit`, `callHook`, `callHookParallel`, `callHookWi
 
 Cause. Un appel d'émission utilise un nom de l'espace de noms du paquet qu'aucun fichier du paquet ne déclare, ni avec `defineHooks`, ni dans une augmentation `GwenRuntimeHooks` de `@gwenjs/schema`. La vérification est ignorée quand `gwen.hookNamespace` est absent ou invalide. Fix. Déclarez le hook avec `defineHooks`, ou ajoutez-le à une augmentation `GwenRuntimeHooks`.
 
+### CONFORMANCE:IMPORT_DEEP {#conformance-import-deep}
+
+Cause. Un import dépasse les points d'entrée publics : un spécificateur `@gwenjs/<paquet>/dist/…`, un sous-chemin qui n'est pas un point d'entrée d'un paquet du framework (par exemple `@gwenjs/core/nope`), ou un spécificateur relatif qui sort de la racine du paquet. Un constat par ligne d'import. Fix. Importez un point d'entrée public du paquet du framework, et gardez les imports relatifs dans le paquet.
+
+### CONFORMANCE:IMPORT_FORBIDDEN_ENTRY {#conformance-import-forbidden-entry}
+
+Cause. Import d'un point d'entrée du framework qu'un plugin ne peut pas utiliser ici : `@gwenjs/app`, `@gwenjs/vite`, `@gwenjs/physics2d`, `@gwenjs/physics3d` ou `@gwenjs/physics3d-fracture` (tout sous-chemin), ou un point d'entrée réservé aux tests (`@gwenjs/core/testing`, `@gwenjs/core/node`, `@gwenjs/renderer-core/testing`) importé depuis `src`. Un fichier de test peut importer les points d'entrée réservés aux tests : un fichier `*.test.*` ou `*.spec.*`, ou un fichier sous `tests/`, `test/` ou `__tests__/`. Fix. Déplacez l'import dans un fichier de test, ou utilisez un point d'entrée d'exécution du framework.
+
+### CONFORMANCE:IMPORT_FOREIGN_PLUGIN {#conformance-import-foreign-plugin}
+
+Cause. Un import nomme un autre plugin : un paquet `@gwenjs/*` qui n'est pas un paquet du framework, ou un paquet de `node_modules` (cherché depuis la racine du paquet puis ses ancêtres) dont le `package.json` a `gwen.type` `"plugin"` ou liste `@gwenjs/core` dans `peerDependencies` ou `dependencies`. Un paquet non installé, ou dont le `package.json` est illisible, n'est pas un plugin. Un paquet communautaire (un nom hors de `@gwenjs/`) peut importer `<base>/extension` d'un paquet listé dans `gwen.extends`. Fix. Partagez l'état par un service ou un paquet du framework, et listez le paquet étendu dans `gwen.extends` pour une extension communautaire.
+
+### CONFORMANCE:IMPORT_INTERNAL {#conformance-import-internal}
+
+Cause. Un spécificateur `@gwenjs/<paquet>/internal`, ou avec un segment `wasm` (`@gwenjs/core/wasm/light`), dans `src`, dans un fichier de test, ou inclus dans `dist` (fichiers `.js`, `.mjs` et `.d.ts`). Les imports, `export … from`, `import("…")`, `require("…")`, `import x = require("…")` et les types `import("…")` sont lus. Un constat par ligne. Fix. Utilisez un point d'entrée public du paquet du framework.
+
+### CONFORMANCE:IMPORT_NOT_PUBLIC {#conformance-import-not-public}
+
+Cause. Un nom importé d'un point d'entrée du framework n'est pas dans l'API publique de ce point d'entrée : un import nommé, un ré-export (`export { x } from`), un import par défaut d'un point d'entrée sans export par défaut, ou une propriété lue sur un import d'espace de noms (`ns.name`, `ns["name"]`, `ns.Type`). Les noms viennent de `FRAMEWORK_ENTRIES`, généré depuis les fichiers `public-api.snap.json` du framework (valeurs et types). Le constat est sur la ligne du nom. Fix. Utilisez un nom que le point d'entrée public exporte.
+
+### CONFORMANCE:IMPORT_UNDECLARED {#conformance-import-undeclared}
+
+Cause. Un fichier importe un paquet du framework que `package.json` ne déclare pas : dans `src`, dans `peerDependencies` ; dans un fichier de test, dans `peerDependencies` ou `devDependencies`. Un paquet listé seulement dans `dependencies` n'est pas déclaré. Un constat par ligne d'import. Fix. Ajoutez le paquet à `peerDependencies`.
+
 ### CONFORMANCE:INVALID_SPEC {#conformance-invalid-spec}
 
 Cause. `checkPluginPackage` a reçu un `profile` qui n'est ni `"plugin"` ni `"package"`. Elle renvoie ce seul constat et n'exécute aucune vérification. Fix. Passez `"plugin"` ou `"package"` comme `profile`.

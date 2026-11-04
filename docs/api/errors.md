@@ -524,6 +524,30 @@ Cause. An emit call (`emit`, `callHook`, `callHookParallel`, `callHookWith`) use
 
 Cause. An emit call uses a name in the package namespace that no file of the package declares, neither with `defineHooks` nor in a `GwenRuntimeHooks` augmentation of `@gwenjs/schema`. The check is skipped when `gwen.hookNamespace` is missing or invalid. Fix. Declare the hook with `defineHooks`, or add it to a `GwenRuntimeHooks` augmentation.
 
+### CONFORMANCE:IMPORT_DEEP {#conformance-import-deep}
+
+Cause. An import reaches past the public entries: a specifier `@gwenjs/<package>/dist/…`, a subpath that is not an entry of a framework package (for example `@gwenjs/core/nope`), or a relative specifier that resolves outside the package root. One finding per import line. Fix. Import a public entry of the framework package, and keep relative imports inside the package.
+
+### CONFORMANCE:IMPORT_FORBIDDEN_ENTRY {#conformance-import-forbidden-entry}
+
+Cause. An import of a framework entry that a plugin may not use here: `@gwenjs/app`, `@gwenjs/vite`, `@gwenjs/physics2d`, `@gwenjs/physics3d` or `@gwenjs/physics3d-fracture` (any subpath), or a test-only entry (`@gwenjs/core/testing`, `@gwenjs/core/node`, `@gwenjs/renderer-core/testing`) imported from `src`. A test file may import the test-only entries: a `*.test.*` or `*.spec.*` file, or a file under `tests/`, `test/` or `__tests__/`. Fix. Move the import to a test file, or use a runtime entry of the framework.
+
+### CONFORMANCE:IMPORT_FOREIGN_PLUGIN {#conformance-import-foreign-plugin}
+
+Cause. An import names another plugin: an `@gwenjs/*` package that is not a framework package, or a package of `node_modules` (looked up from the package root and its ancestors) whose `package.json` has `gwen.type` `"plugin"` or lists `@gwenjs/core` in `peerDependencies` or `dependencies`. A package that is not installed, or whose `package.json` cannot be parsed, is not a plugin. A community package (a name outside `@gwenjs/`) may import `<base>/extension` of a package listed in `gwen.extends`. Fix. Share state through a service or a framework package, and list the extended package in `gwen.extends` for a community extension.
+
+### CONFORMANCE:IMPORT_INTERNAL {#conformance-import-internal}
+
+Cause. A specifier `@gwenjs/<package>/internal`, or one with a `wasm` segment (`@gwenjs/core/wasm/light`), in `src`, in a test file, or bundled into `dist` (`.js`, `.mjs` and `.d.ts` files). Imports, `export … from`, `import("…")`, `require("…")`, `import x = require("…")` and `import("…")` types are read. One finding per line. Fix. Use a public entry of the framework package.
+
+### CONFORMANCE:IMPORT_NOT_PUBLIC {#conformance-import-not-public}
+
+Cause. A name imported from a framework entry is not in the public API of that entry: a named import, a re-export (`export { x } from`), a default import of an entry with no default export, or a property read on a namespace import (`ns.name`, `ns["name"]`, `ns.Type`). The names come from `FRAMEWORK_ENTRIES`, which is generated from the `public-api.snap.json` files of the framework (values and types). The finding is on the line of the name. Fix. Use a name that the public entry exports.
+
+### CONFORMANCE:IMPORT_UNDECLARED {#conformance-import-undeclared}
+
+Cause. A file imports a framework package that `package.json` does not declare: in `src`, in `peerDependencies`; in a test file, in `peerDependencies` or `devDependencies`. A package listed only in `dependencies` is not declared. One finding per import line. Fix. Add the package to `peerDependencies`.
+
 ### CONFORMANCE:INVALID_SPEC {#conformance-invalid-spec}
 
 Cause. `checkPluginPackage` received a `profile` that is not `"plugin"` or `"package"`. It returns this one finding and runs no check. Fix. Pass `"plugin"` or `"package"` as `profile`.
