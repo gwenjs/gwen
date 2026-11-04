@@ -133,7 +133,14 @@ export function checkPluginApiVersion(
  *
  * @example
  * ```typescript
- * const handle = engine.getWasmModule<{ update: () => void }>('myMod')
+ * // Declare 'myMod' once, by augmenting the interface that `@gwenjs/core` exports:
+ * declare module "@gwenjs/core" {
+ *   interface GwenWasmModules {
+ *     myMod: WebAssembly.Exports & { update(): void }
+ *   }
+ * }
+ *
+ * const handle = engine.getWasmModule('myMod')
  * handle.exports.update()
  * if (handle.memory) {
  *   const view = new Float32Array(handle.memory.buffer)
