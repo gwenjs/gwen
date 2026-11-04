@@ -9,6 +9,7 @@ import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import { gwenSourceAliases } from "../../../vitest.aliases.js";
 import { extractFences, type Fence } from "../src/fences.js";
+import { fileDiagnostics } from "../src/file-diagnostics.js";
 import { SourceCache } from "../src/shared-sources.js";
 import { checkFences } from "../src/snippets.js";
 
@@ -281,10 +282,16 @@ function virtualDiagnostics(files: Map<string, string>, entries: string[]): stri
   };
   const program = ts.createProgram(entries, options, host);
   const messages: string[] = [];
-  for (const diagnostic of ts.getPreEmitDiagnostics(program)) {
+  const virtualSources = [...virtualFiles.keys()].flatMap(
+    (name) => program.getSourceFile(name) ?? [],
+  );
+  const diagnostics = [
+    ...program.getOptionsDiagnostics(),
+    ...program.getGlobalDiagnostics(),
+    ...fileDiagnostics(program, virtualSources),
+  ];
+  for (const diagnostic of diagnostics) {
     if (diagnostic.category !== ts.DiagnosticCategory.Error) continue;
-    const name = diagnostic.file?.fileName;
-    if (name !== undefined && !virtualFiles.has(path.resolve(name))) continue;
     messages.push(ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n"));
   }
   return messages;
