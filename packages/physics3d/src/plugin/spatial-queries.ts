@@ -4,7 +4,7 @@
  * Includes both imperative one-shot queries and persistent slot registration.
  */
 
-import type { EntityId } from "@gwenjs/schema";
+import { createEntityId, type EntityId } from "@gwenjs/schema";
 import type {
   Physics3DAPI,
   Physics3DVec3,
@@ -26,6 +26,7 @@ import type {
 import { entityIndexToId, encodeShape, u32ToF32 } from "./plugin-helpers";
 import type { PluginContext } from "./plugin-context";
 import { callPhysics3DExport } from "./wasm-errors";
+import { liveWasmBridge, uncheckedAt } from "../internal/unchecked";
 
 export function createSpatialQueryMethods(
   ctx: PluginContext,
@@ -55,7 +56,7 @@ export function createSpatialQueryMethods(
         const { layers = 0xffffffff, mask = 0xffffffff, solid = true } = opts;
         // A miss is `[0]`. A missing world or a Rapier trap is not a miss: it throws.
         const result = callPhysics3DExport(ctx, "physics3d_cast_ray", () =>
-          ctx.wasmBridge!.physics3d_cast_ray?.(
+          liveWasmBridge(ctx.wasmBridge).physics3d_cast_ray?.(
             origin.x,
             origin.y,
             origin.z,
@@ -69,14 +70,22 @@ export function createSpatialQueryMethods(
           ),
         );
         if (!result || result.length < 9 || result[0] === 0) return null;
-        const entityIndex = result[1] as number;
+        const entityIndex = uncheckedAt(result, 1);
         const entity = entityIndexToId(ctx, entityIndex);
         if (entity === undefined) return null;
         return {
           entity,
-          distance: result[2]!,
-          normal: { x: result[3]!, y: result[4]!, z: result[5]! },
-          point: { x: result[6]!, y: result[7]!, z: result[8]! },
+          distance: uncheckedAt(result, 2),
+          normal: {
+            x: uncheckedAt(result, 3),
+            y: uncheckedAt(result, 4),
+            z: uncheckedAt(result, 5),
+          },
+          point: {
+            x: uncheckedAt(result, 6),
+            y: uncheckedAt(result, 7),
+            z: uncheckedAt(result, 8),
+          },
         };
       }
       if (__GWEN_DEV__) {
@@ -97,7 +106,7 @@ export function createSpatialQueryMethods(
         const { layers = 0xffffffff, mask = 0xffffffff } = opts;
         const [shapeType, p0, p1, p2] = encodeShape(shape);
         const result = callPhysics3DExport(ctx, "physics3d_cast_shape", () =>
-          ctx.wasmBridge!.physics3d_cast_shape?.(
+          liveWasmBridge(ctx.wasmBridge).physics3d_cast_shape?.(
             pos.x,
             pos.y,
             pos.z,
@@ -118,16 +127,32 @@ export function createSpatialQueryMethods(
           ),
         );
         if (!result || result.length < 15 || result[0] === 0) return null;
-        const entityIndex = result[1] as number;
+        const entityIndex = uncheckedAt(result, 1);
         const entity = entityIndexToId(ctx, entityIndex);
         if (entity === undefined) return null;
         return {
           entity,
-          distance: result[2]!,
-          normal: { x: result[3]!, y: result[4]!, z: result[5]! },
-          point: { x: result[6]!, y: result[7]!, z: result[8]! },
-          witnessA: { x: result[9]!, y: result[10]!, z: result[11]! },
-          witnessB: { x: result[12]!, y: result[13]!, z: result[14]! },
+          distance: uncheckedAt(result, 2),
+          normal: {
+            x: uncheckedAt(result, 3),
+            y: uncheckedAt(result, 4),
+            z: uncheckedAt(result, 5),
+          },
+          point: {
+            x: uncheckedAt(result, 6),
+            y: uncheckedAt(result, 7),
+            z: uncheckedAt(result, 8),
+          },
+          witnessA: {
+            x: uncheckedAt(result, 9),
+            y: uncheckedAt(result, 10),
+            z: uncheckedAt(result, 11),
+          },
+          witnessB: {
+            x: uncheckedAt(result, 12),
+            y: uncheckedAt(result, 13),
+            z: uncheckedAt(result, 14),
+          },
         };
       }
       if (__GWEN_DEV__) {
@@ -170,7 +195,7 @@ export function createSpatialQueryMethods(
           ctx,
           "physics3d_overlap_shape",
           () =>
-            ctx.wasmBridge!.physics3d_overlap_shape?.(
+            liveWasmBridge(ctx.wasmBridge).physics3d_overlap_shape?.(
               pos.x,
               pos.y,
               pos.z,
@@ -192,7 +217,7 @@ export function createSpatialQueryMethods(
         const scratchView = ctx.overlapScratch.array;
         const entities: EntityId[] = [];
         for (let i = 0; i < count; i++) {
-          const id = entityIndexToId(ctx, scratchView[i]!);
+          const id = entityIndexToId(ctx, uncheckedAt(scratchView, i));
           if (id !== undefined) entities.push(id);
         }
         return entities;
@@ -210,15 +235,26 @@ export function createSpatialQueryMethods(
       if (ctx.backendMode === "wasm") {
         const { layers = 0xffffffff, mask = 0xffffffff, solid = true } = opts;
         const result = callPhysics3DExport(ctx, "physics3d_project_point", () =>
-          ctx.wasmBridge!.physics3d_project_point?.(point.x, point.y, point.z, layers, mask, solid),
+          liveWasmBridge(ctx.wasmBridge).physics3d_project_point?.(
+            point.x,
+            point.y,
+            point.z,
+            layers,
+            mask,
+            solid,
+          ),
         );
         if (!result || result.length < 6 || result[0] === 0) return null;
-        const entityIndex = result[1] as number;
+        const entityIndex = uncheckedAt(result, 1);
         const entity = entityIndexToId(ctx, entityIndex);
         if (entity === undefined) return null;
         return {
           entity,
-          point: { x: result[2]!, y: result[3]!, z: result[4]! },
+          point: {
+            x: uncheckedAt(result, 2),
+            y: uncheckedAt(result, 3),
+            z: uncheckedAt(result, 4),
+          },
           isInside: result[5] !== 0,
         };
       }
@@ -237,7 +273,7 @@ export function createSpatialQueryMethods(
       }
       const result: RaycastSlotResult = {
         hit: false,
-        entity: 0n as EntityId,
+        entity: createEntityId(0, 0),
         distance: 0,
         normal: { x: 0, y: 0, z: 0 },
         point: { x: 0, y: 0, z: 0 },
@@ -303,7 +339,7 @@ export function createSpatialQueryMethods(
       }
       const result: ShapeCastSlotResult = {
         hit: false,
-        entity: 0n as EntityId,
+        entity: createEntityId(0, 0),
         distance: 0,
         normal: { x: 0, y: 0, z: 0 },
         point: { x: 0, y: 0, z: 0 },

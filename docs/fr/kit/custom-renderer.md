@@ -123,7 +123,7 @@ La séquence d'orchestration lors de l'appel à `manager.mount()` :
 
 1. **Pour chaque layer déclaré** — LayerManager appelle `service.getLayerElement(layerName)`, ce qui déclenche votre `createElement(layerName)` au premier appel et met le résultat en cache.
 2. **Insertion dans le DOM** — LayerManager insère chaque élément dans le conteneur dans l'ordre défini par `order`.
-3. **Appel de mount** — LayerManager appelle `service.mount(container)`. En interne, `defineRendererService` traduit cela en `def.mount({ container, getLayer: (name) => elementCache.get(name) })`.
+3. **Appel de mount** — LayerManager appelle `service.mount(container)`. En interne, `defineRendererService` traduit cela en `def.mount({ container, getLayer })`. `getLayer(name)` renvoie le même élément que `getLayerElement(name)` : il appelle votre `createElement(name)` au premier usage et met le résultat en cache, et il lève `UnknownLayerError` pour un layer que `layers` ne déclare pas.
 4. **Votre `mount({ getLayer })` s'exécute** — à ce stade, tous les éléments sont déjà dans le DOM et ont leurs dimensions finales.
 
 ::: tip Tester le service directement

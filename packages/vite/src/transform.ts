@@ -1,16 +1,7 @@
 import type { Plugin } from "vite";
 import MagicString from "magic-string";
 import { parseSync } from "oxc-parser";
-import type {
-  Program,
-  ImportDeclaration,
-  ImportSpecifier,
-  ModuleExportName,
-  IdentifierName,
-  ObjectExpression,
-  ObjectProperty,
-  StringLiteral,
-} from "oxc-parser";
+import type { Program, ImportDeclaration, ImportSpecifier } from "oxc-parser";
 import { walk } from "oxc-walker";
 
 const CORE_IMPORT = "@gwenjs/core";
@@ -87,7 +78,7 @@ export function gwenTransform(options: GwenTransformOptions = {}): Plugin {
             this.warn(`[gwen-transform] Parse diagnostic in ${id}: ${e.message}`);
           }
         }
-        program = result.program as Program;
+        program = result.program;
       } catch {
         return null;
       }
@@ -131,7 +122,9 @@ function applyAutoImports(program: Program, code: string, s: MagicString): void 
     Types: /\bTypes\s*\./.test(code),
   };
 
-  const specifiers = (Object.keys(needed) as (keyof typeof needed)[]).filter((k) => needed[k]);
+  const specifiers = Object.entries(needed)
+    .filter(([, isNeeded]) => isNeeded)
+    .map(([name]) => name);
   if (specifiers.length === 0) return;
 
   // Program.body is Array<Directive | Statement>. Directives use
@@ -150,10 +143,8 @@ function applyAutoImports(program: Program, code: string, s: MagicString): void 
     const existing: string[] = coreImport.specifiers
       .filter((sp): sp is ImportSpecifier => sp.type === "ImportSpecifier")
       .map((sp) => {
-        const imported = sp.imported as ModuleExportName;
-        return imported.type === "Identifier"
-          ? (imported as IdentifierName).name
-          : (imported as { value: string }).value;
+        const { imported } = sp;
+        return imported.type === "Identifier" ? imported.name : imported.value;
       })
       .filter((name): name is string => Boolean(name));
 
@@ -164,8 +155,8 @@ function applyAutoImports(program: Program, code: string, s: MagicString): void 
       (sp): sp is ImportSpecifier => sp.type === "ImportSpecifier",
     );
 
-    if (namedSpecs.length > 0) {
-      const lastSpec = namedSpecs[namedSpecs.length - 1]!;
+    const lastSpec = namedSpecs[namedSpecs.length - 1];
+    if (lastSpec) {
       s.appendLeft(lastSpec.end, `, ${missing.join(", ")}`);
     } else {
       s.appendLeft(coreImport.end, `\nimport { ${missing.join(", ")} } from '${CORE_IMPORT}';`);
@@ -178,8 +169,8 @@ function applyAutoImports(program: Program, code: string, s: MagicString): void 
   );
   const insertLine = `import { ${specifiers.join(", ")} } from '${CORE_IMPORT}';\n`;
 
-  if (imports.length > 0) {
-    const lastImport = imports[imports.length - 1]!;
+  const lastImport = imports[imports.length - 1];
+  if (lastImport) {
     s.appendLeft(lastImport.end, "\n" + insertLine.trimEnd());
   } else {
     s.prepend(insertLine);
@@ -209,23 +200,20 @@ function applyAsConstTransforms(program: Program, s: MagicString, opts: AsConstO
   walk(program, {
     enter(node) {
       if (node.type !== "ObjectExpression") return;
-      const objNode = node as ObjectExpression;
 
-      for (const prop of objNode.properties) {
+      for (const prop of node.properties) {
         if (prop.type !== "Property") continue;
-        const p = prop as ObjectProperty;
 
-        const key = p.key;
-        const value = p.value;
+        const key = prop.key;
+        const value = prop.value;
 
         const keyName: string | null =
           key.type === "Identifier"
-            ? (key as IdentifierName).name
+            ? key.name
             : key.type === "Literal"
-              ? (() => {
-                  const v = (key as StringLiteral).value;
-                  return typeof v === "string" ? v : null;
-                })()
+              ? typeof key.value === "string"
+                ? key.value
+                : null
               : null;
 
         if (!keyName) continue;

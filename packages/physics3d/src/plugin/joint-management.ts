@@ -25,6 +25,7 @@ import {
 import type { PluginContext } from "./plugin-context";
 import { Physics3DErrorCodes } from "../errors/codes";
 import { callPhysics3DExport, hasPhysics3DCode } from "./wasm-errors";
+import { liveWasmBridge } from "../internal/unchecked";
 
 /** Both ends must own their slots. A dead id throws. An unowned live id yields null. */
 function jointEnds(
@@ -84,7 +85,7 @@ export function createJointMethods(
       if (ctx.backendMode === "wasm") {
         // Rust rejects a missing body or a non-finite value: the typed error propagates.
         return wasmJointHandle(ctx, "physics3d_add_fixed_joint", () =>
-          ctx.wasmBridge!.physics3d_add_fixed_joint?.(
+          liveWasmBridge(ctx.wasmBridge).physics3d_add_fixed_joint?.(
             slotA,
             slotB,
             a.x ?? 0,
@@ -118,7 +119,7 @@ export function createJointMethods(
       if (ctx.backendMode === "wasm") {
         // Rust rejects a missing body or a non-finite value: the typed error propagates.
         return wasmJointHandle(ctx, "physics3d_add_revolute_joint", () =>
-          ctx.wasmBridge!.physics3d_add_revolute_joint?.(
+          liveWasmBridge(ctx.wasmBridge).physics3d_add_revolute_joint?.(
             slotA,
             slotB,
             a.x ?? 0,
@@ -158,7 +159,7 @@ export function createJointMethods(
       if (ctx.backendMode === "wasm") {
         // Rust rejects a missing body or a non-finite value: the typed error propagates.
         return wasmJointHandle(ctx, "physics3d_add_prismatic_joint", () =>
-          ctx.wasmBridge!.physics3d_add_prismatic_joint?.(
+          liveWasmBridge(ctx.wasmBridge).physics3d_add_prismatic_joint?.(
             slotA,
             slotB,
             a.x ?? 0,
@@ -196,7 +197,7 @@ export function createJointMethods(
       if (ctx.backendMode === "wasm") {
         // Rust rejects a missing body or a non-finite value: the typed error propagates.
         return wasmJointHandle(ctx, "physics3d_add_ball_joint", () =>
-          ctx.wasmBridge!.physics3d_add_ball_joint?.(
+          liveWasmBridge(ctx.wasmBridge).physics3d_add_ball_joint?.(
             slotA,
             slotB,
             a.x ?? 0,
@@ -228,7 +229,7 @@ export function createJointMethods(
       if (ctx.backendMode === "wasm") {
         // Rust rejects a missing body or a non-finite value: the typed error propagates.
         return wasmJointHandle(ctx, "physics3d_add_spring_joint", () =>
-          ctx.wasmBridge!.physics3d_add_spring_joint?.(
+          liveWasmBridge(ctx.wasmBridge).physics3d_add_spring_joint?.(
             slotA,
             slotB,
             a.x ?? 0,
@@ -254,7 +255,7 @@ export function createJointMethods(
       // id registry would go stale. A joint that is already gone satisfies the call.
       try {
         callPhysics3DExport(ctx, "physics3d_remove_joint", () =>
-          ctx.wasmBridge!.physics3d_remove_joint?.(id as number),
+          liveWasmBridge(ctx.wasmBridge).physics3d_remove_joint?.(id),
         );
       } catch (err: unknown) {
         if (hasPhysics3DCode(err, Physics3DErrorCodes.JOINT_NOT_FOUND)) return;
@@ -265,15 +266,15 @@ export function createJointMethods(
     setJointMotorVelocity(id: JointId, velocity: number, maxForce: number): void {
       if (ctx.backendMode !== "wasm") return;
       callPhysics3DExport(ctx, "physics3d_set_joint_motor_velocity", () =>
-        ctx.wasmBridge!.physics3d_set_joint_motor_velocity?.(id as number, velocity, maxForce),
+        liveWasmBridge(ctx.wasmBridge).physics3d_set_joint_motor_velocity?.(id, velocity, maxForce),
       );
     },
 
     setJointMotorPosition(id: JointId, target: number, stiffness: number, damping: number): void {
       if (ctx.backendMode !== "wasm") return;
       callPhysics3DExport(ctx, "physics3d_set_joint_motor_position", () =>
-        ctx.wasmBridge!.physics3d_set_joint_motor_position?.(
-          id as number,
+        liveWasmBridge(ctx.wasmBridge).physics3d_set_joint_motor_position?.(
+          id,
           target,
           stiffness,
           damping,
@@ -284,7 +285,7 @@ export function createJointMethods(
     setJointEnabled(id: JointId, enabled: boolean): void {
       if (ctx.backendMode !== "wasm") return;
       callPhysics3DExport(ctx, "physics3d_set_joint_enabled", () =>
-        ctx.wasmBridge!.physics3d_set_joint_enabled?.(id as number, enabled),
+        liveWasmBridge(ctx.wasmBridge).physics3d_set_joint_enabled?.(id, enabled),
       );
     },
   };

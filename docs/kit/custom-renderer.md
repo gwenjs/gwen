@@ -126,7 +126,7 @@ The orchestration sequence when `manager.mount()` is called:
 
 1. **For each declared layer** — LayerManager calls `service.getLayerElement(layerName)`, which triggers your `createElement(layerName)` on first call and caches the result.
 2. **DOM insertion** — LayerManager inserts each element into the container in `order` order.
-3. **Mount call** — LayerManager calls `service.mount(container)`. Internally, `defineRendererService` translates this to `def.mount({ container, getLayer: (name) => elementCache.get(name) })`.
+3. **Mount call** — LayerManager calls `service.mount(container)`. Internally, `defineRendererService` translates this to `def.mount({ container, getLayer })`. `getLayer(name)` returns the same element as `getLayerElement(name)`: it calls your `createElement(name)` on first use and caches the result, and it throws `UnknownLayerError` for a layer that `layers` does not declare.
 4. **Your `mount({ getLayer })` runs** — at this point, all elements are already in the DOM and fully sized.
 
 ::: tip Testing your service directly

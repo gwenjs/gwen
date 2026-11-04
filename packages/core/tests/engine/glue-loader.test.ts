@@ -81,6 +81,37 @@ describe("loadWasmGlue", () => {
     expect(caught.cause).toBeInstanceOf(TypeError);
   });
 
+  it("a location whose href is not a string is coerced into the base of a relative jsUrl", async () => {
+    const jsUrl = "relative/gwen_core.js";
+    // `new URL(jsUrl, base)` turns the URL object into a string: the glue resolves against it,
+    // so the failure comes from `import()` of an http URL, not from the URL parser.
+    const hadLocation = Reflect.has(globalThis, "location");
+    const previousLocation = Reflect.get(globalThis, "location");
+    Reflect.set(globalThis, "location", { href: new URL("http://127.0.0.1:9/") });
+
+    const bridge = new WasmBridgeImpl();
+    let caught: unknown;
+
+    try {
+      await bridge.init("light", { jsUrl, wasmUrl: MINIMAL_WASM_URL });
+    } catch (err: unknown) {
+      caught = err;
+    } finally {
+      bridge._reset();
+      if (hadLocation) Reflect.set(globalThis, "location", previousLocation);
+      else Reflect.deleteProperty(globalThis, "location");
+    }
+
+    expect(caught).toBeInstanceOf(GwenError);
+    if (!(caught instanceof GwenError)) return;
+    expect(caught.code).toBe(CoreErrorCodes.WASM_LOAD_ERROR);
+    expect(caught.cause).toBeInstanceOf(Error);
+    if (!(caught.cause instanceof Error)) return;
+    expect(caught.cause.message).toContain(
+      "Only URLs with a scheme in: file and data are supported",
+    );
+  });
+
   it("init wraps a plain glue init Error as CORE:WASM_LOAD_ERROR and keeps the cause", async () => {
     const rejected = new Error("glue init failed");
     Reflect.set(globalThis, "__gwenGlue_rejected", rejected);

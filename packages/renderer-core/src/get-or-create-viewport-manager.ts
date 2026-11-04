@@ -32,7 +32,7 @@ export function getOrCreateViewportManager(engine: GwenEngine): ViewportManager 
       engine,
       "@gwenjs/renderer-core",
       event,
-      (engine.hooks.callHook as (name: string, ...args: unknown[]) => unknown)(event, payload),
+      (engine.hooks.callHook as (name: string, ...args: unknown[]) => unknown)(event, payload), // boundary: the manager hands over a plain string event and an unknown payload, while callHook accepts only the keys of the hook map and each hook's own arguments
     );
   });
   engine.provide("viewportManager", manager);

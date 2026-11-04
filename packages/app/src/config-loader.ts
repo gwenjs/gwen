@@ -28,6 +28,14 @@ import { isPlainRecord, mergeLayers } from "./merge";
 import type { GwenUserConfig } from "./types";
 import { AppErrorCodes, causeText } from "./error-codes";
 
+/** The `default` member of a module namespace or wrapped CJS export, if it has one. */
+function defaultExportOf(value: unknown): unknown {
+  if ((typeof value !== "object" && typeof value !== "function") || value === null) {
+    return undefined;
+  }
+  return Reflect.get(value, "default");
+}
+
 /** c12's defu drops null. This merger keeps it, so null stays a value. */
 function mergeConfigLayers<T>(...sources: Array<T | null | undefined>): T {
   let acc: unknown = {};
@@ -35,7 +43,7 @@ function mergeConfigLayers<T>(...sources: Array<T | null | undefined>): T {
     const layer = sources[index];
     if (isPlainRecord(layer)) acc = mergeLayers(acc, layer);
   }
-  return acc as T;
+  return acc as T; // boundary: the merged layers have the shape of the sources
 }
 
 // ─── GwenConfigLoadError ─────────────────────────────────────────────────────
@@ -97,9 +105,9 @@ export async function loadRawGwenConfig(cwd: string): Promise<RawGwenConfig> {
       //      (occurs when jiti-register hook intercepts the import and Node.js
       //       then wraps the CJS exports object as an ESM namespace)
       resolveModule: (mod: unknown): GwenUserConfig => {
-        const first = (mod as Record<string, unknown>)?.["default"] ?? mod;
-        const second = (first as Record<string, unknown>)?.["default"] ?? first;
-        return (second ?? {}) as GwenUserConfig;
+        const first = defaultExportOf(mod) ?? mod;
+        const second = defaultExportOf(first) ?? first;
+        return (second ?? {}) as GwenUserConfig; // boundary: the config file is user code, typed GwenUserConfig by contract
       },
     });
 
@@ -114,7 +122,7 @@ export async function loadRawGwenConfig(cwd: string): Promise<RawGwenConfig> {
     }
 
     return {
-      config: (result.config ?? {}) as GwenUserConfig,
+      config: (result.config ?? {}) as GwenUserConfig, // boundary: the config file is user code, typed GwenUserConfig by contract
       configFile,
     };
   } catch (error) {

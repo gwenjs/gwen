@@ -381,3 +381,165 @@ describe("useSceneRouter — engine:stop cleanup", () => {
     expect(listener).not.toHaveBeenCalled();
   });
 });
+
+describe("useSceneRouter — hand-built definition with numeric route keys", () => {
+  it("gives a string current state for a numeric initial and a numeric transition target", async () => {
+    const One = defineScene("NumericOne", () => {});
+    const Two = defineScene("NumericTwo", () => {});
+    // defineSceneRouter rejects a numeric key, so the definition is built by hand. Reflect.apply
+    // keeps the call untyped, because numeric keys are not valid route names in the types.
+    const definition = {
+      __type: "SceneRouterDefinition",
+      options: {
+        initial: 1,
+        routes: {
+          1: { scene: One, on: { GO: 2 } },
+          2: { scene: Two, on: {} },
+        },
+      },
+    };
+    const engine = await createEngine();
+    try {
+      let nav: { current: unknown; send(event: string): Promise<void> } | undefined;
+      engine.run(() => {
+        nav = Reflect.apply(useSceneRouter, undefined, [definition]);
+      });
+      expect(nav?.current).toBe("1");
+      await nav?.send("GO");
+      expect(nav?.current).toBe("2");
+    } finally {
+      await engine.stop();
+    }
+  });
+
+  it("throws GwenSceneRouterError for a numeric initial that is not a route", async () => {
+    const One = defineScene("NumericInitialOne", () => {});
+    const definition = {
+      __type: "SceneRouterDefinition",
+      options: { initial: 9, routes: { 1: { scene: One, on: {} } } },
+    };
+    const engine = await createEngine();
+    try {
+      let thrown: unknown;
+      engine.run(() => {
+        try {
+          Reflect.apply(useSceneRouter, undefined, [definition]);
+        } catch (e) {
+          thrown = e;
+        }
+      });
+      expect(thrown).toBeInstanceOf(core.GwenSceneRouterError);
+      expect(thrown instanceof Error ? thrown.message : "").toContain('Route "9" is not found');
+    } finally {
+      await engine.stop();
+    }
+  });
+});
+
+describe("useSceneRouter — hand-built definition with no initial route", () => {
+  it.each([
+    ["undefined", undefined, 'Route "undefined" is not found'],
+    ["null", null, 'Route "null" is not found'],
+  ])("throws GwenSceneRouterError for an initial that is %s", async (_label, initial, message) => {
+    const One = defineScene(`NoInitial${_label}`, () => {});
+    const definition = {
+      __type: "SceneRouterDefinition",
+      options: { initial, routes: { home: { scene: One, on: {} } } },
+    };
+    const engine = await createEngine();
+    try {
+      let thrown: unknown;
+      engine.run(() => {
+        try {
+          Reflect.apply(useSceneRouter, undefined, [definition]);
+        } catch (e) {
+          thrown = e;
+        }
+      });
+      expect(thrown).toBeInstanceOf(core.GwenSceneRouterError);
+      expect(thrown instanceof Error ? thrown.message : "").toContain(message);
+    } finally {
+      await engine.stop();
+    }
+  });
+});
+
+describe("useSceneRouter — hand-built definition, base behaviour kept", () => {
+  async function run(
+    definition: unknown,
+    body: (nav: {
+      current: unknown;
+      send(event: string): Promise<void>;
+      can(event: string): boolean;
+    }) => Promise<void>,
+    leaves: string[],
+  ): Promise<void> {
+    const engine = await createEngine();
+    try {
+      engine.hooks.hook("scene:transition:leave", ({ from }) => {
+        leaves.push(from);
+      });
+      let nav:
+        | { current: unknown; send(event: string): Promise<void>; can(event: string): boolean }
+        | undefined;
+      engine.run(() => {
+        nav = Reflect.apply(useSceneRouter, undefined, [definition]);
+      });
+      if (nav === undefined) throw new Error("router handle missing");
+      await body(nav);
+    } finally {
+      await engine.stop();
+    }
+  }
+
+  it("takes a string initial that is not a route as is and ignores every event", async () => {
+    const One = defineScene("KeepInitialOne", () => {});
+    const definition = {
+      __type: "SceneRouterDefinition",
+      options: { initial: "ghost", routes: { a: { scene: One, on: { GO: "a" } } } },
+    };
+    const leaves: string[] = [];
+    await run(
+      definition,
+      async (nav) => {
+        expect(nav.current).toBe("ghost");
+        await nav.send("GO");
+        expect(nav.current).toBe("ghost");
+      },
+      leaves,
+    );
+    expect(leaves).toEqual([]);
+  });
+
+  it("ignores a falsy hand-built target (0, null, empty string) like an undefined one", async () => {
+    const One = defineScene("FalsyTargetOne", () => {});
+    const Zero = defineScene("FalsyTargetZero", () => {});
+    const definition = {
+      __type: "SceneRouterDefinition",
+      options: {
+        initial: "a",
+        routes: {
+          a: { scene: One, on: { ZERO: 0, NULL: null, EMPTY: "", REAL: "b" } },
+          b: { scene: Zero, on: {} },
+          0: { scene: Zero, on: {} },
+          null: { scene: Zero, on: {} },
+        },
+      },
+    };
+    const leaves: string[] = [];
+    await run(
+      definition,
+      async (nav) => {
+        await nav.send("ZERO");
+        await nav.send("NULL");
+        await nav.send("EMPTY");
+        expect(nav.current).toBe("a");
+        expect(leaves).toEqual([]);
+        await nav.send("REAL");
+        expect(nav.current).toBe("b");
+      },
+      leaves,
+    );
+    expect(leaves).toEqual(["FalsyTargetOne"]);
+  });
+});

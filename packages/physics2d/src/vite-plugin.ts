@@ -50,11 +50,11 @@ export function physics2dVitePlugin(options: Physics2DVitePluginOptions = {}): P
 
       // Find the variable name and declaration positions for defineLayers
       const declRe = /const\s+(\w+)\s*=\s*defineLayers\s*\([^)]*\)\s*;?/;
-      const varMatch = code.match(declRe);
+      const varMatch = declRe.exec(code);
       if (!varMatch) return;
 
       const varName = varMatch[1];
-      const declStart = varMatch.index!;
+      const declStart = varMatch.index;
       const declEnd = declStart + varMatch[0].length;
 
       const s = new MagicString(code);
@@ -65,7 +65,7 @@ export function physics2dVitePlugin(options: Physics2DVitePluginOptions = {}): P
         const refRe = new RegExp(`\\b${varName}\\.${name}\\b`, "g");
         let count = 0;
         for (const m of code.matchAll(refRe)) {
-          s.overwrite(m.index!, m.index! + m[0].length, String(value));
+          s.overwrite(m.index, m.index + m[0].length, String(value));
           replaced = true;
           count++;
         }

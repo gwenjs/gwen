@@ -193,7 +193,7 @@ export class WasmRingBuffer {
       const ptrExportName = `gwen_${opts.name}_ring_ptr`;
       const ptrExport = exports?.[ptrExportName];
       if (typeof ptrExport === "function") {
-        byteOffset = (ptrExport as () => number)();
+        byteOffset = (ptrExport as () => number)(); // boundary: a WASM export, called after the typeof check
       } else {
         // Fallback: first 64 KiB page boundary, past shadow stack.
         byteOffset = 65_536;
@@ -218,7 +218,7 @@ export class WasmRingBuffer {
       this._byteOffset + this._tail * this._itemByteSize,
       this._itemByteSize,
     );
-    dst.set(new Uint8Array(data.buffer as ArrayBuffer, data.byteOffset, data.byteLength));
+    dst.set(new Uint8Array(data.buffer, data.byteOffset, data.byteLength));
     this._tail = (this._tail + 1) % this._capacity;
     return true;
   }
@@ -236,7 +236,7 @@ export class WasmRingBuffer {
       this._byteOffset + this._head * this._itemByteSize,
       this._itemByteSize,
     );
-    new Uint8Array(dest.buffer as ArrayBuffer, dest.byteOffset, dest.byteLength).set(src);
+    new Uint8Array(dest.buffer, dest.byteOffset, dest.byteLength).set(src);
     this._head = (this._head + 1) % this._capacity;
     return true;
   }

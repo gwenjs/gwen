@@ -24,6 +24,8 @@
  * ```
  */
 
+import { GwenError } from "@gwenjs/schema";
+import { CoreErrorCodes } from "../../engine/engine-errors";
 import { useEngine, GwenContextError, GwenContextErrorCodes } from "../../engine/context";
 import type {
   GwenPlugin,
@@ -175,6 +177,15 @@ export interface DiscoverablePlugin extends GwenPlugin {
 
 // ─── defineSystem ─────────────────────────────────────────────────────────────
 
+/** Stands in for the setup of a named system defined without one. Throws when the system is set up. */
+function missingSetup(): never {
+  throw new GwenError(
+    CoreErrorCodes.DEFINITION_INCOMPLETE,
+    "defineSystem(name, setup) needs a setup function as second argument.",
+    { composable: "defineSystem" },
+  );
+}
+
 /**
  * Defines a game system using the composable pattern.
  *
@@ -198,6 +209,9 @@ export interface DiscoverablePlugin extends GwenPlugin {
  * @param setup       - Setup function when the first arg is a name string.
  * @returns A factory function. Calling the factory with dependency arguments
  *          produces a {@link GwenPlugin}.
+ * @throws {GwenError} code `CORE:DEFINITION_INCOMPLETE`, when the system is set up,
+ *   if `defineSystem(name)` was called without the setup function. Before this check
+ *   the set-up threw a `TypeError`.
  *
  * @example
  * ```typescript
@@ -232,7 +246,7 @@ export function defineSystem<Args extends unknown[]>(
 ): (...args: Args) => DiscoverablePlugin {
   const named = typeof nameOrSetup === "string";
   const systemName = named ? nameOrSetup : nameOrSetup.name || "";
-  const setupTemplate = named ? maybeSetup! : nameOrSetup;
+  const setupTemplate = named ? (maybeSetup ?? missingSetup) : nameOrSetup;
 
   if (!systemName) {
     // eslint-disable-next-line no-console
@@ -257,7 +271,7 @@ export function defineSystem<Args extends unknown[]>(
         _engine = engine;
         _scope = new ScopedHookable(engine.hooks);
         _gwenScope = new GwenScope(
-          engine as any,
+          engine,
           {
             type: "system",
             name: systemName || "anonymous-system",
@@ -274,7 +288,7 @@ export function defineSystem<Args extends unknown[]>(
         _engine = engine;
         _scope = new ScopedHookable(engine.hooks);
         _gwenScope = new GwenScope(
-          engine as any,
+          engine,
           {
             type: "system",
             name: systemName || "anonymous-system",

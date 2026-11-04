@@ -17,6 +17,7 @@
  */
 
 import type { ActorDefinition, PlaceHandle } from "./types";
+import { instanceApi } from "./instance-api";
 import type { EntityId } from "../../engine/engine-api";
 import { entityIndex } from "../../engine/engine-api";
 import { GwenContextError, GwenContextErrorCodes } from "../../engine/context";
@@ -172,7 +173,7 @@ export function useChildren(): ChildrenHandle {
       const inst = def._instances.get(entityId);
       const handle: PlaceHandle<API> = {
         entityId,
-        api: inst?.api as API,
+        api: instanceApi(inst),
         moveTo(pos) {
           const [x = 0, y = 0] = pos;
           engine.getPlacementBridge().set_entity_local_position(entityIndex(entityId), x, y);
@@ -181,7 +182,7 @@ export function useChildren(): ChildrenHandle {
           def._plugin.despawn(entityId);
         },
       };
-      _handles.set(entityId, handle as PlaceHandle<unknown>);
+      _handles.set(entityId, handle);
       return handle;
     },
 
@@ -205,7 +206,7 @@ export function useChildren(): ChildrenHandle {
       }
 
       _registerOwnership(childId);
-      _handles.set(childId, handle as PlaceHandle<unknown>);
+      _handles.set(childId, handle);
     },
 
     detach<API>(handle: PlaceHandle<API>): void {
@@ -226,7 +227,7 @@ export function useChildren(): ChildrenHandle {
     },
 
     get all(): ReadonlySet<PlaceHandle<unknown>> {
-      return new Set(_handles.values()) as ReadonlySet<PlaceHandle<unknown>>;
+      return new Set(_handles.values());
     },
   };
 }

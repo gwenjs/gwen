@@ -17,16 +17,8 @@
 
 import { walk } from "oxc-walker";
 import type {
-  CallExpression,
   ArrowFunctionExpression,
   Function as FunctionExpression,
-  VariableDeclaration,
-  VariableDeclarator,
-  ForOfStatement,
-  ExpressionStatement,
-  AssignmentExpression,
-  StaticMemberExpression,
-  BindingIdentifier,
   Statement,
 } from "oxc-parser";
 import type { OptimizablePattern, PatternPositions } from "./types.js";
@@ -90,13 +82,11 @@ export class AstWalker {
     walk(parsed.program, {
       enter(node) {
         if (node.type !== "CallExpression") return;
-        const call = node as CallExpression;
-
-        const isSystem = isCallTo(call, "defineSystem");
-        const isActor = isCallTo(call, "defineActor");
+        const isSystem = isCallTo(node, "defineSystem");
+        const isActor = isCallTo(node, "defineActor");
         if (!isSystem && !isActor) return;
 
-        const args = getCallArgs(call);
+        const args = getCallArgs(node);
         if (args.length === 0) return;
 
         // For actors the factory is always the last function-typed argument.
@@ -113,7 +103,7 @@ export class AstWalker {
           return;
         }
 
-        const fn = callback as ArrowFunctionExpression | FunctionExpression;
+        const fn = callback;
         const queryComponents = extractQueryComponents(fn);
         if (queryComponents.length === 0) return;
 
@@ -149,16 +139,15 @@ function extractQueryComponents(fn: FunctionExpression | ArrowFunctionExpression
 
   for (const stmt of stmts) {
     if (stmt.type !== "VariableDeclaration") continue;
-    const varDecl = stmt as VariableDeclaration;
-    for (const decl of varDecl.declarations) {
-      const varDeclarator = decl as VariableDeclarator;
-      if (!varDeclarator.init) continue;
+    for (const varDeclarator of stmt.declarations) {
+      const { init } = varDeclarator;
+      if (!init || init.type !== "CallExpression") continue;
 
-      const isUseQuery = isCallTo(varDeclarator.init, "useQuery");
-      const isUseActorQuery = isCallTo(varDeclarator.init, "useActorQuery");
+      const isUseQuery = isCallTo(init, "useQuery");
+      const isUseActorQuery = isCallTo(init, "useActorQuery");
       if (!isUseQuery && !isUseActorQuery) continue;
 
-      const callArgs = getCallArgs(varDeclarator.init as CallExpression);
+      const callArgs = getCallArgs(init);
       // useQuery([A, B])           → components at arg 0
       // useActorQuery(Def, [A, B]) → components at arg 1
       const componentArg = isUseActorQuery ? callArgs[1] : callArgs[0];
@@ -198,20 +187,18 @@ function extractUpdateUsage(
 
   for (const stmt of stmts) {
     if (stmt.type !== "ExpressionStatement") continue;
-    const exprStmt = stmt as ExpressionStatement;
-    if (exprStmt.expression.type !== "CallExpression") continue;
-    if (!isCallTo(exprStmt.expression as CallExpression, "onUpdate")) continue;
+    if (stmt.expression.type !== "CallExpression") continue;
+    if (!isCallTo(stmt.expression, "onUpdate")) continue;
 
     loc = { line: 1, column: 0, file: filename };
 
-    const updateArgs = getCallArgs(exprStmt.expression as CallExpression);
-    if (updateArgs.length === 0) continue;
-    const updateCb = updateArgs[0]!;
+    const updateCb = getCallArgs(stmt.expression)[0];
+    if (!updateCb) continue;
     if (updateCb.type !== "ArrowFunctionExpression" && updateCb.type !== "FunctionExpression") {
       continue;
     }
 
-    const onUpdateCb = updateCb as FunctionExpression | ArrowFunctionExpression;
+    const onUpdateCb = updateCb;
     const innerStmts = getFunctionBodyStatements(onUpdateCb);
 
     // Pass 1: collect read declarations (2-arg useComponent calls).
@@ -244,23 +231,20 @@ function extractUpdateUsage(
  */
 function collectUseComponentReads(node: Statement, reads: Set<string>): void {
   if (node.type === "ForOfStatement") {
-    const forOf = node as ForOfStatement;
-    if (forOf.body.type === "BlockStatement") {
-      for (const s of forOf.body.body) collectUseComponentReads(s, reads);
+    if (node.body.type === "BlockStatement") {
+      for (const s of node.body.body) collectUseComponentReads(s, reads);
     }
     return;
   }
 
   // `const pos = useComponent(entityId, Position)` — read
   if (node.type === "VariableDeclaration") {
-    const varDecl = node as VariableDeclaration;
-    for (const decl of varDecl.declarations) {
-      const d = decl as VariableDeclarator;
+    for (const d of node.declarations) {
       if (!d.init || d.init.type !== "CallExpression") continue;
-      if (!isCallTo(d.init as CallExpression, "useComponent")) continue;
-      const args = getCallArgs(d.init as CallExpression);
-      if (args.length === 2) {
-        const name = getIdentifierName(args[1]!);
+      if (!isCallTo(d.init, "useComponent")) continue;
+      const [, componentArg, ...rest] = getCallArgs(d.init);
+      if (componentArg && rest.length === 0) {
+        const name = getIdentifierName(componentArg);
         if (name) reads.add(name);
       }
     }
@@ -284,24 +268,20 @@ function collectAssignmentWrites(
   writes: Set<string>,
 ): void {
   if (node.type === "ForOfStatement") {
-    const forOf = node as ForOfStatement;
-    if (forOf.body.type === "BlockStatement") {
-      for (const s of forOf.body.body) collectAssignmentWrites(s, readVarMap, writes);
+    if (node.body.type === "BlockStatement") {
+      for (const s of node.body.body) collectAssignmentWrites(s, readVarMap, writes);
     }
     return;
   }
 
   // `pos.x = value` or `pos.x += value * dt` — proxy mutation
   if (node.type === "ExpressionStatement") {
-    const exprStmt = node as ExpressionStatement;
-    if (exprStmt.expression.type !== "AssignmentExpression") return;
-    const assign = exprStmt.expression as AssignmentExpression;
-    if (assign.left.type !== "MemberExpression") return;
-    const mem = assign.left as StaticMemberExpression;
+    if (node.expression.type !== "AssignmentExpression") return;
+    const mem = node.expression.left;
+    if (mem.type !== "MemberExpression") return;
     if (mem.computed) return;
     if (mem.object.type !== "Identifier") return;
-    const varName = (mem.object as BindingIdentifier).name;
-    const component = readVarMap.get(varName);
+    const component = readVarMap.get(mem.object.name);
     if (component) writes.add(component);
   }
 }
@@ -323,25 +303,21 @@ function buildReadVarMap(
   function collect(statements: Statement[]): void {
     for (const s of statements) {
       if (s.type === "ForOfStatement") {
-        const forOf = s as ForOfStatement;
-        if (forOf.body.type === "BlockStatement") {
-          collect(forOf.body.body);
+        if (s.body.type === "BlockStatement") {
+          collect(s.body.body);
         }
         continue;
       }
 
       if (s.type !== "VariableDeclaration") continue;
-      const varDecl = s as VariableDeclaration;
-      for (const decl of varDecl.declarations) {
-        const d = decl as VariableDeclarator;
+      for (const d of s.declarations) {
         if (!d.init || d.init.type !== "CallExpression") continue;
-        if (!isCallTo(d.init as CallExpression, "useComponent")) continue;
-        const args = getCallArgs(d.init as CallExpression);
-        if (args.length !== 2) continue;
+        if (!isCallTo(d.init, "useComponent")) continue;
+        const [, componentArg, ...rest] = getCallArgs(d.init);
+        if (!componentArg || rest.length !== 0) continue;
         if (d.id.type !== "Identifier") continue;
-        const varName = (d.id as BindingIdentifier).name;
-        const component = getIdentifierName(args[1]!);
-        if (component) map.set(varName, component);
+        const component = getIdentifierName(componentArg);
+        if (component) map.set(d.id.name, component);
       }
     }
   }
@@ -369,14 +345,13 @@ function extractForOfPositions(
 
   for (const stmt of stmts) {
     if (stmt.type !== "ForOfStatement") continue;
-    const forOf = stmt as ForOfStatement;
+    const forOf = stmt;
 
     if (forOf.left.type !== "VariableDeclaration") continue;
-    const leftDecl = forOf.left as VariableDeclaration;
-    if (leftDecl.declarations.length === 0) continue;
-    const firstDecl = leftDecl.declarations[0] as VariableDeclarator;
+    const firstDecl = forOf.left.declarations[0];
+    if (!firstDecl) continue;
     if (firstDecl.id.type !== "Identifier") continue;
-    const entityVar = (firstDecl.id as BindingIdentifier).name;
+    const entityVar = firstDecl.id.name;
 
     if (forOf.body.type !== "BlockStatement") continue;
     const forBodyStart = forOf.body.start;
@@ -389,18 +364,15 @@ function extractForOfPositions(
     const readDecls: { varName: string; component: string; start: number; end: number }[] = [];
     for (const s of bodyStmts) {
       if (s.type !== "VariableDeclaration") continue;
-      const varDecl = s as VariableDeclaration;
-      for (const decl of varDecl.declarations) {
-        const d = decl as VariableDeclarator;
+      for (const d of s.declarations) {
         if (!d.init || d.init.type !== "CallExpression") continue;
-        if (!isCallTo(d.init as CallExpression, "useComponent")) continue;
-        const args = getCallArgs(d.init as CallExpression);
-        if (args.length !== 2) continue;
+        if (!isCallTo(d.init, "useComponent")) continue;
+        const [, componentArg, ...rest] = getCallArgs(d.init);
+        if (!componentArg || rest.length !== 0) continue;
         if (d.id.type !== "Identifier") continue;
-        const varName = (d.id as BindingIdentifier).name;
-        const component = getIdentifierName(args[1]!);
+        const component = getIdentifierName(componentArg);
         if (!component) continue;
-        readDecls.push({ varName, component, start: s.start, end: s.end });
+        readDecls.push({ varName: d.id.name, component, start: s.start, end: s.end });
       }
     }
 
@@ -408,15 +380,12 @@ function extractForOfPositions(
     const writeTargetSet = new Set<string>();
     for (const s of bodyStmts) {
       if (s.type !== "ExpressionStatement") continue;
-      const exprStmt = s as ExpressionStatement;
-      if (exprStmt.expression.type !== "AssignmentExpression") continue;
-      const assign = exprStmt.expression as AssignmentExpression;
-      if (assign.left.type !== "MemberExpression") continue;
-      const mem = assign.left as StaticMemberExpression;
+      if (s.expression.type !== "AssignmentExpression") continue;
+      const mem = s.expression.left;
+      if (mem.type !== "MemberExpression") continue;
       if (mem.computed) continue;
       if (mem.object.type !== "Identifier") continue;
-      const varName = (mem.object as BindingIdentifier).name;
-      const component = readVarMap.get(varName);
+      const component = readVarMap.get(mem.object.name);
       if (component) writeTargetSet.add(component);
     }
     const writeTargets = [...writeTargetSet];
@@ -430,10 +399,10 @@ function extractForOfPositions(
     walk(forOf.body, {
       enter(node) {
         if (node.type !== "MemberExpression") return;
-        const mem = node as StaticMemberExpression;
+        const mem = node;
         if (mem.computed) return;
         if (mem.object.type !== "Identifier") return;
-        const varName = (mem.object as BindingIdentifier).name;
+        const varName = mem.object.name;
         if (!readVarMap.has(varName)) return;
         const fieldName = mem.property.name;
         propAccesses.push({ varName, fieldName, start: node.start, end: node.end });

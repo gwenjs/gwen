@@ -76,7 +76,7 @@ export class ScopedHookable {
    */
   hook<K extends GwenRuntimeHookName>(name: K, fn: GwenRuntimeHooks[K]): () => void {
     assertHookName(name, "scope.hook", false);
-    const call = fn as (...args: unknown[]) => unknown;
+    const call = fn as (...args: unknown[]) => unknown; // boundary: the wrapper below calls fn with arguments of unknown type, where fn is typed for hook K
     const isPaused = (): boolean => this._paused;
     // Arity 0-4 stays allocation-free. A longer call uses apply.
     const wrapped = function (a: unknown, b: unknown, c: unknown, d: unknown) {
@@ -87,9 +87,9 @@ export class ScopedHookable {
       if (b !== undefined) return call(a, b);
       if (a !== undefined) return call(a);
       return call();
-    } as GwenRuntimeHooks[K];
+    };
 
-    const unsub = this._parent.hook(name, wrapped as never);
+    const unsub = this._parent.hook(name, wrapped as never); // boundary: wrapped is the arity-dispatching untyped function; hook() wants the callback typed for hook K
     this._disposers.push(unsub);
 
     return () => {

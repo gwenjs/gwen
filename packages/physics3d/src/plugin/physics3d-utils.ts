@@ -11,6 +11,7 @@ import type {
   Physics3DColliderOptions,
 } from "../types";
 import { PHYSICS3D_MATERIAL_PRESETS } from "../types";
+import { uncheckedAt } from "../internal/unchecked";
 
 /**
  * Construct a fully-initialized Physics3DVec3 from a partial override.
@@ -98,7 +99,12 @@ export function cloneState(s: Physics3DBodyState): Physics3DBodyState {
  * @param options - Collider options with optional materialPreset name
  * @returns Object with explicit friction, restitution, and density values
  */
-export function resolveColliderMaterial(options: Physics3DColliderOptions): {
+export function resolveColliderMaterial(
+  options: Pick<
+    Physics3DColliderOptions,
+    "materialPreset" | "friction" | "restitution" | "density"
+  >,
+): {
   friction: number;
   restitution: number;
   density: number;
@@ -173,16 +179,16 @@ export function computeColliderAABB(pos: Physics3DVec3, col: Physics3DColliderOp
     // The vertices Float32Array contains interleaved (x, y, z) triples.
     const verts = shape.vertices;
     if (verts.length >= 3) {
-      let minX = verts[0]!;
-      let maxX = verts[0]!;
-      let minY = verts[1]!;
-      let maxY = verts[1]!;
-      let minZ = verts[2]!;
-      let maxZ = verts[2]!;
+      let minX = uncheckedAt(verts, 0);
+      let maxX = uncheckedAt(verts, 0);
+      let minY = uncheckedAt(verts, 1);
+      let maxY = uncheckedAt(verts, 1);
+      let minZ = uncheckedAt(verts, 2);
+      let maxZ = uncheckedAt(verts, 2);
       for (let i = 3; i < verts.length; i += 3) {
-        const vx = verts[i]!;
-        const vy = verts[i + 1]!;
-        const vz = verts[i + 2]!;
+        const vx = uncheckedAt(verts, i);
+        const vy = uncheckedAt(verts, i + 1);
+        const vz = uncheckedAt(verts, i + 2);
         if (vx < minX) minX = vx;
         if (vx > maxX) maxX = vx;
         if (vy < minY) minY = vy;

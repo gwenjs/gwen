@@ -21,23 +21,22 @@ export interface ServiceContainerDeps {
   ) => void;
 }
 
-// boundary: one map holds every GwenProvides value; the key selects its member.
 function readProvidedService<K extends keyof GwenProvides>(
-  services: ReadonlyMap<keyof GwenProvides, GwenProvides[keyof GwenProvides]>,
+  services: ReadonlyMap<string, unknown>,
   key: K,
 ): GwenProvides[K] {
-  return services.get(key) as GwenProvides[K];
+  return services.get(key) as GwenProvides[K]; // boundary: the map holds one value type for every key, and the key type K selects the member that provide stored under it
 }
 
 /** Keys the engine provides for itself. `delete` never removes them. */
-const ENGINE_OWNED = new Set<keyof GwenProvides>(["wasm:bridge", "logger", "errors", "memory"]);
+const ENGINE_OWNED = new Set<string>(["wasm:bridge", "logger", "errors", "memory"]);
 
 /**
  * Typed service map for provide, inject, and tryInject.
  * @internal
  */
 export class ServiceContainer {
-  private readonly _services = new Map<keyof GwenProvides, GwenProvides[keyof GwenProvides]>();
+  private readonly _services = new Map<string, unknown>();
 
   constructor(private readonly deps: ServiceContainerDeps) {}
 
@@ -49,11 +48,13 @@ export class ServiceContainer {
     return write;
   }
 
+  // Widened: `write`, `has` and `delete` take `string` and `unknown`, so the compiler no longer
+  // links a key to its `GwenProvides` value here; the engine collaborators call them with plain strings.
   /**
    * Same state gate as {@link provide}. Does not announce.
    * An equal value (`===`) is `same` and is not stored again.
    */
-  write<K extends keyof GwenProvides>(key: K, value: GwenProvides[K]): ServiceWriteResult {
+  write(key: string, value: unknown): ServiceWriteResult {
     this.deps.assertState("provide");
     if (this._services.has(key) && this._services.get(key) === value) {
       return { kind: "same" };
@@ -88,7 +89,7 @@ export class ServiceContainer {
     return readProvidedService(this._services, key);
   }
 
-  has(key: keyof GwenProvides): boolean {
+  has(key: string): boolean {
     return this._services.has(key);
   }
 
@@ -96,7 +97,7 @@ export class ServiceContainer {
    * Drop `key` when the map still holds `expected`.
    * Does not call `assertState`: `stop()` from `faulted` still removes services.
    */
-  delete(key: keyof GwenProvides, expected: unknown): boolean {
+  delete(key: string, expected: unknown): boolean {
     if (ENGINE_OWNED.has(key)) return false;
     if (this._services.get(key) !== expected) return false;
     this._services.delete(key);

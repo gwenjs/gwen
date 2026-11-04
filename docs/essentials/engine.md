@@ -77,7 +77,7 @@ Vite is a separate stack. The GWEN base comes first, then extenders registered b
 | `APP:CONFIG_LOAD_FAILED` | `[GWEN] No gwen.config.ts (or .js / .mjs / .cjs) found in <cwd>.` and `See https://gwenjs.github.io/gwen/api/errors#app-config-load-failed (APP:CONFIG_LOAD_FAILED)` |
 | `CORE:INVALID_CONFIG` | `Invalid config "maxEntities": -1.` |
 
-Sources: `packages/app/src/app.ts:459`, `packages/app/src/config.ts:79-91`, `packages/app/src/config.ts:93-99`, `packages/vite/src/index.ts:482-504`, `packages/app/src/app.ts:200-202`, `packages/app/src/app.ts:257`, `packages/app/src/merge.ts:21-22`, `packages/app/src/config-error.ts:14-22`, `packages/app/tests/config-layering.test.ts:128-130`, `packages/app/tests/config-layering.test.ts:133-138`, `packages/app/tests/config-layering.test.ts:541-549`, `packages/app/tests/config-layering.test.ts:154-157`, `packages/app/src/config-loader.ts:110`, `packages/app/tests/config-loader.test.ts:123-126`, `packages/core/src/engine/config-error.ts:30`, `packages/core/tests/engine/config-validator.test.ts:33`.
+Sources: `packages/app/src/app.ts:459`, `packages/app/src/config.ts:79-91`, `packages/app/src/config.ts:93-99`, `packages/vite/src/index.ts:491-513`, `packages/app/src/app.ts:200-202`, `packages/app/src/app.ts:257`, `packages/app/src/merge.ts:21-22`, `packages/app/src/config-error.ts:14-22`, `packages/app/tests/config-layering.test.ts:128-130`, `packages/app/tests/config-layering.test.ts:133-138`, `packages/app/tests/config-layering.test.ts:541-549`, `packages/app/tests/config-layering.test.ts:154-157`, `packages/app/src/config-loader.ts:118`, `packages/app/tests/config-loader.test.ts:123-126`, `packages/core/src/engine/config-error.ts:30`, `packages/core/tests/engine/config-validator.test.ts:33`.
 
 ## Extending Vite
 
@@ -125,7 +125,7 @@ export const DebugSystem = defineSystem(() => {
 
 ## Engines on one instance
 
-Under `wasmInstance: "shared"`, two engines can run on one WASM instance. `@gwenjs/core` defaults to `auto` (`packages/core/src/engine/wasm-bridge.ts:523`). Each engine owns its entities, its physics world, and its path buffers. A path written by one engine is not the path the other engine reads.
+Under `wasmInstance: "shared"`, two engines can run on one WASM instance. `@gwenjs/core` defaults to `auto` (`packages/core/src/engine/wasm-bridge.ts:530`). Each engine owns its entities, its physics world, and its path buffers. A path written by one engine is not the path the other engine reads.
 
 `jsUrl` is the URL of `gwen_core_factory.js`. `init()` with `jsUrl` or `wasmUrl` on an already initialised bridge rejects `CORE:WASM_LOAD_ERROR`.
 
@@ -137,7 +137,7 @@ They still share three things:
 
 ## Several engines per page or process
 
-`wasmInstance` selects the WASM instance (`packages/core/src/engine/wasm-bridge.ts:523`).
+`wasmInstance` selects the WASM instance (`packages/core/src/engine/wasm-bridge.ts:530`).
 
 | Mode | Behaviour |
 | --- | --- |
@@ -145,11 +145,11 @@ They still share three things:
 | `isolated` | One instance per engine, with its own linear memory (`packages/core/src/engine/wasm-instance-provider.ts:144`). |
 | `auto` (default) | The first engine of a module goes on that module's pool instance, the one `shared` uses (`packages/core/src/engine/wasm-instance-provider.ts:240`). Each later engine gets its own instance while fewer than `wasmIsolatedBudget` isolated instances are live in the page or process (`packages/core/src/engine/wasm-instance-provider.ts:241`, `:243`). Past the budget, or on a `RangeError` or a thrown value that is not an `Error`, it joins the pool (`packages/core/src/engine/wasm-instance-provider.ts:241`, `:248`). `engine.wasmInstance` is the resolved placement, `"shared"` or `"isolated"` (`packages/core/src/engine/engine-types.ts:504`). |
 
-`createEngine` from `@gwenjs/core` defaults to `auto` (`packages/core/src/engine/wasm-bridge.ts:523`). Breaking change: engines 2..K of a module each get their own instance until `wasmIsolatedBudget` (16, `packages/core/src/engine/wasm-instance-provider.ts:162`), then join the pool; the first fallback logs one warning per reason. `createEngine` from `@gwenjs/core/node` defaults to `isolated` (see [Headless / server](#headless-server)).
+`createEngine` from `@gwenjs/core` defaults to `auto` (`packages/core/src/engine/wasm-bridge.ts:530`). Breaking change: engines 2..K of a module each get their own instance until `wasmIsolatedBudget` (16, `packages/core/src/engine/wasm-instance-provider.ts:162`), then join the pool; the first fallback logs one warning per reason. `createEngine` from `@gwenjs/core/node` defaults to `isolated` (see [Headless / server](#headless-server)).
 
-`wasmIsolatedBudget` is an integer >= 0, else `CORE:INVALID_CONFIG` (`packages/core/src/engine/engine-config-validator.ts:124`). The default is 16 (`packages/core/src/engine/wasm-instance-provider.ts:162`). `0` puts every engine on the pool (`packages/core/src/engine/wasm-instance-provider.ts:213`). A running engine never moves (`packages/core/src/engine/wasm-bridge.ts:532`). `auto` never allocates an instance to test capacity (`packages/core/src/engine/wasm-instance-provider.ts:240`). `LinkError` and `CompileError` are not a fallback: they reject `CORE:WASM_LOAD_ERROR` (`packages/core/src/engine/wasm-instance-provider.ts:199`). When an engine joins the pool, the engine logger writes one warning per reason (`budget` or `capacity`) per page or process, with payload `{ reason, mode: "auto", isolatedLive, cause? }` (`packages/core/src/engine/engine-factory.ts:22`, `packages/core/src/engine/wasm-instance-provider.ts:168`).
+`wasmIsolatedBudget` is an integer >= 0, else `CORE:INVALID_CONFIG` (`packages/core/src/engine/engine-config-validator.ts:124`). The default is 16 (`packages/core/src/engine/wasm-instance-provider.ts:162`). `0` puts every engine on the pool (`packages/core/src/engine/wasm-instance-provider.ts:213`). A running engine never moves (`packages/core/src/engine/wasm-bridge.ts:539`). `auto` never allocates an instance to test capacity (`packages/core/src/engine/wasm-instance-provider.ts:240`). `LinkError` and `CompileError` are not a fallback: they reject `CORE:WASM_LOAD_ERROR` (`packages/core/src/engine/wasm-instance-provider.ts:199`). When an engine joins the pool, the engine logger writes one warning per reason (`budget` or `capacity`) per page or process, with payload `{ reason, mode: "auto", isolatedLive, cause? }` (`packages/core/src/engine/engine-factory.ts:22`, `packages/core/src/engine/wasm-instance-provider.ts:168`).
 
-Under `auto`, the engines on the pool share one fault domain: a trap poisons them all with `CORE:WASM_PANIC`. Isolated engines are not registered with the pool, so they are not poisoned (`packages/core/src/engine/wasm-bridge.ts:534`).
+Under `auto`, the engines on the pool share one fault domain: a trap poisons them all with `CORE:WASM_PANIC`. Isolated engines are not registered with the pool, so they are not poisoned (`packages/core/src/engine/wasm-bridge.ts:541`).
 
 Browser `isolated` is supported. Three Playwright projects gate it: Chromium, Firefox and WebKit (`packages/core/playwright.config.ts:21-23`). They run `packages/core/tests/browser/isolation.pw.ts` and `packages/core/tests/browser/capacity.pw.ts`. The browser default is `auto`. On iOS devices, pass `wasmInstance: "shared"`. iOS is not in CI.
 
@@ -469,11 +469,11 @@ For how many isolated engines one process can hold, see [Several engines per pag
 
 ### Limits the host must enforce
 
-`loadWasmModule` rejects a `url` or `bytes` source over `maxBytes` before `WebAssembly.compile` (`packages/core/src/engine/wasm-module-runner.ts:223`, `packages/core/src/engine/wasm-module-runner.ts:250`). The default is `16 MiB` (`16777216` bytes) (`packages/core/src/engine/wasm-module-runner.ts:81`). A `module` source is already compiled and is not checked (`packages/core/src/engine/engine-types.ts:74`).
+`loadWasmModule` rejects a `url` or `bytes` source over `maxBytes` before `WebAssembly.compile` (`packages/core/src/engine/wasm-module-runner.ts:225`, `packages/core/src/engine/wasm-module-runner.ts:252`). The default is `16 MiB` (`16777216` bytes) (`packages/core/src/engine/wasm-module-runner.ts:83`). A `module` source is already compiled and is not checked (`packages/core/src/engine/engine-types.ts:74`).
 
-GWEN does not cap `memory.grow`. The load path checks the byte length, then compiles (`packages/core/src/engine/wasm-module-runner.ts:223`, `packages/core/src/engine/wasm-module-runner.ts:250`). It does not limit later growth of the module memory.
+GWEN does not cap `memory.grow`. The load path checks the byte length, then compiles (`packages/core/src/engine/wasm-module-runner.ts:225`, `packages/core/src/engine/wasm-module-runner.ts:252`). It does not limit later growth of the module memory.
 
-GWEN cannot interrupt a call that never returns on the main thread. A module `step` runs directly on that thread (`packages/core/src/engine/wasm-module-runner.ts:420`).
+GWEN cannot interrupt a call that never returns on the main thread. A module `step` runs directly on that thread (`packages/core/src/engine/wasm-module-runner.ts:419`).
 
 Run a module you do not trust in a worker and call `worker.terminate()` on it. See [Many rooms on worker threads](#many-rooms-on-worker-threads).
 
@@ -485,9 +485,9 @@ Each engine has two hard limits. Both are per engine: a second engine in the sam
 
 An engine holds at most `128` component types (`crates/gwen-core/src/ecs/error.rs:9`, `packages/core/src/engine/engine-component-registry.ts:25`). The component mask has 128 bits (`crates/gwen-core/src/ecs/chunk_store.rs:85`). Each distinct component name takes one slot, the first time the engine sees it.
 
-The 129th name throws `GwenComponentLimitError` with code `CORE:COMPONENT_TYPE_LIMIT_REACHED` (`packages/core/src/engine/engine-errors.ts:306-340`). It carries `component`, `owner` (the plugin name, or `null`), `max` and `used`.
+The 129th name throws `GwenComponentLimitError` with code `CORE:COMPONENT_TYPE_LIMIT_REACHED` (`packages/core/src/engine/engine-errors.ts:312-346`). It carries `component`, `owner` (the plugin name, or `null`), `max` and `used`.
 
-`engine.unuse(name)` frees the slots a plugin owns (`packages/core/src/engine/plugin-registry.ts:366-372`). A plugin owns the types it first registers synchronously in `setup`, before its first `await`. A type first registered after an `await` has no owner and stays after `unuse` (`packages/core/tests/integration-wasm/capacity-limits.test.ts:159`). A type that still has live rows, or that a live query references, is kept: `CORE:COMPONENT_TYPE_IN_USE` is handled inside the registry and the type stays (`packages/core/src/engine/engine-component-registry.ts:228-246`).
+`engine.unuse(name)` frees the slots a plugin owns (`packages/core/src/engine/plugin-registry.ts:360-366`). A plugin owns the types it first registers synchronously in `setup`, before its first `await`. A type first registered after an `await` has no owner and stays after `unuse` (`packages/core/tests/integration-wasm/capacity-limits.test.ts:159`). A type that still has live rows, or that a live query references, is kept: `CORE:COMPONENT_TYPE_IN_USE` is handled inside the registry and the type stays (`packages/core/src/engine/engine-component-registry.ts:228-246`).
 
 Read the current use with [`engine.getCapacity()`](/api/core#enginegetcapacity).
 

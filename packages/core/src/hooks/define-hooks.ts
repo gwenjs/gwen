@@ -34,5 +34,5 @@ export function defineHooks<const T extends HookHandlerMap>(
   map: string extends keyof T ? T : T & HookMapKeyErrors<T>,
 ): WritableHookMap<T> {
   for (const key in map) assertHookName(key, "defineHooks", true);
-  return map as WritableHookMap<T>;
+  return map as WritableHookMap<T>; // boundary: the checked map is returned with writable handler types
 }

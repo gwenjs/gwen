@@ -7,6 +7,7 @@
  */
 
 import { _engineSlot, GwenContextError, GwenContextErrorCodes, type EngineSlot } from "@gwenjs/kit";
+import type { GwenEngineBase } from "@gwenjs/schema";
 import type { GwenEngine } from "./engine-types";
 import { GwenScope } from "../context/scope.js";
 
@@ -31,7 +32,23 @@ export type { GwenContextErrorCode } from "@gwenjs/kit";
  *
  * @internal — import `useEngine()` instead for public usage
  */
-export const engineContext = _engineSlot as EngineSlot<GwenEngine>;
+export const engineContext = _engineSlot as EngineSlot<GwenEngine>; // boundary: the kit slot is untyped; core fixes its engine type
+
+/**
+ * Narrows the engine that a plugin `setup()` receives to {@link GwenEngine}.
+ *
+ * `GwenPlugin.setup` is typed with `GwenEngineBase`, but core hands every plugin its full
+ * engine. Plugins that need a member the base leaves out, such as `errors` or `frameCount`,
+ * call this once instead of casting. Entity calls in `setup()` stay an anti-pattern (see
+ * `GwenEngineBase`). It is a type-only narrowing: it returns `base` itself.
+ *
+ * @param base - The engine a plugin `setup()` received.
+ * @returns The same object, typed as the full engine.
+ * @internal — `@gwenjs/core/internal`, no semver guarantee.
+ */
+export function asFullEngine(base: GwenEngineBase): GwenEngine {
+  return base as GwenEngine; // boundary: GwenPlugin.setup is typed with the engine base, and core passes every plugin its full engine
+}
 
 // ─── Async context helpers ────────────────────────────────────────────────────
 
@@ -115,7 +132,7 @@ export function executeAsync<T>(fn: () => Promise<T>): [Promise<T>, () => void] 
 export function withAsyncContext<T extends (...args: unknown[]) => Promise<unknown>>(fn: T): T {
   const _ctx = engineContext.tryUse();
   const _scope = GwenScope.current();
-  return ((...args: unknown[]) => {
+  const wrapped = (...args: unknown[]) => {
     if (_ctx === null || _ctx === undefined) {
       throw new GwenContextError(GwenContextErrorCodes.OUTSIDE_ENGINE_CONTEXT, "withAsyncContext");
     }
@@ -129,7 +146,8 @@ export function withAsyncContext<T extends (...args: unknown[]) => Promise<unkno
       else engineContext.unset();
       GwenScope._setCurrent(previousScope);
     });
-  }) as T;
+  };
+  return wrapped as T; // boundary: T is any subtype of the constraint, and the wrapper is typed as the constraint only
 }
 
 // ─── useEngine() ─────────────────────────────────────────────────────────────

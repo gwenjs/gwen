@@ -6,6 +6,7 @@
 
 import type { Physics3DVec3, PathWaypoint3D } from "../types";
 import type { PluginContext } from "./plugin-context";
+import { uncheckedAt } from "../internal/unchecked";
 
 // ─── MinHeap ───────────────────────────────────────────────────────────────────
 
@@ -47,7 +48,7 @@ class MinHeap<T> {
    */
   pop(): T | undefined {
     if (this._data.length === 0) return undefined;
-    const top = this._data[0]!.value;
+    const top = uncheckedAt(this._data, 0).value;
     const last = this._data.pop();
     if (last !== undefined && this._data.length > 0) {
       this._data[0] = last;
@@ -60,8 +61,11 @@ class MinHeap<T> {
     const data = this._data;
     while (i > 0) {
       const parent = (i - 1) >> 1;
-      if (data[parent]!.priority <= data[i]!.priority) break;
-      [data[parent], data[i]] = [data[i]!, data[parent]!];
+      const parentNode = uncheckedAt(data, parent);
+      const node = uncheckedAt(data, i);
+      if (parentNode.priority <= node.priority) break;
+      data[parent] = node;
+      data[i] = parentNode;
       i = parent;
     }
   }
@@ -70,13 +74,28 @@ class MinHeap<T> {
     const data = this._data;
     const n = data.length;
     while (true) {
+      const node = uncheckedAt(data, i);
       let min = i;
+      let minNode = node;
       const l = 2 * i + 1;
       const r = 2 * i + 2;
-      if (l < n && data[l]!.priority < data[min]!.priority) min = l;
-      if (r < n && data[r]!.priority < data[min]!.priority) min = r;
+      if (l < n) {
+        const left = uncheckedAt(data, l);
+        if (left.priority < minNode.priority) {
+          min = l;
+          minNode = left;
+        }
+      }
+      if (r < n) {
+        const right = uncheckedAt(data, r);
+        if (right.priority < minNode.priority) {
+          min = r;
+          minNode = right;
+        }
+      }
       if (min === i) break;
-      [data[i], data[min]] = [data[min]!, data[i]!];
+      data[i] = minNode;
+      data[min] = node;
       i = min;
     }
   }
@@ -151,7 +170,8 @@ export function localFindPath3D(
   let found = false;
 
   for (let iter = 0; iter < MAX_ITER && heap.size > 0; iter++) {
-    const cur = heap.pop()!;
+    const cur = heap.pop();
+    if (cur === undefined) break;
     // Skip stale entries (node was already settled with a better path)
     if (closed.has(cur.key)) continue;
     closed.add(cur.key);

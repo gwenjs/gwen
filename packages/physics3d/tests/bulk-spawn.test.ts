@@ -306,3 +306,46 @@ describe("bulkSpawnStaticBoxes — WASM mode", () => {
     expect(service.getBodyCount()).toBe(0);
   });
 });
+
+describe("bulkSpawnStaticBoxes — after teardown", () => {
+  beforeEach(() => {
+    mockBridge.getPhysicsBridge.mockReset();
+  });
+
+  it("returns nothing for an empty request and throws PHYSICS3D:NOT_INITIALIZED naming bulkSpawnStaticBoxes for a box when the plugin has no engine", () => {
+    const { engine, services } = makeEngine();
+    mockBridge.getPhysicsBridge.mockReturnValue({
+      physics3d_init: physics3dInit,
+      physics3d_step: physics3dStep,
+    });
+    const plugin = Physics3DPlugin();
+    engineContext.set(engine, true);
+    plugin.setup(engine);
+    const service = services.get("physics3d") as Physics3DAPI;
+    plugin.teardown?.();
+
+    const empty = service.bulkSpawnStaticBoxes({
+      positions: new Float32Array(0),
+      halfExtents: new Float32Array([0.5, 0.5, 0.5]),
+    });
+    expect(empty.entityIds).toEqual([]);
+    expect(empty.count).toBe(0);
+
+    let caught: unknown;
+    try {
+      service.bulkSpawnStaticBoxes({
+        positions: new Float32Array([0, 0, 0]),
+        halfExtents: new Float32Array([0.5, 0.5, 0.5]),
+      });
+    } catch (err: unknown) {
+      caught = err;
+    }
+
+    expect(caught).toBeInstanceOf(GwenError);
+    if (!(caught instanceof GwenError)) throw new Error("expected GwenError");
+    expect(caught.code).toBe("PHYSICS3D:NOT_INITIALIZED");
+    expect(caught.message).toContain(
+      "bulkSpawnStaticBoxes() called while the plugin has no engine.",
+    );
+  });
+});

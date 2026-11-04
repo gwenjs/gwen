@@ -12,13 +12,9 @@ import type {
   CallExpression,
   ObjectExpression,
   ObjectProperty,
-  ArrayExpression,
   VariableDeclarator,
   Function as OxcFunction,
   ArrowFunctionExpression,
-  IdentifierName,
-  StringLiteral,
-  NumericLiteral,
 } from "oxc-parser";
 
 // ─── Public type aliases ─────────────────────────────────────────────────────
@@ -48,9 +44,8 @@ export type FunctionExpression = OxcFunction;
  */
 export function isCallTo(node: Expression, name: string): boolean {
   if (node.type !== "CallExpression") return false;
-  const call = node as CallExpression;
-  if (call.callee.type !== "Identifier") return false;
-  return (call.callee as IdentifierName).name === name;
+  if (node.callee.type !== "Identifier") return false;
+  return node.callee.name === name;
 }
 
 /**
@@ -68,7 +63,7 @@ export function isCallTo(node: Expression, name: string): boolean {
  */
 export function getIdentifierName(node: Expression): string | null {
   if (node.type !== "Identifier") return null;
-  return (node as IdentifierName).name;
+  return node.name;
 }
 
 // ─── Literal values ───────────────────────────────────────────────────────────
@@ -84,7 +79,7 @@ export function getIdentifierName(node: Expression): string | null {
  */
 export function getStringValue(node: Expression): string | null {
   if (node.type !== "Literal") return null;
-  const value = (node as StringLiteral).value;
+  const { value } = node;
   return typeof value === "string" ? value : null;
 }
 
@@ -99,7 +94,7 @@ export function getStringValue(node: Expression): string | null {
  */
 export function getNumericValue(node: Expression): number | null {
   if (node.type !== "Literal") return null;
-  const value = (node as NumericLiteral).value;
+  const { value } = node;
   return typeof value === "number" ? value : null;
 }
 
@@ -174,8 +169,7 @@ export function getDeclaratorInit(decl: VariableDeclarator): Expression | null {
  */
 export function getArrayElements(node: Expression): Expression[] {
   if (node.type !== "ArrayExpression") return [];
-  const arr = node as ArrayExpression;
-  return arr.elements.filter((el): el is Expression => el !== null && el.type !== "SpreadElement");
+  return node.elements.filter((el): el is Expression => el !== null && el.type !== "SpreadElement");
 }
 
 /**
@@ -194,8 +188,7 @@ export function getArrayElements(node: Expression): Expression[] {
  */
 export function getObjectProperties(node: Expression | ObjectExpression): ObjectProperty[] {
   if (node.type !== "ObjectExpression") return [];
-  const obj = node as ObjectExpression;
-  return obj.properties.filter((p): p is ObjectProperty => p.type !== "SpreadElement");
+  return node.properties.filter((p): p is ObjectProperty => p.type !== "SpreadElement");
 }
 
 /**
@@ -214,9 +207,9 @@ export function getObjectProperties(node: Expression | ObjectExpression): Object
  */
 export function getPropertyKeyName(prop: ObjectProperty): string | null {
   const { key } = prop;
-  if (key.type === "Identifier") return (key as IdentifierName).name;
+  if (key.type === "Identifier") return key.name;
   if (key.type === "Literal") {
-    const value = (key as StringLiteral).value;
+    const { value } = key;
     return typeof value === "string" ? value : null;
   }
   return null;

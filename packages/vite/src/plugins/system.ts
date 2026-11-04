@@ -7,8 +7,9 @@ import { createAstNameInjector } from "../shared/ast-name-injector.js";
  * ...existing JSDoc...
  */
 export const transformSystemNames = createAstNameInjector("defineSystem", (varName, args, s) => {
-  if (args.length > 0 && args[0]!.type !== "Literal") {
-    s.prependLeft(args[0]!.start, `'${varName}', `);
+  const first = args[0];
+  if (first && first.type !== "Literal") {
+    s.prependLeft(first.start, `'${varName}', `);
     return true;
   }
   return false;

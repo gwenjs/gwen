@@ -7,15 +7,7 @@ import { readdirSync, statSync, existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { walk } from "oxc-walker";
-import type {
-  VariableDeclarator,
-  CallExpression,
-  ObjectExpression,
-  StringLiteral,
-  NumericLiteral,
-  StaticMemberExpression,
-  IdentifierName,
-} from "oxc-parser";
+import type { ObjectExpression } from "oxc-parser";
 import {
   parseSource,
   isCallTo,
@@ -76,18 +68,15 @@ export class ComponentScanner {
     walk(parsed.program, {
       enter: (node) => {
         if (node.type !== "VariableDeclarator") return;
-        const decl = node as VariableDeclarator;
-        const { id, init } = decl;
+        const { id, init } = node;
         if (id.type !== "Identifier") return;
-        if (!init || !isCallTo(init, "defineComponent")) return;
+        if (!init || init.type !== "CallExpression" || !isCallTo(init, "defineComponent")) return;
 
-        const exportName = (id as IdentifierName).name;
-        const args = getCallArgs(init as CallExpression);
-        if (args.length === 0) return;
-        const configArg = args[0];
+        const exportName = id.name;
+        const configArg = getCallArgs(init)[0];
         if (configArg === undefined || configArg.type !== "ObjectExpression") return;
 
-        const entry = this._extractEntry(configArg as ObjectExpression, exportName, filename);
+        const entry = this._extractEntry(configArg, exportName, filename);
         if (entry) this.manifest.register(entry);
       },
     });
@@ -117,18 +106,18 @@ export class ComponentScanner {
 
       switch (key) {
         case "name":
-          if (value.type === "Literal" && typeof (value as StringLiteral).value === "string") {
-            name = (value as StringLiteral).value;
+          if (value.type === "Literal" && typeof value.value === "string") {
+            name = value.value;
           }
           break;
         case "_typeId":
-          if (value.type === "Literal" && typeof (value as NumericLiteral).value === "number") {
-            typeId = (value as NumericLiteral).value;
+          if (value.type === "Literal" && typeof value.value === "number") {
+            typeId = value.value;
           }
           break;
         case "schema":
           if (value.type === "ObjectExpression") {
-            schema = this._extractSchema(value as ObjectExpression);
+            schema = this._extractSchema(value);
           }
           break;
       }
@@ -165,9 +154,9 @@ export class ComponentScanner {
 
       // Types.f32 → StaticMemberExpression (type: 'MemberExpression', computed: false)
       if (value.type === "MemberExpression") {
-        const mem = value as StaticMemberExpression;
+        const mem = value;
         if (!mem.computed && mem.object.type === "Identifier") {
-          const objName = (mem.object as IdentifierName).name;
+          const objName = mem.object.name;
           if (objName === "Types") {
             result[key] = mem.property.name;
           }
@@ -176,8 +165,8 @@ export class ComponentScanner {
       }
 
       // String literal fallback: { x: 'f32' }
-      if (value.type === "Literal" && typeof (value as StringLiteral).value === "string") {
-        result[key] = (value as StringLiteral).value;
+      if (value.type === "Literal" && typeof value.value === "string") {
+        result[key] = value.value;
       }
     }
 
@@ -214,8 +203,7 @@ export class ComponentScanner {
     const sorted = [...needsId].sort((a, b) => a.name.localeCompare(b.name));
     let nextId = maxExplicit + 1;
     for (const entry of sorted) {
-      (entry as { typeId: number }).typeId = nextId++;
-      this.manifest.register(entry);
+      this.manifest.register({ ...entry, typeId: nextId++ });
     }
   }
 }

@@ -6,13 +6,13 @@ import { useEngine } from "../../engine/context.js";
 import type { GwenEngine } from "../../engine/engine-types.js";
 import type { TweenHandle, TweenOptions, TweenableValue } from "./tween-types.js";
 import { TweenPool, type TweenPoolPolicy } from "./tween-pool.js";
-import type { IGwenLogger } from "@gwenjs/schema";
+import type { GwenEngineBase, IGwenLogger } from "@gwenjs/schema";
 
 export class TweenManager {
   private _pool: TweenPool;
 
   constructor(
-    engine: GwenEngine,
+    engine: GwenEngineBase,
     poolSize: number = 256,
     policy?: TweenPoolPolicy,
     logger?: IGwenLogger,

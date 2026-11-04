@@ -1,6 +1,7 @@
 import { createHooks } from "hookable";
 import type { EntityId } from "../../../engine/engine-api";
 import { setEntityDormant } from "../../../engine/engine-internals";
+import { asFullEngine } from "../../../engine/context";
 import { unwrapEngine } from "../../../engine/engine-local";
 import type { GwenEngine, GwenPlugin } from "../../../engine/engine-types";
 import type { GwenEngineBase } from "@gwenjs/schema";
@@ -15,6 +16,7 @@ import { PoolExhaustedError } from "./errors";
 import type { ActorPool, ActorPoolDefinition, PoolHooks, PoolOptions, PoolStats } from "./types";
 import { useHook } from "../../../hooks/use-hook";
 import { actorTablesFor } from "../define-actor";
+import { uncheckedAt } from "../../../internal/unchecked.js";
 import { ActorErrorCodes, GwenActorError } from "../../../engine/engine-errors";
 import { reportRejectedHook } from "../../../hooks/report-rejected-hook.js";
 import { emitActorDisable, emitActorEnable } from "../../../engine/hook-dispatch.js";
@@ -90,12 +92,12 @@ class DeferredReleaseQueue {
     if (flags) {
       const pos = this._pos;
       for (let i = 0; i < count; i += 1) {
-        const index = entityIndex(draining[i]!);
+        const index = entityIndex(uncheckedAt(draining, i));
         flags[index] = 0;
         if (pos) pos[index] = -1;
       }
     }
-    for (let i = 0; i < count; i += 1) releaseFn(draining[i]!);
+    for (let i = 0; i < count; i += 1) releaseFn(uncheckedAt(draining, i));
   }
 
   reset(): void {
@@ -313,10 +315,10 @@ export function defineActorPool<Props, PublicAPI>(
     const inst = actor._instances.get(id);
     if (!inst) return;
 
-    for (let i = 0; i < inst._disable.length; i += 1) inst._disable[i]!();
+    for (let i = 0; i < inst._disable.length; i += 1) uncheckedAt(inst._disable, i)();
     const releaseEngine = _engine;
     if (releaseEngine) emitActorDisable(releaseEngine, id);
-    for (let i = 0; i < inst._release.length; i += 1) inst._release[i]!();
+    for (let i = 0; i < inst._release.length; i += 1) uncheckedAt(inst._release, i)();
 
     if (inst._children && inst._children.size > 0) {
       const childIds = [...inst._children];
@@ -442,7 +444,7 @@ export function defineActorPool<Props, PublicAPI>(
     const generation = entityGeneration(id);
     const entries = actor._prefab.components;
     for (let i = 0; i < entries.length; i += 1) {
-      const entry = entries[i]!;
+      const entry = uncheckedAt(entries, i);
       const name = entry.def.name;
       let typeId = rowTypes.get(name);
       if (typeId === undefined) {
@@ -474,7 +476,7 @@ export function defineActorPool<Props, PublicAPI>(
 
     while (availableCount > 0) {
       availableCount -= 1;
-      const candidate = available[availableCount]!;
+      const candidate = uncheckedAt(available, availableCount);
       // A dead id is dropped. Reuse patches the existing row and does not
       // add a component that the previous life removed.
       if (!setEntityDormant(engine, candidate, true) && !engine.isAlive(candidate)) continue;
@@ -483,8 +485,8 @@ export function defineActorPool<Props, PublicAPI>(
       rewriteRows(engine, candidate);
       if (!setEntityDormant(engine, candidate, false) && !engine.isAlive(candidate)) continue;
       inst._scope.resume();
-      for (let i = 0; i < inst._reset.length; i += 1) inst._reset[i]!(props);
-      for (let i = 0; i < inst._enable.length; i += 1) inst._enable[i]!();
+      for (let i = 0; i < inst._reset.length; i += 1) uncheckedAt(inst._reset, i)(props);
+      for (let i = 0; i < inst._enable.length; i += 1) uncheckedAt(inst._enable, i)();
       emitActorEnable(engine, candidate);
       id = candidate;
       break;
@@ -492,7 +494,7 @@ export function defineActorPool<Props, PublicAPI>(
 
     if (id === undefined) {
       if (activeCount < size) {
-        const spawnActor = actor._plugin.spawn as (next?: Props) => EntityId;
+        const spawnActor = actor._plugin.spawn as (next?: Props) => EntityId; // boundary: ActorPlugin.spawn takes a rest tuple chosen by a conditional type on Props, which a generic call cannot build
         id = spawnActor(props);
         const spawned = id;
         actorTablesFor(engine).poolRelease.set(spawned, (childId: EntityId) => {
@@ -527,9 +529,9 @@ export function defineActorPool<Props, PublicAPI>(
       return;
     }
 
-    for (let i = 0; i < inst._disable.length; i += 1) inst._disable[i]!();
+    for (let i = 0; i < inst._disable.length; i += 1) uncheckedAt(inst._disable, i)();
     emitActorDisable(_engine, id);
-    for (let i = 0; i < inst._release.length; i += 1) inst._release[i]!();
+    for (let i = 0; i < inst._release.length; i += 1) uncheckedAt(inst._release, i)();
 
     if (inst._children && inst._children.size > 0) {
       const childIds = [...inst._children];
@@ -557,13 +559,13 @@ export function defineActorPool<Props, PublicAPI>(
   function destroyAll(): void {
     pendingRelease.flush(_doRelease);
     for (let i = 0; i < availableCount; i += 1) {
-      const id = available[i]!;
+      const id = uncheckedAt(available, i);
       const inst = actor._instances.get(id);
       if (inst) inst._scope.resume();
-      actor._plugin.despawn!(id);
+      actor._plugin.despawn(id);
     }
     availableCount = 0;
-    for (let i = 0; i < activeCount; i += 1) actor._plugin.despawn!(activeIds[i]!);
+    for (let i = 0; i < activeCount; i += 1) actor._plugin.despawn(uncheckedAt(activeIds, i));
     activeCount = 0;
     activeFlag?.fill(0);
     activeSlot?.fill(-1);
@@ -594,7 +596,7 @@ export function defineActorPool<Props, PublicAPI>(
       pendingRelease.reset();
     },
     setup(engine: GwenEngineBase): void {
-      _engine = engine as GwenEngine;
+      _engine = asFullEngine(engine);
       const maxEntities = _engine.maxEntities;
       activeFlag = new Uint8Array(maxEntities);
       activeSlot = new Int32Array(maxEntities);

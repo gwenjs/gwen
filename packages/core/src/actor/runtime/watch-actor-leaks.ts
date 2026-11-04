@@ -124,7 +124,7 @@ export function watchActorLeaks(
         if (error instanceof GwenContextError) continue;
         throw error;
       }
-      const prev = prevCounts.get(name)!;
+      const prev = prevCounts.get(name) ?? count;
 
       if (count > prev) {
         const streak = (streaks.get(name) ?? 0) + 1;

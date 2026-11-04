@@ -236,6 +236,18 @@ describe("GwenError message grammar", () => {
     expect(plain.docsUrl).toBe(`${schema.GWEN_DOCS_BASE}/api/errors#renderer-three-not-mounted`);
     expect(schema.GWEN_DOCS_BASE).toBe("https://gwenjs.github.io/gwen");
   });
+  it("a subclass with a static docsBase that is not a string writes it as is, null falls back", () => {
+    class NumericSite extends schema.GwenError {
+      static docsBase = 7;
+    }
+    class NullSite extends schema.GwenError {
+      static docsBase = null;
+    }
+    expect(new NumericSite("CORE:A", "One.", {}).docsUrl).toBe("7/api/errors#core-a");
+    expect(new NullSite("CORE:A", "One.", {}).docsUrl).toBe(
+      `${schema.GWEN_DOCS_BASE}/api/errors#core-a`,
+    );
+  });
   it("stores composable and hint", () => {
     const named = new schema.GwenError("CORE:A", "One.", { composable: "useA", hint: "Fix A." });
     const plain = new schema.GwenError("CORE:B", "Two.", {});

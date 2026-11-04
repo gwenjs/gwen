@@ -16,6 +16,7 @@ import {
 import type { GwenEngine, IGwenLogger, MemoryView, WasmBridge } from "@gwenjs/core";
 import type { WasmEnginePhysics2D } from "@gwenjs/core/internal";
 import { entityIndex, GwenError, type EntityId } from "@gwenjs/schema";
+import { uncheckedAt } from "../internal/unchecked.js";
 
 import type {
   Physics2DConfig,
@@ -59,6 +60,16 @@ import {
   clearEngineSensors,
 } from "../composables/on-sensor";
 import type { ContactEvent } from "../types";
+
+/**
+ * The physics2d export table of a core bridge.
+ *
+ * `getPhysicsBridge()` is typed as the 2D | 3D union (`wasm-bridge-types.ts`). This plugin only
+ * runs on the 2D variant, and a runtime check here would add a branch to every physics call.
+ */
+function physics2dExports(bridge: WasmBridge): WasmEnginePhysics2D {
+  return bridge.getPhysicsBridge() as WasmEnginePhysics2D; // boundary: the bridge types its physics exports as the 2D | 3D union
+}
 
 // Public exports
 export {
@@ -184,7 +195,8 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
     cachedEngine = owner ? new WeakRef(owner) : null;
     return next;
   }
-  const st = new Proxy({} as P2State, {
+  const stateTarget = {} as P2State; // boundary: empty placeholder; the traps below forward every access to the per-engine state, so it is never read
+  const st = new Proxy(stateTarget, {
     get(_target, prop) {
       return Reflect.get(stateNow(), prop);
     },
@@ -206,7 +218,7 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
           const previous = engineContext.tryUse() ?? undefined;
           engineContext.set(engine, true);
           try {
-            return Reflect.apply(value as (...inner: unknown[]) => unknown, target, args);
+            return Reflect.apply(value, target, args);
           } finally {
             if (engineContext.tryUse() === engine) {
               if (previous !== undefined) engineContext.set(previous, true);
@@ -316,7 +328,26 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
   }
 
   function track(off: unknown): void {
-    st.unhooks.push(typeof off === "function" ? (off as () => void) : () => {});
+    if (typeof off === "function") {
+      st.unhooks.push(() => {
+        Reflect.apply(off, undefined, []);
+      });
+    } else {
+      st.unhooks.push(() => {});
+    }
+  }
+
+  /** A batch with no events: nothing to read, or nothing to read it from. */
+  function emptyCollisionBatch(): InternalCollisionEventsBatch {
+    return {
+      frame: 0,
+      count: 0,
+      droppedSinceLastRead: 0,
+      droppedCritical: 0,
+      droppedNonCritical: 0,
+      coalesced: false,
+      events: [],
+    };
   }
 
   /**
@@ -329,19 +360,10 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
 
     const coreSlot =
       st.currentEngine === null ? undefined : physicsCoreByEngine.get(st.currentEngine);
-    const pb = coreSlot!.bridge!.getPhysicsBridge() as WasmEnginePhysics2D;
-    const memory = coreSlot!.bridge!.getLinearMemory();
-    if (!memory) {
-      return {
-        frame: 0,
-        count: 0,
-        droppedSinceLastRead: 0,
-        droppedCritical: 0,
-        droppedNonCritical: 0,
-        coalesced: false,
-        events: [],
-      };
-    }
+    if (coreSlot === undefined) return emptyCollisionBatch();
+    const pb = physics2dExports(coreSlot.bridge);
+    const memory = coreSlot.bridge.getLinearMemory();
+    if (!memory) return emptyCollisionBatch();
     const count = pb.physics_get_collision_event_count();
     const visibleCount = max !== undefined && max >= 0 ? Math.min(max, count) : count;
     const length = (): number => {
@@ -352,13 +374,11 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
       const live = liveCore.getLinearMemory();
       if (live === null) return 0;
       const bytes =
-        live.buffer.byteLength -
-        (liveCore.getPhysicsBridge() as WasmEnginePhysics2D).physics_get_collision_events_ptr();
+        live.buffer.byteLength - physics2dExports(liveCore).physics_get_collision_events_ptr();
       const cap = MAX_EVENTS * EVENT_STRIDE;
       if (bytes <= 0) return 0;
       return bytes > cap ? cap : bytes;
     };
-    let eventsView: DataView | null = null;
     if (visibleCount > 0) {
       if (st.collisionEvents === null && st.currentEngine !== null) {
         st.collisionEvents = st.currentEngine.memory.view({
@@ -369,48 +389,38 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
               st.currentEngine === null ? undefined : physicsCoreByEngine.get(st.currentEngine);
             const liveCore = liveSlot?.bridge;
             if (liveCore === undefined || liveCore === null) return 0;
-            return (
-              liveCore.getPhysicsBridge() as WasmEnginePhysics2D
-            ).physics_get_collision_events_ptr();
+            return physics2dExports(liveCore).physics_get_collision_events_ptr();
           },
           length,
         });
       }
-      if (st.collisionEvents === null || length() <= 0) {
-        return {
-          frame: 0,
-          count: 0,
-          droppedSinceLastRead: 0,
-          droppedCritical: 0,
-          droppedNonCritical: 0,
-          coalesced: false,
-          events: [],
-        };
+      if (st.collisionEvents === null || length() <= 0) return emptyCollisionBatch();
+      const eventsView = st.collisionEvents.array;
+
+      st.pooledCollisionEvents.length = visibleCount;
+      for (let i = 0; i < visibleCount; i++) {
+        const offset = i * EVENT_STRIDE;
+
+        let ev = st.pooledCollisionEvents[i];
+        if (!ev) {
+          ev = { slotA: 0, slotB: 0, started: false } satisfies InternalCollisionEvent;
+          st.pooledCollisionEvents[i] = ev;
+        }
+
+        ev.slotA = eventsView.getUint32(offset, true);
+        ev.slotB = eventsView.getUint32(offset + 4, true);
+        const flags = eventsView.getUint8(offset + 16);
+        ev.started = (flags & 1) === 1;
+
+        const aId = eventsView.getUint32(offset + 8, true);
+        const bId = eventsView.getUint32(offset + 12, true);
+        if (aId === 0xffffffff) delete ev.aColliderId;
+        else ev.aColliderId = aId;
+        if (bId === 0xffffffff) delete ev.bColliderId;
+        else ev.bColliderId = bId;
       }
-      eventsView = st.collisionEvents.array;
-    }
-
-    st.pooledCollisionEvents.length = visibleCount;
-    for (let i = 0; i < visibleCount; i++) {
-      const offset = i * EVENT_STRIDE;
-
-      let ev = st.pooledCollisionEvents[i];
-      if (!ev) {
-        ev = { slotA: 0, slotB: 0, started: false } satisfies InternalCollisionEvent;
-        st.pooledCollisionEvents[i] = ev;
-      }
-
-      ev.slotA = eventsView!.getUint32(offset, true);
-      ev.slotB = eventsView!.getUint32(offset + 4, true);
-      const flags = eventsView!.getUint8(offset + 16);
-      ev.started = (flags & 1) === 1;
-
-      const aId = eventsView!.getUint32(offset + 8, true);
-      const bId = eventsView!.getUint32(offset + 12, true);
-      if (aId === 0xffffffff) delete ev.aColliderId;
-      else ev.aColliderId = aId;
-      if (bId === 0xffffffff) delete ev.bColliderId;
-      else ev.bColliderId = bId;
+    } else {
+      st.pooledCollisionEvents.length = visibleCount;
     }
 
     const metrics = pb.physics_consume_event_metrics
@@ -436,10 +446,8 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
    * Every method reads the glue first: teardown clears `ownerBySlot`, so `guard()`
    * would return null and a read such as `getPosition` would skip the bridge.
    */
-  function createAPI(engine: GwenEngine): Physics2DAPI {
-    const coreSlot = physicsCoreByEngine.get(engine)!;
-    const live = (): WasmEnginePhysics2D =>
-      coreSlot.bridge.getPhysicsBridge() as WasmEnginePhysics2D;
+  function createAPI(coreSlot: { readonly bridge: WasmBridge }): Physics2DAPI {
+    const live = (): WasmEnginePhysics2D => physics2dExports(coreSlot.bridge);
     return {
       isDebugEnabled: () => {
         live();
@@ -491,10 +499,10 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
             opts.density ?? 1.0,
             typeof opts.membershipLayers === "number"
               ? opts.membershipLayers
-              : layerRegistry.resolve(opts.membershipLayers as string[] | undefined, "membership"),
+              : layerRegistry.resolve(opts.membershipLayers, "membership"),
             typeof opts.filterLayers === "number"
               ? opts.filterLayers
-              : layerRegistry.resolve(opts.filterLayers as string[] | undefined, "filter"),
+              : layerRegistry.resolve(opts.filterLayers, "filter"),
             opts.colliderId,
             opts.offsetX,
             opts.offsetY,
@@ -515,10 +523,10 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
             opts.density ?? 1.0,
             typeof opts.membershipLayers === "number"
               ? opts.membershipLayers
-              : layerRegistry.resolve(opts.membershipLayers as string[] | undefined, "membership"),
+              : layerRegistry.resolve(opts.membershipLayers, "membership"),
             typeof opts.filterLayers === "number"
               ? opts.filterLayers
-              : layerRegistry.resolve(opts.filterLayers as string[] | undefined, "filter"),
+              : layerRegistry.resolve(opts.filterLayers, "filter"),
             opts.colliderId,
             opts.offsetX,
             opts.offsetY,
@@ -580,7 +588,7 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
           pb.physics_get_linear_velocity(owned.slot),
         );
         if (!res || res.length < 2) return null;
-        return { x: res[0]!, y: res[1]! };
+        return { x: uncheckedAt(res, 0), y: uncheckedAt(res, 1) };
       },
       getPosition: (entityId) => {
         const pb = live();
@@ -590,7 +598,7 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
           pb.physics_get_position(owned.slot),
         );
         if (!res || res.length < 3) return null;
-        return { x: res[0]!, y: res[1]!, rotation: res[2]! };
+        return { x: uncheckedAt(res, 0), y: uncheckedAt(res, 1), rotation: uncheckedAt(res, 2) };
       },
       getSensorState: (entityId, colliderId) => {
         live();
@@ -645,11 +653,11 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
         const membership =
           typeof opts?.membershipLayers === "number"
             ? opts.membershipLayers
-            : layerRegistry.resolve(opts?.membershipLayers as string[] | undefined, "membership");
+            : layerRegistry.resolve(opts?.membershipLayers, "membership");
         const filter =
           typeof opts?.filterLayers === "number"
             ? opts.filterLayers
-            : layerRegistry.resolve(opts?.filterLayers as string[] | undefined, "filter");
+            : layerRegistry.resolve(opts?.filterLayers, "filter");
         return Array.from(
           callPhysicsExport(
             "physics_query_radius",
@@ -674,11 +682,11 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
         const membership =
           typeof opts?.membershipLayers === "number"
             ? opts.membershipLayers
-            : layerRegistry.resolve(opts?.membershipLayers as string[] | undefined, "membership");
+            : layerRegistry.resolve(opts?.membershipLayers, "membership");
         const filter =
           typeof opts?.filterLayers === "number"
             ? opts.filterLayers
-            : layerRegistry.resolve(opts?.filterLayers as string[] | undefined, "filter");
+            : layerRegistry.resolve(opts?.filterLayers, "filter");
         return Array.from(
           callPhysicsExport(
             "physics_query_rect",
@@ -701,11 +709,11 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
         const membership =
           typeof opts?.membershipLayers === "number"
             ? opts.membershipLayers
-            : layerRegistry.resolve(opts?.membershipLayers as string[] | undefined, "membership");
+            : layerRegistry.resolve(opts?.membershipLayers, "membership");
         const filter =
           typeof opts?.filterLayers === "number"
             ? opts.filterLayers
-            : layerRegistry.resolve(opts?.filterLayers as string[] | undefined, "filter");
+            : layerRegistry.resolve(opts?.filterLayers, "filter");
         return Array.from(
           callPhysicsExport(
             "physics_point_query",
@@ -760,16 +768,13 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
         st.ownerByHandle.set(bodyHandle, createEntityId(pseudoEntityIndex, 0));
         if (!opts.debugNaive) {
           for (const [colliderIndex, collider] of chunk.colliders.entries())
-            addPrefabCollider(
-              st.physicsService!,
-              bodyHandle,
-              collider,
-              layerRegistry,
-              colliderIndex,
-              0.5,
-            );
+            addPrefabCollider(this, bodyHandle, collider, layerRegistry, colliderIndex, 0.5);
         }
-        st.loadedTilemapChunks.set(chunk.key, { chunkId, checksum: chunk.checksum, bodyHandle });
+        // Teardown cleared the map: a held service must not leave an entry that a later setup
+        // would read as a chunk it already loaded.
+        if (st.currentEngine !== null) {
+          st.loadedTilemapChunks.set(chunk.key, { chunkId, checksum: chunk.checksum, bodyHandle });
+        }
       },
       unloadTilemapPhysicsChunk(key) {
         const pb = live();
@@ -807,8 +812,9 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
 
       const current = useEngine("Physics2DPlugin.setup");
       st.currentEngine = current;
-      physicsCoreByEngine.set(current, { bridge: st.bridge });
-      const pb = st.bridge.getPhysicsBridge() as WasmEnginePhysics2D;
+      const coreSlot = { bridge: st.bridge };
+      physicsCoreByEngine.set(current, coreSlot);
+      const pb = physics2dExports(st.bridge);
       pb.physics_init(cfg.gravityX, cfg.gravity, cfg.maxEntities);
       const accepted = pb.physics_set_max_linear_velocity(cfg.maxLinearVelocity);
       if (accepted === 0) {
@@ -822,7 +828,7 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
       pb.physics_set_event_coalescing(cfg.coalesceEvents ? 1 : 0);
       pb.physics_set_global_ccd_enabled(resolveGlobalCcdEnabled(cfg) ? 1 : 0);
 
-      const api = bindToEngine(current, createAPI(current));
+      const api = bindToEngine(current, createAPI(coreSlot));
       st.physicsService = api;
       engine.provide("physics2d", api);
 
@@ -833,36 +839,30 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
 
           const slot = entityIndex(entityId);
 
-          const handle = st.physicsService!.addRigidBody(
-            entityId,
-            ext.bodyType ?? "dynamic",
-            0,
-            0,
-            {
-              ...(ext.mass !== undefined ? { mass: ext.mass } : {}),
-              ...(ext.gravityScale !== undefined ? { gravityScale: ext.gravityScale } : {}),
-              ...(ext.linearDamping !== undefined ? { linearDamping: ext.linearDamping } : {}),
-              ...(ext.angularDamping !== undefined ? { angularDamping: ext.angularDamping } : {}),
-              ...(ext.initialVelocity
-                ? {
-                    initialVelocity: {
-                      vx: ext.initialVelocity.vx / PIXELS_PER_METER,
-                      vy: ext.initialVelocity.vy / PIXELS_PER_METER,
-                    },
-                  }
-                : {}),
-              ...(ext.ccdEnabled !== undefined ? { ccdEnabled: ext.ccdEnabled } : {}),
-              ...(ext.additionalSolverIterations !== undefined
-                ? { additionalSolverIterations: ext.additionalSolverIterations }
-                : {}),
-            },
-          );
+          const handle = api.addRigidBody(entityId, ext.bodyType ?? "dynamic", 0, 0, {
+            ...(ext.mass !== undefined ? { mass: ext.mass } : {}),
+            ...(ext.gravityScale !== undefined ? { gravityScale: ext.gravityScale } : {}),
+            ...(ext.linearDamping !== undefined ? { linearDamping: ext.linearDamping } : {}),
+            ...(ext.angularDamping !== undefined ? { angularDamping: ext.angularDamping } : {}),
+            ...(ext.initialVelocity
+              ? {
+                  initialVelocity: {
+                    vx: ext.initialVelocity.vx / PIXELS_PER_METER,
+                    vy: ext.initialVelocity.vy / PIXELS_PER_METER,
+                  },
+                }
+              : {}),
+            ...(ext.ccdEnabled !== undefined ? { ccdEnabled: ext.ccdEnabled } : {}),
+            ...(ext.additionalSolverIterations !== undefined
+              ? { additionalSolverIterations: ext.additionalSolverIterations }
+              : {}),
+          });
 
           if (Array.isArray(ext.colliders)) {
             const sensors = new Set<number>();
             for (const [idx, collider] of ext.colliders.entries()) {
               const colliderId = collider.colliderId ?? idx;
-              addPrefabCollider(st.physicsService!, handle, collider, layerRegistry, colliderId, 0);
+              addPrefabCollider(api, handle, collider, layerRegistry, colliderId, 0);
               if (collider.isSensor) sensors.add(colliderId);
             }
             if (sensors.size > 0) st.activeSensors.set(slot, sensors);
@@ -901,7 +901,7 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
       track(
         engine.hooks.hook("engine:before-update", (deltaTime: number) => {
           st.cachedCollisionBatch = null;
-          const stepBridge = st.bridge?.getPhysicsBridge() as WasmEnginePhysics2D | undefined;
+          const stepBridge = st.bridge === null ? undefined : physics2dExports(st.bridge);
           if (stepBridge !== undefined) {
             callPhysicsExport("physics_step", () => stepBridge.physics_step(deltaTime));
             emitDisabledBodies(stepBridge);

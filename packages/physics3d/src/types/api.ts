@@ -407,6 +407,7 @@ export interface Physics3DAPI {
    *
    * @param options - Position buffer, half-extents, and optional material/layer overrides.
    * @returns Packed entity IDs and count of created bodies.
+   * @throws {GwenError} `PHYSICS3D:NOT_INITIALIZED` when at least one box is requested while the plugin has no engine (after teardown).
    *
    * @example
    * ```ts

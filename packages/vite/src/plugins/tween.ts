@@ -1,6 +1,5 @@
 import type { Plugin } from "vite";
 import { walk } from "oxc-walker";
-import type { ObjectExpression, ObjectProperty, StringLiteral } from "oxc-parser";
 import type { GwenViteOptions } from "../types.js";
 import { parseSource, getObjectProperties, getPropertyKeyName } from "../oxc/index.js";
 
@@ -53,13 +52,13 @@ export function extractUsedEasings(code: string, filename = "tween.ts"): Set<str
   walk(parsed.program, {
     enter(node) {
       if (node.type !== "ObjectExpression") return;
-      for (const prop of getObjectProperties(node as ObjectExpression)) {
+      for (const prop of getObjectProperties(node)) {
         if (getPropertyKeyName(prop) !== "easing") continue;
-        const { value } = prop as ObjectProperty;
+        const { value } = prop;
         // StringLiteral and NumericLiteral both have type: 'Literal'
-        // Distinguish by typeof value — cast only after the runtime check
-        if (value.type === "Literal" && typeof (value as StringLiteral).value === "string") {
-          found.add((value as StringLiteral).value);
+        // Distinguish by typeof value
+        if (value.type === "Literal" && typeof value.value === "string") {
+          found.add(value.value);
         }
       }
     },

@@ -7,6 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { Mock } from "vitest";
+import { PIXELS_PER_METER } from "../src/config";
 
 // ─── Helpers & mocks ─────────────────────────────────────────────────────────
 
@@ -289,6 +290,80 @@ describe("Physics2DPlugin", () => {
   it("teardown is safe to call before setup", () => {
     const plugin = Physics2DPlugin();
     expect(() => plugin.teardown!()).not.toThrow();
+  });
+
+  it("getCollisionEventsBatch on a held service returns an empty batch after teardown", async () => {
+    const plugin = Physics2DPlugin();
+    await initPlugin(plugin, mockBridge, mockEngine);
+    const physics = mockEngine._provided["physics2d"] as {
+      getCollisionEventsBatch: () => { count: number; events: unknown[] };
+    };
+    plugin.teardown!();
+    const batch = physics.getCollisionEventsBatch();
+    expect(batch.count).toBe(0);
+    expect(batch.events).toEqual([]);
+  });
+
+  it("loadTilemapPhysicsChunk adds each chunk collider to the chunk body", async () => {
+    const plugin = Physics2DPlugin();
+    await initPlugin(plugin, mockBridge, mockEngine);
+    const physics = mockEngine._provided["physics2d"] as import("../src").Physics2DAPI;
+    physics.loadTilemapPhysicsChunk(
+      {
+        key: "0,0",
+        checksum: "a",
+        colliders: [{ shape: "box", hw: 16, hh: 16 }],
+      },
+      0,
+      0,
+    );
+    const boxCalls = vi.mocked(mockWasmPlugin.physics_add_box_collider).mock.calls;
+    expect(boxCalls.map(([handle, hw, hh]) => [handle, hw, hh])).toEqual([
+      [777, 16 / PIXELS_PER_METER, 16 / PIXELS_PER_METER],
+    ]);
+  });
+
+  it("loadTilemapPhysicsChunk on a held service after teardown still adds the chunk colliders", async () => {
+    const plugin = Physics2DPlugin();
+    await initPlugin(plugin, mockBridge, mockEngine);
+    const physics = mockEngine._provided["physics2d"] as import("../src").Physics2DAPI;
+    plugin.teardown!();
+    expect(() =>
+      physics.loadTilemapPhysicsChunk(
+        {
+          key: "0,0",
+          checksum: "a",
+          colliders: [{ shape: "box", hw: 16, hh: 16 }],
+        },
+        0,
+        0,
+      ),
+    ).not.toThrow();
+    const boxCalls = vi.mocked(mockWasmPlugin.physics_add_box_collider).mock.calls;
+    expect(boxCalls.map(([handle, hw, hh]) => [handle, hw, hh])).toEqual([
+      [777, 16 / PIXELS_PER_METER, 16 / PIXELS_PER_METER],
+    ]);
+  });
+
+  it("a chunk loaded through a held service after teardown does not stop a later setup from loading it", async () => {
+    const plugin = Physics2DPlugin();
+    await initPlugin(plugin, mockBridge, mockEngine);
+    const held = mockEngine._provided["physics2d"] as import("../src").Physics2DAPI;
+    plugin.teardown!();
+    const chunk = {
+      key: "0,0",
+      checksum: "a",
+      colliders: [{ shape: "box" as const, hw: 1, hh: 1 }],
+    };
+    held.loadTilemapPhysicsChunk(chunk, 0, 0);
+    mockWasmPlugin.physics_load_tilemap_chunk_body.mockClear();
+
+    // The same engine sets the plugin up again: it reuses the state that teardown cleared.
+    await initPlugin(plugin, mockBridge, mockEngine);
+    const next = mockEngine._provided["physics2d"] as import("../src").Physics2DAPI;
+    next.loadTilemapPhysicsChunk(chunk, 0, 0);
+
+    expect(mockWasmPlugin.physics_load_tilemap_chunk_body).toHaveBeenCalledTimes(1);
   });
 
   // ── Physics2DAPI — addRigidBody ───────────────────────────────────────────

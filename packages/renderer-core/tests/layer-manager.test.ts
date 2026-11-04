@@ -186,6 +186,32 @@ describe("LayerManager", () => {
     }
   });
 
+  it("orders a layer before a sibling SVG element whose z-index is greater", () => {
+    const overlay = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    overlay.style.zIndex = "50";
+    root.appendChild(overlay);
+
+    const svc = makeService("renderer:canvas", { game: { order: 10 } });
+    manager.register(svc);
+    manager.mount();
+
+    const layer = root.querySelector("[data-gwen-layer='renderer:canvas:game']");
+    expect(Array.from(root.children)).toEqual([layer, overlay]);
+  });
+
+  it("places a layer next to a sibling element that has no style at all", () => {
+    const foreign = document.createElementNS("urn:gwen:test", "marker");
+    expect("style" in foreign).toBe(false);
+    root.appendChild(foreign);
+
+    const svc = makeService("renderer:canvas", { game: { order: 10 } });
+    manager.register(svc);
+    manager.mount();
+
+    const layer = root.querySelector("[data-gwen-layer='renderer:canvas:game']");
+    expect(Array.from(root.children)).toEqual([foreign, layer]);
+  });
+
   // ── Resize ────────────────────────────────────────────────────────────────
 
   it("propagates resize() to all registered renderers", () => {

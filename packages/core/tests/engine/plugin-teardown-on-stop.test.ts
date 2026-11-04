@@ -5,7 +5,7 @@ import { createHooks } from "hookable";
 import { afterEach, describe, expect, it } from "vitest";
 import type { GwenErrorPayload, IGwenLogger } from "@gwenjs/schema";
 import { engineContext } from "../../src/engine/context";
-import type { EngineErrorBus, GwenPlugin } from "../../src/engine/engine-types";
+import type { EngineErrorBus, GwenEngine, GwenPlugin } from "../../src/engine/engine-types";
 import type { GwenRuntimeHooks } from "../../src/engine/runtime-hooks";
 import { ScopedHooksTracker } from "../../src/engine/hook-tracker";
 import { PluginRegistry, type PluginRegistryDeps } from "../../src/engine/plugin-registry";
@@ -303,7 +303,7 @@ describe("plugin teardown on stop", () => {
       provide(key: string, value: unknown) {
         if ((key === "a" || key === "b") && isTag(value)) container.provide(key, value);
       },
-    };
+    } as GwenEngine; // a receiver with the hooks and provide that this test uses
     const logger: IGwenLogger = {
       debug() {},
       info() {},

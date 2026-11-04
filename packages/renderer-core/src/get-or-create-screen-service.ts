@@ -16,7 +16,7 @@
  * ```
  */
 
-import type { GwenEngine } from "@gwenjs/core";
+import { asFullEngine } from "@gwenjs/core/internal";
 import type { GwenEngineBase } from "@gwenjs/schema";
 import { getOrCreateViewportManager } from "./get-or-create-viewport-manager.js";
 import { ScreenServiceImpl } from "./screen-service.js";
@@ -36,7 +36,7 @@ export function getOrCreateScreenService(engine: GwenEngineBase): ScreenService 
   const existing = engine.tryInject("screenService");
   if (existing) return existing;
 
-  const vm = getOrCreateViewportManager(engine as GwenEngine);
+  const vm = getOrCreateViewportManager(asFullEngine(engine));
   const log = engine.logger.child("renderer-core:screen");
   const service = new ScreenServiceImpl(log, vm);
   engine.provide("screenService", service);

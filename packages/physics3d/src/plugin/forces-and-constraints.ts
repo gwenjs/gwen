@@ -6,6 +6,7 @@ import type { Physics3DAPI, Physics3DEntityId, Physics3DVec3 } from "../types";
 import { guardOwned } from "./entity-owner";
 import type { PluginContext } from "./plugin-context";
 import { callPhysics3DExport } from "./wasm-errors";
+import { liveWasmBridge } from "../internal/unchecked";
 
 export function createForcesAndConstraints(
   ctx: PluginContext,
@@ -29,7 +30,12 @@ export function createForcesAndConstraints(
       const slot = owned.slot;
       if (ctx.backendMode === "wasm") {
         callPhysics3DExport(ctx, "physics3d_add_force", () =>
-          ctx.wasmBridge!.physics3d_add_force?.(slot, force.x ?? 0, force.y ?? 0, force.z ?? 0),
+          liveWasmBridge(ctx.wasmBridge).physics3d_add_force?.(
+            slot,
+            force.x ?? 0,
+            force.y ?? 0,
+            force.z ?? 0,
+          ),
         );
         return;
       }
@@ -47,7 +53,12 @@ export function createForcesAndConstraints(
       const slot = owned.slot;
       if (ctx.backendMode === "wasm") {
         callPhysics3DExport(ctx, "physics3d_add_torque", () =>
-          ctx.wasmBridge!.physics3d_add_torque?.(slot, torque.x ?? 0, torque.y ?? 0, torque.z ?? 0),
+          liveWasmBridge(ctx.wasmBridge).physics3d_add_torque?.(
+            slot,
+            torque.x ?? 0,
+            torque.y ?? 0,
+            torque.z ?? 0,
+          ),
         );
         return;
       }
@@ -69,7 +80,7 @@ export function createForcesAndConstraints(
       const slot = owned.slot;
       if (ctx.backendMode === "wasm") {
         callPhysics3DExport(ctx, "physics3d_add_force_at_point", () =>
-          ctx.wasmBridge!.physics3d_add_force_at_point?.(
+          liveWasmBridge(ctx.wasmBridge).physics3d_add_force_at_point?.(
             slot,
             force.x ?? 0,
             force.y ?? 0,
@@ -95,7 +106,7 @@ export function createForcesAndConstraints(
       const slot = owned.slot;
       if (ctx.backendMode === "wasm") {
         callPhysics3DExport(ctx, "physics3d_set_gravity_scale", () =>
-          ctx.wasmBridge!.physics3d_set_gravity_scale?.(slot, scale),
+          liveWasmBridge(ctx.wasmBridge).physics3d_set_gravity_scale?.(slot, scale),
         );
         return;
       }
@@ -108,7 +119,7 @@ export function createForcesAndConstraints(
       const slot = owned.slot;
       if (ctx.backendMode === "wasm") {
         return callPhysics3DExport(ctx, "physics3d_get_gravity_scale", () =>
-          ctx.wasmBridge!.physics3d_get_gravity_scale!(slot),
+          liveWasmBridge(ctx.wasmBridge).physics3d_get_gravity_scale(slot),
         );
       }
       return ctx.localGravityScales.get(slot) ?? 1.0;
@@ -120,7 +131,7 @@ export function createForcesAndConstraints(
       const slot = owned.slot;
       if (ctx.backendMode === "wasm") {
         callPhysics3DExport(ctx, "physics3d_lock_translations", () =>
-          ctx.wasmBridge!.physics3d_lock_translations?.(slot, x, y, z),
+          liveWasmBridge(ctx.wasmBridge).physics3d_lock_translations?.(slot, x, y, z),
         );
         return;
       }
@@ -146,7 +157,7 @@ export function createForcesAndConstraints(
       const slot = owned.slot;
       if (ctx.backendMode === "wasm") {
         callPhysics3DExport(ctx, "physics3d_lock_rotations", () =>
-          ctx.wasmBridge!.physics3d_lock_rotations?.(slot, x, y, z),
+          liveWasmBridge(ctx.wasmBridge).physics3d_lock_rotations?.(slot, x, y, z),
         );
         return;
       }
@@ -172,7 +183,7 @@ export function createForcesAndConstraints(
       const slot = owned.slot;
       if (ctx.backendMode === "wasm") {
         callPhysics3DExport(ctx, "physics3d_set_body_sleeping", () =>
-          ctx.wasmBridge!.physics3d_set_body_sleeping?.(slot, sleeping),
+          liveWasmBridge(ctx.wasmBridge).physics3d_set_body_sleeping?.(slot, sleeping),
         );
         return;
       }
@@ -189,7 +200,7 @@ export function createForcesAndConstraints(
       const slot = owned.slot;
       if (ctx.backendMode === "wasm") {
         return callPhysics3DExport(ctx, "physics3d_is_body_sleeping", () =>
-          ctx.wasmBridge!.physics3d_is_body_sleeping!(slot),
+          liveWasmBridge(ctx.wasmBridge).physics3d_is_body_sleeping(slot),
         );
       }
       return ctx.localSleeping.has(slot);
@@ -198,7 +209,7 @@ export function createForcesAndConstraints(
     wakeAll(): void {
       if (ctx.backendMode === "wasm") {
         callPhysics3DExport(ctx, "physics3d_wake_all", () =>
-          ctx.wasmBridge!.physics3d_wake_all?.(),
+          liveWasmBridge(ctx.wasmBridge).physics3d_wake_all?.(),
         );
         return;
       }

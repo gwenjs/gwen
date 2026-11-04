@@ -17,6 +17,7 @@ import { componentStaging } from "./chunk-lanes.js";
 import type { WasmBridgeImpl } from "./wasm-bridge.js";
 import { stringPoolFor } from "../utils/string-pool.js";
 import { unwrapEngine } from "./engine-local.js";
+import { uncheckedAt } from "../internal/unchecked.js";
 
 /**
  * `createEntity`, `addComponent`, `removeComponent`, and `destroyEntity` call
@@ -75,22 +76,18 @@ export function afterPendingEntityOps(engine: GwenEngine, run: () => void): void
   store.afterPendingOps(run);
 }
 
-/**
- * `object` has no string index signature. A component partial is a plain record.
- * This is the only cast on the deferred-add path.
- */
+/** Copy the own enumerable fields of a component partial. */
 function copyOwnFields(data: object): Record<string, unknown> {
-  const record = data as Record<string, unknown>;
   const copy: Record<string, unknown> = {};
-  for (const key in record) {
-    if (!Object.prototype.hasOwnProperty.call(record, key)) continue;
-    copy[key] = record[key];
+  for (const key in data) {
+    if (!Object.prototype.hasOwnProperty.call(data, key)) continue;
+    copy[key] = Reflect.get(data, key);
   }
   return copy;
 }
 
 function readResolvedEntityId(results: readonly EntityId[], index: number): EntityId {
-  return results[index] as EntityId; // boundary: dense query id list, index checked #77
+  return uncheckedAt(results, index);
 }
 
 function freezeSnapshot<T>(value: T): Readonly<T> {
@@ -104,8 +101,7 @@ function freezeValue(value: unknown): void {
   if (value === null || typeof value !== "object") return;
   if (Object.isFrozen(value)) return;
   Object.freeze(value);
-  const record = value as Record<string, unknown>;
-  for (const key of Object.keys(record)) freezeValue(record[key]);
+  for (const key of Object.keys(value)) freezeValue(Reflect.get(value, key));
 }
 
 /**
@@ -830,7 +826,7 @@ export class EngineEntities {
     const stored = this.storedLayout(def);
     const view = componentStaging(this.deps.engine, this.readStagingPtr);
     const value = stored.layout.deserialize(view, stringPoolFor(this.deps.engine));
-    return freezeSnapshot(value) as Readonly<InferComponent<D>>;
+    return freezeSnapshot(value) as Readonly<InferComponent<D>>; // boundary: the layout is stored by component name as a record, so deserialize returns Record<string, unknown> where the schema of def gives the field types
   }
 
   /**
@@ -901,7 +897,7 @@ export class EngineEntities {
     const bridge = this.deps.bridge;
     const skipDormant = components.length === 0;
     const readComponent = <D extends C[number]>(id: EntityId, def: D): InferComponent<D> => {
-      return this.getComponent(id, def) as InferComponent<D>; // boundary: queried component is present #77
+      return this.getComponent(id, def) as InferComponent<D>; // boundary: an entity this query returned holds every queried component, so getComponent finds it and undefined cannot occur
     };
     return {
       [Symbol.iterator](): Iterator<EntityAccessor<C>, undefined> {
@@ -1077,7 +1073,7 @@ export class EngineEntities {
   private storedLayout<D extends ComponentDefinition<ComponentSchema>>(def: D): StoredLayout {
     const existing = this.layouts.get(def.name);
     if (existing !== undefined) return existing;
-    const layout = computeSchemaLayout(def.schema) as SchemaLayout<Record<string, unknown>>;
+    const layout = computeSchemaLayout(def.schema) as SchemaLayout<Record<string, unknown>>; // boundary: the layouts map holds every component schema under one value type, so the field types of this schema are widened to Record<string, unknown>
     const scratch: Record<string, unknown> = {};
     const stored = { layout, scratch };
     this.layouts.set(def.name, stored);

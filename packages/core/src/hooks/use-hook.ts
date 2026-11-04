@@ -90,12 +90,12 @@ export function useHook<K extends GwenRuntimeHookName>(
   const setupTarget = currentPluginSetupTarget();
   if (setupTarget) {
     const guarded = guardHandler(
-      fn as (...args: unknown[]) => unknown,
+      fn as (...args: unknown[]) => unknown, // boundary: guardHandler wraps any hook handler, so it takes an untyped function where fn is typed for hook K
       setupTarget,
       String(name),
       engine,
     );
-    const unsubscribe = engine.hooks.hook(name, guarded as never);
+    const unsubscribe = engine.hooks.hook(name, guarded as never); // boundary: guarded is an untyped function; hook() wants InferCallback<GwenRuntimeHooks, K>, which no untyped function satisfies for a generic K
     onCleanupIfActive(unsubscribe);
     return unsubscribe;
   }
@@ -103,8 +103,7 @@ export function useHook<K extends GwenRuntimeHookName>(
   // Outside any scope (engine.run() or a manual call with no GwenScope):
   // — register directly on engine.hooks
   // — use onCleanupIfActive so cleanup is automatic if a cleanup context is active
-  // boundary: hookable's hook() rejects a typed handler that is not a subtype of its internal slot.
-  const unsubscribe = engine.hooks.hook(name, fn as never);
+  const unsubscribe = engine.hooks.hook(name, fn as never); // boundary: fn is GwenRuntimeHooks[K], the union of every hook signature, where hook() wants InferCallback<GwenRuntimeHooks, K> for the generic K
   onCleanupIfActive(unsubscribe);
   return unsubscribe;
 }

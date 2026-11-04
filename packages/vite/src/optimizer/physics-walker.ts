@@ -9,18 +9,7 @@
  */
 
 import { walk } from "oxc-walker";
-import type {
-  CallExpression,
-  ArrowFunctionExpression,
-  Function as FunctionExpression,
-  ExpressionStatement,
-  StaticMemberExpression,
-  IdentifierName,
-  Node,
-  VariableDeclaration,
-  VariableDeclarator,
-  IfStatement,
-} from "oxc-parser";
+import type { CallExpression, Node } from "oxc-parser";
 import { parseSource, isCallTo, getCallArgs, getFunctionBodyStatements } from "../oxc/index.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -55,6 +44,14 @@ const CALLBACK_TYPES: ReadonlySet<string> = new Set([
   "onBeforeUpdate",
   "onAfterUpdate",
 ]);
+
+function isPhysicsMethod(name: string): name is PhysicsMethod {
+  return PHYSICS_METHODS.has(name);
+}
+
+function isPhysicsCallbackType(name: string): name is PhysicsCallbackType {
+  return CALLBACK_TYPES.has(name);
+}
 
 // ─── PhysicsQueryWalker ───────────────────────────────────────────────────────
 
@@ -110,41 +107,35 @@ export class PhysicsQueryWalker {
     walk(parsed.program, {
       enter(node) {
         if (node.type !== "CallExpression") return;
-        const call = node as CallExpression;
-        if (!isCallTo(call, "defineSystem")) return;
+        if (!isCallTo(node, "defineSystem")) return;
 
-        const args = getCallArgs(call);
-        if (args.length === 0) return;
-        const callback = args[0]!;
+        const callback = getCallArgs(node)[0];
+        if (!callback) return;
         if (callback.type !== "ArrowFunctionExpression" && callback.type !== "FunctionExpression") {
           return;
         }
 
-        const setupFn = callback as ArrowFunctionExpression | FunctionExpression;
-        const setupStmts = getFunctionBodyStatements(setupFn);
+        const setupStmts = getFunctionBodyStatements(callback);
 
         for (const stmt of setupStmts) {
           if (stmt.type !== "ExpressionStatement") continue;
-          const exprStmt = stmt as ExpressionStatement;
-          if (exprStmt.expression.type !== "CallExpression") continue;
-          const innerCall = exprStmt.expression as CallExpression;
+          if (stmt.expression.type !== "CallExpression") continue;
+          const innerCall = stmt.expression;
 
           // Check if this is one of the frame-loop callback registrations.
           const callbackName = getDirectCalleeName(innerCall);
-          if (!callbackName || !CALLBACK_TYPES.has(callbackName)) continue;
+          if (!callbackName || !isPhysicsCallbackType(callbackName)) continue;
 
-          const cbArgs = getCallArgs(innerCall);
-          if (cbArgs.length === 0) continue;
-          const cbFn = cbArgs[0]!;
+          const cbFn = getCallArgs(innerCall)[0];
+          if (!cbFn) continue;
           if (cbFn.type !== "ArrowFunctionExpression" && cbFn.type !== "FunctionExpression") {
             continue;
           }
 
-          const loopFn = cbFn as ArrowFunctionExpression | FunctionExpression;
-          const loopStmts = getFunctionBodyStatements(loopFn);
+          const loopStmts = getFunctionBodyStatements(cbFn);
 
           for (const loopStmt of loopStmts) {
-            collectPhysicsCalls(loopStmt, callbackName as PhysicsCallbackType, filename, patterns);
+            collectPhysicsCalls(loopStmt, callbackName, filename, patterns);
           }
         }
 
@@ -168,7 +159,7 @@ export class PhysicsQueryWalker {
  */
 function getDirectCalleeName(call: CallExpression): string | null {
   if (call.callee.type !== "Identifier") return null;
-  return (call.callee as IdentifierName).name;
+  return call.callee.name;
 }
 
 /**
@@ -188,18 +179,15 @@ function collectPhysicsCalls(
 ): void {
   switch (node.type) {
     case "ExpressionStatement": {
-      const exprStmt = node as ExpressionStatement;
-      if (exprStmt.expression.type === "CallExpression") {
-        checkCallExprForPhysics(exprStmt.expression as CallExpression, callbackType, filename, out);
+      if (node.expression.type === "CallExpression") {
+        checkCallExprForPhysics(node.expression, callbackType, filename, out);
       }
       break;
     }
     case "VariableDeclaration": {
-      const varDecl = node as VariableDeclaration;
-      for (const decl of varDecl.declarations) {
-        const d = decl as VariableDeclarator;
+      for (const d of node.declarations) {
         if (d.init && d.init.type === "CallExpression") {
-          checkCallExprForPhysics(d.init as CallExpression, callbackType, filename, out);
+          checkCallExprForPhysics(d.init, callbackType, filename, out);
         }
       }
       break;
@@ -211,10 +199,9 @@ function collectPhysicsCalls(
       break;
     }
     case "IfStatement": {
-      const ifStmt = node as IfStatement;
-      collectPhysicsCalls(ifStmt.consequent, callbackType, filename, out);
-      if (ifStmt.alternate) {
-        collectPhysicsCalls(ifStmt.alternate, callbackType, filename, out);
+      collectPhysicsCalls(node.consequent, callbackType, filename, out);
+      if (node.alternate) {
+        collectPhysicsCalls(node.alternate, callbackType, filename, out);
       }
       break;
     }
@@ -254,20 +241,20 @@ function checkCallExprForPhysics(
   out: PhysicsQueryPattern[],
 ): void {
   if (call.callee.type !== "MemberExpression") return;
-  // Cast to StaticMemberExpression: only non-computed member access (physics.method)
-  const mem = call.callee as StaticMemberExpression;
+  // Only non-computed member access (physics.method)
+  const mem = call.callee;
   if (mem.computed) return;
 
   // Only flag calls on the physics service object (physics or physics3d).
   if (mem.object.type !== "Identifier") return;
-  const objectName = (mem.object as IdentifierName).name;
+  const objectName = mem.object.name;
   if (objectName !== "physics" && objectName !== "physics3d") return;
 
   const methodName = mem.property.name;
-  if (!PHYSICS_METHODS.has(methodName)) return;
+  if (!isPhysicsMethod(methodName)) return;
 
   out.push({
-    method: methodName as PhysicsMethod,
+    method: methodName,
     callbackType,
     start: call.start,
     end: call.end,

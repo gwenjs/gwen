@@ -52,8 +52,12 @@ export function mapPhysics3DError(ctx: PluginContext, err: unknown, exportName: 
   );
   if (!isSentencedWasmError(mapped)) return mapped;
   if (!(err instanceof Error)) return mapped;
-  const WasmError = mapped.constructor as typeof GwenWasmError;
-  return new WasmError(mapped.code, toSentence(err.message), mapped.exportName, mapped.cause);
+  return Reflect.construct(mapped.constructor, [
+    mapped.code,
+    toSentence(err.message),
+    mapped.exportName,
+    mapped.cause,
+  ]);
 }
 
 /**

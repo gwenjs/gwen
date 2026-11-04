@@ -5,7 +5,6 @@
 import fs from "node:fs";
 import * as path from "node:path";
 import { walk } from "oxc-walker";
-import type { ArrayExpression, ObjectExpression, ObjectProperty, StringLiteral } from "oxc-parser";
 import { getObjectProperties, getPropertyKeyName, parseSource } from "./oxc/index.js";
 import type { PluginDeclaration } from "@gwenjs/schema";
 import type { SceneInfo } from "./scanners/index.js";
@@ -117,31 +116,27 @@ export function extractModuleNamesFromConfig(configPath: string): string[] {
     enter(node) {
       if (node.type !== "ObjectExpression") return;
 
-      for (const prop of getObjectProperties(node as ObjectExpression)) {
+      for (const prop of getObjectProperties(node)) {
         if (getPropertyKeyName(prop) !== "modules") continue;
 
-        const { value } = prop as ObjectProperty;
+        const { value } = prop;
         if (value.type !== "ArrayExpression") continue;
 
-        for (const el of (value as ArrayExpression).elements) {
+        for (const el of value.elements) {
           if (!el || el.type === "SpreadElement") continue;
 
           // Form 1: '@scope/pkg' string literal
-          if (el.type === "Literal" && typeof (el as StringLiteral).value === "string") {
-            const s = (el as StringLiteral).value;
+          if (el.type === "Literal" && typeof el.value === "string") {
+            const s = el.value;
             if (s.includes("/") || s.startsWith("@")) names.push(s);
             continue;
           }
 
           // Form 2: ['@scope/pkg', opts] tuple
           if (el.type === "ArrayExpression") {
-            const first = (el as ArrayExpression).elements[0];
-            if (
-              first &&
-              first.type === "Literal" &&
-              typeof (first as StringLiteral).value === "string"
-            ) {
-              const s = (first as StringLiteral).value;
+            const first = el.elements[0];
+            if (first && first.type === "Literal" && typeof first.value === "string") {
+              const s = first.value;
               if (s.includes("/") || s.startsWith("@")) names.push(s);
             }
           }
@@ -175,16 +170,16 @@ export function extractGlobalCssFromConfig(configPath: string): string[] {
     enter(node) {
       if (node.type !== "ObjectExpression") return;
 
-      for (const prop of getObjectProperties(node as ObjectExpression)) {
+      for (const prop of getObjectProperties(node)) {
         if (getPropertyKeyName(prop) !== "globalCss") continue;
 
-        const { value } = prop as ObjectProperty;
+        const { value } = prop;
         if (value.type !== "ArrayExpression") continue;
 
-        for (const el of (value as ArrayExpression).elements) {
+        for (const el of value.elements) {
           if (!el || el.type === "SpreadElement") continue;
-          if (el.type === "Literal" && typeof (el as StringLiteral).value === "string") {
-            files.push((el as StringLiteral).value);
+          if (el.type === "Literal" && typeof el.value === "string") {
+            files.push(el.value);
           }
         }
 
@@ -251,8 +246,7 @@ export function generateEntryModule(
     lines.push('import { registerScenes, mainScene } from "/@gwenjs/gwen-scenes";');
   }
 
-  for (let i = 0; i < declarations.length; i++) {
-    const d = declarations[i]!;
+  for (const [i, d] of declarations.entries()) {
     if (d.export) {
       lines.push(`import { ${d.export} as _gwenPlugin${i} } from ${JSON.stringify(d.src)};`);
     } else {
@@ -278,8 +272,7 @@ export function generateEntryModule(
     "",
   ];
 
-  for (let i = 0; i < declarations.length; i++) {
-    const d = declarations[i]!;
+  for (const [i, d] of declarations.entries()) {
     const opts = d.options !== undefined ? JSON.stringify(d.options) : undefined;
     bootstrapLines.push(
       opts !== undefined

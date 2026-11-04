@@ -20,6 +20,7 @@ import { queuePrefabInstantiate } from "../../engine/hook-dispatch.js";
 import { SCENE_REGISTRAR_KEY } from "../../scene/runtime/scene-registrar";
 import { GwenScope } from "../../context/scope.js";
 import type { ActorDefinition, PrefabDefinition } from "./types";
+import { instanceApi } from "./instance-api";
 import type { PrefabOverrides } from "./define-prefab";
 import type { ComponentDef } from "../../system/runtime/define-system";
 import { spawnActor } from "./spawn-tuple";
@@ -264,7 +265,7 @@ export function useActor<Props, PublicAPI>(
       return countOnOwnEngine(() => {
         const result: PublicAPI[] = [];
         for (const instance of actorDef._instances.values()) {
-          result.push(instance.api!);
+          result.push(instanceApi(instance));
         }
         return result;
       });
@@ -306,11 +307,11 @@ export function useActor<Props, PublicAPI>(
   }
 
   // Proxy: ActorHandle methods take priority; everything else delegates to PublicAPI.
-  return new Proxy(baseHandle as object, {
+  const handle = new Proxy(baseHandle, {
     get(target, prop: string | symbol): unknown {
       // Priority 1: ActorHandle own methods
       if (typeof prop === "string" && _HANDLE_OWN_KEYS.has(prop)) {
-        return (target as Record<string, unknown>)[prop];
+        return Reflect.get(target, prop);
       }
 
       // Priority 2: PublicAPI property / method delegation
@@ -319,7 +320,7 @@ export function useActor<Props, PublicAPI>(
         const cached = _methodCache.get(prop);
         if (cached) return cached;
 
-        const api = baseHandle.get() as Record<string, unknown> | undefined;
+        const api: unknown = baseHandle.get();
         if (!api) {
           return () => {
             throw new GwenActorError(
@@ -334,10 +335,14 @@ export function useActor<Props, PublicAPI>(
             );
           };
         }
-        const value = api[prop];
+        // A public API that is an object or a function is read in place. A primitive is boxed to read its properties.
+        const value: unknown =
+          typeof api === "object" || typeof api === "function"
+            ? Reflect.get(api, prop)
+            : Reflect.get(Object(api), prop);
         if (typeof value === "function") {
           const wrapped = (...args: unknown[]): unknown =>
-            onOwnEngine(() => (value as (...a: unknown[]) => unknown).apply(api, args));
+            onOwnEngine(() => Reflect.apply(value, api, args));
           _methodCache.set(prop, wrapped);
           return wrapped;
         }
@@ -345,9 +350,10 @@ export function useActor<Props, PublicAPI>(
       }
 
       // Fallback: symbol or unknown prop
-      return (target as Record<string | symbol, unknown>)[prop];
+      return Reflect.get(target, prop);
     },
-  }) as ActorHandle<Props, PublicAPI> & (PublicAPI extends void ? unknown : PublicAPI);
+  });
+  return handle as ActorHandle<Props, PublicAPI> & (PublicAPI extends void ? unknown : PublicAPI); // boundary: the Proxy answers keys of PublicAPI that the ActorHandle type does not declare, so the intersection with PublicAPI holds only at run time
 }
 
 // ─── usePrefab ────────────────────────────────────────────────────────────────

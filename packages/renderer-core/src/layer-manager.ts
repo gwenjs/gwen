@@ -50,6 +50,11 @@ function isSurfaceRenderer(service: RendererService): service is SurfaceRenderer
   return service.kind === "surface";
 }
 
+/** True for any element that carries inline style, an HTML element or an SVG one, from any realm. */
+function hasInlineStyle(element: Element): element is Element & ElementCSSInlineStyle {
+  return "style" in element;
+}
+
 function makeRenderView(): RenderView {
   return {
     viewportId: "",
@@ -282,7 +287,7 @@ export class LayerManager {
     }
     let before: Element | null = null;
     for (const child of this._root.children) {
-      const z = Number.parseInt((child as HTMLElement).style.zIndex, 10);
+      const z = hasInlineStyle(child) ? Number.parseInt(child.style.zIndex, 10) : Number.NaN;
       if (Number.isFinite(z) && z > layerDef.order) {
         before = child;
         break;

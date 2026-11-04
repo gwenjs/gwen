@@ -8,6 +8,9 @@
  */
 
 import { useEngine } from "../../engine/context";
+import { GwenError } from "@gwenjs/schema";
+import { CoreErrorCodes } from "../../engine/engine-errors";
+import { uncheckedAt } from "../../internal/unchecked.js";
 import { getTweenManager } from "./tween-manager";
 import type { SequenceHandle, SequenceStep, TweenHandle } from "./tween-types";
 
@@ -41,6 +44,9 @@ import type { SequenceHandle, SequenceStep, TweenHandle } from "./tween-types";
  * @returns A {@link SequenceHandle} with `play`, `pause`, `reset`, and
  *          `onComplete` methods.
  * @throws {GwenContextError} If called outside an active engine context.
+ * @throws {GwenError} code `CORE:TWEEN_POOL_EXHAUSTED` when a wait step cannot claim a slot
+ *   because the pool uses the `'drop'` policy and is exhausted. The step runs from `play()` or
+ *   from the update that finishes the step before it. Before this check the step threw a `TypeError`.
  *
  * @example
  * ```typescript
@@ -95,13 +101,13 @@ export function useSequence(steps: SequenceStep[]): SequenceHandle {
     if (index >= steps.length) {
       _playing = false;
       for (let i = 0; i < _completeCbs.length; i++) {
-        _completeCbs[i]!();
+        uncheckedAt(_completeCbs, i)();
       }
       return;
     }
 
     _currentStep = index;
-    const step = steps[index]!;
+    const step = uncheckedAt(steps, index);
 
     if ("wait" in step) {
       // ── Wait step ────────────────────────────────────────────────────────────
@@ -113,11 +119,22 @@ export function useSequence(steps: SequenceStep[]): SequenceHandle {
       const waitDuration = step.wait;
       // Policy is 'grow' (default) or 'throw' in typical engine usage.
       // Under 'drop' policy with an exhausted pool, claim() returns null and the
-      // sequence will crash — callers must not use 'drop' policy with useSequence.
-      _activeWaitSlot = manager.claim<number>({ duration: waitDuration })!;
-      _activeWaitSlot.play({ from: 0, to: 1 });
-      _activeWaitSlot.onComplete(() => {
-        manager.release(_activeWaitSlot!);
+      // sequence throws CORE:TWEEN_POOL_EXHAUSTED — callers must not use 'drop' policy with useSequence.
+      const waitSlot = manager.claim<number>({ duration: waitDuration });
+      if (waitSlot === null) {
+        throw new GwenError(
+          CoreErrorCodes.TWEEN_POOL_EXHAUSTED,
+          "The tween pool dropped the wait step of the sequence.",
+          {
+            composable: "useSequence",
+            hint: __GWEN_DEV__ ? "Do not use the 'drop' pool policy with useSequence." : undefined,
+          },
+        );
+      }
+      _activeWaitSlot = waitSlot;
+      waitSlot.play({ from: 0, to: 1 });
+      waitSlot.onComplete(() => {
+        manager.release(waitSlot);
         _activeWaitSlot = null;
         // Guard: only advance if the sequence is still playing (not paused/reset).
         if (_playing) {

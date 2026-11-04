@@ -7,6 +7,7 @@
 import type { CompoundShapeSpec } from "../types";
 import { GwenError } from "@gwenjs/schema";
 import { Physics3DErrorCodes } from "../errors/codes";
+import { uncheckedAt } from "../internal/unchecked";
 
 /** Shape-type discriminant values — must match Rust `COMPOUND_SHAPE_*` constants. */
 export const COMPOUND_SHAPE_BOX = 0;
@@ -52,7 +53,7 @@ export function encodeCompoundShapes(
     const sensor = shape.isSensor ? 1.0 : 0.0;
     const friction = shape.friction ?? 0.5;
     const restitution = shape.restitution ?? 0.0;
-    const id = colliderIds[i]!;
+    const id = uncheckedAt(colliderIds, i);
 
     switch (shape.type) {
       case "box":

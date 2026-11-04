@@ -29,7 +29,7 @@ export type EntityId = bigint & { readonly __brand: unique symbol };
  * @returns A branded bigint EntityId
  */
 export function createEntityId(index: number, generation: number): EntityId {
-  return ((BigInt(generation) << 32n) | BigInt(index)) as EntityId;
+  return ((BigInt(generation) << 32n) | BigInt(index)) as EntityId; // boundary: an EntityId is a bigint with a type brand; packing creates it
 }
 
 /**

@@ -39,11 +39,9 @@ export default defineGwenModule<Physics2DConfig>({
   async setup(options, kit) {
     kit.addPlugin({ src: "@gwenjs/physics2d", export: "Physics2DPlugin", options });
     const viteDebug = options.vite?.debug;
-    kit.addVitePlugin(
-      physics2dVitePlugin(
-        viteDebug === undefined ? {} : { debug: viteDebug },
-      ) as unknown as import("@gwenjs/kit").VitePlugin,
-    );
+    kit.addVitePlugin({
+      ...physics2dVitePlugin(viteDebug === undefined ? {} : { debug: viteDebug }),
+    });
 
     kit.addAutoImports([
       { name: "usePhysics2D", from: "@gwenjs/physics2d" },

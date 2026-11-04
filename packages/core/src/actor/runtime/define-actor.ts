@@ -37,13 +37,15 @@ import {
   useEngine,
 } from "../../engine/context.js";
 import { unwrapEngine } from "../../engine/engine-local.js";
+import { uncheckedAt } from "../../internal/unchecked.js";
 import { queuePrefabInstantiate } from "../../engine/hook-dispatch.js";
 import { createDisposable } from "../../disposable.js";
 import type { GwenEngine } from "../../engine/engine-types";
 import type { GwenEngineBase } from "@gwenjs/schema";
 import type { EntityId } from "../../engine/engine-api";
 import type { ComponentDef } from "../../system/runtime/define-system";
-import { GwenActorError, ActorErrorCodes } from "../../engine/engine-errors";
+import { GwenError } from "@gwenjs/schema";
+import { GwenActorError, ActorErrorCodes, CoreErrorCodes } from "../../engine/engine-errors";
 import type { IGwenLogger } from "@gwenjs/schema";
 import type {
   ActorDefinition,
@@ -286,11 +288,7 @@ export function _getActorContext(): {
   instance: ActorInstance<unknown>;
   engine: GwenEngine;
 } | null {
-  return _actorCtx.get() as {
-    entityId: EntityId;
-    instance: ActorInstance<unknown>;
-    engine: GwenEngine;
-  } | null;
+  return _actorCtx.get();
 }
 
 /**
@@ -392,7 +390,7 @@ export function onReset<Props = unknown>(fn: (props: Props) => void): void {
   if (ctx === null) {
     throw new GwenContextError(GwenContextErrorCodes.OUTSIDE_ACTOR_CONTEXT, "onReset");
   }
-  ctx.instance._reset.push(fn as (props: unknown) => void);
+  ctx.instance._reset.push(fn as (props: unknown) => void); // boundary: the instance registry erases the Props type of reset callbacks
 }
 
 /**
@@ -455,20 +453,6 @@ export function onDisable(fn: VoidFn): void {
 let _actorPluginCounter = 0;
 
 /**
- * Factory type accepted by {@link defineActor}.
- *
- * When `Props` is `void` the factory takes no arguments.
- * When `Props` is a concrete type the factory receives it as a required parameter
- * (spawn always provides it, so the factory can rely on it being defined).
- *
- * @template Props - Props forwarded from `spawn(props)`.
- * @template PublicAPI - The object returned by the factory (actor's public API).
- */
-type ActorFactory<Props, PublicAPI> = Props extends void
-  ? () => PublicAPI
-  : (props: Props) => PublicAPI;
-
-/**
  * Optional configuration for {@link defineActor}.
  *
  * @template Props     - Props type forwarded to `spawn()`.
@@ -500,6 +484,15 @@ export interface DefineActorOptions<
   deps?: ActorDefinition<unknown, unknown>[];
 }
 
+/** The arguments of `defineActor` do not hold a prefab followed by a factory. */
+function incompleteActorDefinition(name: string | undefined): GwenError {
+  return new GwenError(
+    CoreErrorCodes.DEFINITION_INCOMPLETE,
+    `defineActor(${name === undefined ? "" : `"${name}", `}prefab, factory) needs a prefab, then a factory function.`,
+    { composable: "defineActor" },
+  );
+}
+
 /**
  * Defines an actor type: a composable, instance-based game object backed by a
  * single ECS entity per instance.
@@ -513,6 +506,9 @@ export interface DefineActorOptions<
  *                  and return a public API object.
  * @param options - Optional configuration. Pass `{ deps: [...] }` to declare
  *                  child actor dependencies explicitly.
+ * @throws {GwenError} code `CORE:DEFINITION_INCOMPLETE` when the arguments do not hold a prefab
+ *                  followed by a factory function. Before this check the call returned and the
+ *                  spawn failed later.
  */
 export function defineActor<PublicAPI>(
   prefab: PrefabDefinition<readonly ComponentDef[]>,
@@ -540,28 +536,34 @@ export function defineActor<Props, PublicAPI>(
   nameOrPrefab: string | PrefabDefinition<readonly ComponentDef[]>,
   prefabOrFactory:
     | PrefabDefinition<readonly ComponentDef[]>
-    | ActorFactory<Props, PublicAPI>
+    | ((props: Props) => PublicAPI)
     | (() => PublicAPI),
   factoryOrOptions?:
-    | ActorFactory<Props, PublicAPI>
+    | ((props: Props) => PublicAPI)
     | (() => PublicAPI)
     | DefineActorOptions<Props, PublicAPI>,
   maybeOptions?: DefineActorOptions<Props, PublicAPI>,
 ): ActorDefinition<Props, PublicAPI> {
-  const isNamedForm = typeof nameOrPrefab === "string";
-  const pluginName = isNamedForm ? nameOrPrefab : `actor-${++_actorPluginCounter}`;
-  const prefab = isNamedForm
-    ? (prefabOrFactory as PrefabDefinition<readonly ComponentDef[]>)
-    : (nameOrPrefab as PrefabDefinition<readonly ComponentDef[]>);
-
-  let factory: ActorFactory<Props, PublicAPI> | (() => PublicAPI);
+  let pluginName: string;
+  let prefab: PrefabDefinition<readonly ComponentDef[]>;
+  let factory: ((props: Props) => PublicAPI) | (() => PublicAPI);
   let options: DefineActorOptions<Props, PublicAPI> | undefined;
-  if (isNamedForm) {
-    factory = factoryOrOptions as ActorFactory<Props, PublicAPI>;
+  if (typeof nameOrPrefab === "string") {
+    if (typeof prefabOrFactory === "function" || typeof factoryOrOptions !== "function") {
+      throw incompleteActorDefinition(nameOrPrefab);
+    }
+    pluginName = nameOrPrefab;
+    prefab = prefabOrFactory;
+    factory = factoryOrOptions;
     options = maybeOptions;
   } else {
-    factory = prefabOrFactory as ActorFactory<Props, PublicAPI>;
-    options = factoryOrOptions as DefineActorOptions<Props, PublicAPI> | undefined;
+    if (typeof prefabOrFactory !== "function" || typeof factoryOrOptions === "function") {
+      throw incompleteActorDefinition(undefined);
+    }
+    pluginName = `actor-${++_actorPluginCounter}`;
+    prefab = nameOrPrefab;
+    factory = prefabOrFactory;
+    options = factoryOrOptions;
   }
   const _buckets = new WeakMap<GwenEngine, Map<EntityId, ActorInstance<PublicAPI>>>();
   const _engines = new Set<GwenEngine>();
@@ -620,7 +622,7 @@ export function defineActor<Props, PublicAPI>(
 
     // 2. Add prefab components with their declared defaults.
     for (let i = 0; i < prefab.components.length; i++) {
-      const entry = prefab.components[i]!;
+      const entry = uncheckedAt(prefab.components, i);
       engine.addComponent(entityId, entry.def, entry.defaults);
     }
 
@@ -661,7 +663,7 @@ export function defineActor<Props, PublicAPI>(
     try {
       _actorCtx.run({ entityId: instance.entityId, instance, engine }, () => {
         actorScope.run(() => {
-          api = (factory as (props?: Props) => PublicAPI)(props);
+          api = (factory as (props?: Props) => PublicAPI)(props); // boundary: spawn passes undefined when Props is void, which the generic factory type cannot express
         });
       });
     } finally {
@@ -678,12 +680,12 @@ export function defineActor<Props, PublicAPI>(
     const tables = actorTablesFor(engine);
     tables.owners.delete(entityId);
     tables.poolRelease.delete(entityId);
-    tables.actors.set(entityId, _plugin as ActorPlugin<unknown>);
-    tables.instances.set(entityId, instance as ActorInstance<unknown>);
+    tables.actors.set(entityId, _plugin as ActorPlugin<unknown>); // boundary: the per-engine tables erase the Props and PublicAPI types
+    tables.instances.set(entityId, instance as ActorInstance<unknown>); // boundary: the per-engine tables erase the Props and PublicAPI types
 
     // 7. Fire _start callbacks immediately after setup.
     for (let i = 0; i < instance._start.length; i++) {
-      instance._start[i]!();
+      uncheckedAt(instance._start, i)();
     }
     instance._start = [];
 
@@ -714,7 +716,7 @@ export function defineActor<Props, PublicAPI>(
     // 2. Call onDestroy callbacks.
     for (let i = 0; i < instance._destroy.length; i++) {
       try {
-        instance._destroy[i]!();
+        uncheckedAt(instance._destroy, i)();
       } catch (e) {
         _log?.error("onDestroy threw during despawn", { error: String(e) });
       }

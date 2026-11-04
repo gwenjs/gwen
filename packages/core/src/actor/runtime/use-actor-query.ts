@@ -1,4 +1,5 @@
 import type { ActorDefinition } from "./types";
+import { instanceApi } from "./instance-api";
 import type { EntityId } from "../../engine/engine-api";
 import type { GwenEngine } from "../../engine/engine-types";
 import type { Query } from "../../engine/chunk-query";
@@ -51,14 +52,14 @@ export function useActorQuery<
           if (engine !== undefined) {
             for (const entry of suppressedEach(query, engine)) {
               const instance = def._instances.get(entry.id);
-              if (instance !== undefined) yield instance.api!;
+              if (instance !== undefined) yield instanceApi(instance);
             }
           }
           return;
         }
         for (const entry of query) {
           const instance = def._instances.get(entry.id);
-          if (instance !== undefined) yield instance.api!;
+          if (instance !== undefined) yield instanceApi(instance);
         }
       })();
     },

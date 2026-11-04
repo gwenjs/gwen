@@ -68,12 +68,6 @@ interface QueuedProvide {
   readonly overwrite: boolean;
 }
 
-type PluginRegistryReceiver = Pick<GwenEngine, "hooks">;
-
-function receiverEngine(receiver: PluginRegistryReceiver): GwenEngine {
-  return receiver as GwenEngine;
-}
-
 /**
  * Plugin list, scoped hook capture, and use/unuse.
  * @internal
@@ -112,7 +106,7 @@ export class PluginRegistry {
   }
 
   // Not `async`: callers must receive `_install`'s promise unchanged.
-  use(plugin: GwenPlugin, receiver: PluginRegistryReceiver): Promise<void> {
+  use(plugin: GwenPlugin, receiver: GwenEngine): Promise<void> {
     try {
       this.deps.assertState("use");
       this._assertShape(plugin);
@@ -182,7 +176,7 @@ export class PluginRegistry {
     }
   }
 
-  private _install(plugin: GwenPlugin, receiver: PluginRegistryReceiver): Promise<void> {
+  private _install(plugin: GwenPlugin, receiver: GwenEngine): Promise<void> {
     const run = this._runInstall(plugin, receiver);
     const drop = (): void => {
       this._pending.delete(plugin.name);
@@ -193,7 +187,7 @@ export class PluginRegistry {
     return run;
   }
 
-  private async _runInstall(plugin: GwenPlugin, receiver: PluginRegistryReceiver): Promise<void> {
+  private async _runInstall(plugin: GwenPlugin, receiver: GwenEngine): Promise<void> {
     const scopedHooks = this._createScopedHooks(plugin.name, receiver);
     const engineWithScopedHooks = this._withScopedHooks(plugin.name, scopedHooks, receiver);
     // Real receiver: the object useEngine() returns during setup, and the one
@@ -202,7 +196,7 @@ export class PluginRegistry {
     // from meta, and a plugin target is looked up by target.id.
     // scope.engine.provide(...) is not attributed to the plugin the way
     // engine.provide on the setup parameter is. Nothing here relies on that.
-    const scope = new GwenScope(receiverEngine(receiver), {
+    const scope = new GwenScope(receiver, {
       type: "plugin",
       id: plugin.name,
       name: plugin.name,
@@ -215,17 +209,17 @@ export class PluginRegistry {
       // Attribution and the scope cover only the synchronous part of setup.
       let setupResult: void | Promise<void> | undefined;
       const previousSetup = beginPluginSetup(plugin);
-      const previousEngine = pushEngine(receiverEngine(receiver));
+      const previousEngine = pushEngine(receiver);
       try {
         try {
           const [, dispose] = scope.run(() =>
             withCleanup(() => {
-              setupResult = plugin.setup(receiverEngine(engineWithScopedHooks));
+              setupResult = plugin.setup(engineWithScopedHooks);
             }),
           );
           this._pluginCleanups.set(plugin.name, dispose);
         } finally {
-          popEngine(receiverEngine(receiver), previousEngine);
+          popEngine(receiver, previousEngine);
         }
       } finally {
         endPluginSetup(previousSetup);
@@ -262,7 +256,7 @@ export class PluginRegistry {
     }
   }
 
-  async unuse(name: string, receiver: PluginRegistryReceiver): Promise<void> {
+  async unuse(name: string, receiver: GwenEngine): Promise<void> {
     this.deps.assertState("unuse");
     const plugin = this._plugins.find((item) => item.name === name);
     if (plugin === undefined) return;
@@ -278,7 +272,7 @@ export class PluginRegistry {
   }
 
   /** Last installed first. No state check and no dependency check: `stop()` calls this. */
-  async teardownAll(receiver: PluginRegistryReceiver): Promise<void> {
+  async teardownAll(receiver: GwenEngine): Promise<void> {
     for (const plugin of [...this._plugins].reverse()) {
       await this._remove(plugin, receiver, "stop");
     }
@@ -306,7 +300,7 @@ export class PluginRegistry {
    */
   private _remove(
     plugin: GwenPlugin,
-    receiver: PluginRegistryReceiver,
+    receiver: GwenEngine,
     reason: "unuse" | "stop",
   ): Promise<void> {
     const name = plugin.name;
@@ -343,7 +337,7 @@ export class PluginRegistry {
    */
   private async _finishRemove(
     plugin: GwenPlugin,
-    receiver: PluginRegistryReceiver,
+    receiver: GwenEngine,
     reason: "unuse" | "stop",
   ): Promise<void> {
     const name = plugin.name;
@@ -352,7 +346,7 @@ export class PluginRegistry {
     this._pluginCleanups.delete(name);
     const scope = this._scopes.get(name);
     this._scopes.delete(name);
-    const previousEngine = pushEngine(receiverEngine(receiver));
+    const previousEngine = pushEngine(receiver);
     try {
       try {
         scope?.dispose();
@@ -364,7 +358,7 @@ export class PluginRegistry {
     } catch (err) {
       this.deps.reportTeardown(plugin, err);
     } finally {
-      popEngine(receiverEngine(receiver), previousEngine);
+      popEngine(receiver, previousEngine);
       this.deps.tracker.removeAll(name, receiver.hooks);
       this.deps.dropIsolation(name);
       const idx = this._plugins.indexOf(plugin);
@@ -500,10 +494,7 @@ export class PluginRegistry {
   // declarations should ideally use the actual resolved engine from context.
   //
 
-  private _createScopedHooks(
-    pluginName: string,
-    receiver: PluginRegistryReceiver,
-  ): Hookable<GwenRuntimeHooks> {
+  private _createScopedHooks(pluginName: string, receiver: GwenEngine): Hookable<GwenRuntimeHooks> {
     const tracker = this.deps.tracker;
     const realHooks = receiver.hooks;
     const errors = this.deps.errors;
@@ -569,8 +560,8 @@ export class PluginRegistry {
   private _withScopedHooks(
     pluginName: string,
     scopedHooks: Hookable<GwenRuntimeHooks>,
-    receiver: PluginRegistryReceiver,
-  ): PluginRegistryReceiver {
+    receiver: GwenEngine,
+  ): GwenEngine {
     const proxy = new Proxy(receiver, {
       get: (target, prop) => {
         if (prop === "hooks") return scopedHooks;
@@ -584,7 +575,7 @@ export class PluginRegistry {
       },
     });
     // setup() receives this proxy. Pool dormancy looks the proxy up, not the class.
-    this.deps.remember(receiverEngine(proxy));
+    this.deps.remember(proxy);
     return proxy;
   }
 }

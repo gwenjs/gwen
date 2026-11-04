@@ -1,4 +1,4 @@
-import type { OptimizablePattern } from "./types";
+import type { ComponentEntry, OptimizablePattern } from "./types";
 import type { ComponentManifest } from "./component-manifest";
 
 /**
@@ -50,23 +50,25 @@ export class PatternDetector {
       ]),
     ];
 
+    const entries: ComponentEntry[] = [];
     for (const name of allComponents) {
-      if (!this.manifest.get(name)) {
+      const entry = this.manifest.get(name);
+      if (!entry) {
         return {
           optimizable: false,
           reason: `Component '${name}' not found in manifest — cannot generate bulk call`,
         };
       }
+      entries.push(entry);
     }
 
     const numericTypes = new Set(["f32", "i32", "u32", "f64", "i64", "u64", "bool"]);
-    for (const name of allComponents) {
-      const entry = this.manifest.get(name)!;
+    for (const entry of entries) {
       for (const field of entry.fields) {
         if (!numericTypes.has(field.type)) {
           return {
             optimizable: false,
-            reason: `Component '${name}' field '${field.name}' is type '${field.type}' — only numeric types are bulk-compatible`,
+            reason: `Component '${entry.name}' field '${field.name}' is type '${field.type}' — only numeric types are bulk-compatible`,
           };
         }
       }

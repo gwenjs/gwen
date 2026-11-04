@@ -41,6 +41,7 @@ import {
 } from "./entity-trace.js";
 import { getWasmModule } from "./wasm-module-cache.js";
 import { checkGwenModule } from "./wasm-contract.js";
+import { uncheckedAt } from "../internal/unchecked.js";
 import {
   autoProvider,
   isolatedProvider,
@@ -175,9 +176,15 @@ async function loadGlueFactory(jsUrl: string): Promise<GwenCoreGlueFactoryModule
   // Resolve to an absolute URL. `globalThis.location` is available in both
   // the main thread (window.location) and module workers (self.location).
   // Node has no `location`, so the glue URL is its own base.
-  const base = (globalThis as { location?: { href: string } }).location?.href ?? jsUrl;
+  const location: unknown = Reflect.get(globalThis, "location");
+  const href: unknown =
+    (typeof location === "object" && location !== null) || typeof location === "function"
+      ? Reflect.get(location, "href")
+      : undefined;
   let absoluteUrl: string;
   try {
+    // `new URL` coerces a base that is not a string, as it did when the base was read as `location?.href`.
+    const base = href === undefined || href === null ? jsUrl : String(href);
     absoluteUrl = new URL(jsUrl, base).href;
   } catch (cause) {
     throw new GwenError(CoreErrorCodes.WASM_LOAD_ERROR, `Unable to load WASM glue: ${jsUrl}.`, {
@@ -234,7 +241,7 @@ export function toGwenWasmError(
     return new GwenWasmPanicError(exportName, err);
   }
   if (err instanceof Error) {
-    const code = (err as Error & { code?: unknown }).code;
+    const code: unknown = "code" in err ? err.code : undefined;
     if (isCoreWasmErrorCode(code)) {
       return new GwenWasmError(code, err.message, exportName, err);
     }
@@ -743,7 +750,7 @@ export class WasmBridgeImpl implements WasmBridge {
         },
       );
     }
-    return this._requireWasm() as WasmEnginePhysics2D | WasmEnginePhysics3D;
+    return this._requireWasm() as WasmEnginePhysics2D | WasmEnginePhysics3D; // boundary: the variant was checked by hasPhysics() above
   }
 
   engine(): WasmEngine {
@@ -1015,7 +1022,7 @@ export class WasmBridgeImpl implements WasmBridge {
     const slots = new Uint32Array(n);
     const gens = new Uint32Array(n);
     for (let i = 0; i < n; i++) {
-      const { index, generation } = unpackEntityId(entities[i]!);
+      const { index, generation } = unpackEntityId(uncheckedAt(entities, i));
       slots[i] = index;
       gens[i] = generation;
     }
@@ -1036,7 +1043,7 @@ export class WasmBridgeImpl implements WasmBridge {
     const slots = new Uint32Array(n);
     const gens = new Uint32Array(n);
     for (let i = 0; i < n; i++) {
-      const { index, generation } = unpackEntityId(entities[i]!);
+      const { index, generation } = unpackEntityId(uncheckedAt(entities, i));
       slots[i] = index;
       gens[i] = generation;
     }

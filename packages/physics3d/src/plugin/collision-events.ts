@@ -7,6 +7,7 @@ import { EVENT_STRIDE_3D, MAX_EVENTS_3D, COLLIDER_ID_ABSENT } from "./constants"
 import { computeColliderAABB, aabbOverlap } from "./physics3d-utils";
 import type { PluginContext } from "./plugin-context";
 import { mapPhysics3DError } from "./wasm-errors";
+import { uncheckedAt } from "../internal/unchecked";
 
 // ─── AABB collision detection (local mode) ────────────────────────────────────
 
@@ -33,13 +34,13 @@ export function detectLocalCollisions(ctx: PluginContext): InternalCollisionEven
   const slots = ctx._slotsBuffer;
 
   for (let i = 0; i < slots.length; i++) {
-    const slotA = slots[i]!;
+    const slotA = uncheckedAt(slots, i);
     const stateA = ctx.stateByEntity.get(slotA);
     const collidersA = ctx.localColliders.get(slotA);
     if (!stateA || !collidersA || collidersA.length === 0) continue;
 
     for (let j = i + 1; j < slots.length; j++) {
-      const slotB = slots[j]!;
+      const slotB = uncheckedAt(slots, j);
       const stateB = ctx.stateByEntity.get(slotB);
       const collidersB = ctx.localColliders.get(slotB);
       if (!stateB || !collidersB || collidersB.length === 0) continue;

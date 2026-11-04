@@ -102,6 +102,11 @@ const WASM_SERVABLE_EXTENSIONS = new Set([".wasm", ".js"]);
 const deepMergeVite = (config: ViteUserConfig, patch: Partial<ViteUserConfig>): ViteUserConfig =>
   mergeConfig(config, patch);
 
+/** Read `key` from `value` when it is an object, else `undefined`. */
+function readField(value: unknown, key: string): unknown {
+  return typeof value === "object" && value !== null ? Reflect.get(value, key) : undefined;
+}
+
 function wireConfigHooks(app: GwenApp, hooks: ResolvedGwenConfig["hooks"]): void {
   if (hooks === undefined) return;
   app.buildHooks.addHooks(hooks);
@@ -366,13 +371,14 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
 
       // Compiler dans .gwen/wasm/ (pas dans public/)
       const outDir = path.resolve(root, ".gwen", "wasm");
-      watchProcess = spawn(
+      const rebuild = spawn(
         wasmPack,
         ["build", "--target", "web", "--out-dir", outDir, "--dev", crate],
         { stdio: "pipe" },
       );
+      watchProcess = rebuild;
 
-      watchProcess!.on("close", (code: number | null) => {
+      rebuild.on("close", (code: number | null) => {
         if (code === 0) {
           wasmSourceDir = outDir;
           log("WASM rebuilt — triggering HMR full reload");
@@ -406,23 +412,26 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
   function resolveProjectModuleEntry(root: string, name: string): string {
     const parts = name.startsWith("@") ? name.split("/").slice(0, 2) : [name];
     const pkgDir = path.join(root, "node_modules", ...parts);
-    const pkgJson = JSON.parse(fs.readFileSync(path.join(pkgDir, "package.json"), "utf-8")) as {
-      exports?: unknown;
-      main?: string;
-    };
+    const pkgJson: unknown = JSON.parse(
+      fs.readFileSync(path.join(pkgDir, "package.json"), "utf-8"),
+    );
 
     let entry: string | undefined;
-    const exp = pkgJson.exports;
+    const exp = readField(pkgJson, "exports");
     if (exp) {
-      const main = typeof exp === "string" ? exp : (exp as Record<string, unknown>)["."];
+      const main = typeof exp === "string" ? exp : readField(exp, ".");
       if (typeof main === "string") {
         entry = main;
       } else if (main && typeof main === "object") {
-        const m = main as Record<string, unknown>;
-        entry = (m["import"] ?? m["default"] ?? m["require"]) as string | undefined;
+        const picked =
+          readField(main, "import") ?? readField(main, "default") ?? readField(main, "require");
+        entry = typeof picked === "string" ? picked : undefined;
       }
     }
-    if (!entry) entry = pkgJson.main ?? "index.js";
+    if (!entry) {
+      const fallback = readField(pkgJson, "main");
+      entry = typeof fallback === "string" ? fallback : "index.js";
+    }
     return path.join(pkgDir, entry);
   }
 
@@ -443,8 +452,8 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
     // node_modules, handling ESM-only "exports" maps that createRequire can't resolve.
     const moduleLoader = async (name: string): Promise<GwenModule> => {
       const entry = resolveProjectModuleEntry(root, name);
-      const mod = (await import(pathToFileURL(entry).href)) as Record<string, unknown>;
-      return (mod.default ?? mod) as GwenModule;
+      const mod = (await import(pathToFileURL(entry).href)) as Record<string, unknown>; // boundary: a dynamic import of a user path is typed any, read as a record of its exports
+      return (mod.default ?? mod) as GwenModule; // boundary: the loader contract returns a GwenModule, but the default export (or the namespace) of a user module has no static type
     };
 
     await app.setupModules(gwenConfig, moduleLoader, { root });
@@ -651,7 +660,7 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
 
           // Go through Vite pipeline: inject HMR client + transformIndexHtml hooks
           devServer
-            .transformIndexHtml(req.url!, raw, req.originalUrl)
+            .transformIndexHtml(req.url, raw, req.originalUrl)
             .then((html) => {
               res.setHeader("Content-Type", "text/html; charset=utf-8");
               res.end(html);

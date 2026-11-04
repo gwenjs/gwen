@@ -21,6 +21,11 @@
 import type { RouteConfig, SceneRouterOptions, SceneRouterDefinition } from "../router-types";
 import { GwenSceneRouterError } from "../../engine/engine-errors";
 
+/** True when `value` is one of the route `keys`. A number or a symbol is never a route name. */
+function isRouteKey(keys: readonly string[], value: unknown): value is string {
+  return typeof value === "string" && keys.includes(value);
+}
+
 /**
  * Declares a type-safe FSM scene router.
  *
@@ -50,7 +55,7 @@ export function defineSceneRouter<TRoutes extends Record<string, RouteConfig<TRo
 ): SceneRouterDefinition<TRoutes> {
   const keys = Object.keys(options.routes);
 
-  if (!keys.includes(options.initial as string)) {
+  if (!isRouteKey(keys, options.initial)) {
     throw new GwenSceneRouterError(
       `Initial state "${String(options.initial)}" is not found in routes.`,
       String(options.initial),
@@ -58,13 +63,10 @@ export function defineSceneRouter<TRoutes extends Record<string, RouteConfig<TRo
     );
   }
 
-  for (const [state, config] of Object.entries(options.routes) as [
-    string,
-    RouteConfig<TRoutes>,
-  ][]) {
+  for (const [state, config] of Object.entries(options.routes)) {
     if (config.on) {
       for (const [event, target] of Object.entries(config.on)) {
-        if (!keys.includes(target as string)) {
+        if (!isRouteKey(keys, target)) {
           throw new GwenSceneRouterError(
             `Transition "${event}" in state "${state}" points to "${String(target)}", which is not a valid route.`,
             String(target),
@@ -80,5 +82,5 @@ export function defineSceneRouter<TRoutes extends Record<string, RouteConfig<TRo
   return {
     __type: "SceneRouterDefinition",
     options,
-  } as SceneRouterDefinition<TRoutes>;
+  };
 }

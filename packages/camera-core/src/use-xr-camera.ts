@@ -4,6 +4,7 @@ import { useEntityId } from "@gwenjs/core/actor";
 import { useComponent } from "@gwenjs/core/system";
 import { Camera } from "./components";
 import { getCameraStores } from "./camera-stores";
+import { uncheckedAt } from "./internal/unchecked";
 import type { XRCameraHandle, XRViewData } from "./xr-camera-handle";
 
 /** Options accepted by {@link useXRCamera}. */
@@ -79,11 +80,23 @@ export function useXRCamera(opts: XRCameraOpts = {}): XRCameraHandle {
       // For a column-major view matrix V (world → camera), the camera world position
       // is p = -R^T * t, where R is the 3×3 rotation block and t = [v[12], v[13], v[14]].
       // Column-major layout: R row i = [v[i], v[i+4], v[i+8]]
-      const v = lastViews[0]!.viewMatrix;
+      const v = uncheckedAt(lastViews, 0).viewMatrix;
       return {
-        x: -(v[0]! * v[12]! + v[4]! * v[13]! + v[8]! * v[14]!),
-        y: -(v[1]! * v[12]! + v[5]! * v[13]! + v[9]! * v[14]!),
-        z: -(v[2]! * v[12]! + v[6]! * v[13]! + v[10]! * v[14]!),
+        x: -(
+          uncheckedAt(v, 0) * uncheckedAt(v, 12) +
+          uncheckedAt(v, 4) * uncheckedAt(v, 13) +
+          uncheckedAt(v, 8) * uncheckedAt(v, 14)
+        ),
+        y: -(
+          uncheckedAt(v, 1) * uncheckedAt(v, 12) +
+          uncheckedAt(v, 5) * uncheckedAt(v, 13) +
+          uncheckedAt(v, 9) * uncheckedAt(v, 14)
+        ),
+        z: -(
+          uncheckedAt(v, 2) * uncheckedAt(v, 12) +
+          uncheckedAt(v, 6) * uncheckedAt(v, 13) +
+          uncheckedAt(v, 10) * uncheckedAt(v, 14)
+        ),
       };
     },
     _setViews(views: XRViewData[]): void {

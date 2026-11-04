@@ -3,7 +3,6 @@ import { createDisposable } from "../disposable.js";
 import { TweenManager } from "./runtime/tween-manager.js";
 import type { TweenPoolPolicy } from "./runtime/tween-pool.js";
 import type { GwenPlugin, GwenEngineBase } from "@gwenjs/schema";
-import type { GwenEngine } from "../engine/engine-types.js";
 
 // ── Options ───────────────────────────────────────────────────────────────────
 
@@ -31,14 +30,7 @@ export function TweenPlugin(opts: TweenPluginOptions = {}): GwenPlugin {
     name: "gwen:tween",
     setup(engine: GwenEngineBase) {
       const log = engine.logger.child("@gwenjs/core/tween");
-      // Cast: TweenManager requires GwenEngine for frame hooks via engine.hooks.
-      // engine.hooks is exposed by GwenEngineBase — the cast is safe in this internal context.
-      const manager = new TweenManager(
-        engine as GwenEngine,
-        opts.poolSize ?? 256,
-        opts.poolPolicy,
-        log,
-      );
+      const manager = new TweenManager(engine, opts.poolSize ?? 256, opts.poolPolicy, log);
 
       engine.provide("tween:manager", manager);
 

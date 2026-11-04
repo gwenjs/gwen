@@ -90,7 +90,7 @@ export function definePrefab<const E extends readonly ComponentDef[]>(
   const extensions = options?.extensions ?? EMPTY_PREFAB_EXTENSIONS;
   return Object.freeze({
     __prefabName__: "anonymous",
-    components: [...components] as PrefabEntries<E>,
+    components: [...components] as PrefabEntries<E>, // boundary: the spread gives a plain array, and PrefabEntries<E> is the mapped tuple type of the same entries
     extensions,
   });
 }

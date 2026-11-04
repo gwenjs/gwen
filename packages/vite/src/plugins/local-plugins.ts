@@ -1,7 +1,7 @@
 import { readdirSync, statSync, existsSync } from "node:fs";
 import { resolve, join, sep } from "node:path";
 import type { Plugin, ViteDevServer } from "vite";
-import type { GwenViteOptions, LocalPluginsOptions } from "../types.js";
+import type { GwenViteOptions } from "../types.js";
 import { createVirtualModule } from "../shared/virtual-module.js";
 
 /** Directory scanned at `load` time. `false` disables discovery. */
@@ -92,7 +92,7 @@ export function gwenLocalPluginsPlugin(options: GwenViteOptions & LocalPluginsDi
     return { name: "gwen:local-plugins" };
   }
 
-  const opts = options.localPlugins as LocalPluginsOptions | undefined;
+  const opts = options.localPlugins;
   const hmrEnabled = opts?.hmr !== false;
   let root = process.cwd();
 

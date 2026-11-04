@@ -89,7 +89,8 @@ export class GwenScope implements IGwenScope {
   ) {
     const id = meta.id ?? `${meta.type}#${++_scopeIdCounter}`;
     this.engine = engine;
-    this.meta = Object.freeze({ ...meta, id } as GwenScopeMeta);
+    const resolvedMeta: GwenScopeMeta = { ...meta, id };
+    this.meta = Object.freeze(resolvedMeta);
     this.parent = parent;
     this._hookable = customHookable || new ScopedHookable(engine.hooks);
     this._hookable.setIsolationForget(() => {
@@ -113,7 +114,7 @@ export class GwenScope implements IGwenScope {
     this._hookCount++;
     const target = targetFromScopeMeta(this.meta);
     const guarded = guardHandler(
-      fn as (...args: unknown[]) => unknown,
+      fn as (...args: unknown[]) => unknown, // boundary: guardHandler wraps any hook handler, so it takes an untyped function where fn is typed for hook K
       target,
       String(name),
       this.engine,
@@ -123,7 +124,7 @@ export class GwenScope implements IGwenScope {
       this.meta.type === "system" && isScopeEngine(scopeEngine)
         ? withSystemDepth(scopeEngine, guarded)
         : guarded;
-    const unsub = this._hookable.hook(name, tracked as GwenRuntimeHooks[K]);
+    const unsub = this._hookable.hook(name, tracked as GwenRuntimeHooks[K]); // boundary: tracked is the untyped wrapper; hook() wants the intersection of every hook signature for a generic K
     return () => {
       unsub();
       this._hookCount--;

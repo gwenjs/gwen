@@ -7,6 +7,7 @@ import { Physics3DErrorCodes } from "../errors/codes";
 import { localFindPath3D } from "./pathfinding";
 import type { PluginContext } from "./plugin-context";
 import { callPhysics3DExport, hasPhysics3DCode } from "./wasm-errors";
+import { liveWasmBridge, uncheckedAt } from "../internal/unchecked";
 
 export function createPathfindingMethods(
   ctx: PluginContext,
@@ -14,7 +15,7 @@ export function createPathfindingMethods(
   return {
     initNavGrid3D(opts: Pathfinding3DOptions): void {
       if (ctx.backendMode === "wasm") {
-        const pb = ctx.wasmBridge!;
+        const pb = liveWasmBridge(ctx.wasmBridge);
         callPhysics3DExport(ctx, "physics3d_init_navgrid_3d", () =>
           pb.physics3d_init_navgrid_3d?.(
             opts.grid,
@@ -38,7 +39,14 @@ export function createPathfindingMethods(
         let count: number | undefined;
         try {
           count = callPhysics3DExport(ctx, "physics3d_find_path_3d", () =>
-            ctx.wasmBridge!.physics3d_find_path_3d?.(from.x, from.y, from.z, to.x, to.y, to.z),
+            liveWasmBridge(ctx.wasmBridge).physics3d_find_path_3d?.(
+              from.x,
+              from.y,
+              from.z,
+              to.x,
+              to.y,
+              to.z,
+            ),
           );
         } catch (err: unknown) {
           // Documented contract: no grid uploaded yields an empty path. Other codes throw.
@@ -46,7 +54,7 @@ export function createPathfindingMethods(
           throw err;
         }
         if (!count || count === 0) return [];
-        const ptr = ctx.wasmBridge!.physics3d_get_path_buffer_ptr_3d?.();
+        const ptr = liveWasmBridge(ctx.wasmBridge).physics3d_get_path_buffer_ptr_3d?.();
         if (!ptr) return [];
         const wasmMem = ctx.bridgeRuntime?.getLinearMemory?.();
         if (!wasmMem) return [];
@@ -54,9 +62,9 @@ export function createPathfindingMethods(
         const path: PathWaypoint3D[] = [];
         for (let i = 0; i < count; i++) {
           path.push({
-            x: floats[i * 3]!,
-            y: floats[i * 3 + 1]!,
-            z: floats[i * 3 + 2]!,
+            x: uncheckedAt(floats, i * 3),
+            y: uncheckedAt(floats, i * 3 + 1),
+            z: uncheckedAt(floats, i * 3 + 2),
           });
         }
         return path;

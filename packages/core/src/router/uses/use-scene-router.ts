@@ -21,7 +21,6 @@
 
 import type { GwenSceneName } from "@gwenjs/schema";
 import { useEngine } from "../../engine/context";
-import type { GwenEngine } from "../../engine/engine-types";
 import { GwenSceneRouterError } from "../../engine/engine-errors";
 import type {
   RouteConfig,
@@ -32,10 +31,7 @@ import type {
 } from "../router-types";
 import type { SceneDefinition, SceneFactory } from "../../scene/runtime/define-scene";
 import { reportRejectedHook } from "../../hooks/report-rejected-hook.js";
-
-// Module-level WeakMap keyed by engine instance — avoids monkey-patching the engine object.
-// WeakMap allows the map entry (and the inner Map) to be GC'd when the engine is destroyed.
-const routerCacheByEngine = new WeakMap<GwenEngine, Map<unknown, SceneRouterHandle<any>>>();
+import { deleteCachedRouter, getCachedRouter, setCachedRouter } from "./router-cache.js";
 
 type TransitionListener<TRoutes extends Record<string, RouteConfig<TRoutes>>> = (
   from: StatesOf<TRoutes>,
@@ -61,9 +57,33 @@ function requireSceneName(
 
 function resolveScene(input: SceneDefinition | SceneFactory): SceneDefinition {
   if (typeof input === "function") {
-    return (input as SceneFactory)({ register: () => {} });
+    return input({ register: () => {} });
   }
-  return input as SceneDefinition;
+  return input;
+}
+
+/** Narrows `key` to a route of `routes`, or throws the router error for an unknown route. */
+function requireState<TRoutes extends Record<string, RouteConfig<TRoutes>>>(
+  routes: TRoutes,
+  key: string,
+): StatesOf<TRoutes> {
+  if (isState(routes, key)) return key;
+  throw new GwenSceneRouterError(
+    `Route "${key}" is not found in routes.`,
+    key,
+    Object.keys(routes),
+    undefined,
+    undefined,
+    "useSceneRouter",
+  );
+}
+
+/** True when `key` names a route of `routes`. */
+function isState<TRoutes extends Record<string, RouteConfig<TRoutes>>>(
+  routes: TRoutes,
+  key: string,
+): key is StatesOf<TRoutes> {
+  return Object.prototype.hasOwnProperty.call(routes, key);
 }
 
 /**
@@ -82,19 +102,19 @@ export function useSceneRouter<TRoutes extends Record<string, RouteConfig<TRoute
 
   // Singleton cache per (engine, routerDef) pair — stored in a module-level WeakMap
   // so the engine object itself is never mutated.
-  let cache = routerCacheByEngine.get(engine);
-  if (!cache) {
-    cache = new Map<unknown, SceneRouterHandle<any>>();
-    routerCacheByEngine.set(engine, cache);
-  }
-  if (cache.has(routerDef)) {
-    return cache.get(routerDef)! as SceneRouterHandle<TRoutes>;
+  const cached = getCachedRouter(engine, routerDef);
+  if (cached !== undefined) {
+    return cached;
   }
 
   const { options } = routerDef;
   const routes = options.routes;
 
-  let currentState = options.initial as StatesOf<TRoutes>;
+  // A hand-built definition can carry a non-string `initial` (a numeric route key): it is
+  // looked up as a string key. A string `initial` is taken as is, like `defineSceneRouter` does.
+  const initial = options.initial;
+  let currentState: StatesOf<TRoutes> =
+    typeof initial === "string" ? initial : requireState(routes, String(initial));
   let currentParams: Record<string, unknown> = {};
   const overlayStack: StatesOf<TRoutes>[] = [];
   const listeners: TransitionListener<TRoutes>[] = [];
@@ -103,7 +123,7 @@ export function useSceneRouter<TRoutes extends Record<string, RouteConfig<TRoute
   // by onTransition() handlers do not prevent garbage collection.
   engine.hooks.hook("engine:stop", () => {
     listeners.length = 0;
-    routerCacheByEngine.get(engine)?.delete(routerDef);
+    deleteCachedRouter(engine, routerDef);
   });
 
   // Resolve all scene factories eagerly — each factory runs once, registering
@@ -111,8 +131,8 @@ export function useSceneRouter<TRoutes extends Record<string, RouteConfig<TRoute
   // done here: the generated bootstrap awaits scene:enter before start().
   // Route key → scene name. Hook payloads use `def.name`, never the route key.
   const sceneNameByRoute = new Map<string, GwenSceneName>();
-  for (const routeKey of Object.keys(routes)) {
-    const def = resolveScene(routes[routeKey as keyof TRoutes]!.scene);
+  for (const [routeKey, route] of Object.entries(routes)) {
+    const def = resolveScene(route.scene);
     sceneNameByRoute.set(routeKey, def.name);
   }
 
@@ -125,15 +145,15 @@ export function useSceneRouter<TRoutes extends Record<string, RouteConfig<TRoute
     },
 
     can(event: EventsOf<TRoutes>): boolean {
-      const route = routes[currentState as keyof TRoutes];
-      return !!(route?.on && (event as string) in route.on);
+      const route = routes[currentState];
+      return !!(route?.on && String(event) in route.on);
     },
 
     async send(event: EventsOf<TRoutes>, params: Record<string, unknown> = {}): Promise<void> {
-      const route = routes[currentState as keyof TRoutes];
-      const target = route?.on?.[event as string] as StatesOf<TRoutes> | undefined;
+      const route = routes[currentState];
+      const rawTarget = route?.on?.[String(event)];
 
-      if (!target) {
+      if (!rawTarget) {
         engine.logger.warn(
           `useSceneRouter: event "${String(event)}" has no transition in state "${String(currentState)}". Ignoring.`,
         );
@@ -142,10 +162,11 @@ export function useSceneRouter<TRoutes extends Record<string, RouteConfig<TRoute
 
       const fromState = currentState;
       const fromName = requireSceneName(sceneNameByRoute, String(fromState));
-      const toName = requireSceneName(sceneNameByRoute, String(target));
-      const toConfig = routes[target as keyof TRoutes]!;
+      const target = requireState(routes, String(rawTarget));
+      const toName = requireSceneName(sceneNameByRoute, target);
+      const toConfig = routes[target];
 
-      if (toConfig.overlay) {
+      if (toConfig?.overlay) {
         // Push onto overlay stack — do NOT exit current scene
         overlayStack.push(fromState);
       } else if (overlayStack.length > 0 && target === overlayStack[overlayStack.length - 1]) {
@@ -208,6 +229,6 @@ export function useSceneRouter<TRoutes extends Record<string, RouteConfig<TRoute
     },
   };
 
-  cache.set(routerDef, handle);
+  setCachedRouter(engine, routerDef, handle);
   return handle;
 }

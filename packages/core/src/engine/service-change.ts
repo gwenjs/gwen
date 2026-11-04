@@ -71,12 +71,13 @@ function fireServiceChange(
 
 export function emitServiceChange(engine: GwenEngine, notice: ServiceChangeNotice): void {
   // The registry only emits keys it stored; value comes from the same store.
-  const event = {
+  const fields = {
     key: notice.key,
     value: notice.value,
     owner: notice.owner,
     reason: notice.reason,
-  } as ServiceChangeEvent;
+  };
+  const event = fields as ServiceChangeEvent; // boundary: the notice carries one member of the event union, selected by its hook
   if (notice.hook === "service:removed") {
     fireServiceChange(engine, "service:removed", notice.key, event);
   } else {

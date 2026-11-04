@@ -6,6 +6,13 @@
     "prefer-const": "error",
     "eqeqeq": "error",
     "no-console": "warn",
+    "typescript/no-explicit-any": "error",
+    "typescript/consistent-type-assertions": ["error", { "assertionStyle": "never" }],
+    "typescript/no-non-null-assertion": "error",
+    "typescript/ban-ts-comment": [
+      "error",
+      { "ts-ignore": true, "ts-expect-error": "allow-with-description" }
+    ],
     "no-restricted-imports": [
       "error",
       {
@@ -25,6 +32,75 @@
     "**/wasm/**"
   ],
   "overrides": [
+    {
+      "files": [
+        "packages/*/tests/**",
+        "packages/*/bench/**",
+        "**/*.test.ts",
+        "**/vitest*.config.ts",
+        "packages/*/src/entity-id.negative.ts"
+      ],
+      "rules": {
+        "typescript/no-explicit-any": "off",
+        "typescript/consistent-type-assertions": "off",
+        "typescript/no-non-null-assertion": "off",
+        "typescript/ban-ts-comment": "off"
+      }
+    },
+    {
+      "files": [
+        "packages/app/src/app.ts",
+        "packages/app/src/config-loader.ts",
+        "packages/app/src/merge.ts",
+        "packages/camera-core/src/internal/unchecked.ts",
+        "packages/core/src/actor/runtime/define-actor.ts",
+        "packages/core/src/actor/runtime/define-prefab.ts",
+        "packages/core/src/actor/runtime/instance-api.ts",
+        "packages/core/src/actor/runtime/pool/define-actor-pool.ts",
+        "packages/core/src/actor/runtime/spawn-tuple.ts",
+        "packages/core/src/actor/runtime/use-actor.ts",
+        "packages/core/src/actor/runtime/use-layout.ts",
+        "packages/core/src/context/scope.ts",
+        "packages/core/src/engine/chunk-query.ts",
+        "packages/core/src/engine/context.ts",
+        "packages/core/src/engine/engine-entities.ts",
+        "packages/core/src/engine/engine-local.ts",
+        "packages/core/src/engine/engine-memory.ts",
+        "packages/core/src/engine/gwen-engine.ts",
+        "packages/core/src/engine/hook-dispatch.ts",
+        "packages/core/src/engine/service-change.ts",
+        "packages/core/src/engine/service-container.ts",
+        "packages/core/src/engine/wasm-bridge.ts",
+        "packages/core/src/engine/wasm-module-handle.ts",
+        "packages/core/src/engine/wasm-module-runner.ts",
+        "packages/core/src/hooks/define-hooks.ts",
+        "packages/core/src/hooks/scoped-hookable.ts",
+        "packages/core/src/hooks/use-hook.ts",
+        "packages/core/src/internal/unchecked.ts",
+        "packages/core/src/router/uses/router-cache.ts",
+        "packages/core/src/schema.ts",
+        "packages/core/src/system/runtime/use-component.ts",
+        "packages/core/src/tween/runtime/tween-pool.ts",
+        "packages/physics2d/src/internal/unchecked.ts",
+        "packages/physics2d/src/plugin/index.ts",
+        "packages/physics3d/src/internal/unchecked.ts",
+        "packages/physics3d/src/plugin/index.ts",
+        "packages/renderer-core/src/define-renderer-service.ts",
+        "packages/renderer-core/src/get-or-create-viewport-manager.ts",
+        "packages/schema/src/entity.ts",
+        "packages/vite/src/index.ts",
+        "packages/vite/src/plugins/dev-strip.ts"
+      ],
+      "rules": {
+        "typescript/consistent-type-assertions": "off"
+      }
+    },
+    {
+      "files": ["packages/core/src/hooks/index.ts"],
+      "rules": {
+        "typescript/no-explicit-any": "off"
+      }
+    },
     {
       "files": ["packages/schema/src/**"],
       "rules": {

@@ -39,5 +39,5 @@ export function defineLayers<T extends Record<string, number>>(
       );
     }
   }
-  return definition as { [K in keyof T]: number };
+  return definition;
 }

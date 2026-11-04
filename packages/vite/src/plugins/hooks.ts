@@ -1,7 +1,6 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from "node:fs";
 import { resolve, relative, join, sep } from "node:path";
 import type { Plugin } from "vite";
-import type { VariableDeclarator } from "oxc-parser";
 import { walk } from "oxc-walker";
 import { parseSource, isCallTo } from "../oxc/index.js";
 import type { GwenViteOptions } from "../types.js";
@@ -24,10 +23,10 @@ export function extractDefineHooksExports(code: string, filename = "hooks.ts"): 
   walk(parsed.program, {
     enter(node) {
       if (node.type !== "VariableDeclarator") return;
-      const { id, init } = node as VariableDeclarator;
+      const { id, init } = node;
       if (id.type !== "Identifier") return;
       if (!init || !isCallTo(init, "defineHooks")) return;
-      names.push((id as { name: string }).name);
+      names.push(id.name);
     },
   });
 

@@ -15,6 +15,7 @@ import { guardOwned, ownedSlot } from "./entity-owner";
 import { entityIndexToId } from "./plugin-helpers";
 import type { PluginContext } from "./plugin-context";
 import { callPhysics3DExport, mapPhysics3DError } from "./wasm-errors";
+import { uncheckedAt } from "../internal/unchecked";
 
 /**
  * Returns a {@link CharacterControllerHandle} whose `move()` is a no-op and
@@ -82,13 +83,15 @@ export function createCharacterControllerMethods(
 
       if (ctx.backendMode === "wasm") {
         const bridge = ctx.wasmBridge;
-        if (bridge === null || bridge.physics3d_add_character_controller === undefined) {
+        const addController = bridge?.physics3d_add_character_controller;
+        if (bridge === null || addController === undefined) {
           return createInertCharacterControllerHandle();
         }
         // A full pool throws PHYSICS3D:CHARACTER_CONTROLLER_LIMIT_REACHED. Rust checks
         // before it inserts, so the pool is unchanged and nothing is registered here.
         const slotIndex = callPhysics3DExport(ctx, "physics3d_add_character_controller", () =>
-          bridge.physics3d_add_character_controller!(
+          addController.call(
+            bridge,
             entityIndex,
             stepHeight,
             slopeLimit,
@@ -158,11 +161,15 @@ export function createCharacterControllerMethods(
               const base = slotIndex * ctx.CC_STATE_STRIDE;
               _grounded = view[base] !== 0;
               _groundNormal = _grounded
-                ? { x: view[base + 1]!, y: view[base + 2]!, z: view[base + 3]! }
+                ? {
+                    x: uncheckedAt(view, base + 1),
+                    y: uncheckedAt(view, base + 2),
+                    z: uncheckedAt(view, base + 3),
+                  }
                 : null;
-              const groundBits = view[base + 4]!;
+              const groundBits = uncheckedAt(view, base + 4);
               ctx._castF32[0] = groundBits;
-              const groundIdx = ctx._castU32[0]!;
+              const groundIdx = uncheckedAt(ctx._castU32, 0);
               const groundId =
                 _grounded && groundIdx !== 0xffffffff && groundIdx !== 0xfffffffe
                   ? entityIndexToId(ctx, groundIdx)

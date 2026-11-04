@@ -17,7 +17,8 @@ function componentHandle<D extends ComponentDef>(
   engine: GwenEngine,
 ): ComponentHandle<D> {
   warnPerEntityPath(engine, "useComponent");
-  return new Proxy({} as ComponentHandle<D>, {
+  const target = {} as ComponentHandle<D>; // boundary: Proxy target: the handle has no own keys, every read and write goes through the traps
+  return new Proxy(target, {
     get(_target, prop: string | symbol): unknown {
       if (prop === "$set") {
         return (values: Partial<InferComponent<D>>) => {
@@ -27,13 +28,13 @@ function componentHandle<D extends ComponentDef>(
       if (typeof prop !== "string") return undefined;
       const comp = engine.getComponent(entityId, def);
       if (comp === undefined || !(prop in comp)) return undefined;
-      return comp[prop as keyof InferComponent<D>];
+      return Reflect.get(comp, prop);
     },
 
     set(_target, prop: string | symbol, value: unknown): boolean {
       if (typeof prop !== "string") return false;
       const patch: Partial<InferComponent<D>> = {};
-      patch[prop as keyof InferComponent<D>] = value as InferComponent<D>[keyof InferComponent<D>];
+      Reflect.set(patch, prop, value);
       engine.addComponent(entityId, def, patch);
       return true;
     },
