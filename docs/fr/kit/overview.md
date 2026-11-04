@@ -144,6 +144,10 @@ Le package module lui-même appelle `gwen.addPlugin()` dans son `setup()`. L'ent
 - Déposez un fichier dans `src/modules/` pour les modules locaux au projet (auto-découverts)
 - Ajoutez `'@my-scope/module'` à `modules` dans `gwen.config.ts` pour les packages npm
 
+## Casts de type dans les packages GWEN
+
+Les sources des packages GWEN (`packages/*/src`) passent quatre barrières de type dans `oxlint.json` : pas de `as X` (sauf `as const`), pas d'assertion non nulle `!`, pas de `any`, pas de directive ts-ignore, et pas de directive ts-expect-error sans description. Un cast reste seulement pour une valeur qui vient de WASM, d'un worker, de code source analysé ou d'un type tiers que TypeScript ne peut pas vérifier, ou pour un cas de générique ou de stockage hétérogène que TypeScript ne peut pas exprimer sans changer un type public (des tables par moteur qui stockent des acteurs de props différentes, par exemple), ou pour une valeur construite vide ou pré-dimensionnée puis remplie ensuite (une cible de Proxy, un tampon pré-dimensionné), ou pour un retrait que l'appelant a prouvé, quand TypeScript ne peut pas exprimer la preuve. Le fichier est alors listé dans l'override de `oxlint.json` qui désactive seulement `typescript/consistent-type-assertions`, et le cast porte `// boundary: <raison>` sur la même ligne. De petits helpers locaux au package, dans `src/internal/unchecked.ts`, portent les casts que l'appelant prouve : une lecture indexée dans une borne de boucle, un `pop()` sur un tableau non vide, un `Map.get()` sur une clé présente, un cast de marque, une table d'exports WASM. Un `setup()` de plugin qui a besoin du moteur complet appelle `asFullEngine(engine)` depuis `@gwenjs/core/internal`. Les auteurs de plugins peuvent suivre la même règle : typez la valeur quand vous le pouvez, et marquez la frontière quand vous ne le pouvez pas.
+
 ## Prochaines étapes
 
 - [Créer un plugin personnalisé](/fr/kit/custom-plugin) — Apprenez à créer des plugins runtime
