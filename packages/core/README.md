@@ -42,11 +42,13 @@ const MovementSystem = defineSystem("MovementSystem", () => {
   const entities = useQuery([Position, Velocity]);
 
   onUpdate((dt) => {
-    for (const entity of entities) {
-      const pos = entity.get(Position)!;
-      const vel = entity.get(Velocity)!;
-      pos.x += vel.x * dt;
-      pos.y += vel.y * dt;
+    for (const chunk of entities) {
+      const pos = chunk.get(Position);
+      const vel = chunk.get(Velocity);
+      for (let i = 0; i < chunk.count; i++) {
+        pos.x[i] += vel.x[i] * dt;
+        pos.y[i] += vel.y[i] * dt;
+      }
     }
   });
 });

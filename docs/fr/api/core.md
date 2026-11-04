@@ -642,38 +642,51 @@ const spawnBullet = usePrefab(BulletPrefab);
 const bullet = spawnBullet();
 ```
 
-### placeActor(def, overrides?)
+### placeActor(actorDef, options?)
 
 **Signature:**
 ```ts
-function placeActor(def: ActorDef, overrides?: Record<string, any>): Entity
+function placeActor<Props, API>(
+  actorDef: ActorDefinition<Props, API>,
+  options?: PlaceOptions<Props>,
+): PlaceHandle<API>
 ```
 
-**Description.** Génère immédiatement un acteur dans la scène courante.
+**Description.** Génère un acteur depuis une factory `defineLayout()` et retourne un handle vers lui. Avec `useLayout({ chunkSize })`, le spawn est enregistré et s'exécute plus tard : lisez le handle une fois `load()` résolu.
 
 **Paramètres:**
 | Paramètre | Type | Description |
 |---|---|---|
-| def | `ActorDef` | Définition d'acteur |
-| overrides | `object` | Surcharges de propriétés de composants |
+| actorDef | `ActorDefinition<Props, API>` | Définition d'acteur produite par `defineActor` |
+| options | `PlaceOptions<Props>` | `at`, `rotation`, `scale`, `parent`, et `props` transmis à l'acteur |
 
-**Retourne:** `Entity` — l'entité générée.
+**Retourne:** `PlaceHandle<API>` — `entityId`, `api` (l'API publique de l'acteur), `moveTo(pos)` et `despawn()`.
+
+**Lève:** `GwenContextError` `CORE:OUTSIDE_LAYOUT_CONTEXT` quand l'appel a lieu hors d'une factory `defineLayout()`.
 
 **Exemple:**
 ```ts
-const enemy = placeActor(Enemy, { health: { hp: 50 } });
+const GameLayout = defineLayout(() => {
+  const enemy = placeActor(EnemyActor, { at: [100, 50], props: { hp: 50 } });
+  return { enemy };
+});
 ```
 
-### placePrefab(def, overrides?)
+### placePrefab(prefabDef, options?)
 
 **Signature:**
 ```ts
-function placePrefab(def: PrefabDef, overrides?: Record<string, any>): Entity
+function placePrefab<E extends readonly ComponentDef[]>(
+  prefabDef: PrefabDefinition<E>,
+  options?: PlaceOptions<PrefabOverrides<E>>,
+): PlaceHandle<void>
 ```
 
-**Description.** Génère immédiatement un prefab dans la scène courante.
+**Description.** Génère une entité prefab depuis une factory `defineLayout()`. `options.props` surcharge les valeurs de composants du prefab.
 
-**Retourne:** `Entity` — l'entité générée.
+**Retourne:** `PlaceHandle<void>` — `api` vaut `void` pour un prefab.
+
+**Lève:** `GwenContextError` `CORE:OUTSIDE_LAYOUT_CONTEXT` quand l'appel a lieu hors d'une factory `defineLayout()`.
 
 ### placeGroup(actors)
 
@@ -1021,7 +1034,7 @@ function createGwenHooks(): GwenHookable<GwenRuntimeHooks>
 
 **Retourne:** `GwenHookable<H>` — par défaut `GwenHookable<GwenRuntimeHooks>`.
 
-### useService(name)
+### useService(key)
 
 **Signature:**
 ```ts
@@ -1033,9 +1046,9 @@ function useService<K extends keyof GwenProvides>(key: K): GwenProvides[K]
 **Paramètres:**
 | Paramètre | Type | Description |
 |---|---|---|
-| name | `string` | Nom du service |
+| key | `K extends keyof GwenProvides` | Nom du service |
 
-**Retourne:** `any` — l'instance du service.
+**Retourne:** `GwenProvides[K]` — l'instance du service.
 
 **Exemple:**
 ```ts
@@ -1054,9 +1067,9 @@ function useWasmModule<K extends keyof GwenWasmModules>(name: K): WasmModuleHand
 **Paramètres:**
 | Paramètre | Type | Description |
 |---|---|---|
-| name | `string` | Nom du module WASM |
+| name | `K extends keyof GwenWasmModules` | Nom du module WASM |
 
-**Retourne:** `any` — le gestionnaire du module WASM.
+**Retourne:** `WasmModuleHandle<GwenWasmModules[K]>` — le gestionnaire du module WASM.
 
 ## Gestion des erreurs
 

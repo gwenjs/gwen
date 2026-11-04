@@ -117,14 +117,11 @@ export default defineGwenModule<{ volume?: number }>({
 
 **Signature:**
 ```ts
-interface GwenModule {
-  name: string;
-  exports: Record<string, string>;
-  hooks?: Record<string, any>;
-}
+type GwenModule<Options extends object = Record<string, unknown>> =
+  GwenModuleDefinition<Options>
 ```
 
-**Description.** Représente un module GWEN enregistré avec des exports et des hooks.
+**Description.** Instance de module résolue, retournée par `defineGwenModule()`. Structurellement identique à `GwenModuleDefinition`.
 
 ### GwenModuleDefinition
 

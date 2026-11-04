@@ -226,7 +226,7 @@ export const NudgeEnemies = defineSystem(() => {
 });
 ```
 
-#### useService(name)
+#### useService(key)
 
 **Signature:**
 ```ts
@@ -238,9 +238,9 @@ function useService<K extends keyof GwenProvides>(key: K): GwenProvides[K]
 **Parameters:**
 | Param | Type | Description |
 |---|---|---|
-| name | `string` | Service name |
+| key | `K extends keyof GwenProvides` | Service name |
 
-**Returns:** `any` — the service instance.
+**Returns:** `GwenProvides[K]` — the service instance.
 
 **Example:**
 ```ts
@@ -259,9 +259,9 @@ function useWasmModule<K extends keyof GwenWasmModules>(name: K): WasmModuleHand
 **Parameters:**
 | Param | Type | Description |
 |---|---|---|
-| name | `string` | WASM module name |
+| name | `K extends keyof GwenWasmModules` | WASM module name |
 
-**Returns:** `any` — the WASM module handle.
+**Returns:** `WasmModuleHandle<GwenWasmModules[K]>` — the WASM module handle.
 
 #### useComponent(def) / useComponent(entityId, def)
 
@@ -453,38 +453,51 @@ const spawnBullet = usePrefab(BulletPrefab);
 const bullet = spawnBullet();
 ```
 
-#### placeActor(def, overrides?)
+#### placeActor(actorDef, options?)
 
 **Signature:**
 ```ts
-function placeActor(def: ActorDef, overrides?: Record<string, any>): Entity
+function placeActor<Props, API>(
+  actorDef: ActorDefinition<Props, API>,
+  options?: PlaceOptions<Props>,
+): PlaceHandle<API>
 ```
 
-**Description.** Immediately spawns an actor in the current scene.
+**Description.** Spawns an actor from inside a `defineLayout()` factory and returns a handle to it. With `useLayout({ chunkSize })` the spawn is recorded and runs later; read the handle after `load()` resolves.
 
 **Parameters:**
 | Param | Type | Description |
 |---|---|---|
-| def | `ActorDef` | Actor definition |
-| overrides | `object` | Component property overrides |
+| actorDef | `ActorDefinition<Props, API>` | Actor definition produced by `defineActor` |
+| options | `PlaceOptions<Props>` | `at`, `rotation`, `scale`, `parent`, and `props` forwarded to the actor |
 
-**Returns:** `Entity` — the spawned entity.
+**Returns:** `PlaceHandle<API>` — `entityId`, `api` (the actor's public API), `moveTo(pos)` and `despawn()`.
+
+**Throws:** `GwenContextError` `CORE:OUTSIDE_LAYOUT_CONTEXT` when called outside a `defineLayout()` factory.
 
 **Example:**
 ```ts
-const enemy = placeActor(Enemy, { health: { hp: 50 } });
+const GameLayout = defineLayout(() => {
+  const enemy = placeActor(EnemyActor, { at: [100, 50], props: { hp: 50 } });
+  return { enemy };
+});
 ```
 
-#### placePrefab(def, overrides?)
+#### placePrefab(prefabDef, options?)
 
 **Signature:**
 ```ts
-function placePrefab(def: PrefabDef, overrides?: Record<string, any>): Entity
+function placePrefab<E extends readonly ComponentDef[]>(
+  prefabDef: PrefabDefinition<E>,
+  options?: PlaceOptions<PrefabOverrides<E>>,
+): PlaceHandle<void>
 ```
 
-**Description.** Immediately spawns a prefab in the current scene.
+**Description.** Spawns a prefab entity from inside a `defineLayout()` factory. `options.props` overrides the prefab's component values.
 
-**Returns:** `Entity` — the spawned entity.
+**Returns:** `PlaceHandle<void>` — `api` is `void` for a prefab.
+
+**Throws:** `GwenContextError` `CORE:OUTSIDE_LAYOUT_CONTEXT` when called outside a `defineLayout()` factory.
 
 #### placeGroup(actors)
 
@@ -901,7 +914,8 @@ function onEnter(cb: (params?: Record<string, unknown>) => void | Promise<void>)
 defineScene('game', () => {
   const player = useActor(PlayerActor)
   onEnter((params) => {
-    player.spawnOnce({ x: params?.startX as number ?? 400, y: 530 })
+    const startX = typeof params?.startX === 'number' ? params.startX : 400
+    player.spawnOnce({ x: startX, y: 530 })
   })
 })
 ```

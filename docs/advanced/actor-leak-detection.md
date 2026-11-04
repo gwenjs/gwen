@@ -148,7 +148,8 @@ export const ShootingSystem = defineSystem(() => {
 
     // Despawn bullets that have left the screen
     for (let i = liveIds.length - 1; i >= 0; i--) {
-      const id = liveIds[i]!
+      const id = liveIds[i]
+      if (id === undefined) continue
       if (isOffScreen(id)) {
         bullet.despawn(id)
         liveIds.splice(i, 1)
