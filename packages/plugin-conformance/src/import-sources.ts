@@ -34,10 +34,71 @@ function isDynamicImport(node: ts.CallExpression): boolean {
   return node.expression.kind === ts.SyntaxKind.ImportKeyword;
 }
 
+function bindsName(name: ts.BindingName, wanted: string): boolean {
+  if (ts.isIdentifier(name)) return name.text === wanted;
+  return name.elements.some(
+    (element) => !ts.isOmittedExpression(element) && bindsName(element.name, wanted),
+  );
+}
+
+function listBinds(list: ts.VariableDeclarationList, wanted: string): boolean {
+  return list.declarations.some((declaration) => bindsName(declaration.name, wanted));
+}
+
+/** Whether `node` holds a `var` of that name, not looking into nested functions. */
+function hoistsVar(node: ts.Node, wanted: string): boolean {
+  if (ts.isFunctionLike(node)) return false;
+  const isVar = ts.isVariableDeclarationList(node) && (node.flags & ts.NodeFlags.BlockScoped) === 0;
+  if (isVar && listBinds(node, wanted)) return true;
+  return ts.forEachChild(node, (child) => (hoistsVar(child, wanted) ? true : undefined)) === true;
+}
+
+/** Whether `scope` itself declares `wanted`: a parameter, a block-level name or a `var` of a function body. */
+function declaresName(scope: ts.Node, wanted: string): boolean {
+  if (ts.isFunctionLike(scope)) {
+    return scope.parameters.some((parameter) => bindsName(parameter.name, wanted));
+  }
+  if (ts.isCatchClause(scope)) {
+    return (
+      scope.variableDeclaration !== undefined && bindsName(scope.variableDeclaration.name, wanted)
+    );
+  }
+  if (ts.isForStatement(scope) || ts.isForInStatement(scope) || ts.isForOfStatement(scope)) {
+    const { initializer } = scope;
+    return (
+      initializer !== undefined &&
+      ts.isVariableDeclarationList(initializer) &&
+      listBinds(initializer, wanted)
+    );
+  }
+  if (!ts.isBlock(scope)) return false;
+  if (ts.isFunctionLike(scope.parent) && hoistsVar(scope, wanted)) return true;
+  return scope.statements.some((statement) => {
+    if (ts.isVariableStatement(statement)) return listBinds(statement.declarationList, wanted);
+    return (
+      (ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) &&
+      statement.name?.text === wanted
+    );
+  });
+}
+
+function isShadowed(identifier: ts.Identifier): boolean {
+  for (
+    let scope: ts.Node | undefined = identifier.parent;
+    scope !== undefined;
+    scope = scope.parent
+  ) {
+    if (declaresName(scope, identifier.text)) return true;
+  }
+  return false;
+}
+
 /**
  * Every module specifier of `source`: `import`, `export … from`, `import("x")`, `require("x")`,
- * `import x = require("x")` and `import("x")` types, in source order. The names a namespace import
- * reads are found by name, ignoring scope.
+ * `import x = require("x")` and `import("x")` types, in source order. A dynamic import is read
+ * whatever follows its first argument. The names a namespace import reads are found by name,
+ * except for a property access whose namespace name is rebound by a parameter, a `var`, a block
+ * `const` or `let`, a `for` initializer or a `catch` binding of an enclosing scope.
  */
 export function scanImports(source: ts.SourceFile): readonly ImportSite[] {
   const sites: MutableSite[] = [];
@@ -86,9 +147,8 @@ export function scanImports(source: ts.SourceFile): readonly ImportSite[] {
       const [argument, ...rest] = node.arguments;
       if (
         argument !== undefined &&
-        rest.length === 0 &&
         isStringLiteralLike(argument) &&
-        (isRequireCall(node) || isDynamicImport(node))
+        (isDynamicImport(node) || (isRequireCall(node) && rest.length === 0))
       ) {
         open(argument);
       }
@@ -106,18 +166,25 @@ export function scanImports(source: ts.SourceFile): readonly ImportSite[] {
   };
   visit(source);
 
-  const access = (binding: ts.Expression | ts.EntityName, name: string, at: ts.Node): void => {
+  /** A value read is skipped when a closer scope rebinds the name; a type position has no such scope. */
+  const access = (
+    binding: ts.Expression | ts.EntityName,
+    name: string,
+    at: ts.Node,
+    value: boolean,
+  ): void => {
     if (!ts.isIdentifier(binding)) return;
     const site = namespaces.get(binding.text);
-    if (site !== undefined) site.names.push({ name, line: lineOf(source, at) });
+    if (site === undefined || (value && isShadowed(binding))) return;
+    site.names.push({ name, line: lineOf(source, at) });
   };
   const visitAccess = (node: ts.Node): void => {
     if (ts.isPropertyAccessExpression(node)) {
-      access(node.expression, node.name.text, node.name);
+      access(node.expression, node.name.text, node.name, true);
     } else if (ts.isElementAccessExpression(node) && isStringLiteralLike(node.argumentExpression)) {
-      access(node.expression, node.argumentExpression.text, node.argumentExpression);
+      access(node.expression, node.argumentExpression.text, node.argumentExpression, true);
     } else if (ts.isQualifiedName(node)) {
-      access(node.left, node.right.text, node.right);
+      access(node.left, node.right.text, node.right, false);
     }
     ts.forEachChild(node, visitAccess);
   };
