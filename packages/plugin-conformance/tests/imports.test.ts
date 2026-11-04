@@ -553,6 +553,406 @@ describe("imports check", () => {
     },
   );
 
+  it(
+    "accepts the plugin-conformance entries in a test file and reports them in src",
+    { timeout: SLOW_TEST_MS },
+    async () => {
+      const report = await checkCopy(async (root) => {
+        await editManifest(root, (manifest) => {
+          manifest.devDependencies = { "@gwenjs/plugin-conformance": "*" };
+        });
+        await writeSource(
+          root,
+          "src/a.ts",
+          'export { describePluginConformance } from "@gwenjs/plugin-conformance/vitest";\n',
+        );
+        await writeDeep(
+          root,
+          "tests/plugin.conformance.test.ts",
+          [
+            'import { describePluginConformance } from "@gwenjs/plugin-conformance/vitest";',
+            'import { runComposableSurfaceSuite } from "@gwenjs/plugin-conformance";',
+            'import { runPluginConformance } from "@gwenjs/plugin-conformance/runtime";',
+            "export { describePluginConformance, runComposableSurfaceSuite, runPluginConformance };",
+            "",
+          ].join("\n"),
+        );
+      });
+      expect(sites(report)).toEqual(["IMPORT_FOREIGN_PLUGIN src/a.ts:1"]);
+    },
+  );
+
+  it(
+    "reports a plugin-conformance entry that a test file does not declare",
+    { timeout: SLOW_TEST_MS },
+    async () => {
+      const report = await checkCopy((root) =>
+        writeDeep(
+          root,
+          "tests/plugin.conformance.test.ts",
+          [
+            'import { describePluginConformance } from "@gwenjs/plugin-conformance/vitest";',
+            'import { runComposableSurfaceSuite } from "@gwenjs/plugin-conformance";',
+            'import { runPluginConformance } from "@gwenjs/plugin-conformance/runtime";',
+            "export { describePluginConformance, runComposableSurfaceSuite, runPluginConformance };",
+            "",
+          ].join("\n"),
+        ),
+      );
+      expect(sites(report)).toEqual([
+        "IMPORT_UNDECLARED tests/plugin.conformance.test.ts:1",
+        "IMPORT_UNDECLARED tests/plugin.conformance.test.ts:2",
+        "IMPORT_UNDECLARED tests/plugin.conformance.test.ts:3",
+      ]);
+      expect(importFindings(report)[0]?.message).toContain("@gwenjs/plugin-conformance");
+    },
+  );
+
+  it(
+    "reports another subpath of plugin-conformance in a test file as deep",
+    { timeout: SLOW_TEST_MS },
+    async () => {
+      const report = await checkCopy(async (root) => {
+        await editManifest(root, (manifest) => {
+          manifest.devDependencies = { "@gwenjs/plugin-conformance": "*" };
+        });
+        await writeDeep(
+          root,
+          "tests/a.test.ts",
+          'import { x } from "@gwenjs/plugin-conformance/nope";\nexport { x };\n',
+        );
+      });
+      expect(sites(report)).toEqual(["IMPORT_DEEP tests/a.test.ts:1"]);
+    },
+  );
+
+  it(
+    "reports an internal entry even when its package is listed in gwen.extends",
+    { timeout: SLOW_TEST_MS },
+    async () => {
+      const report = await checkCopy(async (root) => {
+        await editManifest(root, (manifest) => {
+          manifest.name = "community-plugin";
+          manifest.gwen = { type: "plugin", extends: ["@gwenjs/core/internal"] };
+        });
+        await writeSource(
+          root,
+          "src/a.ts",
+          'export { x } from "@gwenjs/core/internal/extension";\n',
+        );
+      });
+      expect(sites(report)).toEqual(["IMPORT_INTERNAL src/a.ts:1"]);
+    },
+  );
+
+  it(
+    "reports the extension of a framework package as deep even when it is listed in gwen.extends",
+    { timeout: SLOW_TEST_MS },
+    async () => {
+      const report = await checkCopy(async (root) => {
+        await editManifest(root, (manifest) => {
+          manifest.name = "community-plugin";
+          manifest.gwen = { type: "plugin", extends: ["@gwenjs/core"] };
+        });
+        await writeSource(root, "src/a.ts", 'export { x } from "@gwenjs/core/extension";\n');
+      });
+      expect(sites(report)).toEqual(["IMPORT_DEEP src/a.ts:1"]);
+    },
+  );
+
+  it(
+    "reports the extension of a forbidden package even when it is listed in gwen.extends",
+    { timeout: SLOW_TEST_MS },
+    async () => {
+      const report = await checkCopy(async (root) => {
+        await editManifest(root, (manifest) => {
+          manifest.name = "community-plugin";
+          manifest.gwen = { type: "plugin", extends: ["@gwenjs/physics2d"] };
+        });
+        await writeSource(root, "src/a.ts", 'export { x } from "@gwenjs/physics2d/extension";\n');
+      });
+      expect(sites(report)).toEqual(["IMPORT_FORBIDDEN_ENTRY src/a.ts:1"]);
+    },
+  );
+
+  it(
+    "does not grant the gwen.extends exception to a subpath other than extension",
+    { timeout: SLOW_TEST_MS },
+    async () => {
+      const report = await checkCopy(async (root) => {
+        await editManifest(root, (manifest) => {
+          manifest.name = "community-plugin";
+          manifest.gwen = { type: "plugin", extends: ["@gwenjs/camera2d"] };
+        });
+        await writeSource(root, "src/a.ts", 'export { x } from "@gwenjs/camera2d/other";\n');
+      });
+      expect(sites(report)).toEqual(["IMPORT_FOREIGN_PLUGIN src/a.ts:1"]);
+    },
+  );
+
+  it(
+    "does not grant the gwen.extends exception to a base that has a subpath",
+    { timeout: SLOW_TEST_MS },
+    async () => {
+      const report = await checkCopy(async (root) => {
+        await editManifest(root, (manifest) => {
+          manifest.name = "community-plugin";
+          manifest.gwen = { type: "plugin", extends: ["@gwenjs/camera2d/sub"] };
+        });
+        await writeSource(
+          root,
+          "src/a.ts",
+          'export { x } from "@gwenjs/camera2d/sub/extension";\n',
+        );
+      });
+      expect(sites(report)).toEqual(["IMPORT_FOREIGN_PLUGIN src/a.ts:1"]);
+    },
+  );
+
+  it(
+    "reads the first argument of a dynamic import that has an options argument",
+    { timeout: SLOW_TEST_MS },
+    async () => {
+      const report = await checkCopy((root) =>
+        writeSource(
+          root,
+          "src/a.ts",
+          'export const lazy = () => import("@gwenjs/core/internal", { with: { type: "json" } });\n',
+        ),
+      );
+      expect(sites(report)).toEqual(["IMPORT_INTERNAL src/a.ts:1"]);
+    },
+  );
+
+  it(
+    "ignores a namespace property read on a parameter or a var that shadows the import",
+    { timeout: SLOW_TEST_MS },
+    async () => {
+      const report = await checkCopy(async (root) => {
+        await declarePeers(root, ["@gwenjs/core"]);
+        await writeSource(
+          root,
+          "src/a.ts",
+          [
+            'import * as core from "@gwenjs/core";',
+            "export const fine = core.createEngine;",
+            "export function byParameter(core: { foo: number }) {",
+            "  return core.foo;",
+            "}",
+            "export function byHoistedVar() {",
+            "  if (Math.random() > 2) {",
+            "    var core = { bar: 1 };",
+            "  }",
+            "  return core.bar;",
+            "}",
+            "export const arrow = (core: { baz: number }) => core.baz;",
+            "export const outside = core.notPublic;",
+            "",
+          ].join("\n"),
+        );
+      });
+      expect(sites(report)).toEqual(["IMPORT_NOT_PUBLIC src/a.ts:13"]);
+    },
+  );
+
+  it(
+    "ignores a namespace property read on a block const, a catch binding or a for let",
+    { timeout: SLOW_TEST_MS },
+    async () => {
+      const report = await checkCopy(async (root) => {
+        await declarePeers(root, ["@gwenjs/core"]);
+        await writeSource(
+          root,
+          "src/a.ts",
+          [
+            'import * as core from "@gwenjs/core";',
+            "export function blocks() {",
+            "  {",
+            "    const core = { one: 1 };",
+            "    void core.one;",
+            "  }",
+            "  try {",
+            '    throw new Error("x");',
+            "  } catch (core) {",
+            "    void core.two;",
+            "  }",
+            "  for (let core = { three: 3 }; ; ) {",
+            "    void core.three;",
+            "    break;",
+            "  }",
+            "  return core.notPublic;",
+            "}",
+            "",
+          ].join("\n"),
+        );
+      });
+      expect(sites(report)).toEqual(["IMPORT_NOT_PUBLIC src/a.ts:16"]);
+    },
+  );
+
+  it(
+    "still reads a namespace type where a parameter has the same name",
+    { timeout: SLOW_TEST_MS },
+    async () => {
+      const report = await checkCopy(async (root) => {
+        await declarePeers(root, ["@gwenjs/core"]);
+        await writeSource(
+          root,
+          "src/a.ts",
+          [
+            'import * as core from "@gwenjs/core";',
+            "export function f(core: number): core.NotPublicType {",
+            "  throw new Error(String(core));",
+            "}",
+            "",
+          ].join("\n"),
+        );
+      });
+      expect(sites(report)).toEqual(["IMPORT_NOT_PUBLIC src/a.ts:2"]);
+    },
+  );
+
+  it(
+    "reports an absolute path or a drive path as deep without looking in node_modules",
+    { timeout: SLOW_TEST_MS },
+    async () => {
+      const report = await checkCopy(async (root) => {
+        await writeInstalledPackage(root, "", { peerDependencies: { "@gwenjs/core": "*" } });
+        await writeSource(
+          root,
+          "src/a.ts",
+          [
+            'import { a } from "/abs/outside.js";',
+            'import { b } from "C:\\\\win\\\\outside.js";',
+            "export { a, b };",
+            "",
+          ].join("\n"),
+        );
+      });
+      expect(sites(report)).toEqual(["IMPORT_DEEP src/a.ts:1", "IMPORT_DEEP src/a.ts:2"]);
+    },
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "reports a file: URL as deep without looking in node_modules",
+    { timeout: SLOW_TEST_MS },
+    async () => {
+      const report = await checkCopy(async (root) => {
+        await writeInstalledPackage(root, "file:", { peerDependencies: { "@gwenjs/core": "*" } });
+        await writeSource(
+          root,
+          "src/a.ts",
+          'import { a } from "file:///tmp/outside.js";\nexport { a };\n',
+        );
+      });
+      expect(sites(report)).toEqual(["IMPORT_DEEP src/a.ts:1"]);
+    },
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "skips node: builtins, # aliases and URL schemes before the node_modules lookup",
+    { timeout: SLOW_TEST_MS },
+    async () => {
+      const report = await checkCopy(async (root) => {
+        const decoy = { peerDependencies: { "@gwenjs/core": "*" } };
+        for (const name of ["node:fs", "#internal", "https:", "data:text"]) {
+          await writeInstalledPackage(root, name, decoy);
+        }
+        await writeSource(
+          root,
+          "src/a.ts",
+          [
+            'import { readFile } from "node:fs";',
+            'import { x } from "#internal/x";',
+            'import { y } from "https://example.com/y.js";',
+            'import z from "data:text/javascript,export default 1";',
+            "export { readFile, x, y, z };",
+            "",
+          ].join("\n"),
+        );
+      });
+      expect(importFindings(report)).toEqual([]);
+    },
+  );
+
+  it(
+    "reads .cjs, .d.mts and .d.cts files of dist for internal specifiers",
+    { timeout: SLOW_TEST_MS },
+    async () => {
+      const report = await checkCopy(async (root) => {
+        await writeSource(
+          root,
+          "dist/index.cjs",
+          'module.exports = require("@gwenjs/core/internal");\nmodule.exports.x = require("/abs/outside.js");\n',
+        );
+        await writeSource(
+          root,
+          "dist/index.d.mts",
+          'export type A = import("@gwenjs/core/internal").A;\n',
+        );
+        await writeSource(
+          root,
+          "dist/index.d.cts",
+          'export type B = import("@gwenjs/core/wasm/glue").B;\n',
+        );
+      });
+      expect(sites(report)).toEqual([
+        "IMPORT_INTERNAL dist/index.cjs:1",
+        "IMPORT_INTERNAL dist/index.d.cts:1",
+        "IMPORT_INTERNAL dist/index.d.mts:1",
+      ]);
+    },
+  );
+
+  it(
+    "reports a third-party package that depends on @gwenjs/core as another plugin",
+    { timeout: SLOW_TEST_MS },
+    async () => {
+      const report = await checkCopy(async (root) => {
+        await writeInstalledPackage(root, "lib-dep", {
+          dependencies: { "@gwenjs/core": "*" },
+        });
+        await writeSource(root, "src/a.ts", 'export { a } from "lib-dep";\n');
+      });
+      expect(sites(report)).toEqual(["IMPORT_FOREIGN_PLUGIN src/a.ts:1"]);
+      expect(importFindings(report)[0]?.message).toContain("lib-dep");
+    },
+  );
+
+  it(
+    "ignores an installed package.json that cannot be parsed",
+    { timeout: SLOW_TEST_MS },
+    async () => {
+      const report = await checkCopy(async (root) => {
+        await writeDeep(root, "node_modules/lib-bad/package.json", "{ not json");
+        await writeSource(root, "src/a.ts", 'export { a } from "lib-bad";\n');
+      });
+      expect(importFindings(report)).toEqual([]);
+    },
+  );
+
+  it(
+    "reports a property read on an import-equals namespace that is not public",
+    { timeout: SLOW_TEST_MS },
+    async () => {
+      const report = await checkCopy(async (root) => {
+        await declarePeers(root, ["@gwenjs/core"]);
+        await writeSource(
+          root,
+          "src/a.ts",
+          [
+            'import core = require("@gwenjs/core");',
+            "export const fine = core.createEngine;",
+            "export const bad = core.notPublic;",
+            "",
+          ].join("\n"),
+        );
+      });
+      expect(sites(report)).toEqual(["IMPORT_NOT_PUBLIC src/a.ts:3"]);
+      expect(importFindings(report)[0]?.message).toContain("notPublic");
+    },
+  );
+
   it.skipIf(!CAN_LOCK_DIRECTORY)(
     "rejects when an installed package cannot be read",
     { timeout: SLOW_TEST_MS },
