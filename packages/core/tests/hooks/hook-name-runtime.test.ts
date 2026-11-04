@@ -615,7 +615,7 @@ it("::a plugin provide on the setup engine fires service:provided", async () => 
   engine.hooks.hook("service:provided", (event) => {
     keys.push(String(event.key));
   });
-  const plugin = definePlugin(() => ({
+  const plugin = definePlugin({ provides: ["hookname:svc"] }, () => ({
     name: "setup-provide",
     setup(setupEngine) {
       setupEngine.provide("hookname:svc", { n: 1 });

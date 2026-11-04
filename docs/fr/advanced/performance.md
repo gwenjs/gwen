@@ -181,7 +181,7 @@ const HUD = defineComponent({
 
 const HUDPrefab = definePrefab([{ def: HUD, defaults: { shown: 1 } }]);
 
-definePlugin(() => ({
+definePlugin({ provides: ["scoreBoard"] }, () => ({
   name: "score-board",
   setup(engine: GwenEngineBase) {
     engine.provide("scoreBoard", createScoreBoard());

@@ -107,7 +107,7 @@ declare module '@gwenjs/schema' {
 
 const keys = new Set<string>()
 
-export const InputPlugin = definePlugin(() => ({
+export const InputPlugin = definePlugin({ provides: ['input'] }, () => ({
   name: 'input',
   setup(engine) {
     engine.hooks.hook('engine:init', () => {
@@ -131,32 +131,35 @@ declare module '@gwenjs/schema' {
   interface GwenProvides { physics2d: { addBody(id: string, mass: number): void } }
 }
 
-export const Physics2DPlugin = definePlugin((opts: { gravity?: number } = {}) => ({
-  name: 'physics2d',
-  setup(engine) {
-    const gravity = opts.gravity ?? 9.81
-    const bodies = new Map()
+export const Physics2DPlugin = definePlugin(
+  { provides: ['physics2d'], options: { defaults: { gravity: 9.81 } } },
+  (opts) => ({
+    name: 'physics2d',
+    setup(engine) {
+      const gravity = opts.gravity ?? 9.81
+      const bodies = new Map()
 
-    engine.provide('physics2d', {
-      addBody: (id: string, mass: number) => {
-        bodies.set(id, { mass, vx: 0, vy: 0 })
-      },
-      applyForce: (id: string, fx: number, fy: number) => {
-        const body = bodies.get(id)
-        if (body) {
-          body.vx += fx / body.mass
-          body.vy += fy / body.mass
-        }
-      },
-      getPosition: (id: string) => bodies.get(id),
-      step: (deltaTime: number) => {
-        bodies.forEach((body) => {
-          body.vy += gravity * deltaTime // Apply gravity
-        })
-      },
-    })
-  },
-}))
+      engine.provide('physics2d', {
+        addBody: (id: string, mass: number) => {
+          bodies.set(id, { mass, vx: 0, vy: 0 })
+        },
+        applyForce: (id: string, fx: number, fy: number) => {
+          const body = bodies.get(id)
+          if (body) {
+            body.vx += fx / body.mass
+            body.vy += fy / body.mass
+          }
+        },
+        getPosition: (id: string) => bodies.get(id),
+        step: (deltaTime: number) => {
+          bodies.forEach((body) => {
+            body.vy += gravity * deltaTime // Apply gravity
+          })
+        },
+      })
+    },
+  }),
+)
 ```
 
 **Game Plugin** (composes Input and Physics):

@@ -23,12 +23,13 @@ let current: IGwenScope | null = null;
  * ```ts
  * import { getCurrentScope } from '@gwenjs/kit'
  *
- * export const MyPlugin = definePlugin({
+ * export const MyPlugin = definePlugin(() => ({
+ *   name: 'MyPlugin',
  *   setup(engine) {
  *     const scope = getCurrentScope()
  *     console.log(scope?.meta.type) // 'plugin'
- *   }
- * })
+ *   },
+ * }))
  * ```
  */
 export function getCurrentScope(): IGwenScope | null {

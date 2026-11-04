@@ -25,7 +25,7 @@ declare module '@gwenjs/schema' {
 
 const keys = new Set<string>()
 
-export const InputPlugin = definePlugin(() => ({
+export const InputPlugin = definePlugin({ provides: ['input'] }, () => ({
   name: 'input',
   setup(engine) {
     engine.hooks.hook('engine:init', () => {
@@ -57,43 +57,90 @@ declare module '@gwenjs/schema' {
 }
 
 interface InputOptions {
-  repeatDelay?: number
-  preventDefault?: string[] // Keys to prevent default on
+  repeatDelay: number
+  preventDefault: string[] // Keys to prevent default on
 }
 
-export const InputPlugin = definePlugin((opts: InputOptions = {}) => {
-  const { repeatDelay = 50, preventDefault = [] } = opts
-  const keys = new Set<string>()
-  const lastRepeat = new Map<string, number>()
+const inputDefaults: InputOptions = { repeatDelay: 50, preventDefault: [] }
 
-  return {
-    name: 'input',
-    setup(engine) {
-      engine.hooks.hook('engine:init', () => {
-        window.addEventListener('keydown', (e) => {
-          if (preventDefault.includes(e.key)) e.preventDefault()
-          keys.add(e.key)
+export const InputPlugin = definePlugin(
+  { provides: ['input'], options: { defaults: inputDefaults } },
+  (opts) => {
+    const { repeatDelay, preventDefault } = opts
+    const keys = new Set<string>()
+    const lastRepeat = new Map<string, number>()
+
+    return {
+      name: 'input',
+      setup(engine) {
+        engine.hooks.hook('engine:init', () => {
+          window.addEventListener('keydown', (e) => {
+            if (preventDefault.includes(e.key)) e.preventDefault()
+            keys.add(e.key)
+          })
+          window.addEventListener('keyup', (e) => keys.delete(e.key))
         })
-        window.addEventListener('keyup', (e) => keys.delete(e.key))
-      })
 
-      engine.provide('input', {
-        isKeyDown: (key: string) => keys.has(key),
-        isKeyPressed: (key: string) => {
-          if (!keys.has(key)) return false
-          const now = Date.now()
-          const last = lastRepeat.get(key) ?? now - repeatDelay
-          if (now - last >= repeatDelay) {
-            lastRepeat.set(key, now)
-            return true
-          }
-          return false
-        },
-      })
-    },
-  }
-})
+        engine.provide('input', {
+          isKeyDown: (key: string) => keys.has(key),
+          isKeyPressed: (key: string) => {
+            if (!keys.has(key)) return false
+            const now = Date.now()
+            const last = lastRepeat.get(key) ?? now - repeatDelay
+            if (now - last >= repeatDelay) {
+              lastRepeat.set(key, now)
+              return true
+            }
+            return false
+          },
+        })
+      },
+    }
+  },
+)
 ```
+
+### Déclarer des services et des options
+
+Le premier argument de `definePlugin` déclare les services que le plugin fournit et les options qu'il accepte. Il y a trois formes :
+
+```ts
+declare module '@gwenjs/schema' {
+  interface GwenProvides {
+    clock: { now(): number }
+    gravity: { value: number }
+  }
+}
+
+// 1. Ni services ni options : la factory seule
+export const Bare = definePlugin(() => ({ name: 'bare', setup() {} }))
+
+// 2. Des services, sans options
+export const Clock = definePlugin({ provides: ['clock'] }, () => ({
+  name: 'clock',
+  setup(engine) {
+    engine.provide('clock', { now: () => performance.now() })
+  },
+}))
+
+// 3. Des options, avec ou sans services (`provides` peut valoir `[]`)
+export const Gravity = definePlugin(
+  { provides: ['gravity'], options: { defaults: { value: -9.8 } } },
+  (opts) => ({
+    name: 'gravity',
+    setup(engine) {
+      engine.provide('gravity', { value: opts.value })
+    },
+  }),
+)
+
+const plugin = Gravity({ value: -20 })
+```
+
+- Chaque clé de `provides` doit être une clé de `GwenProvides` et pas une clé du moteur (`logger`, `errors`, `wasm:bridge`, `memory`). Dans `setup`, `engine.provide` n'accepte que les clés déclarées, à la compilation. `provides` peut être une fonction des options résolues, `(opts) => [...]`.
+- `options.defaults` donne la forme résolue et chaque valeur par défaut. La factory reçoit un objet gelé : `defaults` fusionné sur un niveau avec l'argument de l'appelant. Une clé que l'appelant met à `undefined` garde sa valeur par défaut. Un objet imbriqué passé par l'appelant remplace l'objet imbriqué par défaut en entier. Les types refusent un `undefined` explicite, sauf si le type de l'option l'inclut.
+- `options.validate` est une fonction pure optionnelle qui retourne des `GwenConfigIssue[]`. La factory ne l'appelle jamais et ne lève jamais d'erreur pour des options invalides. Le plugin expose le résultat via `plugin.validateOptions()`, et `plugin.provides` contient les clés dédupliquées et gelées.
+- `provides` et `validateOptions` dans l'objet que la factory retourne sont des erreurs de type : `definePlugin` les écrit.
 
 ### Enregistrer un plugin
 
@@ -141,7 +188,7 @@ declare module '@gwenjs/schema' {
 
 const keys = new Set<string>()
 
-export default definePlugin(() => ({
+export default definePlugin({ provides: ['input'] }, () => ({
   name: 'input',
   setup(engine) {
     engine.hooks.hook('engine:init', () => {
@@ -263,9 +310,9 @@ setup(engine) {
 }
 ```
 
-Dans un build de développement avec `debug: true`, une clé propre autre que `name`, `setup`, `teardown`, `onError` ou `requires`, et qui ne commence pas par `_`, produit un avertissement et est ignorée.
+Dans un build de développement avec `debug: true`, une clé propre autre que `name`, `setup`, `teardown`, `onError`, `requires`, `provides` ou `validateOptions`, et qui ne commence pas par `_`, produit un avertissement et est ignorée.
 
-Les mêmes clés échouent à la compilation. `definePlugin` remplace chaque clé hors `name`, `setup`, `teardown`, `onError` et `requires` par un message `PluginKeyError`. Une clé en trop dans l'objet retourné est donc une erreur de type. Passez le type des options par le paramètre, `definePlugin((opts: Options) => ...)`. `definePlugin<Options>(...)` avec un seul argument de type est une erreur, car le type du plugin est le deuxième argument.
+Les mêmes clés échouent à la compilation. `definePlugin` remplace chaque clé hors `name`, `setup`, `teardown`, `onError` et `requires` par un message `PluginKeyError`. Une clé en trop dans l'objet retourné est donc une erreur de type. Déclarez les options dans le premier argument, `definePlugin({ provides: [], options: { defaults } }, (opts) => ...)`. Laissez l'inférence trouver les arguments de type : le type des options vient de `options.defaults`.
 
 ## Teardown
 
@@ -589,17 +636,22 @@ declare module '@gwenjs/schema' {
   }
 }
 
-export const AudioPlugin = definePlugin((opts: AudioOptions = {}) => ({
-  name: 'audio',
-  setup(engine) {
-    const manager = new AudioManager(opts.volume)
-    engine.provide('audio', manager)
+const audioDefaults: AudioOptions = {}
 
-    engine.hooks.hook('engine:stop', () => {
-      manager.dispose()
-    })
-  },
-}))
+export const AudioPlugin = definePlugin(
+  { provides: ['audio'], options: { defaults: audioDefaults } },
+  (opts) => ({
+    name: 'audio',
+    setup(engine) {
+      const manager = new AudioManager(opts.volume)
+      engine.provide('audio', manager)
+
+      engine.hooks.hook('engine:stop', () => {
+        manager.dispose()
+      })
+    },
+  }),
+)
 
 // Module to package the plugin
 export default defineGwenModule({
@@ -638,7 +690,7 @@ export const SoundEffectSystem = defineSystem(function SoundEffectSystem() {
 Fonction factory pour créer un plugin :
 
 ```ts
-const MyPlugin = definePlugin((opts?: Options) => ({
+const MyPlugin = definePlugin(declaration, (opts) => ({
   name: string
   requires?: { plugins?: string[]; services?: GwenServiceKey[]; optional?: GwenServiceKey[] }
   setup(engine: GwenEngineBase): void | Promise<void>
@@ -646,6 +698,8 @@ const MyPlugin = definePlugin((opts?: Options) => ({
   onError?(error: unknown, context: PluginErrorContext): void
 }))
 ```
+
+`declaration` est `{ provides, options?: { defaults, validate? } }`. Un plugin sans services ni options passe seulement la factory : `definePlugin(() => ({ ... }))`.
 
 ### GwenEngineBase
 

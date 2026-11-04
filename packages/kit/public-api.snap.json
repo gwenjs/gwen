@@ -36,8 +36,14 @@
     "types": [
       "ComponentType",
       "EntityId",
+      "GwenDeclaredPlugin",
       "GwenPlugin",
+      "GwenPluginDeclaration",
+      "GwenPluginDefinition",
       "GwenPluginFactory",
+      "GwenPluginOptionsInput",
+      "GwenPluginProvidedKeys",
+      "GwenPluginSetupEngine",
       "GwenProvides",
       "GwenRuntimeHooks",
       "PluginErrorContext"

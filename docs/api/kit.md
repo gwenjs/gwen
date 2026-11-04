@@ -42,7 +42,7 @@ export const mover = defineSystem('Mover', () => {
 
 Plugin authoring utilities and schema type re-exports.
 
-**Exports:** `definePlugin`, `satisfiesPluginContract`, `optionalService`, `watchService`, `GwenPluginFactory` (type), plus schema re-exports: `GwenPlugin`, `GwenProvides`, `GwenRuntimeHooks`, `EntityId`, `ComponentType`, `PluginErrorContext`, `createEntityId`, `unpackEntityId`.
+**Exports:** `definePlugin`, `satisfiesPluginContract`, `optionalService`, `watchService`, `GwenPluginFactory`, `GwenPluginDeclaration`, `GwenPluginOptionsInput`, `GwenPluginSetupEngine`, `GwenPluginDefinition`, `GwenDeclaredPlugin`, `GwenPluginProvidedKeys` (types), plus schema re-exports: `GwenPlugin`, `GwenProvides`, `GwenRuntimeHooks`, `EntityId`, `ComponentType`, `PluginErrorContext`, `createEntityId`, `unpackEntityId`.
 
 **Usage:**
 ```ts
@@ -51,16 +51,29 @@ import type { GwenPlugin } from '@gwenjs/kit/plugin'
 import type { GwenEngineBase } from '@gwenjs/schema'
 ```
 
-### definePlugin(factory)
+### definePlugin(declaration?, factory)
 
 **Signature:**
 ```ts
-function definePlugin<TOptions, TPlugin extends GwenPlugin>(
-  factory: (options?: TOptions) => ExactPlugin<TPlugin>
-): GwenPluginFactory<TOptions extends undefined ? void : TOptions, TPlugin>
+// 1. No services, no options
+function definePlugin<TPlugin extends GwenPluginDefinition<never>>(
+  factory: () => ExactPlugin<TPlugin>
+): GwenPluginFactory<void, TPlugin & GwenDeclaredPlugin<never>>
+
+// 3. Options, with or without services (`provides` may be `[]`)
+function definePlugin<O extends object, const K extends GwenPluginServiceKey, TPlugin extends GwenPluginDefinition<K>>(
+  declaration: GwenPluginDeclaration<O, K>,
+  factory: (options: Readonly<O>) => ExactPlugin<TPlugin>
+): GwenPluginFactory<GwenPluginOptionsInput<O>, TPlugin & GwenDeclaredPlugin<K>>
+
+// 2. Services, no options
+function definePlugin<const K extends GwenPluginServiceKey, TPlugin extends GwenPluginDefinition<K>>(
+  declaration: { readonly provides: readonly K[] },
+  factory: () => ExactPlugin<TPlugin>
+): GwenPluginFactory<void, TPlugin & GwenDeclaredPlugin<K>>
 ```
 
-**Description.** Creates a reusable plugin factory. The factory function receives options and returns a plugin definition. The only keys are `name`, `setup(engine)`, `teardown`, `onError` and `requires`. Any other key is a type error, and `engine.use()` rejects a frame callback such as `onUpdate` with `CORE:PLUGIN_INVALID_SHAPE`. Register frame work with `engine.hooks.hook` inside `setup`. A `setup()` error is not wrapped: it is published as `CORE:PLUGIN_SETUP_ERROR`, then `engine.use()` rejects with the original error.
+**Description.** Creates a reusable plugin factory. The optional first argument declares the service keys the plugin provides and its options (`defaults`, optional `validate`). The factory function receives the frozen resolved options, which are `defaults` merged one level deep with the caller's argument, and returns a plugin definition. `definePlugin` writes `provides` and `validateOptions` onto it. The only keys are `name`, `setup(engine)`, `teardown`, `onError` and `requires`. Any other key is a type error, and `engine.use()` rejects a frame callback such as `onUpdate` with `CORE:PLUGIN_INVALID_SHAPE`. Register frame work with `engine.hooks.hook` inside `setup`. A `setup()` error is not wrapped: it is published as `CORE:PLUGIN_SETUP_ERROR`, then `engine.use()` rejects with the original error.
 
 **Example:**
 ```ts
@@ -70,17 +83,20 @@ declare module '@gwenjs/schema' {
   }
 }
 
-export const InputPlugin = definePlugin((opts: { deadzone?: number } = {}) => ({
-  name: 'input',
-  setup(engine) {
-    const keys = new Set<string>()
-    engine.hooks.hook('engine:init', () => {
-      window.addEventListener('keydown', (e) => keys.add(e.key))
-      window.addEventListener('keyup', (e) => keys.delete(e.key))
-    })
-    engine.provide('input', { isKeyDown: (k: string) => keys.has(k) })
-  },
-}))
+export const InputPlugin = definePlugin(
+  { provides: ['input'], options: { defaults: { deadzone: 0.1 } } },
+  (opts) => ({
+    name: 'input',
+    setup(engine) {
+      const keys = new Set<string>()
+      engine.hooks.hook('engine:init', () => {
+        window.addEventListener('keydown', (e) => keys.add(e.key))
+        window.addEventListener('keyup', (e) => keys.delete(e.key))
+      })
+      engine.provide('input', { isKeyDown: (k: string) => keys.has(k) })
+    },
+  }),
+)
 ```
 
 ## `@gwenjs/kit/module`

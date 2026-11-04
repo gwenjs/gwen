@@ -67,9 +67,8 @@ export interface PhysicsKinematicSyncSystemOptions {
  * @param options - Pixel-to-meter ratio and the position component definition.
  * @returns A plugin object ready to register with `engine.use()`.
  * @throws {GwenError} Code `Physics2DErrorCodes.POSITION_COMPONENT_REQUIRED` when
- *   `positionComponent` is missing. The parameter is typed optional only because
- *   `definePlugin` types its factory parameter as optional
- *   (`packages/kit/src/define-plugin.ts:107`). It is still required at runtime.
+ *   `positionComponent` is missing. The check runs at this call, not at `engine.use`.
+ *   The parameter is typed optional. `positionComponent` is still required at runtime.
  *
  * @example
  * ```typescript
@@ -82,18 +81,18 @@ export interface PhysicsKinematicSyncSystemOptions {
  *
  * @since 1.0.0
  */
-export const createPhysicsKinematicSyncSystem = definePlugin(
-  (options?: PhysicsKinematicSyncSystemOptions) => {
-    if (options === undefined || options.positionComponent === undefined) {
-      throw new GwenError(
-        Physics2DErrorCodes.POSITION_COMPONENT_REQUIRED,
-        "positionComponent is required.",
-        { composable: "createPhysicsKinematicSyncSystem" },
-      );
-    }
-    const _pixelsPerMeter = options.pixelsPerMeter ?? DEFAULT_PIXELS_PER_METER;
-    const _positionComponent = options.positionComponent;
+export function createPhysicsKinematicSyncSystem(options?: PhysicsKinematicSyncSystemOptions) {
+  if (options === undefined || options.positionComponent === undefined) {
+    throw new GwenError(
+      Physics2DErrorCodes.POSITION_COMPONENT_REQUIRED,
+      "positionComponent is required.",
+      { composable: "createPhysicsKinematicSyncSystem" },
+    );
+  }
+  const _pixelsPerMeter = options.pixelsPerMeter ?? DEFAULT_PIXELS_PER_METER;
+  const _positionComponent = options.positionComponent;
 
+  return definePlugin(() => {
     let _physics: Physics2DAPI | null = null;
     let _liveQuery: LiveQuery<EntityAccessor<readonly ComponentDef[]>> | null = null;
     let _offBeforeUpdate: (() => void) | null = null;
@@ -144,8 +143,8 @@ export const createPhysicsKinematicSyncSystem = definePlugin(
         _liveQuery = null;
       },
     };
-  },
-);
+  })();
+}
 
 // ─── Platformer grounded helper ──────────────────────────────────────────────
 

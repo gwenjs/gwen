@@ -13,6 +13,9 @@ declare module "@gwenjs/schema" {
     physics2d: { gravity: number };
     x: { n: number };
     y: { n: number };
+    errors: { n: number };
+    "wasm:bridge": { n: number };
+    memory: { n: number };
   }
 }
 
@@ -105,8 +108,10 @@ describe("definePlugin", () => {
     expectTypeOf(noOptions).toBeCallableWith();
     expectTypeOf(noOptions().name).toEqualTypeOf<string>();
     expectTypeOf(noOptions().setup).toBeFunction();
+    // @ts-expect-error
+    noOptions({ n: 1 });
 
-    const withOptions = definePlugin((_options?: { n?: number }) => ({
+    const withOptions = definePlugin({ provides: [], options: { defaults: { n: 0 } } }, () => ({
       name: "N",
       setup() {},
     }));
@@ -122,6 +127,15 @@ describe("definePlugin", () => {
     expectTypeOf<
       PluginKeyError<"version">
     >().toEqualTypeOf<`"version" is not a GwenPlugin key (allowed: name, setup, teardown, onError, requires)`>();
+  });
+
+  it("PluginKeyError names definePlugin's first argument for provides and validateOptions", () => {
+    expectTypeOf<
+      PluginKeyError<"provides">
+    >().toEqualTypeOf<`"provides" is set by definePlugin's first argument`>();
+    expectTypeOf<
+      PluginKeyError<"validateOptions">
+    >().toEqualTypeOf<`"validateOptions" is set by definePlugin's first argument`>();
   });
 
   it("all three overloads infer", () => {
@@ -165,8 +179,49 @@ describe("definePlugin", () => {
     expectTypeOf(P().provides).toEqualTypeOf<readonly "physics2d"[]>();
   });
 
+  it("an annotated declaration with an array provides and options keeps its options", () => {
+    const declaration: GwenPluginDeclaration<{ gravity: number }, "physics2d"> = {
+      provides: ["physics2d"],
+      options: { defaults: { gravity: 1 } },
+    };
+    const P = definePlugin(declaration, () => ({ name: "P", setup() {} }));
+    expectTypeOf(P)
+      .parameter(0)
+      .toEqualTypeOf<GwenPluginOptionsInput<{ gravity: number }> | undefined>();
+  });
+
+  it("a provides function without parameters keeps its literal keys", () => {
+    const P = definePlugin({ provides: () => ["x", "x"], options: { defaults: {} } }, () => ({
+      name: "P",
+      setup() {},
+    }));
+    expectTypeOf(P().provides).toEqualTypeOf<readonly "x"[]>();
+  });
+
   it("provide of a key outside provides does not compile in an unannotated setup", () => {
     definePlugin({ provides: ["x"] }, () => ({
+      name: "P",
+      setup(engine) {
+        engine.provide("x", { n: 1 });
+        // @ts-expect-error
+        engine.provide("y", { n: 1 });
+      },
+    }));
+  });
+
+  it("provide of a key outside an array provides does not compile with options", () => {
+    definePlugin({ provides: ["x"], options: { defaults: {} } }, () => ({
+      name: "P",
+      setup(engine) {
+        engine.provide("x", { n: 1 });
+        // @ts-expect-error
+        engine.provide("y", { n: 1 });
+      },
+    }));
+  });
+
+  it("provide of a key outside a function provides does not compile with options", () => {
+    definePlugin({ provides: () => ["x"], options: { defaults: {} } }, () => ({
       name: "P",
       setup(engine) {
         engine.provide("x", { n: 1 });
@@ -188,6 +243,12 @@ describe("definePlugin", () => {
     definePlugin({ provides: ["x"] }, make);
     // @ts-expect-error
     definePlugin({ provides: ["logger"] }, make);
+    // @ts-expect-error
+    definePlugin({ provides: ["errors"] }, make);
+    // @ts-expect-error
+    definePlugin({ provides: ["wasm:bridge"] }, make);
+    // @ts-expect-error
+    definePlugin({ provides: ["memory"] }, make);
   });
 
   it("an explicit undefined option does not compile", () => {
@@ -223,6 +284,45 @@ describe("definePlugin", () => {
       name: "P",
       setup() {},
       // @ts-expect-error
+      validateOptions: () => [],
+    }));
+  });
+
+  it("provides and validateOptions in the factory return do not compile with services", () => {
+    const S = definePlugin({ provides: ["x"] }, () => ({ name: "S", setup() {} }));
+    expectTypeOf(S().provides).toEqualTypeOf<readonly "x"[]>();
+
+    // @ts-expect-error
+    definePlugin({ provides: ["x"] }, () => ({
+      name: "P",
+      setup() {},
+      provides: ["x"],
+    }));
+    // @ts-expect-error
+    definePlugin({ provides: ["x"] }, () => ({
+      name: "P",
+      setup() {},
+      validateOptions: () => [],
+    }));
+  });
+
+  it("provides and validateOptions in the factory return do not compile with options", () => {
+    const O = definePlugin({ provides: ["x"], options: { defaults: {} } }, () => ({
+      name: "O",
+      setup() {},
+    }));
+    expectTypeOf(O().provides).toEqualTypeOf<readonly "x"[]>();
+
+    // @ts-expect-error
+    definePlugin({ provides: ["x"], options: { defaults: {} } }, () => ({
+      name: "P",
+      setup() {},
+      provides: ["x"],
+    }));
+    // @ts-expect-error
+    definePlugin({ provides: ["x"], options: { defaults: {} } }, () => ({
+      name: "P",
+      setup() {},
       validateOptions: () => [],
     }));
   });

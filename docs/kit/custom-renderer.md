@@ -239,28 +239,33 @@ export interface MyTechRendererPluginOptions {
   container?: HTMLElement
 }
 
-export const MyTechRendererPlugin = definePlugin((opts: MyTechRendererPluginOptions = { layers: {} }) => {
-  const service = MyTechRenderer({ layers: opts.layers })
+const myTechDefaults: MyTechRendererPluginOptions = { layers: {} }
 
-  return {
-    name: 'renderer:mytech',
-    setup(engine) {
-      engine.provide('renderer:mytech', service)
+export const MyTechRendererPlugin = definePlugin(
+  { provides: ['renderer:mytech'], options: { defaults: myTechDefaults } },
+  (opts) => {
+    const service = MyTechRenderer({ layers: opts.layers })
 
-      const manager = getOrCreateLayerManager(engine, opts.container ?? document.body)
-      if (__GWEN_DEV__ && engine.debug) {
-        manager.enableStats()
-      }
-      manager.register(service)
+    return {
+      name: 'renderer:mytech',
+      setup(engine) {
+        engine.provide('renderer:mytech', service)
 
-      engine.hooks.hook('engine:init', () => manager.mount())
-      engine.hooks.hook('engine:render', () => {
-        service.flush()
-      })
-      engine.hooks.hook('engine:stop', () => manager.unregister('renderer:mytech'))
-    },
-  }
-})
+        const manager = getOrCreateLayerManager(engine, opts.container ?? document.body)
+        if (__GWEN_DEV__ && engine.debug) {
+          manager.enableStats()
+        }
+        manager.register(service)
+
+        engine.hooks.hook('engine:init', () => manager.mount())
+        engine.hooks.hook('engine:render', () => {
+          service.flush()
+        })
+        engine.hooks.hook('engine:stop', () => manager.unregister('renderer:mytech'))
+      },
+    }
+  },
+)
 ```
 
 ## Step 4 — Expose composables

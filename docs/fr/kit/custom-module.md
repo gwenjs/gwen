@@ -43,7 +43,7 @@ declare module '@gwenjs/schema' {
   }
 }
 
-export const MyPlugin = definePlugin(() => ({
+export const MyPlugin = definePlugin({ provides: ['myService'] }, () => ({
   name: 'my-plugin',
   setup(engine) {
     engine.provide('myService', {
@@ -114,17 +114,20 @@ declare module '@gwenjs/schema' {
   }
 }
 
-export const ScorePlugin = definePlugin((opts: { maxScore?: number } = {}) => ({
-  name: 'score',
-  setup(engine) {
-    let score = 0
-    engine.provide('score', {
-      get: () => score,
-      add: (n: number) => { score = Math.min(score + n, opts.maxScore ?? 999) },
-      reset: () => { score = 0 },
-    })
-  },
-}))
+export const ScorePlugin = definePlugin(
+  { provides: ['score'], options: { defaults: { maxScore: 999 } } },
+  (opts) => ({
+    name: 'score',
+    setup(engine) {
+      let score = 0
+      engine.provide('score', {
+        get: () => score,
+        add: (n: number) => { score = Math.min(score + n, opts.maxScore ?? 999) },
+        reset: () => { score = 0 },
+      })
+    },
+  }),
+)
 
 export default defineGwenModule({
   meta: { name: 'local:score', configKey: 'score' },
@@ -175,17 +178,22 @@ declare module '@gwenjs/schema' {
   }
 }
 
-export const ScorePlugin = definePlugin((opts: ScoreOptions = {}) => ({
-  name: 'score',
-  setup(engine) {
-    let score = opts.initialScore ?? 0
-    engine.provide('score', {
-      get: () => score,
-      add: (n: number) => { score = Math.min(score + n, opts.maxScore ?? 999) },
-      reset: () => { score = opts.initialScore ?? 0 },
-    })
-  },
-}))
+const scoreDefaults: ScoreOptions = { maxScore: 999 }
+
+export const ScorePlugin = definePlugin(
+  { provides: ['score'], options: { defaults: scoreDefaults } },
+  (opts) => ({
+    name: 'score',
+    setup(engine) {
+      let score = opts.initialScore ?? 0
+      engine.provide('score', {
+        get: () => score,
+        add: (n: number) => { score = Math.min(score + n, opts.maxScore ?? 999) },
+        reset: () => { score = opts.initialScore ?? 0 },
+      })
+    },
+  }),
+)
 
 export default defineGwenModule<ScoreOptions>({
   meta: { name: 'local:score', configKey: 'score' },
@@ -320,26 +328,31 @@ interface ScoreModuleOptions {
 }
 
 // Runtime plugin
-export const ScorePlugin = definePlugin((opts: ScoreModuleOptions = {}) => ({
-  name: 'score',
-  setup(engine) {
-    let score = opts.initialScore ?? 0
-    const maxScore = opts.maxScore ?? 999999
+const scoreDefaults: ScoreModuleOptions = { initialScore: 0, maxScore: 999999 }
 
-    engine.provide('score', {
-      get: () => score,
-      add: (amount: number) => {
-        score = Math.min(score + amount, maxScore)
-      },
-      set: (value: number) => {
-        score = Math.max(0, Math.min(value, maxScore))
-      },
-      reset: () => {
-        score = opts.initialScore ?? 0
-      },
-    })
-  },
-}))
+export const ScorePlugin = definePlugin(
+  { provides: ['score'], options: { defaults: scoreDefaults } },
+  (opts) => ({
+    name: 'score',
+    setup(engine) {
+      let score = opts.initialScore ?? 0
+      const maxScore = opts.maxScore ?? 999999
+
+      engine.provide('score', {
+        get: () => score,
+        add: (amount: number) => {
+          score = Math.min(score + amount, maxScore)
+        },
+        set: (value: number) => {
+          score = Math.max(0, Math.min(value, maxScore))
+        },
+        reset: () => {
+          score = opts.initialScore ?? 0
+        },
+      })
+    },
+  }),
+)
 
 // Build-time module
 export default defineGwenModule<ScoreModuleOptions>({

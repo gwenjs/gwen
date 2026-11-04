@@ -399,13 +399,13 @@ export const PlatformActor = defineActor(PlatformPrefab, () => {
 
 **Signature:**
 ```ts
-const createPhysicsKinematicSyncSystem: (options?: {
+function createPhysicsKinematicSyncSystem(options?: {
   pixelsPerMeter?: number; // default 50
   positionComponent: ComponentDef;
-}) => GwenPlugin
+}): GwenPlugin
 ```
 
-**Description.** Creates a kit plugin that copies the ECS 2D position of each entity into its kinematic body before every update. `positionComponent` is required at runtime: without it the call throws `Physics2DErrorCodes.POSITION_COMPONENT_REQUIRED`. The parameter is typed optional only because `definePlugin` types it so.
+**Description.** Creates a kit plugin that copies the ECS 2D position of each entity into its kinematic body before every update. `positionComponent` is required at runtime: without it the call throws `Physics2DErrorCodes.POSITION_COMPONENT_REQUIRED`. The parameter is typed optional.
 
 Physics2DPlugin must be installed first, else `engine.use` rejects `CORE:PLUGIN_DEPENDENCY_MISSING`.
 
