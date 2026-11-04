@@ -1,6 +1,8 @@
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import { fileDiagnostics, needsFullCheck } from "../src/file-diagnostics.js";
+import type { Fence } from "../src/fences.js";
+import { checkFences } from "../src/snippets.js";
 
 const options: ts.CompilerOptions = {
   strict: true,
@@ -152,6 +154,27 @@ describe("file diagnostics", () => {
     expect(summary(fileDiagnostics(fresh, [sourceOf(fresh, "/virtual/snippet.ts")]))).toEqual(
       summary(expected),
     );
+  });
+});
+
+describe("checkFences diagnostics", () => {
+  it("keeps checkFences reporting one failure per fence in the order of the diagnostics", () => {
+    const fence = (line: number, code: string): Fence => ({
+      file: "docs/sample.md",
+      line,
+      language: "ts",
+      tag: "check",
+      code,
+    });
+    const failures = checkFences([
+      fence(10, 'const first: number = "no";'),
+      fence(20, "const second = ;"),
+    ]);
+    expect(failures).toHaveLength(2);
+    expect(failures[0]?.line).toBe(11);
+    expect(failures[0]?.message).toContain("not assignable to type 'number'");
+    expect(failures[1]?.line).toBe(21);
+    expect(failures[1]?.message).toContain("Expression expected");
   });
 });
 
