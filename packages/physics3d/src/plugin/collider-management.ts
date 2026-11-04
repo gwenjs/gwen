@@ -13,6 +13,7 @@ import type {
   BulkStaticBoxesOptions,
   BulkStaticBoxesResult,
 } from "../types";
+import type { GwenEngine } from "@gwenjs/core";
 import { resolveLayerBits } from "../config";
 import { encodeCompoundShapes } from "../helpers/compound";
 import { nextColliderId } from "../composables/collider-id";
@@ -32,6 +33,8 @@ import type { PluginContext } from "./plugin-context";
 import { callPhysics3DExport, hasPhysics3DCode } from "./wasm-errors";
 import { entityIndex, GwenError, type EntityId } from "@gwenjs/schema";
 import { Physics3DErrorCodes } from "../errors/codes";
+import { copyForTransfer } from "../internal/array-buffer";
+import { liveWasmBridge, uncheckedAt } from "../internal/unchecked";
 
 // ─── Helper ────────────────────────────────────────────────────────────────────
 
@@ -136,7 +139,7 @@ function addColliderWasm(
       ctx,
       "physics3d_add_box_collider",
       () =>
-        ctx.wasmBridge!.physics3d_add_box_collider?.(
+        liveWasmBridge(ctx.wasmBridge).physics3d_add_box_collider?.(
           idx,
           shape.halfX,
           shape.halfY,
@@ -158,7 +161,7 @@ function addColliderWasm(
       ctx,
       "physics3d_add_sphere_collider",
       () =>
-        ctx.wasmBridge!.physics3d_add_sphere_collider?.(
+        liveWasmBridge(ctx.wasmBridge).physics3d_add_sphere_collider?.(
           idx,
           shape.radius,
           ox,
@@ -178,7 +181,7 @@ function addColliderWasm(
       ctx,
       "physics3d_add_capsule_collider",
       () =>
-        ctx.wasmBridge!.physics3d_add_capsule_collider?.(
+        liveWasmBridge(ctx.wasmBridge).physics3d_add_capsule_collider?.(
           idx,
           shape.radius,
           shape.halfHeight,
@@ -199,7 +202,7 @@ function addColliderWasm(
       ctx,
       "physics3d_add_heightfield_collider",
       () =>
-        ctx.wasmBridge!.physics3d_add_heightfield_collider?.(
+        liveWasmBridge(ctx.wasmBridge).physics3d_add_heightfield_collider?.(
           idx,
           shape.heights,
           shape.rows,
@@ -235,7 +238,7 @@ function addColliderWasm(
             ctx,
             "physics3d_load_bvh_collider",
             () =>
-              ctx.wasmBridge!.physics3d_load_bvh_collider?.(
+              liveWasmBridge(ctx.wasmBridge).physics3d_load_bvh_collider?.(
                 idx,
                 new Uint8Array(ab),
                 ox,
@@ -280,7 +283,7 @@ function addColliderWasm(
               ctx,
               "physics3d_load_bvh_collider",
               () =>
-                ctx.wasmBridge!.physics3d_load_bvh_collider?.(
+                liveWasmBridge(ctx.wasmBridge).physics3d_load_bvh_collider?.(
                   idx,
                   bvhBytes,
                   ox,
@@ -304,8 +307,8 @@ function addColliderWasm(
       );
 
       try {
-        const vBuf = shape.vertices.buffer.slice(0) as ArrayBuffer;
-        const iBuf = shape.indices.buffer.slice(0) as ArrayBuffer;
+        const vBuf = copyForTransfer(shape.vertices.buffer);
+        const iBuf = copyForTransfer(shape.indices.buffer);
         getBvhWorker().postMessage(
           {
             id: jobId,
@@ -327,7 +330,7 @@ function addColliderWasm(
       ctx,
       "physics3d_add_mesh_collider",
       () =>
-        ctx.wasmBridge!.physics3d_add_mesh_collider?.(
+        liveWasmBridge(ctx.wasmBridge).physics3d_add_mesh_collider?.(
           idx,
           shape.vertices,
           shape.indices,
@@ -348,7 +351,7 @@ function addColliderWasm(
       ctx,
       "physics3d_add_convex_collider",
       () =>
-        ctx.wasmBridge!.physics3d_add_convex_collider?.(
+        liveWasmBridge(ctx.wasmBridge).physics3d_add_convex_collider?.(
           idx,
           shape.vertices,
           ox,
@@ -445,7 +448,8 @@ export function createRemoveCollider(ctx: PluginContext): Physics3DAPI["removeCo
         removed = callPhysics3DExport(
           ctx,
           "physics3d_remove_collider",
-          () => ctx.wasmBridge!.physics3d_remove_collider?.(slot, colliderId) ?? false,
+          () =>
+            liveWasmBridge(ctx.wasmBridge).physics3d_remove_collider?.(slot, colliderId) ?? false,
         );
       } catch (err: unknown) {
         if (!pending || !hasPhysics3DCode(err, Physics3DErrorCodes.COLLIDER_NOT_FOUND)) throw err;
@@ -468,9 +472,7 @@ export function createRebuildMeshCollider(ctx: PluginContext): Physics3DAPI["reb
     const entry = colliders?.find((c) => c.colliderId === colliderId);
 
     if (ctx.backendMode === "wasm") {
-      const { friction, restitution } = resolveColliderMaterial({
-        ...options,
-      } as Physics3DColliderOptions);
+      const { friction, restitution } = resolveColliderMaterial({ ...options });
       const isSensor = options?.isSensor ?? false;
       const membership = resolveLayerBits(options?.layers, ctx.layerRegistry);
       const filter = resolveLayerBits(options?.mask, ctx.layerRegistry);
@@ -480,7 +482,7 @@ export function createRebuildMeshCollider(ctx: PluginContext): Physics3DAPI["reb
         ctx,
         "physics3d_rebuild_mesh_collider",
         () =>
-          ctx.wasmBridge!.physics3d_rebuild_mesh_collider?.(
+          liveWasmBridge(ctx.wasmBridge).physics3d_rebuild_mesh_collider?.(
             slot,
             colliderId,
             vertices,
@@ -508,6 +510,16 @@ export function createRebuildMeshCollider(ctx: PluginContext): Physics3DAPI["reb
 
 // ─── Bulk spawn static boxes ───────────────────────────────────────────────────
 
+/** The engine a bulk spawn creates its entities in, or the typed error after teardown. */
+function requireBulkEngine(ctx: PluginContext): GwenEngine {
+  const engine = ctx._engine;
+  if (engine !== null) return engine;
+  throw new GwenError(
+    Physics3DErrorCodes.NOT_INITIALIZED,
+    "bulkSpawnStaticBoxes() called while the plugin has no engine.",
+  );
+}
+
 export function createBulkSpawnStaticBoxes(
   ctx: PluginContext,
 ): (options: BulkStaticBoxesOptions) => BulkStaticBoxesResult {
@@ -527,19 +539,24 @@ export function createBulkSpawnStaticBoxes(
     const entityIds: EntityId[] = [];
     const entityIndices = new Uint32Array(n);
     const wasmBulk =
-      ctx.backendMode === "wasm" && ctx.wasmBridge!.physics3d_bulk_spawn_static_boxes;
+      ctx.backendMode === "wasm" &&
+      liveWasmBridge(ctx.wasmBridge).physics3d_bulk_spawn_static_boxes;
+    // An empty `positions` never needs the engine: it is read once, before the first box.
+    const engine = n > 0 ? requireBulkEngine(ctx) : undefined;
 
     let spawned = 0;
     try {
-      for (let i = 0; i < n; i++) {
-        const eid = ctx._engine!.createEntity();
-        entityIds.push(eid);
-        entityIndices[i] = entityIndex(eid);
+      if (engine !== undefined) {
+        for (let i = 0; i < n; i++) {
+          const eid = engine.createEntity();
+          entityIds.push(eid);
+          entityIndices[i] = entityIndex(eid);
+        }
       }
 
       if (wasmBulk) {
         spawned = callPhysics3DExport(ctx, "physics3d_bulk_spawn_static_boxes", () =>
-          ctx.wasmBridge!.physics3d_bulk_spawn_static_boxes!(
+          liveWasmBridge(ctx.wasmBridge).physics3d_bulk_spawn_static_boxes(
             entityIndices,
             options.positions,
             options.halfExtents,
@@ -552,7 +569,7 @@ export function createBulkSpawnStaticBoxes(
       }
     } catch (err: unknown) {
       // Rust wrote nothing. Release the entities created for this call.
-      for (const eid of entityIds) ctx._engine!.destroyEntity(eid);
+      if (engine !== undefined) for (const eid of entityIds) engine.destroyEntity(eid);
       throw err;
     }
 
@@ -577,13 +594,19 @@ export function createBulkSpawnStaticBoxes(
 
     // Local fallback
     for (let i = 0; i < n; i++) {
-      const px = options.positions[i * 3]!;
-      const py = options.positions[i * 3 + 1]!;
-      const pz = options.positions[i * 3 + 2]!;
+      const px = uncheckedAt(options.positions, i * 3);
+      const py = uncheckedAt(options.positions, i * 3 + 1);
+      const pz = uncheckedAt(options.positions, i * 3 + 2);
       const uniform = options.halfExtents.length === 3;
-      const hx = uniform ? options.halfExtents[0]! : options.halfExtents[i * 3]!;
-      const hy = uniform ? options.halfExtents[1]! : options.halfExtents[i * 3 + 1]!;
-      const hz = uniform ? options.halfExtents[2]! : options.halfExtents[i * 3 + 2]!;
+      const hx = uniform
+        ? uncheckedAt(options.halfExtents, 0)
+        : uncheckedAt(options.halfExtents, i * 3);
+      const hy = uniform
+        ? uncheckedAt(options.halfExtents, 1)
+        : uncheckedAt(options.halfExtents, i * 3 + 1);
+      const hz = uniform
+        ? uncheckedAt(options.halfExtents, 2)
+        : uncheckedAt(options.halfExtents, i * 3 + 2);
 
       const localId = entityIds[i];
       if (localId === undefined) continue;
@@ -623,7 +646,12 @@ export function createAddCompoundCollider(ctx: PluginContext): Physics3DAPI["add
       const buf = encodeCompoundShapes(shapes, colliderIds);
       // Rust inserts every part or throws (INVALID_COMPOUND, COLLIDER_ALREADY_EXISTS, ...).
       const count = callPhysics3DExport(ctx, "physics3d_add_compound_collider", () =>
-        ctx.wasmBridge!.physics3d_add_compound_collider!(slot, buf, layerBits, maskBits),
+        liveWasmBridge(ctx.wasmBridge).physics3d_add_compound_collider(
+          slot,
+          buf,
+          layerBits,
+          maskBits,
+        ),
       );
 
       if (count !== shapes.length) {
@@ -633,18 +661,20 @@ export function createAddCompoundCollider(ctx: PluginContext): Physics3DAPI["add
         );
       }
 
-      if (!ctx.localColliders.has(slot)) ctx.localColliders.set(slot, []);
+      const existing = ctx.localColliders.get(slot);
+      const registered = existing ?? [];
+      if (existing === undefined) ctx.localColliders.set(slot, registered);
       shapes.forEach((shape, i) => {
-        ctx.localColliders
-          .get(slot)!
-          .push(shapeSpecToColliderOptions(shape, colliderIds[i]!, layers, mask));
+        registered.push(
+          shapeSpecToColliderOptions(shape, uncheckedAt(colliderIds, i), layers, mask),
+        );
       });
     } else {
       shapes.forEach((shape, i) => {
         addColliderImpl(
           ctx,
           entityId,
-          shapeSpecToColliderOptions(shape, colliderIds[i]!, layers, mask),
+          shapeSpecToColliderOptions(shape, uncheckedAt(colliderIds, i), layers, mask),
         );
       });
     }

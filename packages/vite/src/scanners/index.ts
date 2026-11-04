@@ -5,16 +5,6 @@
 import fs from "node:fs";
 import * as path from "node:path";
 import { walk } from "oxc-walker";
-import type {
-  CallExpression,
-  ExportDefaultDeclaration,
-  ExportNamedDeclaration,
-  PropertyDefinition,
-  StringLiteral,
-  VariableDeclaration,
-  VariableDeclarator,
-  Class as OxcClass,
-} from "oxc-parser";
 import { GwenError } from "@gwenjs/schema";
 import { getCallArgs, isCallTo, parseSource } from "../oxc/index.js";
 import { ViteErrorCodes } from "../error-codes.js";
@@ -66,11 +56,10 @@ function scanSceneFile(
   walk(parsed.program, {
     enter(node) {
       if (node.type === "ExportDefaultDeclaration") {
-        const { declaration } = node as ExportDefaultDeclaration;
+        const { declaration } = node;
         if (declaration.type === "ClassDeclaration" || declaration.type === "ClassExpression") {
-          const cls = declaration as OxcClass;
-          if (cls.id?.type === "Identifier") {
-            className = (cls.id as { name: string }).name;
+          if (declaration.id?.type === "Identifier") {
+            className = declaration.id.name;
             isDefault = true;
           }
         }
@@ -78,55 +67,44 @@ function scanSceneFile(
       }
 
       if (node.type === "ExportNamedDeclaration") {
-        const { declaration } = node as ExportNamedDeclaration;
+        const { declaration } = node;
         if (!declaration) return;
 
         if (declaration.type === "ClassDeclaration" || declaration.type === "ClassExpression") {
-          const cls = declaration as OxcClass;
-          if (cls.id?.type === "Identifier") className = (cls.id as { name: string }).name;
+          if (declaration.id?.type === "Identifier") className = declaration.id.name;
           return;
         }
 
         if (declaration.type === "VariableDeclaration") {
-          for (const declarator of (declaration as VariableDeclaration).declarations) {
-            const { id, init } = declarator as VariableDeclarator;
+          for (const { id, init } of declaration.declarations) {
             if (id.type !== "Identifier") continue;
-            if (!init || !isCallTo(init, "defineScene")) continue;
-            className = (id as { name: string }).name;
+            if (!init || init.type !== "CallExpression" || !isCallTo(init, "defineScene")) continue;
+            className = id.name;
             isConst = true;
-            const args = getCallArgs(init as CallExpression);
-            if (args.length >= 1 && args[0]!.type === "Literal") {
-              const val = (args[0] as StringLiteral).value;
-              if (typeof val === "string") {
-                sceneName = val;
-                isFactory = true;
-              }
+            const first = getCallArgs(init)[0];
+            if (first && first.type === "Literal" && typeof first.value === "string") {
+              sceneName = first.value;
+              isFactory = true;
             }
           }
           return;
         }
       }
 
-      if (node.type === "CallExpression" && isCallTo(node as CallExpression, "defineScene")) {
+      if (node.type === "CallExpression" && isCallTo(node, "defineScene")) {
         if (!sceneName) {
-          const args = getCallArgs(node as CallExpression);
-          if (args.length >= 1 && args[0]!.type === "Literal") {
-            const val = (args[0] as StringLiteral).value;
-            if (typeof val === "string") sceneName = val;
+          const first = getCallArgs(node)[0];
+          if (first && first.type === "Literal" && typeof first.value === "string") {
+            sceneName = first.value;
           }
         }
         return;
       }
 
       if (node.type === "PropertyDefinition") {
-        const propDef = node as PropertyDefinition;
-        if (
-          propDef.key.type === "Identifier" &&
-          (propDef.key as { name: string }).name === "name"
-        ) {
-          if (propDef.value && propDef.value.type === "Literal" && !sceneName) {
-            const val = (propDef.value as StringLiteral).value;
-            if (typeof val === "string") sceneName = val;
+        if (node.key.type === "Identifier" && node.key.name === "name") {
+          if (node.value && node.value.type === "Literal" && !sceneName) {
+            if (typeof node.value.value === "string") sceneName = node.value.value;
           }
         }
       }

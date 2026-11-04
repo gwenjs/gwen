@@ -13,7 +13,7 @@ import { gwenSystemPlugin } from "./system.js";
 import { gwenAsyncContextPlugin } from "./async-context.js";
 import { gwenQueryHoistPlugin } from "./query-hoist.js";
 import { gwenDevStripPlugin } from "./dev-strip.js";
-import type { GwenViteOptions, GwenOptimizerUserOptions } from "../types.js";
+import type { GwenViteOptions } from "../types.js";
 import type { PluginOption } from "vite";
 
 export { gwenWasmPlugin } from "./wasm.js";
@@ -89,7 +89,7 @@ function resolveOptimizerOptions(
 ): Parameters<typeof gwenOptimizerPlugin>[0] {
   if (!opt) return { mode: "detect" };
   if (opt === true) return { mode: "transform" };
-  const { componentsDir, tier, debug } = opt as GwenOptimizerUserOptions;
+  const { componentsDir, tier, debug } = opt;
   const resolved: Parameters<typeof gwenOptimizerPlugin>[0] = { mode: "transform" };
   if (componentsDir !== undefined) resolved.componentsDir = componentsDir;
   if (tier !== undefined) resolved.tier = tier;

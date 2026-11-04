@@ -15,6 +15,7 @@ import type { GwenPlugin } from "../../engine/engine-types";
 import { ContextSlot } from "../../engine/context-slot";
 import { createSystemHandle } from "./system-handle";
 import type { SystemHandle } from "./system-handle";
+import { readMember } from "./read-member";
 import { SCENE_REGISTRAR_KEY } from "./scene-registrar";
 import type { SceneRegistrar } from "./scene-registrar";
 import { GwenScope } from "../../context/scope.js";
@@ -72,7 +73,7 @@ export function _withSceneContext(factory: () => void): SceneSetupContext {
   if (engine) engine.provide(SCENE_REGISTRAR_KEY, registrar);
 
   // Phase 4: Create a GwenScope for the scene factory
-  const sceneScope = engine ? new GwenScope(engine as any, { type: "scene" }) : null;
+  const sceneScope = engine ? new GwenScope(engine, { type: "scene" }) : null;
 
   _sceneCtx.run(ctx, () => {
     if (sceneScope) {
@@ -142,9 +143,9 @@ export function useSystem(plugin: GwenPlugin): SystemHandle {
   // This must happen BEFORE we push the wrapped plugin so that discovered actor
   // plugins appear earlier in ctx.systems — actors must be installed before
   // the systems that depend on them.
-  const discoverable = plugin as { _discover?: () => void };
-  if (typeof discoverable._discover === "function") {
-    discoverable._discover();
+  const discover: unknown = readMember(plugin, "_discover");
+  if (typeof discover === "function") {
+    Reflect.apply(discover, plugin, []);
   }
 
   // Wrap the plugin with pause/resume/destroy lifecycle gates.

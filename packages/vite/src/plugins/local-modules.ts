@@ -1,6 +1,6 @@
 import { resolve, sep } from "node:path";
 import type { Plugin, ViteDevServer } from "vite";
-import type { GwenViteOptions, LocalModulesOptions } from "../types.js";
+import type { GwenViteOptions } from "../types.js";
 import { inferModuleName, scanLocalModuleFiles } from "@gwenjs/app/resolve";
 import { createVirtualModule } from "../shared/virtual-module.js";
 
@@ -66,7 +66,7 @@ export function gwenLocalModulesPlugin(options: GwenViteOptions & LocalModulesDi
     return { name: "gwen:local-modules" };
   }
 
-  const opts = options.localModules as LocalModulesOptions | undefined;
+  const opts = options.localModules;
   const hmrEnabled = opts?.hmr !== false;
   let root = process.cwd();
 

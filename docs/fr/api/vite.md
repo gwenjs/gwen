@@ -244,7 +244,7 @@ export default defineConfig({
 
 ## `@gwenjs/vite/scanners`
 
-`scanScenes` et `resolveMainScene` sont exportés par `@gwenjs/vite/scanners` (`packages/vite/package.json:22`). `scanScenes` lit `src/scenes/*.ts` et renvoie un `SceneInfo` par fichier (`packages/vite/src/scanners/index.ts:140`). `resolveMainScene` renvoie le `mainScene` donné quand il a été découvert (`packages/vite/src/scanners/index.ts:224`), et la première scène quand `mainScene` est omis (`packages/vite/src/scanners/index.ts:226`).
+`scanScenes` et `resolveMainScene` sont exportés par `@gwenjs/vite/scanners` (`packages/vite/package.json:22`). `scanScenes` lit `src/scenes/*.ts` et renvoie un `SceneInfo` par fichier (`packages/vite/src/scanners/index.ts:118`). `resolveMainScene` renvoie le `mainScene` donné quand il a été découvert (`packages/vite/src/scanners/index.ts:202`), et la première scène quand `mainScene` est omis (`packages/vite/src/scanners/index.ts:204`).
 
 ## `ViteErrorCodes`
 
@@ -259,7 +259,7 @@ Exporté par `@gwenjs/vite`.
 | `SCENE_NAME_DUPLICATE` | `VITE:SCENE_NAME_DUPLICATE` |
 | `MAIN_SCENE_UNKNOWN` | `VITE:MAIN_SCENE_UNKNOWN` |
 
-`gwenWasmPlugin` lève `VITE:WASM_NOT_FOUND` quand le fichier WASM résolu est absent. L'indice de développement dit de lancer d'abord `cargo build --target wasm32-unknown-unknown`. Le générateur de code lève `VITE:OPTIMIZER_UNKNOWN_COMPONENT` pour un composant absent du manifeste, et `VITE:OPTIMIZER_UNKNOWN_FIELD` pour un champ que le manifeste ne liste pas. Ces levées sont des `GwenError`, sans étiquette `[gwen:wasm]` ni `[gwen:optimizer]`. L'indice est présent quand `NODE_ENV` n'est pas `production`. `scanScenes` lève `VITE:SCENE_NAME_UNRESOLVED` et `VITE:SCENE_NAME_DUPLICATE`. `resolveMainScene` lève `VITE:MAIN_SCENE_UNKNOWN`. Ces trois indices sont présents quand `process.env["NODE_ENV"]` n'est pas `"production"` (`packages/vite/src/scanners/index.ts:164`, `packages/vite/src/scanners/index.ts:179`, `packages/vite/src/scanners/index.ts:218`).
+`gwenWasmPlugin` lève `VITE:WASM_NOT_FOUND` quand le fichier WASM résolu est absent. L'indice de développement dit de lancer d'abord `cargo build --target wasm32-unknown-unknown`. Le générateur de code lève `VITE:OPTIMIZER_UNKNOWN_COMPONENT` pour un composant absent du manifeste, et `VITE:OPTIMIZER_UNKNOWN_FIELD` pour un champ que le manifeste ne liste pas. Ces levées sont des `GwenError`, sans étiquette `[gwen:wasm]` ni `[gwen:optimizer]`. L'indice est présent quand `NODE_ENV` n'est pas `production`. `scanScenes` lève `VITE:SCENE_NAME_UNRESOLVED` et `VITE:SCENE_NAME_DUPLICATE`. `resolveMainScene` lève `VITE:MAIN_SCENE_UNKNOWN`. Ces trois indices sont présents quand `process.env["NODE_ENV"]` n'est pas `"production"` (`packages/vite/src/scanners/index.ts:142`, `packages/vite/src/scanners/index.ts:157`, `packages/vite/src/scanners/index.ts:196`).
 
 ## Définitions de types
 

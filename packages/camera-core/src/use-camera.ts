@@ -83,8 +83,8 @@ export function useCamera(opts: Camera2DOpts | Camera3DOpts): Camera2DHandle | C
   camComp.$set({
     priority: opts.priority ?? 0,
     projectionType: isOrtho ? 0 : 1,
-    zoom: isOrtho ? ((opts as Camera2DOpts).zoom ?? 1) : 0,
-    fov: isOrtho ? 0 : ((opts as Camera3DOpts).fov ?? Math.PI / 3),
+    zoom: opts.projection === "orthographic" ? (opts.zoom ?? 1) : 0,
+    fov: opts.projection === "orthographic" ? 0 : (opts.fov ?? Math.PI / 3),
     near: opts.near ?? 0.1,
     far: opts.far ?? 1000,
   });

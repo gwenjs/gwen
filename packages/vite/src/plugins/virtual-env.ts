@@ -44,8 +44,10 @@ export function gwenVirtualPlugin(options: GwenViteOptions): Plugin {
       let version = "0.0.0";
       try {
         const require = createRequire(import.meta.url);
-        const pkg = require("@gwenjs/core/package.json") as { version: string };
-        version = pkg.version;
+        const pkg: unknown = require("@gwenjs/core/package.json");
+        const found =
+          typeof pkg === "object" && pkg !== null ? Reflect.get(pkg, "version") : undefined;
+        if (typeof found === "string") version = found;
       } catch {
         // Fall back to '0.0.0' if the package is not resolvable
       }

@@ -239,7 +239,7 @@ export class GwenApp {
 
     // Apply the user's direct `vite` config extension last.
     if (config.vite) {
-      this._viteConfigExtenders.push(() => config.vite as Partial<ViteUserConfig>);
+      this._viteConfigExtenders.push(() => config.vite as Partial<ViteUserConfig>); // boundary: the user vite config is an untyped record in GwenUserConfig
     }
 
     this._autoImports.push({ name: "useScreen", from: "@gwenjs/renderer-core" });
@@ -387,7 +387,7 @@ export class GwenApp {
         // forwarding a generic event key through this wrapper method.
         // `as never` is a local escape hatch that keeps strict typing at the
         // call sites while avoiding a broad `any` cast in framework internals.
-        app.buildHooks.hook(event, fn as never);
+        app.buildHooks.hook(event, fn as never); // boundary: hookable cannot keep the callback type through a generic event key
       },
 
       /**
@@ -678,7 +678,7 @@ function copyOwnSymbols(source: object, target: object): void {
 function freezeResolved(config: ResolvedGwenConfig): Readonly<ResolvedGwenConfig> {
   const frozen = copyFrozenValue(config, new WeakMap());
   if (!isPlainRecord(frozen)) return config;
-  return frozen as Readonly<ResolvedGwenConfig>;
+  return frozen as Readonly<ResolvedGwenConfig>; // boundary: the deep copy has the shape of the config it copies
 }
 
 /**
@@ -707,7 +707,7 @@ async function loadModule(
 
   try {
     const value: unknown = read ? await read() : await import(/* @vite-ignore */ name);
-    imported = value as typeof imported;
+    imported = value as typeof imported; // boundary: a dynamic import() result is untyped
   } catch (cause) {
     if (read !== undefined) {
       throw new GwenError(
@@ -736,7 +736,7 @@ async function loadModule(
   const definition: unknown = imported.default ?? imported;
   const checked = file !== undefined ? withInferredModuleName(definition, name) : definition;
   validateGwenModule(checked, file ?? name);
-  return checked as GwenModule;
+  return checked;
 }
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {

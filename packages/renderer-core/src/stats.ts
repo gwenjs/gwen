@@ -87,9 +87,9 @@ export class RendererStatsCollectorImpl implements RendererStatsCollector {
     if (!this._enabled) return;
     const r = this._stats.renderers[this._rendererName];
     if (!r) return;
-    const layer = r.layers[layerName];
+    let layer = r.layers[layerName];
     if (!layer) {
-      r.layers[layerName] = {
+      layer = {
         order: 0,
         coordinate: "screen",
         entityCount: 0,
@@ -98,8 +98,9 @@ export class RendererStatsCollectorImpl implements RendererStatsCollector {
         visible: true,
         frameTimeMs: 0,
       };
+      r.layers[layerName] = layer;
     }
-    Object.assign(r.layers[layerName]!, partial);
+    Object.assign(layer, partial);
     this._currentFrameDrawCalls += partial.drawCalls ?? 0;
     this._stats.totalDrawCalls += partial.drawCalls ?? 0;
     this._stats.totalEntitiesRendered += partial.entityCount ?? 0;

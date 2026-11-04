@@ -42,12 +42,9 @@ export function errorDocsUrl(code: string, docsBase: string = GWEN_DOCS_BASE): s
   return `${docsBase}/api/errors#${errorDocsAnchor(code)}`;
 }
 
-interface DocsBaseConstructor {
-  readonly docsBase?: string;
-}
-
-function docsBaseOf(ctor: DocsBaseConstructor): string {
-  return ctor.docsBase ?? GWEN_DOCS_BASE;
+function docsBaseOf(ctor: object): string {
+  const docsBase: unknown = Reflect.get(ctor, "docsBase");
+  return docsBase === undefined || docsBase === null ? GWEN_DOCS_BASE : String(docsBase);
 }
 
 /**
@@ -121,7 +118,7 @@ export class GwenError extends Error {
    * Two arguments use `GWEN` as where. `docsUrl` is always set.
    */
   constructor(code: string, what: string, options?: GwenErrorOptions) {
-    const docsBase = docsBaseOf(new.target as DocsBaseConstructor);
+    const docsBase = docsBaseOf(new.target);
     super(
       renderGwenMessage(code, what, options ?? {}, docsBase),
       options?.cause !== undefined ? { cause: options.cause } : undefined,

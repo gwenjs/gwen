@@ -132,7 +132,7 @@ function lanesFromSchema(schema: ComponentSchema): Uint8Array {
       );
     }
     const parts = laneParts(field.type);
-    for (let index = 0; index < parts.length; index += 1) lanes.push(parts[index]!);
+    for (const lane of parts) lanes.push(lane);
   }
   const bytes = Uint8Array.from(lanes);
   schemaLanes.set(schema, bytes);

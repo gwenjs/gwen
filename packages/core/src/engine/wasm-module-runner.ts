@@ -43,9 +43,11 @@ interface WasmModuleTransformCopy {
   bytes: Uint8Array | null;
 }
 
+type ErasedStep = (handle: WasmModuleHandle<WebAssembly.Exports>, dt: number) => void;
+
 interface WasmModuleEntry {
   handle: WasmModuleHandle<WebAssembly.Exports>;
-  step?: (handle: WasmModuleHandle<WebAssembly.Exports>, dt: number) => void;
+  step?: ErasedStep;
   transformCopy: WasmModuleTransformCopy | null;
 }
 
@@ -225,7 +227,7 @@ export class WasmModuleRunner {
     }
     const existing = this._wasmModules.get(options.name);
     if (existing) {
-      return existing.handle as WasmModuleHandle<Exports>;
+      return existing.handle as WasmModuleHandle<Exports>; // boundary: modules are stored with erased export types
     }
 
     const declared = this._declaredTransformRegion(options);
@@ -322,7 +324,7 @@ export class WasmModuleRunner {
 
     const handle: WasmModuleHandle<Exports> = {
       name: options.name,
-      exports: instance.exports as Exports,
+      exports: instance.exports as Exports, // boundary: the module declares its exports; WebAssembly gives them untyped
       memory,
       region(regionName: string): WasmRegionView {
         const def = regionMap.get(regionName);
@@ -362,14 +364,11 @@ export class WasmModuleRunner {
     };
 
     const stored: WasmModuleEntry = {
-      handle: handle as WasmModuleHandle<WebAssembly.Exports>,
+      handle: handle as WasmModuleHandle<WebAssembly.Exports>, // boundary: modules are stored with erased export types
       transformCopy,
     };
     if (options.step !== undefined) {
-      stored.step = options.step as (
-        handle: WasmModuleHandle<WebAssembly.Exports>,
-        dt: number,
-      ) => void;
+      stored.step = options.step as ErasedStep; // boundary: modules are stored with erased export types
     }
     this._wasmModules.set(options.name, stored);
     return handle;
@@ -389,7 +388,7 @@ export class WasmModuleRunner {
         },
       );
     }
-    return entry.handle as WasmModuleHandle<GwenWasmModules[K]>;
+    return entry.handle as WasmModuleHandle<GwenWasmModules[K]>; // boundary: modules are stored with erased export types
   }
 
   /** Registration order. A throwing step is reported and the next module still runs. */
@@ -501,7 +500,7 @@ export class WasmModuleRunner {
   private _resolveTransformOffset(exports: WebAssembly.Exports, region: WasmMemoryRegion): number {
     const exported = exports[`gwen_${region.name}_ptr`];
     if (typeof exported === "function") {
-      const value: unknown = (exported as () => unknown)();
+      const value: unknown = Reflect.apply(exported, undefined, []);
       if (typeof value === "number" && Number.isFinite(value)) return value;
       return 0;
     }

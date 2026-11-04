@@ -29,8 +29,8 @@ function isVec2(v: unknown): v is Vec2 {
   return (
     typeof v === "object" &&
     v !== null &&
-    typeof (v as Record<string, unknown>)["x"] === "number" &&
-    typeof (v as Record<string, unknown>)["y"] === "number"
+    typeof Reflect.get(v, "x") === "number" &&
+    typeof Reflect.get(v, "y") === "number"
   );
 }
 

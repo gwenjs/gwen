@@ -8,7 +8,7 @@
 import { parseSource } from "./parse.js";
 import { walk } from "oxc-walker";
 import { getObjectProperties, getPropertyKeyName, getStringValue } from "./helpers.js";
-import type { Node, ObjectExpression, ObjectProperty, ArrayExpression } from "oxc-parser";
+import type { Node, ObjectExpression, ObjectProperty } from "oxc-parser";
 
 /**
  * Find the ObjectExpression from `export default { ... }` in source.
@@ -64,13 +64,12 @@ export function readStringArrayProp(obj: ObjectExpression, key: string): string[
 
   if (!prop) return [];
 
-  const { value } = prop as ObjectProperty;
+  const { value } = prop;
   if (value.type !== "ArrayExpression") return [];
 
-  const arr = value as ArrayExpression;
   const result: string[] = [];
 
-  for (const el of arr.elements) {
+  for (const el of value.elements) {
     if (!el || el.type === "SpreadElement") continue;
     const str = getStringValue(el);
     if (str !== null) result.push(str);

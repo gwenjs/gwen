@@ -13,7 +13,6 @@
  */
 
 import { defineGwenModule } from "@gwenjs/kit/module";
-import type { VitePlugin } from "@gwenjs/kit";
 import type { Physics3DConfig } from "./types";
 import { physics3dVitePlugin, type GwenPhysics3DPluginOptions } from "./vite-plugin";
 
@@ -63,6 +62,6 @@ export default defineGwenModule<Physics3DConfig>({
       ...(options.vite?.bvhPrebake !== undefined ? { bvhPrebake: options.vite.bvhPrebake } : {}),
       ...(options.vite?.debug !== undefined ? { debug: options.vite.debug } : {}),
     };
-    kit.addVitePlugin(physics3dVitePlugin(viteOptions) as unknown as VitePlugin);
+    kit.addVitePlugin({ ...physics3dVitePlugin(viteOptions) });
   },
 });

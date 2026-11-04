@@ -31,6 +31,7 @@ import type { ComponentDef } from "../../system/runtime/define-system";
 import type { EntityId } from "../../engine/engine-api";
 import { entityIndex } from "../../engine/engine-api";
 import { spawnActor } from "./spawn-tuple";
+import { instanceApi } from "./instance-api";
 import type { PlacementBridge } from "../../engine/engine-types";
 import { ContextSlot } from "../../engine/context-slot";
 import { GwenContextError, GwenContextErrorCodes } from "../../engine/context";
@@ -89,9 +90,13 @@ export function _isInLayoutContext(): boolean {
  * A deferred handle throws a coded error when read before its spawn has run.
  */
 function _place<API>(
+  composable: string,
   build: (register: (entityId: EntityId) => void) => PlaceHandle<API>,
 ): PlaceHandle<API> {
-  const ctx = _layoutCtx.get()!;
+  const ctx = _layoutCtx.get();
+  if (ctx === null) {
+    throw new GwenContextError(GwenContextErrorCodes.OUTSIDE_LAYOUT_CONTEXT, composable);
+  }
   const queue = ctx.queue;
   if (queue === undefined) {
     return build(ctx.register);
@@ -147,18 +152,14 @@ export function _applyTransformOpts(
   const [x = 0, y = 0] = options.at ?? [0, 0];
   const rotation = options.rotation ?? 0;
   const [sx, sy] = Array.isArray(options.scale)
-    ? (options.scale as [number, number])
+    ? options.scale
     : [options.scale ?? 1, options.scale ?? 1];
   const idx = entityIndex(entityId);
   bridge.add_entity_transform(idx, x, y, rotation, sx, sy);
   if (options.parent) {
     const parentIdx = entityIndex(options.parent.entityId);
     const owner = getWasmBridge();
-    if (
-      owner instanceof WasmBridgeImpl &&
-      owner.isActive() &&
-      owner.engine() === (bridge as unknown)
-    ) {
+    if (owner instanceof WasmBridgeImpl && owner.isActive() && Object.is(owner.engine(), bridge)) {
       owner.setEntityParent(idx, parentIdx, false);
     } else {
       bridge.set_entity_parent(idx, parentIdx, false);
@@ -204,7 +205,7 @@ export function placeGroup(options: Omit<PlaceOptions<unknown>, "props"> = {}): 
   }
 
   const engine = useEngine();
-  return _place<void>((register) => {
+  return _place<void>("placeGroup", (register) => {
     const bridge = engine.getPlacementBridge();
     const entityId = engine.createEntity();
     register(entityId);
@@ -246,7 +247,7 @@ export function placeActor<Props, API>(
   }
 
   const engine = useEngine();
-  return _place<API>((register) => {
+  return _place<API>("placeActor", (register) => {
     const entityId = spawnActor(actorDef._plugin, options.props);
     register(entityId);
     const bridge = engine.getPlacementBridge();
@@ -256,7 +257,7 @@ export function placeActor<Props, API>(
 
     return {
       entityId,
-      api: instance?.api as API,
+      api: instanceApi(instance),
       moveTo(pos) {
         const [x = 0, y = 0] = pos;
         bridge.set_entity_local_position(entityIndex(entityId), x, y);
@@ -291,7 +292,7 @@ export function placePrefab<E extends readonly ComponentDef[]>(
   }
 
   const engine = useEngine();
-  return _place<void>((register) => {
+  return _place<void>("placePrefab", (register) => {
     const bridge = engine.getPlacementBridge();
     const entityId = engine.createEntity();
     register(entityId);

@@ -25,6 +25,7 @@ import { useCameraManager, useViewportManager } from "@gwenjs/renderer-core";
 import type { CameraState } from "@gwenjs/renderer-core";
 import { Camera, FollowTarget, CameraBounds, CameraShake, CameraPath } from "./components.js";
 import { getCameraStores } from "./camera-stores.js";
+import { storedEntityId } from "./internal/unchecked.js";
 
 // Noise function for shake offset — simple deterministic pseudo-random based on trauma
 function shakeOffset(trauma: number, seed: number): number {
@@ -76,12 +77,14 @@ export const CameraSystem: () => DiscoverablePlugin = defineSystem("CameraSystem
 
       // ── Step 1: base position ──────────────────────────────────────────────
 
-      const hasFollow = engine.hasComponent(id, FollowTarget);
-      const hasPath = cameraStores.paths.has(id) && engine.hasComponent(id, CameraPath);
+      const follow = engine.hasComponent(id, FollowTarget)
+        ? engine.getComponent(id, FollowTarget)
+        : undefined;
+      const pathData = cameraStores.paths.get(id);
+      const hasPath = pathData !== undefined && engine.hasComponent(id, CameraPath);
 
-      if (hasFollow) {
-        const follow = engine.getComponent(id, FollowTarget)!;
-        const targetId = follow.entityId as EntityId;
+      if (follow !== undefined) {
+        const targetId = storedEntityId(follow.entityId);
         const targetCam = engine.getComponent(targetId, Camera);
         if (targetCam) {
           const tx = targetCam.x + follow.offsetX;
@@ -93,10 +96,9 @@ export const CameraSystem: () => DiscoverablePlugin = defineSystem("CameraSystem
           engine.addComponent(id, Camera, { ...cam, x, y, z });
         }
       } else if (hasPath) {
-        const pathData = cameraStores.paths.get(id)!;
         const pathComp = engine.getComponent(id, CameraPath);
         if (!pathComp) continue;
-        const wp = pathData.waypoints[pathComp.index as number];
+        const wp = pathData.waypoints[pathComp.index];
         if (wp) {
           pathData.elapsed += dt;
           const progress = Math.min(pathData.elapsed / wp.duration, 1);
@@ -106,7 +108,7 @@ export const CameraSystem: () => DiscoverablePlugin = defineSystem("CameraSystem
             y = wp.position.y;
             z = wp.position.z;
             engine.addComponent(id, Camera, { ...cam, x, y, z });
-            const nextIndex = (pathComp.index as number) + 1;
+            const nextIndex = pathComp.index + 1;
             if (nextIndex < pathData.waypoints.length) {
               engine.addComponent(id, CameraPath, { ...pathComp, index: nextIndex, progress: 0 });
               pathData.elapsed = 0;
@@ -120,7 +122,7 @@ export const CameraSystem: () => DiscoverablePlugin = defineSystem("CameraSystem
               engine.removeComponent(id, CameraPath);
             }
           } else {
-            const prevWp = pathData.waypoints[(pathComp.index as number) - 1];
+            const prevWp = pathData.waypoints[pathComp.index - 1];
             const startX = prevWp ? prevWp.position.x : cam.x;
             const startY = prevWp ? prevWp.position.y : cam.y;
             const startZ = prevWp ? prevWp.position.z : cam.z;
@@ -134,8 +136,10 @@ export const CameraSystem: () => DiscoverablePlugin = defineSystem("CameraSystem
 
       // ── Step 2: bounds clamp ───────────────────────────────────────────────
 
-      if (engine.hasComponent(id, CameraBounds)) {
-        const bounds = engine.getComponent(id, CameraBounds)!;
+      const bounds = engine.hasComponent(id, CameraBounds)
+        ? engine.getComponent(id, CameraBounds)
+        : undefined;
+      if (bounds !== undefined) {
         x = Math.max(bounds.minX, Math.min(bounds.maxX, x));
         y = Math.max(bounds.minY, Math.min(bounds.maxY, y));
         z = Math.max(bounds.minZ, Math.min(bounds.maxZ, z));

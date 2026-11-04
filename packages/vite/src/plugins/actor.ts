@@ -3,7 +3,7 @@ import type { Plugin, ViteDevServer } from "vite";
 import MagicString from "magic-string";
 import type { GwenViteOptions } from "../types.js";
 import { parseSource, isCallTo, getIdentifierName, getCallArgs } from "../oxc/index.js";
-import type { CallExpression, ArrowFunctionExpression, Function as OxcFunction } from "oxc-parser";
+import type { ArrowFunctionExpression, Function as OxcFunction } from "oxc-parser";
 import { walk } from "oxc-walker";
 import { createVirtualModule } from "../shared/virtual-module.js";
 import { findComponentFiles } from "../optimizer/component-scanner.js";
@@ -58,11 +58,10 @@ export function extractUseActorNames(factory: ArrowFunctionExpression | OxcFunct
   walk(factory, {
     enter(node) {
       if (node.type !== "CallExpression") return;
-      const call = node as CallExpression;
-      if (!isCallTo(call, "useActor")) return;
-      const args = getCallArgs(call);
-      if (args.length === 0) return;
-      const name = getIdentifierName(args[0]!);
+      if (!isCallTo(node, "useActor")) return;
+      const first = getCallArgs(node)[0];
+      if (!first) return;
+      const name = getIdentifierName(first);
       if (name) seen.add(name);
     },
   });
@@ -113,32 +112,27 @@ export function transformActorNames(code: string, filename = "actor.ts"): string
 
       // VariableDeclaration has a `declarations` array — only handle the
       // simple single-declarator form (`const Foo = ...`).
-      const varDecl = node as {
-        end: number;
-        declarations: {
-          id: { type: string; name?: string };
-          init: import("oxc-parser").Expression | null;
-        }[];
-      };
-      if (varDecl.declarations.length !== 1) return;
+      const varDecl = node;
+      const [declarator] = varDecl.declarations;
+      if (varDecl.declarations.length !== 1 || !declarator) return;
 
-      const declarator = varDecl.declarations[0]!;
       const { id, init } = declarator;
       if (id.type !== "Identifier" || !id.name) return;
-      if (!init) return;
+      if (!init || init.type !== "CallExpression") return;
       if (!isCallTo(init, "defineActor") && !isCallTo(init, "definePrefab")) return;
 
       const varName = id.name;
-      const callee = getIdentifierName((init as CallExpression).callee);
-      const args = getCallArgs(init as CallExpression);
+      const callee = getIdentifierName(init.callee);
+      const args = getCallArgs(init);
+      const firstArg = args[0];
 
       if (callee === "defineActor") {
         // ── Name injection (unchanged behaviour) ──────────────────────────
-        if (args.length === 0 || args[0]!.type !== "Literal") {
-          if (args.length > 0) {
-            s.prependLeft(args[0]!.start, `'${varName}', `);
+        if (!firstArg || firstArg.type !== "Literal") {
+          if (firstArg) {
+            s.prependLeft(firstArg.start, `'${varName}', `);
           } else {
-            s.prependLeft((init as CallExpression).end - 1, `'${varName}'`);
+            s.prependLeft(init.end - 1, `'${varName}'`);
           }
           changed = true;
         }
@@ -152,7 +146,7 @@ export function transformActorNames(code: string, filename = "actor.ts"): string
           (factoryArg.type === "ArrowFunctionExpression" ||
             factoryArg.type === "FunctionExpression")
         ) {
-          const deps = extractUseActorNames(factoryArg as ArrowFunctionExpression | OxcFunction);
+          const deps = extractUseActorNames(factoryArg);
           if (deps.length > 0) {
             const depsList = deps.map((d) => `${d}._plugin`).join(", ");
             s.appendLeft(varDecl.end, `\n${varName}._plugin._deps = [${depsList}]`);
@@ -162,10 +156,10 @@ export function transformActorNames(code: string, filename = "actor.ts"): string
       } else {
         // definePrefab — keep comment injection (unchanged behaviour)
         const metaKey = "__prefabName__";
-        if (args.length > 0) {
-          s.prependLeft(args[0]!.start, `/* ${metaKey}: "${varName}" */ `);
+        if (firstArg) {
+          s.prependLeft(firstArg.start, `/* ${metaKey}: "${varName}" */ `);
         } else {
-          s.prependLeft((init as CallExpression).end - 1, `/* ${metaKey}: "${varName}" */ `);
+          s.prependLeft(init.end - 1, `/* ${metaKey}: "${varName}" */ `);
         }
         changed = true;
       }

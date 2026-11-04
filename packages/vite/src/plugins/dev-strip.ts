@@ -19,6 +19,12 @@ interface OxcNode {
   [key: string]: unknown;
 }
 
+/** The parts of the resolved Vite config that receive the `__GWEN_DEV__` literal. */
+interface DefineHost {
+  define?: Record<string, string>;
+  environments?: Record<string, { define?: Record<string, string> }>;
+}
+
 export interface GwenDevStripReport {
   sites: number;
   sourceBytes: number;
@@ -29,8 +35,9 @@ function isNode(value: unknown): value is OxcNode {
   return (
     typeof value === "object" &&
     value !== null &&
-    typeof (value as OxcNode).type === "string" &&
-    typeof (value as OxcNode).start === "number"
+    typeof Reflect.get(value, "type") === "string" &&
+    typeof Reflect.get(value, "start") === "number" &&
+    typeof Reflect.get(value, "end") === "number"
   );
 }
 
@@ -56,11 +63,11 @@ function isDevIdentifier(node: OxcNode): boolean {
 function isTypeofDefinedTest(test: OxcNode): boolean {
   const expr = unwrap(test);
   if (expr.type !== "BinaryExpression") return false;
-  const left = unwrap(expr.left as OxcNode);
+  const left = unwrap(expr.left as OxcNode); // boundary: BinaryExpression.left is an oxc node read through the OxcNode index signature (unknown)
   if (left.type !== "UnaryExpression" || left.operator !== "typeof") return false;
-  const arg = unwrap(left.argument as OxcNode);
+  const arg = unwrap(left.argument as OxcNode); // boundary: UnaryExpression.argument is an oxc node read through the OxcNode index signature (unknown)
   if (!isDevIdentifier(arg) && arg.type !== "Literal") return false;
-  const right = unwrap(expr.right as OxcNode);
+  const right = unwrap(expr.right as OxcNode); // boundary: BinaryExpression.right is an oxc node read through the OxcNode index signature (unknown)
   if (right.type !== "Literal") return false;
   if (expr.operator === "!==" && right.value === "undefined") return true;
   return expr.operator === "<" && right.value === "u";
@@ -71,7 +78,7 @@ function isGuard(node: OxcNode): boolean {
   const expr = unwrap(node);
   if (expr.type !== "ConditionalExpression") return false;
   if (!isNode(expr.test) || !isTypeofDefinedTest(expr.test)) return false;
-  const consequent = unwrap(expr.consequent as OxcNode);
+  const consequent = unwrap(expr.consequent as OxcNode); // boundary: ConditionalExpression.consequent is an oxc node read through the OxcNode index signature (unknown)
   if (isDevIdentifier(consequent)) return true;
   return consequent.type === "Literal" && (consequent.value === true || consequent.value === false);
 }
@@ -114,7 +121,9 @@ const FUNCTION_TYPES = new Set([
 function isInstrumentInit(node: OxcNode): boolean {
   const expr = unwrap(node);
   if (expr.type !== "LogicalExpression" || expr.operator !== "&&") return false;
-  return isDevFlag(expr.left as OxcNode) && isDebugMember(expr.right as OxcNode);
+  const left = expr.left as OxcNode; // boundary: LogicalExpression.left is an oxc node read through the OxcNode index signature (unknown)
+  const right = expr.right as OxcNode; // boundary: LogicalExpression.right is an oxc node read through the OxcNode index signature (unknown)
+  return isDevFlag(left) && isDebugMember(right);
 }
 
 type Kind = "dev" | "dev-debug";
@@ -124,8 +133,8 @@ function classify(test: OxcNode, isInstrument: (name: string) => boolean): Kind 
   if (expr.type === "Identifier" && expr.name && isInstrument(expr.name)) return "dev-debug";
   if (isDevFlag(expr)) return "dev";
   if (expr.type === "LogicalExpression" && expr.operator === "&&") {
-    const left = unwrap(expr.left as OxcNode);
-    const right = unwrap(expr.right as OxcNode);
+    const left = unwrap(expr.left as OxcNode); // boundary: LogicalExpression.left is an oxc node read through the OxcNode index signature (unknown)
+    const right = unwrap(expr.right as OxcNode); // boundary: LogicalExpression.right is an oxc node read through the OxcNode index signature (unknown)
     const leftIsFlag =
       isDevFlag(left) || (left.type === "Identifier" && !!left.name && isInstrument(left.name));
     if (!leftIsFlag) return null;
@@ -144,7 +153,9 @@ export function analyzeDevSites(code: string, filename: string): GwenDevStripRep
   const count: GwenDevStripReport = { sites: 0, sourceBytes: 0, perFrameSites: 0 };
   let program: OxcNode;
   try {
-    program = parseSync(filename, code).program as unknown as OxcNode;
+    const parsed = parseSync(filename, code).program;
+    if (!isNode(parsed)) return count;
+    program = parsed;
   } catch {
     return count;
   }
@@ -208,7 +219,9 @@ export function analyzeDevSites(code: string, filename: string): GwenDevStripRep
 function guardSpans(code: string, filename: string): Array<{ start: number; end: number }> {
   let program: OxcNode;
   try {
-    program = parseSync(filename, code).program as unknown as OxcNode;
+    const parsed = parseSync(filename, code).program;
+    if (!isNode(parsed)) return [];
+    program = parsed;
   } catch {
     return [];
   }
@@ -240,7 +253,9 @@ function valueFlagSpans(
 ): Array<{ start: number; end: number }> {
   let program: OxcNode;
   try {
-    program = parseSync(filename, code).program as unknown as OxcNode;
+    const parsed = parseSync(filename, code).program;
+    if (!isNode(parsed)) return [];
+    program = parsed;
   } catch {
     return [];
   }
@@ -272,11 +287,9 @@ function devTokenCommentSpans(
   filename: string,
 ): Array<{ start: number; end: number }> {
   try {
-    const parsed = parseSync(filename, code) as {
-      comments?: Array<{ start: number; end: number }>;
-    };
+    const parsed = parseSync(filename, code);
     const spans: Array<{ start: number; end: number }> = [];
-    for (const comment of parsed.comments ?? []) {
+    for (const comment of parsed.comments) {
       const text = code.slice(comment.start, comment.end);
       if (
         text.includes("__GWEN_DEV__") ||
@@ -318,10 +331,7 @@ export function gwenDevStripPlugin(): Plugin {
       dev = devFromResolvedConfig(config);
       const literal = JSON.stringify(dev);
       // Vite computes env.DEV after the config hook. The resolved `define` bag is writable at runtime.
-      const host = config as unknown as {
-        define?: Record<string, string>;
-        environments?: Record<string, { define?: Record<string, string> }>;
-      };
+      const host = config as DefineHost; // boundary: Vite types the resolved `define` with a loose value type and the environments as read-only config, and this plugin writes __GWEN_DEV__ into both at runtime
       const define = (host.define ??= {});
       define.__GWEN_DEV__ = literal;
       for (const environment of Object.values(host.environments ?? {})) {

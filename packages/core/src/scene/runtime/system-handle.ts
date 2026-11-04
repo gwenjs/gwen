@@ -32,10 +32,11 @@
 
 import type { GwenPlugin } from "../../engine/engine-types";
 import type { DiscoverablePlugin } from "../../system/runtime/define-system";
+import { readMember } from "./read-member";
 
 /** Duck-typed check — true when `_pause` is a function. */
 function isScopedPlugin(p: GwenPlugin): p is DiscoverablePlugin {
-  return typeof (p as DiscoverablePlugin)._pause === "function";
+  return typeof readMember(p, "_pause") === "function";
 }
 
 // ─── Public interface ─────────────────────────────────────────────────────────
@@ -134,9 +135,10 @@ export function createSystemHandle(inner: GwenPlugin): {
   let _scenePaused = false;
   let _destroyed = false;
 
-  const isIsolatedNow = (): boolean =>
-    typeof (inner as DiscoverablePlugin)._isIsolated === "function" &&
-    (inner as DiscoverablePlugin)._isIsolated();
+  const isIsolatedNow = (): boolean => {
+    const probe: unknown = readMember(inner, "_isIsolated");
+    return typeof probe === "function" && Boolean(Reflect.apply(probe, inner, []));
+  };
 
   /** A system is active only when none of its inactive flags are set and it is not isolated. */
   const isActive = (): boolean => !_userPaused && !_scenePaused && !_destroyed && !isIsolatedNow();

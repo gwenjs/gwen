@@ -56,4 +56,28 @@ describe("PatternDetector", () => {
     expect(result.optimizable).toBe(false);
     expect(result.reason).toContain("UnknownComp");
   });
+
+  it("rejects a component with a non-numeric field and names the component and the field", () => {
+    const manifest = makeManifest();
+    manifest.register({
+      name: "Label",
+      typeId: 3,
+      byteSize: 4,
+      f32Stride: 1,
+      fields: [{ name: "text", type: "string", byteOffset: 0 }],
+      importPath: "./components",
+      exportName: "Label",
+    });
+    const detector = new PatternDetector(manifest);
+    const result = detector.classify({
+      queryComponents: ["Position", "Label"],
+      readComponents: ["Position"],
+      writeComponents: [],
+      loc: { line: 1, column: 0, file: "test.ts" },
+    });
+    expect(result.optimizable).toBe(false);
+    expect(result.reason).toBe(
+      "Component 'Label' field 'text' is type 'string' — only numeric types are bulk-compatible",
+    );
+  });
 });

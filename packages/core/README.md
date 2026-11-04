@@ -377,11 +377,13 @@ Types: `CreateRealEngineOptions`, `RealEngineHandle`
 
 no semver guarantee — framework packages and generated code only
 
-Values: `EASING_MAP`, `FLAGS_OFFSET`, `FLAG_HAS_TRANSFORM`, `GwenScope`, `MAX_SAB_BYTES`, `SENTINEL`, `SceneEnginePlugin`, `SharedMemoryManager`, `StringPool`, `StringPoolManager`, `stringPoolFor`, `TRANSFORM3D_STRIDE`, `TRANSFORM_OFFSETS`, `TRANSFORM_STRIDE`, `Transform3D`, `TweenManager`, `TweenPlugin`, `TweenPool`, `WasmBridgeImpl`, `_getActorContext`, `_getActorEntityId`, `buildTransformImports`, `createDisposable`, `createGwenHooks`, `detectCoreVariant`, `engineContext`, `entityIndex`, `executeAsync`, `getTweenManager`, `getWasmBridge`, `invalidateWasmModule`, `autoProvider`, `isolatedProvider`, `poisonWasmBridge`, `readTransform3DPosition`, `readTransform3DRotation`, `readTransform3DScale`, `reportRejectedHook`, `sharedProvider`, `toGwenWasmError`, `writeTransform3DPosition`, `writeTransform3DRotation`, `writeTransform3DScale`
+Values: `EASING_MAP`, `FLAGS_OFFSET`, `FLAG_HAS_TRANSFORM`, `GwenScope`, `MAX_SAB_BYTES`, `SENTINEL`, `SceneEnginePlugin`, `SharedMemoryManager`, `StringPool`, `StringPoolManager`, `stringPoolFor`, `TRANSFORM3D_STRIDE`, `TRANSFORM_OFFSETS`, `TRANSFORM_STRIDE`, `Transform3D`, `TweenManager`, `TweenPlugin`, `TweenPool`, `WasmBridgeImpl`, `_getActorContext`, `_getActorEntityId`, `asFullEngine`, `buildTransformImports`, `createDisposable`, `createGwenHooks`, `detectCoreVariant`, `engineContext`, `entityIndex`, `executeAsync`, `getTweenManager`, `getWasmBridge`, `invalidateWasmModule`, `autoProvider`, `isolatedProvider`, `poisonWasmBridge`, `readTransform3DPosition`, `readTransform3DRotation`, `readTransform3DScale`, `reportRejectedHook`, `sharedProvider`, `toGwenWasmError`, `writeTransform3DPosition`, `writeTransform3DRotation`, `writeTransform3DScale`
 
 Types: `GwenCoreGlueFactoryModule`, `GwenCoreGlueInstance`, `GwenCoreWasm`, `GwenTransformImports`, `InitWasmOptions`, `TweenPluginOptions`, `TweenPoolPolicy`, `TweenSlot`, `WasmEngine`, `WasmEnginePhysics2D`, `WasmEnginePhysics3D`, `WasmEntityId`, `WasmInstanceMode`, `WasmInstanceProvider`
 
 `GwenCoreGlueFactoryModule` — Creates one glue instance through `createGlue`.
+
+`asFullEngine` — Narrows the engine base that a plugin `setup()` receives to the full engine, without a cast at the call site.
 
 `GwenCoreGlueInstance` — One wasm-bindgen glue state: its `Engine` class and `initSync`, which instantiates a compiled module.
 

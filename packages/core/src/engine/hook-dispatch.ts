@@ -78,9 +78,10 @@ export function bindEngineOnHooks(engine: GwenEngine, hooks: Hookable<GwenRuntim
     callHooksWithEngine(engine, list, hookArgs, 0);
   const runParallel = (list: readonly EngineHookFn[], hookArgs: readonly unknown[]): unknown =>
     callHooksWithEngineParallel(engine, list, hookArgs);
-  hooks.callHook = ((name, ...args) => callWith(runSerial, name, args)) as typeof hooks.callHook;
-  hooks.callHookParallel = ((name, ...args) =>
-    callWith(runParallel, name, args)) as typeof hooks.callHookParallel;
+  type CallSerial = typeof hooks.callHook;
+  type CallParallel = typeof hooks.callHookParallel;
+  hooks.callHook = ((name, ...args) => callWith(runSerial, name, args)) as CallSerial; // boundary: hookable callHook is replaced by an engine-aware runner with the same signature
+  hooks.callHookParallel = ((name, ...args) => callWith(runParallel, name, args)) as CallParallel; // boundary: hookable callHookParallel is replaced by an engine-aware runner with the same signature
 }
 
 /**

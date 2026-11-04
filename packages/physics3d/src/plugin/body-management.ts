@@ -16,6 +16,7 @@ import { Physics3DErrorCodes } from "../errors/codes";
 import { callPhysics3DExport, hasPhysics3DCode } from "./wasm-errors";
 import { entitySlot, guardAlive, guardOwned, noteOwnerChange, ownedSlot } from "./entity-owner";
 import { vec3, quat, kindToU8, kindFromU8, parseBodyState, cloneState } from "./physics3d-utils";
+import { liveWasmBridge } from "../internal/unchecked";
 
 // ─── Local simulation ─────────────────────────────────────────────────────────
 
@@ -194,7 +195,7 @@ export function createBodyWasm(
   // `createBody` removes the previous owner of the slot first, so BODY_ALREADY_EXISTS here
   // means the TypeScript registry and Rust disagree. The typed error propagates.
   callPhysics3DExport(ctx, "physics3d_add_body", () =>
-    ctx.wasmBridge!.physics3d_add_body!(
+    liveWasmBridge(ctx.wasmBridge).physics3d_add_body(
       idx,
       options.initialPosition?.x ?? 0,
       options.initialPosition?.y ?? 0,
@@ -211,7 +212,7 @@ export function createBodyWasm(
     applyWasmBodyOptions(ctx, idx, options);
   } catch (err: unknown) {
     try {
-      ctx.wasmBridge!.physics3d_remove_body!(idx);
+      liveWasmBridge(ctx.wasmBridge).physics3d_remove_body(idx);
     } catch {
       // The first error is the one to report.
     }
@@ -240,7 +241,7 @@ function applyWasmBodyOptions(
     const lv = options.initialLinearVelocity ?? {};
     const av = options.initialAngularVelocity ?? {};
     callPhysics3DExport(ctx, "physics3d_set_body_state", () =>
-      ctx.wasmBridge!.physics3d_set_body_state!(
+      liveWasmBridge(ctx.wasmBridge).physics3d_set_body_state(
         idx,
         p.x ?? 0,
         p.y ?? 0,
@@ -261,7 +262,7 @@ function applyWasmBodyOptions(
 
   if (options.fixedRotation) {
     callPhysics3DExport(ctx, "physics3d_lock_rotations", () =>
-      ctx.wasmBridge!.physics3d_lock_rotations?.(idx, true, true, true),
+      liveWasmBridge(ctx.wasmBridge).physics3d_lock_rotations?.(idx, true, true, true),
     );
   }
 
@@ -275,7 +276,7 @@ function applyWasmBodyOptions(
     const iters = QUALITY_ITER_MAP[options.quality] ?? 0;
     if (iters > 0) {
       callPhysics3DExport(ctx, "physics3d_set_body_solver_iterations", () =>
-        ctx.wasmBridge!.physics3d_set_body_solver_iterations?.(idx, iters),
+        liveWasmBridge(ctx.wasmBridge).physics3d_set_body_solver_iterations?.(idx, iters),
       );
     }
   }
@@ -306,7 +307,7 @@ export function removeBodyWasm(ctx: PluginContext, entityId: Physics3DEntityId):
   // rejected release then leaves body and registry untouched, so the caller can retry.
   releaseCharacterControllerWasm(ctx, slot);
   callPhysics3DExport(ctx, "physics3d_remove_body", () =>
-    ctx.wasmBridge!.physics3d_remove_body!(slot),
+    liveWasmBridge(ctx.wasmBridge).physics3d_remove_body(slot),
   );
   ctx.bodyByEntity.delete(slot);
   ctx.localColliders.delete(slot);
@@ -381,7 +382,7 @@ export function getBodyKind(ctx: PluginContext): Physics3DAPI["getBodyKind"] {
       if (!ctx.bodyByEntity.has(slot)) return undefined;
       return kindFromU8(
         callPhysics3DExport(ctx, "physics3d_get_body_kind", () =>
-          ctx.wasmBridge!.physics3d_get_body_kind!(slot),
+          liveWasmBridge(ctx.wasmBridge).physics3d_get_body_kind(slot),
         ),
       );
     }
@@ -399,7 +400,7 @@ export function setBodyKind(ctx: PluginContext): Physics3DAPI["setBodyKind"] {
     if (ctx.backendMode === "wasm") {
       // Rust first: a rejected call leaves the registry kind as it was.
       const done = callPhysics3DExport(ctx, "physics3d_set_body_kind", () =>
-        ctx.wasmBridge!.physics3d_set_body_kind!(slot, kindToU8(kind)),
+        liveWasmBridge(ctx.wasmBridge).physics3d_set_body_kind(slot, kindToU8(kind)),
       );
       if (done) handle.kind = kind;
       return done;
@@ -417,7 +418,7 @@ export function getBodyState(ctx: PluginContext): Physics3DAPI["getBodyState"] {
     if (ctx.backendMode === "wasm") {
       if (!ctx.bodyByEntity.has(slot)) return undefined;
       const arr = callPhysics3DExport(ctx, "physics3d_get_body_state", () =>
-        ctx.wasmBridge!.physics3d_get_body_state!(slot),
+        liveWasmBridge(ctx.wasmBridge).physics3d_get_body_state(slot),
       );
       if (arr.length < 13) return undefined;
       return parseBodyState(arr);
@@ -436,7 +437,7 @@ export function setBodyState(ctx: PluginContext): Physics3DAPI["setBodyState"] {
       if (!ctx.bodyByEntity.has(slot)) return false;
       const idx = slot;
       const arr = callPhysics3DExport(ctx, "physics3d_get_body_state", () =>
-        ctx.wasmBridge!.physics3d_get_body_state!(idx),
+        liveWasmBridge(ctx.wasmBridge).physics3d_get_body_state(idx),
       );
       if (arr.length < 13) return false;
       const cur = parseBodyState(arr);
@@ -449,7 +450,7 @@ export function setBodyState(ctx: PluginContext): Physics3DAPI["setBodyState"] {
         ? { ...cur.angularVelocity, ...patch.angularVelocity }
         : cur.angularVelocity;
       return callPhysics3DExport(ctx, "physics3d_set_body_state", () =>
-        ctx.wasmBridge!.physics3d_set_body_state!(
+        liveWasmBridge(ctx.wasmBridge).physics3d_set_body_state(
           idx,
           p.x,
           p.y,
@@ -489,7 +490,7 @@ export function createApplyImpulse(ctx: PluginContext): Physics3DAPI["applyImpul
     if (ctx.backendMode === "wasm") {
       if (!ctx.bodyByEntity.has(slot)) return false;
       return callPhysics3DExport(ctx, "physics3d_apply_impulse", () =>
-        ctx.wasmBridge!.physics3d_apply_impulse!(
+        liveWasmBridge(ctx.wasmBridge).physics3d_apply_impulse(
           slot,
           impulse.x ?? 0,
           impulse.y ?? 0,
@@ -518,7 +519,7 @@ export function createApplyAngularImpulse(ctx: PluginContext): Physics3DAPI["app
     if (ctx.backendMode === "wasm") {
       if (!ctx.bodyByEntity.has(slot)) return false;
       return callPhysics3DExport(ctx, "physics3d_apply_angular_impulse", () =>
-        ctx.wasmBridge!.physics3d_apply_angular_impulse!(
+        liveWasmBridge(ctx.wasmBridge).physics3d_apply_angular_impulse(
           slot,
           impulse.x ?? 0,
           impulse.y ?? 0,
@@ -567,7 +568,7 @@ export function createGetLinearVelocity(ctx: PluginContext): Physics3DAPI["getLi
     if (ctx.backendMode === "wasm") {
       if (!ctx.bodyByEntity.has(slot)) return undefined;
       const arr = callPhysics3DExport(ctx, "physics3d_get_linear_velocity", () =>
-        ctx.wasmBridge!.physics3d_get_linear_velocity!(slot),
+        liveWasmBridge(ctx.wasmBridge).physics3d_get_linear_velocity(slot),
       );
       if (arr.length < 3) return undefined;
       return { x: arr[0] ?? 0, y: arr[1] ?? 0, z: arr[2] ?? 0 };
@@ -585,13 +586,13 @@ export function createSetLinearVelocity(ctx: PluginContext): Physics3DAPI["setLi
     if (ctx.backendMode === "wasm") {
       if (!ctx.bodyByEntity.has(slot)) return false;
       const arr = callPhysics3DExport(ctx, "physics3d_get_linear_velocity", () =>
-        ctx.wasmBridge!.physics3d_get_linear_velocity!(slot),
+        liveWasmBridge(ctx.wasmBridge).physics3d_get_linear_velocity(slot),
       );
       const cx = arr[0] ?? 0;
       const cy = arr[1] ?? 0;
       const cz = arr[2] ?? 0;
       return callPhysics3DExport(ctx, "physics3d_set_linear_velocity", () =>
-        ctx.wasmBridge!.physics3d_set_linear_velocity!(
+        liveWasmBridge(ctx.wasmBridge).physics3d_set_linear_velocity(
           slot,
           velocity.x ?? cx,
           velocity.y ?? cy,
@@ -618,7 +619,7 @@ export function createGetAngularVelocity(ctx: PluginContext): Physics3DAPI["getA
     if (ctx.backendMode === "wasm") {
       if (!ctx.bodyByEntity.has(slot)) return undefined;
       const arr = callPhysics3DExport(ctx, "physics3d_get_angular_velocity", () =>
-        ctx.wasmBridge!.physics3d_get_angular_velocity!(slot),
+        liveWasmBridge(ctx.wasmBridge).physics3d_get_angular_velocity(slot),
       );
       if (arr.length < 3) return undefined;
       return { x: arr[0] ?? 0, y: arr[1] ?? 0, z: arr[2] ?? 0 };
@@ -636,13 +637,13 @@ export function createSetAngularVelocity(ctx: PluginContext): Physics3DAPI["setA
     if (ctx.backendMode === "wasm") {
       if (!ctx.bodyByEntity.has(slot)) return false;
       const arr = callPhysics3DExport(ctx, "physics3d_get_angular_velocity", () =>
-        ctx.wasmBridge!.physics3d_get_angular_velocity!(slot),
+        liveWasmBridge(ctx.wasmBridge).physics3d_get_angular_velocity(slot),
       );
       const cx = arr[0] ?? 0;
       const cy = arr[1] ?? 0;
       const cz = arr[2] ?? 0;
       return callPhysics3DExport(ctx, "physics3d_set_angular_velocity", () =>
-        ctx.wasmBridge!.physics3d_set_angular_velocity!(
+        liveWasmBridge(ctx.wasmBridge).physics3d_set_angular_velocity(
           slot,
           velocity.x ?? cx,
           velocity.y ?? cy,
@@ -672,7 +673,7 @@ export function createSetKinematicPosition(
       if (!ctx.bodyByEntity.has(slot)) return false;
       const r = rotation ?? { x: 0, y: 0, z: 0, w: 1 };
       return callPhysics3DExport(ctx, "physics3d_set_kinematic_position", () =>
-        ctx.wasmBridge!.physics3d_set_kinematic_position!(
+        liveWasmBridge(ctx.wasmBridge).physics3d_set_kinematic_position(
           slot,
           position.x,
           position.y,

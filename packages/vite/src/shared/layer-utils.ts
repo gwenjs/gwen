@@ -37,8 +37,8 @@ export function evalBitExpr(expr: string): number | null {
     return tokens[pos];
   }
 
-  function consume(): string {
-    return tokens[pos++]!;
+  function consume(): string | undefined {
+    return tokens[pos++];
   }
 
   // Forward declarations for mutual recursion.

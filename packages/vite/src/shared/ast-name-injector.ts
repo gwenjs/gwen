@@ -1,6 +1,6 @@
 import MagicString from "magic-string";
 import { walk } from "oxc-walker";
-import type { VariableDeclarator, CallExpression } from "oxc-parser";
+import type { CallExpression } from "oxc-parser";
 import { parseSource, isCallTo, getCallArgs } from "../oxc/index.js";
 
 /**
@@ -35,8 +35,9 @@ export type AstInjectorFn = (
  * export const transformSystemNames = createAstNameInjector(
  *   "defineSystem",
  *   (varName, args, s) => {
- *     if (args.length > 0 && args[0]!.type !== "Literal") {
- *       s.prependLeft(args[0]!.start, `'${varName}', `);
+ *     const first = args[0];
+ *     if (first && first.type !== "Literal") {
+ *       s.prependLeft(first.start, `'${varName}', `);
  *       return true;
  *     }
  *     return false;
@@ -60,14 +61,13 @@ export function createAstNameInjector(
     walk(parsed.program, {
       enter(node) {
         if (node.type !== "VariableDeclarator") return;
-        const { id, init } = node as VariableDeclarator;
+        const { id, init } = node;
         if (id.type !== "Identifier") return;
-        if (!init || !isCallTo(init, targetFn)) return;
+        if (!init || init.type !== "CallExpression" || !isCallTo(init, targetFn)) return;
 
-        const varName = (id as { name: string }).name;
-        const args = getCallArgs(init as CallExpression);
+        const args = getCallArgs(init);
 
-        if (inject(varName, args, s, init as CallExpression)) {
+        if (inject(id.name, args, s, init)) {
           changed = true;
         }
       },

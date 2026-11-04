@@ -20,7 +20,7 @@ export function recordOf(value: object): Record<string, unknown> {
 
 /** Merge `high` over `low`. Plain objects merge deeply. Arrays replace. `undefined` is unset. `null` is a value. */
 export function mergeLayers<T>(low: T, high: DeepPartialInput<T>): T {
-  return mergeValue(low, high) as T;
+  return mergeValue(low, high) as T; // boundary: the merge keeps the shape of low
 }
 
 function mergeValue(

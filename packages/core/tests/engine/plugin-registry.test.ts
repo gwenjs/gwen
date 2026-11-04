@@ -54,7 +54,7 @@ function recordingBus(events: { code: string; message: string; frame: unknown }[
 
 function rig(over: Partial<PluginRegistryDeps> = {}) {
   const bus = createHooks<GwenRuntimeHooks>();
-  const receiver: Pick<GwenEngine, "hooks"> = { hooks: bus };
+  const receiver = { hooks: bus } as GwenEngine; // a hooks-only receiver: these tests build no engine
   const remembered: GwenEngine[] = [];
   const setupReports: { name: string; message: string }[] = [];
   const teardownReports: { name: string; message: string }[] = [];

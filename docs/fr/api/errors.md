@@ -93,6 +93,7 @@ Cause. L'appel est hors de `defineActor()`, `plugin setup()` ou `withCleanup()`.
 - `CORE:LAYOUT_LOAD_FAILED` {#core-layout-load-failed}
 - `CORE:ACTOR_POOL_EXHAUSTED` {#core-actor-pool-exhausted}
 - `CORE:INVALID_COMPONENT_SCHEMA` {#core-invalid-component-schema}
+- `CORE:DEFINITION_INCOMPLETE` {#core-definition-incomplete} `defineSystem(name)`, `defineComponent(name)`, `defineActor(name, prefab)` ou `defineActor(prefab)` a été appelé sans sa fonction setup ou sa factory. L'erreur est levée à l'installation du système, ou à l'appel de `defineComponent` et de `defineActor`. Elle est aussi levée quand `defineActor` reçoit ses arguments dans le mauvais ordre, ou une fonction en troisième argument.
 - `CORE:INVALID_COMPONENT_TYPE` {#core-invalid-component-type}
 - `CORE:INVALID_SCENE_ROUTE` {#core-invalid-scene-route} — `defineSceneRouter` lance `GwenSceneRouterError` quand `initial` ou une cible de transition n'est pas une clé de route.
 - `CORE:FRAME_LOOP_ERROR` {#core-frame-loop-error}
@@ -140,7 +141,7 @@ Cause. L'appel est hors de `defineActor()`, `plugin setup()` ou `withCleanup()`.
 - `CORE:PLUGIN_DEPENDENCY_MISSING` {#core-plugin-dependency-missing} `engine.use` rejeté parce qu'un plugin ou un service requis n'est pas installé.
 - `CORE:PLUGIN_INVALID_SHAPE` {#core-plugin-invalid-shape} `engine.use` a rejeté un plugin qui déclare une clé de cycle de vie que le moteur n'appelle jamais.
 - `CORE:PLUGIN_IN_USE` {#core-plugin-in-use} `engine.unuse` rejeté parce qu'un plugin installé exige encore ce plugin ou l'un de ses services.
-- `CORE:TWEEN_POOL_EXHAUSTED` {#core-tween-pool-exhausted}
+- `CORE:TWEEN_POOL_EXHAUSTED` {#core-tween-pool-exhausted} Levée par `TweenPool.claim`, et par `useSequence` quand une étape d'attente ne peut pas prendre un emplacement parce que le pool `'drop'` est épuisé.
 - `CORE:WASM_GLUE_MISMATCH` {#core-wasm-glue-mismatch} `checkGwenModule` rejette un module compilé qui ne correspond pas à sa glue. `init` appelle ce contrôle avant d'acquérir une instance (#263).
 
   | `reason`      | Sens                                                                    | `expected`                     | `actual`                                                                                  |
@@ -212,15 +213,15 @@ Cause. Le champ n'est pas sur ce composant dans le manifeste. Fix. Utilisez un c
 
 ### VITE:SCENE_NAME_UNRESOLVED {#vite-scene-name-unresolved}
 
-Cause. `scanScenes` (`packages/vite/src/scanners/index.ts:140`) a lu un fichier sous `src/scenes/` dont le nom de scène n'est pas un littéral. Le message est `Scene file "${rel}" has no literal scene name.` (`packages/vite/src/scanners/index.ts:160`). Un fichier dont le nom commence par `_` ou `.` est ignoré (`packages/vite/src/scanners/index.ts:148`). Fix. Appelez `defineScene` avec un littéral, ou préfixez un fichier d'aide par `_`.
+Cause. `scanScenes` (`packages/vite/src/scanners/index.ts:118`) a lu un fichier sous `src/scenes/` dont le nom de scène n'est pas un littéral. Le message est `Scene file "${rel}" has no literal scene name.` (`packages/vite/src/scanners/index.ts:138`). Un fichier dont le nom commence par `_` ou `.` est ignoré (`packages/vite/src/scanners/index.ts:126`). Fix. Appelez `defineScene` avec un littéral, ou préfixez un fichier d'aide par `_`.
 
 ### VITE:SCENE_NAME_DUPLICATE {#vite-scene-name-duplicate}
 
-Cause. Deux fichiers de scène déclarent le même littéral. Le message est `Scene name "${sceneName}" is declared in "${previous}" and "${rel}".` (`packages/vite/src/scanners/index.ts:175`). Fix. Donnez à chaque fichier son propre littéral.
+Cause. Deux fichiers de scène déclarent le même littéral. Le message est `Scene name "${sceneName}" is declared in "${previous}" and "${rel}".` (`packages/vite/src/scanners/index.ts:153`). Fix. Donnez à chaque fichier son propre littéral.
 
 ### VITE:MAIN_SCENE_UNKNOWN {#vite-main-scene-unknown}
 
-Cause. `resolveMainScene` (`packages/vite/src/scanners/index.ts:205`) a reçu un `mainScene` qui n'est pas un nom découvert. Le message liste ces noms (`packages/vite/src/scanners/index.ts:214`). Sans `mainScene`, la première scène découverte est utilisée (`packages/vite/src/scanners/index.ts:226`). Fix. Réglez `mainScene` sur un nom découvert sous `src/scenes/`.
+Cause. `resolveMainScene` (`packages/vite/src/scanners/index.ts:183`) a reçu un `mainScene` qui n'est pas un nom découvert. Le message liste ces noms (`packages/vite/src/scanners/index.ts:192`). Sans `mainScene`, la première scène découverte est utilisée (`packages/vite/src/scanners/index.ts:204`). Fix. Réglez `mainScene` sur un nom découvert sous `src/scenes/`.
 
 ## @gwenjs/math
 
@@ -334,11 +335,11 @@ Cause. Les ids de formes diffèrent, une forme n'a pas été insérée, la longu
 
 ### PHYSICS3D:BVH_LOAD_FAILED {#physics3d-bvh-load-failed}
 
-Cause. Le fetch BVH, le worker ou l'export a échoué. Rust refuse aussi un tampon trop court, une magie autre que GBVH, une autre version de Rapier, ou une charge qui n'est pas un mesh valide. Fix. Vérifiez l'URL, le worker et le WASM.
+Cause. Le fetch BVH, le worker ou l'export a échoué, ou un tampon de mesh est en mémoire partagée, qui ne peut pas être transféré au worker. Rust refuse aussi un tampon trop court, une magie autre que GBVH, une autre version de Rapier, ou une charge qui n'est pas un mesh valide. Fix. Vérifiez l'URL, le worker et le WASM.
 
 ### PHYSICS3D:NOT_INITIALIZED {#physics3d-not-initialized}
 
-Cause. step() a tourné avant l'initialisation. Fix. Appelez setup avant step.
+Cause. step() a tourné avant l'initialisation, ou bulkSpawnStaticBoxes() a tourné alors que le plugin n'a plus de moteur (après le teardown). Fix. Appelez setup avant step, et n'utilisez pas un service conservé après le teardown.
 
 ### PHYSICS3D:WASM_VARIANT_MISMATCH {#physics3d-wasm-variant-mismatch}
 

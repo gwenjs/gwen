@@ -414,7 +414,7 @@ function asChunkColumns<D extends ComponentDef>(record: unknown): ChunkColumns<D
   // Field names are read from the schema at runtime, so the record has no
   // static shape. buildColumns omits string and 64-bit fields, which is what
   // ChunkColumns erases. This is the only cast on the chunk path.
-  return record as ChunkColumns<D>;
+  return record as ChunkColumns<D>; // boundary: column names come from the schema at runtime, so the record has no static shape
 }
 
 function buildColumns(plan: DefPlan, lanes: readonly LaneArray[]): Record<string, unknown> {

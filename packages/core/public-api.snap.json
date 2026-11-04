@@ -280,6 +280,7 @@
       "WasmBridgeImpl",
       "_getActorContext",
       "_getActorEntityId",
+      "asFullEngine",
       "autoProvider",
       "buildTransformImports",
       "createDisposable",

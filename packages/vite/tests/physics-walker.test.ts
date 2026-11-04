@@ -135,4 +135,24 @@ describe("PhysicsQueryWalker", () => {
     const walker = new PhysicsQueryWalker("test.ts");
     expect(walker.walk(src)).toHaveLength(0);
   });
+
+  it("does NOT flag physics.castRay inside a callback that is not a frame-loop callback", () => {
+    const src = `
+      export const sys = defineSystem(() => {
+        onCleanup(() => { physics.castRay(opts); });
+      });
+    `;
+    const walker = new PhysicsQueryWalker("test.ts");
+    expect(walker.walk(src)).toHaveLength(0);
+  });
+
+  it("does NOT flag a physics method that is not one of the imperative query methods", () => {
+    const src = `
+      export const sys = defineSystem(() => {
+        onUpdate(() => { physics.castRayAll(opts); });
+      });
+    `;
+    const walker = new PhysicsQueryWalker("test.ts");
+    expect(walker.walk(src)).toHaveLength(0);
+  });
 });

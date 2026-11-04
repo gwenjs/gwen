@@ -8,12 +8,13 @@
  * @since 1.0.0
  */
 
-import { EASING_MAP, type EasingName } from "./easing";
+import { EASING_MAP } from "./easing";
 import type { TweenHandle, TweenOptions, TweenableValue } from "./tween-types";
 import { lerp } from "@gwenjs/math";
 import { GwenError, type IGwenLogger } from "@gwenjs/schema";
 import { GwenConfigError } from "../../engine/config-error";
 import { CoreErrorCodes } from "../../engine/engine-errors";
+import { popUnchecked, uncheckedAt } from "../../internal/unchecked.js";
 
 // ── TweenPoolPolicy ──────────────────────────────────────────────────────────
 
@@ -284,8 +285,7 @@ export class TweenSlot implements TweenHandle<TweenableValue> {
 
     // Resolve easing function
     if (typeof options.easing === "string") {
-      const easingName = options.easing as EasingName;
-      this._easingFn = EASING_MAP[easingName] ?? ((t: number) => t);
+      this._easingFn = EASING_MAP[options.easing] ?? ((t: number) => t);
     } else if (typeof options.easing === "function") {
       this._easingFn = options.easing;
     } else {
@@ -355,20 +355,20 @@ export class TweenSlot implements TweenHandle<TweenableValue> {
 
     switch (this._valueType) {
       case "number": {
-        this._value = lerp(from as number, to as number, easedT);
+        this._value = lerp(from as number, to as number, easedT); // boundary: the value type selects which member of TweenableValue from and to hold
         break;
       }
       case "vec2": {
-        const fromVec2 = from as { x: number; y: number };
-        const toVec2 = to as { x: number; y: number };
+        const fromVec2 = from as { x: number; y: number }; // boundary: the value type selects which member of TweenableValue from and to hold
+        const toVec2 = to as { x: number; y: number }; // boundary: the value type selects which member of TweenableValue from and to hold
         this._vec2Scratch.x = lerp(fromVec2.x, toVec2.x, easedT);
         this._vec2Scratch.y = lerp(fromVec2.y, toVec2.y, easedT);
         this._value = this._vec2Scratch;
         break;
       }
       case "vec3": {
-        const fromVec3 = from as { x: number; y: number; z: number };
-        const toVec3 = to as { x: number; y: number; z: number };
+        const fromVec3 = from as { x: number; y: number; z: number }; // boundary: the value type selects which member of TweenableValue from and to hold
+        const toVec3 = to as { x: number; y: number; z: number }; // boundary: the value type selects which member of TweenableValue from and to hold
         this._vec3Scratch.x = lerp(fromVec3.x, toVec3.x, easedT);
         this._vec3Scratch.y = lerp(fromVec3.y, toVec3.y, easedT);
         this._vec3Scratch.z = lerp(fromVec3.z, toVec3.z, easedT);
@@ -376,8 +376,8 @@ export class TweenSlot implements TweenHandle<TweenableValue> {
         break;
       }
       case "color": {
-        const fromColor = from as { r: number; g: number; b: number; a: number };
-        const toColor = to as { r: number; g: number; b: number; a: number };
+        const fromColor = from as { r: number; g: number; b: number; a: number }; // boundary: the value type selects which member of TweenableValue from and to hold
+        const toColor = to as { r: number; g: number; b: number; a: number }; // boundary: the value type selects which member of TweenableValue from and to hold
         this._colorScratch.r = lerp(fromColor.r, toColor.r, easedT);
         this._colorScratch.g = lerp(fromColor.g, toColor.g, easedT);
         this._colorScratch.b = lerp(fromColor.b, toColor.b, easedT);
@@ -456,7 +456,7 @@ export class TweenPool {
     }
 
     // Pre-allocate tick buffer for zero-alloc iteration
-    this._tickBuffer = Array.from({ length: size }) as TweenSlot[];
+    this._tickBuffer = Array.from({ length: size }) as TweenSlot[]; // boundary: the buffer holds no slot until tick() fills it
   }
 
   /**
@@ -516,7 +516,7 @@ export class TweenPool {
       }
     }
 
-    const slot = this._available.pop()!;
+    const slot = popUnchecked(this._available);
     slot._configure(options);
     this._active.add(slot);
 
@@ -527,7 +527,8 @@ export class TweenPool {
       this._logger.debug("[TweenPool] Approaching capacity", { used, capacity });
     }
 
-    return slot as unknown as TweenHandle<T>; // boundary: recycled slot is retyped per claim (#77)
+    const handle: TweenHandle<TweenableValue> = slot;
+    return handle as TweenHandle<T>; // boundary: the pool stores TweenSlot, a TweenHandle<TweenableValue> that has erased T, and claim<T> hands the caller a TweenHandle<T> of the options type
   }
 
   /**
@@ -590,7 +591,7 @@ export class TweenPool {
     }
 
     // Resize tick buffer to cover the new capacity
-    this._tickBuffer = Array.from({ length: newSize }) as TweenSlot[];
+    this._tickBuffer = Array.from({ length: newSize }) as TweenSlot[]; // boundary: the buffer holds no slot until tick() fills it
 
     this._logger?.warn("[TweenPool] Pool exhausted, growing …", {
       from: currentSize,
@@ -620,7 +621,7 @@ export class TweenPool {
       this._tickBuffer[count++] = slot;
     }
     for (let i = 0; i < count; i++) {
-      this._tickBuffer[i]!.tick(dt);
+      uncheckedAt(this._tickBuffer, i).tick(dt);
     }
   }
 }

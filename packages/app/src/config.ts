@@ -28,7 +28,7 @@ const DEFAULT_LOGGER = {
 };
 
 export function readConfigFile(config: object): string {
-  const value = (config as Record<symbol, unknown>)[CONFIG_FILE];
+  const value: unknown = Reflect.get(config, CONFIG_FILE);
   return typeof value === "string" ? value : "";
 }
 

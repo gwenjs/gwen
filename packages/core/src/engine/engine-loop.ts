@@ -278,7 +278,7 @@ export class EngineLoop {
         epoch: this.deps.memory.epoch,
         byteLength,
         frame,
-      }) as Promise<unknown> | void;
+      });
     } catch (error: unknown) {
       this._reportMemoryGrow(error, frame);
       return;

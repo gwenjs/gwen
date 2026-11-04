@@ -15,9 +15,7 @@ export function isComponentDefinition(
   value: unknown,
 ): value is ComponentDefinition<ComponentSchema> {
   return (
-    typeof value === "object" &&
-    value !== null &&
-    typeof (value as { name?: unknown }).name === "string"
+    typeof value === "object" && value !== null && typeof Reflect.get(value, "name") === "string"
   );
 }
 

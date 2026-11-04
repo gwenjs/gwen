@@ -37,7 +37,7 @@ export function isThenable(value: unknown): value is PromiseLike<unknown> {
   return (
     (typeof value === "object" || typeof value === "function") &&
     value !== null &&
-    typeof (value as { then?: unknown }).then === "function"
+    typeof Reflect.get(value, "then") === "function"
   );
 }
 
@@ -131,7 +131,7 @@ function reportFailure(
 }
 
 function engineIsFaulted(engine: object): boolean {
-  return (engine as { state?: unknown }).state === "faulted";
+  return Reflect.get(engine, "state") === "faulted";
 }
 
 function forward(

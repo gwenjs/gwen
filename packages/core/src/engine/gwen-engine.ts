@@ -543,8 +543,7 @@ export class GwenEngineImpl extends EngineCollaborators implements GwenEngine {
         },
       );
     }
-    // boundary: WASM bridge object is an untyped export bag. PlacementBridge is its typed view.
-    return bridge as unknown as PlacementBridge;
+    return bridge as PlacementBridge; // boundary: the WASM bridge is an untyped export bag; PlacementBridge is its typed view
   }
 
   // ─── Stats ────────────────────────────────────────────────────────────────

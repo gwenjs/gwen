@@ -1,3 +1,5 @@
+import { getUnchecked } from "../internal/unchecked.js";
+
 /**
  * Bounded LRU cache backed by a single Map.
  *
@@ -12,7 +14,7 @@ export class LRUMap<K, V> {
 
   get(key: K): V | undefined {
     if (!this._map.has(key)) return undefined;
-    const val = this._map.get(key)!;
+    const val = getUnchecked(this._map, key);
     this._map.delete(key);
     this._map.set(key, val);
     return val;
@@ -22,7 +24,8 @@ export class LRUMap<K, V> {
     if (this._map.has(key)) {
       this._map.delete(key);
     } else if (this._map.size >= this._max) {
-      this._map.delete(this._map.keys().next().value!);
+      const oldest = this._map.keys().next();
+      if (oldest.done !== true) this._map.delete(oldest.value);
     }
     this._map.set(key, val);
   }

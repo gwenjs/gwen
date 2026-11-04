@@ -2,7 +2,6 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { Plugin, ViteDevServer } from "vite";
 import { walk } from "oxc-walker";
-import type { VariableDeclarator } from "oxc-parser";
 import type { GwenViteOptions } from "../types.js";
 import { parseSource, isCallTo } from "../oxc/index.js";
 import { createAstNameInjector } from "../shared/ast-name-injector.js";
@@ -96,10 +95,10 @@ export function extractLayoutNames(code: string, filename = "layout.ts"): Set<st
   walk(parsed.program, {
     enter(node) {
       if (node.type !== "VariableDeclarator") return;
-      const { id, init } = node as VariableDeclarator;
+      const { id, init } = node;
       if (id.type !== "Identifier") return;
       if (!init || !isCallTo(init, "defineLayout")) return;
-      names.add((id as { name: string }).name);
+      names.add(id.name);
     },
   });
 

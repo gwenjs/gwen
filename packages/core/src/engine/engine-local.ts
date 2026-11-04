@@ -17,10 +17,10 @@ export const gwenEngineSelf = Symbol.for("@gwenjs/engine");
 
 export function unwrapEngine(engine: GwenEngine): GwenEngine {
   // One keyed read. `?.` lets null, undefined and primitives fall through to the creation guard.
-  const inner: unknown = (engine as { [gwenEngineSelf]?: unknown } | null | undefined)?.[
+  const inner: unknown = (engine as { [gwenEngineSelf]?: unknown } | null | undefined)?.[ // boundary: the engine type declares no brand key, and a non-engine argument can still be null or a primitive at run time
     gwenEngineSelf
   ];
-  return typeof inner === "object" && inner !== null ? (inner as GwenEngine) : engine;
+  return typeof inner === "object" && inner !== null ? (inner as GwenEngine) : engine; // boundary: inner is the unknown brand value, which holds the wrapped GwenEngine when it is an object
 }
 
 function describeNonEngine(value: unknown): string {
@@ -58,9 +58,7 @@ export function createEngineLocal<T>(
   }
 
   function create(real: GwenEngine): T {
-    if (
-      typeof (real as { disposables?: { add?: unknown } } | null)?.disposables?.add !== "function"
-    ) {
+    if (typeof real?.disposables?.add !== "function") {
       throw new GwenError(
         CoreErrorCodes.INVALID_ENGINE,
         `Expected a GWEN engine, received ${describeNonEngine(real)}.`,

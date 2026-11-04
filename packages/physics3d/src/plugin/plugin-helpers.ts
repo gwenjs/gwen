@@ -8,6 +8,7 @@ import { ownerEntityId } from "./entity-owner";
 import type { EntityId, IGwenLogger as GwenLogger } from "@gwenjs/schema";
 import type { Physics3DColliderShape, JointHandle3D } from "../types";
 import type { PluginContext } from "./plugin-context";
+import { uncheckedAt } from "../internal/unchecked";
 
 /**
  * Emit a one-time warning that a joint operation is unavailable in local mode.
@@ -49,7 +50,7 @@ export const entityIndexToId = (ctx: PluginContext, index: number): EntityId | u
  */
 export const u32ToF32 = (ctx: PluginContext, val: number): number => {
   ctx._castU32[0] = val >>> 0;
-  return ctx._castF32[0]!;
+  return uncheckedAt(ctx._castF32, 0);
 };
 
 /**

@@ -81,23 +81,23 @@ function buildArray<T extends MemoryViewType>(
 ): MemoryViewArray<T> {
   switch (type) {
     case "u8":
-      return new Uint8Array(buffer, ptr, length) as MemoryViewArray<T>;
+      return new Uint8Array(buffer, ptr, length) as MemoryViewArray<T>; // boundary: the view type selects the typed array class
     case "i8":
-      return new Int8Array(buffer, ptr, length) as MemoryViewArray<T>;
+      return new Int8Array(buffer, ptr, length) as MemoryViewArray<T>; // boundary: the view type selects the typed array class
     case "u16":
-      return new Uint16Array(buffer, ptr, length) as MemoryViewArray<T>;
+      return new Uint16Array(buffer, ptr, length) as MemoryViewArray<T>; // boundary: the view type selects the typed array class
     case "i16":
-      return new Int16Array(buffer, ptr, length) as MemoryViewArray<T>;
+      return new Int16Array(buffer, ptr, length) as MemoryViewArray<T>; // boundary: the view type selects the typed array class
     case "u32":
-      return new Uint32Array(buffer, ptr, length) as MemoryViewArray<T>;
+      return new Uint32Array(buffer, ptr, length) as MemoryViewArray<T>; // boundary: the view type selects the typed array class
     case "i32":
-      return new Int32Array(buffer, ptr, length) as MemoryViewArray<T>;
+      return new Int32Array(buffer, ptr, length) as MemoryViewArray<T>; // boundary: the view type selects the typed array class
     case "f32":
-      return new Float32Array(buffer, ptr, length) as MemoryViewArray<T>;
+      return new Float32Array(buffer, ptr, length) as MemoryViewArray<T>; // boundary: the view type selects the typed array class
     case "f64":
-      return new Float64Array(buffer, ptr, length) as MemoryViewArray<T>;
+      return new Float64Array(buffer, ptr, length) as MemoryViewArray<T>; // boundary: the view type selects the typed array class
     case "dataview":
-      return new DataView(buffer, ptr, length) as MemoryViewArray<T>;
+      return new DataView(buffer, ptr, length) as MemoryViewArray<T>; // boundary: the view type selects the typed array class
     default:
       throw invalid("memory", `unknown view type`);
   }
@@ -228,7 +228,7 @@ export class EngineMemory {
       throw invalid(desc.name, "duplicate name");
     }
     const view = new MemoryViewImpl(this, desc);
-    this._views.set(desc.name, view as MemoryViewImpl<MemoryViewType>);
+    this._views.set(desc.name, view as MemoryViewImpl<MemoryViewType>); // boundary: the views map holds every view type under MemoryViewImpl<MemoryViewType>, so the view type of this descriptor is widened
     return view;
   }
 

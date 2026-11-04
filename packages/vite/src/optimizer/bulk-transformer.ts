@@ -72,10 +72,7 @@ export function applyBulkTransform(
   const gen = new CodeGenerator(manifest, tier);
 
   // Component name → data variable: 'Position' → '_position'
-  const compToDataVar = new Map<string, string>();
-  for (const comp of [...pattern.readComponents, ...pattern.writeComponents]) {
-    compToDataVar.set(comp, `_${comp.toLowerCase()}`);
-  }
+  const dataVarOf = (comp: string): string => `_${comp.toLowerCase()}`;
 
   // Read variable → component: 'pos' → 'Position'
   const varToComp = new Map<string, string>();
@@ -94,7 +91,7 @@ export function applyBulkTransform(
     const fieldMeta = entry.fields.find((f) => f.name === acc.fieldName);
     if (!fieldMeta) continue;
     const fieldIndex = fieldMeta.byteOffset / 4;
-    const dataVar = compToDataVar.get(comp)!;
+    const dataVar = dataVarOf(comp);
     s.overwrite(acc.start, acc.end, `${dataVar}[_i * ${entry.f32Stride} + ${fieldIndex}]`);
   }
 
@@ -116,7 +113,7 @@ export function applyBulkTransform(
   // Step 4: Insert `queryWriteBulk` calls immediately after the closing `}` of the loop.
   const writeLines: string[] = [];
   for (const comp of pos.writeTargets) {
-    const dataVar = compToDataVar.get(comp)!;
+    const dataVar = dataVarOf(comp);
     writeLines.push("\n    " + gen.generateBulkWrite(comp, "_slots", "_gens", dataVar) + ";");
   }
   if (writeLines.length > 0) {
@@ -132,7 +129,7 @@ export function applyBulkTransform(
   for (const comp of pattern.readComponents) {
     const entry = manifest.get(comp);
     if (!entry) continue;
-    const dataVar = compToDataVar.get(comp)!;
+    const dataVar = dataVarOf(comp);
     if (isFirst) {
       readLines.push(gen.generateBulkRead(pattern.queryComponents, comp) + ";");
       isFirst = false;
@@ -150,7 +147,7 @@ export function applyBulkTransform(
     if (pattern.readComponents.includes(comp)) continue;
     const entry = manifest.get(comp);
     if (!entry) continue;
-    const dataVar = compToDataVar.get(comp)!;
+    const dataVar = dataVarOf(comp);
     const typeIds = pattern.queryComponents.map((n) => componentIdExpr(n));
     if (isFirst) {
       readLines.push(

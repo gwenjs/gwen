@@ -41,7 +41,7 @@ export function parseSource(filename: string, source: string): ParseResult | nul
   try {
     const result = parseSync(filename, source);
     const hasErrors = result.errors !== null && result.errors.length > 0;
-    return { program: result.program as Program, hasErrors };
+    return { program: result.program, hasErrors };
   } catch {
     return null;
   }

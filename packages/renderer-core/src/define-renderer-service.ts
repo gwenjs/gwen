@@ -29,7 +29,11 @@ import type { RendererLayerStats, RendererStatsCollector } from "./stats.js";
 export interface RendererMountContext {
   /** The root container the LayerManager mounted into. */
   container: HTMLElement;
-  /** Returns the cached DOM element for a declared layer. */
+  /**
+   * Returns the DOM element of a declared layer. Creates and caches it on the first call,
+   * the same element `getLayerElement` returns.
+   * @throws {UnknownLayerError} when `name` is not a declared layer.
+   */
   getLayer(name: string): HTMLElement;
 }
 
@@ -231,6 +235,18 @@ export function defineRendererService<Options, TExtension extends object = {}>(
     const elementCache = new Map<string, HTMLElement>();
     let collector: RendererStatsCollector | undefined;
 
+    const layerElement = (layerName: string): HTMLElement => {
+      if (!(layerName in def.layers)) {
+        throw new UnknownLayerError(layerName, def.name);
+      }
+      let el = elementCache.get(layerName);
+      if (!el) {
+        el = def.createElement(layerName);
+        elementCache.set(layerName, el);
+      }
+      return el;
+    };
+
     const flushCtx: RendererFlushContext = {
       reportFrameTime: (ms) => collector?.reportFrameTime(ms),
       reportLayer: (name, stats) => collector?.reportLayer(name, stats),
@@ -240,32 +256,19 @@ export function defineRendererService<Options, TExtension extends object = {}>(
     // on collision (name, contractVersion, layers, getLayerElement, mount, unmount,
     // resize, setStatsCollector, flush). The public type (RendererServiceInstance)
     // already omits contract keys from TExtension so collisions can't produce never.
-    return {
-      ...(def.extension as Omit<TExtension, keyof ManagedRendererService>),
+    const instance = {
+      ...(def.extension as Omit<TExtension, keyof ManagedRendererService>), // boundary: Omit over a generic extension cannot be proven by the compiler
 
       name: def.name,
       contractVersion: RENDERER_CONTRACT_VERSION,
       layers: def.layers,
 
-      getLayerElement(layerName: string): HTMLElement {
-        if (!(layerName in def.layers)) {
-          throw new UnknownLayerError(layerName, def.name);
-        }
-        let el = elementCache.get(layerName);
-        if (!el) {
-          el = def.createElement(layerName);
-          elementCache.set(layerName, el);
-        }
-        return el;
-      },
+      getLayerElement: layerElement,
 
       mount(container: HTMLElement): void {
         def.mount({
           container,
-          getLayer: (name) => {
-            if (!(name in def.layers)) throw new UnknownLayerError(name, def.name);
-            return elementCache.get(name)!;
-          },
+          getLayer: layerElement,
         });
       },
 
@@ -286,6 +289,7 @@ export function defineRendererService<Options, TExtension extends object = {}>(
       flush(): void {
         def.flush?.(flushCtx);
       },
-    } as RendererServiceInstance<TExtension>;
+    };
+    return instance as RendererServiceInstance<TExtension>; // boundary: the spread of an Omit over a generic extension keeps the contract keys of the service
   };
 }

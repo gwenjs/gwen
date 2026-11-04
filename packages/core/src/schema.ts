@@ -25,6 +25,7 @@
  */
 
 import { GwenError } from "@gwenjs/schema";
+import { uncheckedAt } from "./internal/unchecked.js";
 
 import { CoreErrorCodes } from "./engine/engine-errors";
 
@@ -216,6 +217,21 @@ const DATAVIEW_READERS: Record<string, DataViewReader> = {
 };
 
 /**
+ * Fallback handler for standard numeric types: f32, f64, i32, u32.
+ * `Types[type].read` / `.write` hold the correct DataView method name.
+ */
+const NUMERIC_HANDLER: SchemaTypeHandler = {
+  serialize(view, offset, value, typeObj) {
+    const t = typeObj as { write: string }; // boundary: numeric SchemaType members carry the DataView writer name in `write`, which the SchemaType union does not declare for every member
+    DATAVIEW_WRITERS[t.write]?.(view, offset, value as number); // boundary: the value is component data typed unknown at the handler table; a numeric type holds a number
+  },
+  deserialize(view, offset, typeObj) {
+    const t = typeObj as { read: string }; // boundary: numeric SchemaType members carry the DataView reader name in `read`, which the SchemaType union does not declare for every member
+    return DATAVIEW_READERS[t.read]?.(view, offset) ?? 0;
+  },
+};
+
+/**
  * Dispatch table mapping each schema type name to its serialize/deserialize handlers.
  * Defined once at module load — zero per-call allocation.
  *
@@ -233,14 +249,14 @@ const SCHEMA_TYPE_HANDLERS: Record<string, SchemaTypeHandler> = {
 
   string: {
     serialize(view, offset, value, typeObj, strings) {
-      const pool = (typeObj as SchemaType & { isPersistent?: boolean }).isPersistent
+      const pool = (typeObj as SchemaType & { isPersistent?: boolean }).isPersistent // boundary: `isPersistent` exists on the persistent string member only, and SchemaType does not declare it for every member
         ? strings.persistent
         : strings.scene;
-      view.setInt32(offset, pool.intern(value as string), true);
+      view.setInt32(offset, pool.intern(value as string), true); // boundary: the value is component data typed unknown at the handler table; a string type holds a string
     },
     deserialize(view, offset, typeObj, strings) {
       const strId = view.getInt32(offset, true);
-      const pool = (typeObj as SchemaType & { isPersistent?: boolean }).isPersistent
+      const pool = (typeObj as SchemaType & { isPersistent?: boolean }).isPersistent // boundary: `isPersistent` exists on the persistent string member only, and SchemaType does not declare it for every member
         ? strings.persistent
         : strings.scene;
       return pool.get(strId);
@@ -249,7 +265,7 @@ const SCHEMA_TYPE_HANDLERS: Record<string, SchemaTypeHandler> = {
 
   i64: {
     serialize(view, offset, value) {
-      view.setBigInt64(offset, BigInt(value as number), true);
+      view.setBigInt64(offset, BigInt(value as number), true); // boundary: the value is component data typed unknown at the handler table; an i64 field holds a number or bigint, and BigInt accepts both
     },
     deserialize(view, offset) {
       return view.getBigInt64(offset, true);
@@ -258,7 +274,7 @@ const SCHEMA_TYPE_HANDLERS: Record<string, SchemaTypeHandler> = {
 
   u64: {
     serialize(view, offset, value) {
-      view.setBigUint64(offset, BigInt(value as number), true);
+      view.setBigUint64(offset, BigInt(value as number), true); // boundary: the value is component data typed unknown at the handler table; a u64 field holds a number or bigint, and BigInt accepts both
     },
     deserialize(view, offset) {
       return view.getBigUint64(offset, true);
@@ -272,7 +288,7 @@ const SCHEMA_TYPE_HANDLERS: Record<string, SchemaTypeHandler> = {
       typeName,
       {
         serialize(view: DataView, offset: number, value: unknown) {
-          const composite = value as Record<string, number>;
+          const composite = value as Record<string, number>; // boundary: the value is component data typed unknown at the handler table; a composite type holds one number per field name
           for (let i = 0; i < fields.length; i++) {
             const field = fields[i];
             if (field !== undefined) {
@@ -294,18 +310,7 @@ const SCHEMA_TYPE_HANDLERS: Record<string, SchemaTypeHandler> = {
     ]),
   ),
 
-  // Fallback for standard numeric types: f32, f64, i32, u32.
-  // `Types[type].read` / `.write` hold the correct DataView method name.
-  _numeric: {
-    serialize(view, offset, value, typeObj) {
-      const t = typeObj as { write: string };
-      DATAVIEW_WRITERS[t.write]?.(view, offset, value as number);
-    },
-    deserialize(view, offset, typeObj) {
-      const t = typeObj as { read: string };
-      return DATAVIEW_READERS[t.read]?.(view, offset) ?? 0;
-    },
-  },
+  _numeric: NUMERIC_HANDLER,
 };
 
 export function computeSchemaLayout<T extends Record<string, FieldValue>>(
@@ -314,26 +319,28 @@ export function computeSchemaLayout<T extends Record<string, FieldValue>>(
   let offset = 0;
   const layout = new Map<string, FieldMeta>();
 
+  const fields: Array<{ key: string; meta: FieldMeta; typeObj: SchemaType }> = [];
   for (const [key, typeObj] of Object.entries(schema)) {
-    layout.set(key, { type: typeObj.type, offset, byteLength: typeObj.byteLength });
+    const meta: FieldMeta = { type: typeObj.type, offset, byteLength: typeObj.byteLength };
+    layout.set(key, meta);
+    fields.push({ key, meta, typeObj });
     offset += typeObj.byteLength;
   }
 
   const totalByteLength = offset;
-  const order = Array.from(layout.entries());
 
   // Pre-resolve handlers per field so the hot per-frame loop does no map lookups.
-  const handlers = order.map(([key, meta]) => ({
+  const handlers = fields.map(({ key, meta, typeObj }) => ({
     key,
     meta,
-    typeObj: schema[key]!,
-    handler: (SCHEMA_TYPE_HANDLERS[meta.type] ?? SCHEMA_TYPE_HANDLERS["_numeric"])!,
+    typeObj,
+    handler: SCHEMA_TYPE_HANDLERS[meta.type] ?? NUMERIC_HANDLER,
   }));
 
   const serialize = (data: T, view: DataView, strings: StringPoolManager): number => {
     let bytesWritten = 0;
     for (const { key, meta, typeObj, handler } of handlers) {
-      handler.serialize(view, meta.offset, data[key as keyof T], typeObj, strings);
+      handler.serialize(view, meta.offset, data[key as keyof T], typeObj, strings); // boundary: the key comes from Object.entries(schema) as a string, and T is the data shape of that schema, so the key is a key of T
       bytesWritten += meta.byteLength;
     }
     return bytesWritten;
@@ -344,13 +351,13 @@ export function computeSchemaLayout<T extends Record<string, FieldValue>>(
     for (const { key, meta, typeObj, handler } of handlers) {
       obj[key] = handler.deserialize(view, meta.offset, typeObj, strings);
     }
-    return obj as T;
+    return obj as T; // boundary: obj is filled with one entry per schema key, so it has the shape T, which an empty record literal cannot show
   };
 
   const patch = (view: DataView, data: Partial<T>, strings: StringPoolManager): void => {
-    const record = data as Record<string, unknown>;
+    const record = data as Record<string, unknown>; // boundary: the patch is read by the string keys of the schema, and Partial<T> has no string index signature
     for (let index = 0; index < handlers.length; index += 1) {
-      const field = handlers[index]!;
+      const field = uncheckedAt(handlers, index);
       if (!Object.prototype.hasOwnProperty.call(record, field.key)) continue;
       const value = record[field.key];
       if (value === undefined) continue;
@@ -360,7 +367,7 @@ export function computeSchemaLayout<T extends Record<string, FieldValue>>(
 
   return {
     byteLength: totalByteLength,
-    hasString: order.some(([, m]) => m.type === "string"),
+    hasString: fields.some(({ meta }) => meta.type === "string"),
     serialize,
     deserialize,
     patch,
@@ -438,7 +445,7 @@ function _validateComponentSchema(componentName: string, schema: ComponentSchema
       typeObj === null ||
       typeof typeObj !== "object" ||
       !("type" in typeObj) ||
-      !_VALID_SCHEMA_TYPES.has((typeObj as SchemaType).type)
+      !_VALID_SCHEMA_TYPES.has(typeObj.type)
     ) {
       throw new GwenError(
         CoreErrorCodes.INVALID_COMPONENT_SCHEMA,
@@ -525,6 +532,15 @@ export type ComponentBody<S extends ComponentSchema> = Omit<
   "name" | "_typeId" | "_byteSize" | "_f32Stride" | "_fields"
 >;
 
+/** Stands in for the factory of a named component defined without one. Throws when called. */
+function missingFactory(): never {
+  throw new GwenError(
+    CoreErrorCodes.DEFINITION_INCOMPLETE,
+    "defineComponent(name, factory) needs a factory as second argument.",
+    { composable: "defineComponent" },
+  );
+}
+
 /**
  * Define an ECS component schema — two syntaxes supported.
  *
@@ -555,6 +571,8 @@ export type ComponentBody<S extends ComponentSchema> = Omit<
  *   writes the string id into the scene pool.
  * @throws {GwenError} code `CORE:INVALID_COMPONENT_SCHEMA` when a field value
  *   is not a `SchemaType`.
+ * @throws {GwenError} code `CORE:DEFINITION_INCOMPLETE` when `defineComponent(name)`
+ *   is called without the factory. Before this check the call threw a `TypeError`.
  *
  * @example
  * ```ts
@@ -582,7 +600,7 @@ export function defineComponent<S extends ComponentSchema>(
 ): ComponentDefinition<S> {
   let config: Omit<ComponentDefinition<S>, "_typeId" | "_byteSize" | "_f32Stride" | "_fields">;
   if (typeof nameOrConfig === "string") {
-    config = { name: nameOrConfig, ...factory!() };
+    config = { name: nameOrConfig, ...(factory ?? missingFactory)() };
   } else {
     config = nameOrConfig;
   }

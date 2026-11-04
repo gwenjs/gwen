@@ -64,8 +64,8 @@ export function useLayout<Refs extends Record<string, PlaceHandle<unknown>>>(
   const engine = useEngine("useLayout");
 
   let _active = false;
-  let _refs: Refs = {} as Refs;
-  let _entityIds: bigint[] = [];
+  let _refs: Refs = {} as Refs; // boundary: an empty record stands for Refs until the layout loads, because Refs is a generic record whose keys the layout creates
+  let _entityIds: EntityId[] = [];
   /** Pending progressive load, shared by every `load()` call until it settles. */
   let _pending: Promise<void> | undefined;
   /** Stops the pending progressive load: unsubscribes the frame hook and settles `_pending`. */
@@ -225,7 +225,7 @@ export function useLayout<Refs extends Record<string, PlaceHandle<unknown>>>(
   }
 
   /** Bulk-destroy `ids` and empty the array in place, even if destroying throws. */
-  function destroyIds(ids: bigint[]): void {
+  function destroyIds(ids: EntityId[]): void {
     try {
       destroyList(ids);
     } finally {
@@ -233,11 +233,11 @@ export function useLayout<Refs extends Record<string, PlaceHandle<unknown>>>(
     }
   }
 
-  function destroyList(ids: bigint[]): void {
+  function destroyList(ids: EntityId[]): void {
     if (ids.length > 0) {
       const bridge = engine.getPlacementBridge();
       if (bridge?.bulk_destroy) {
-        const indices = new Uint32Array(ids.map((id) => entityIndex(id as EntityId)));
+        const indices = new Uint32Array(ids.map((id) => entityIndex(id)));
         const impl = engine.tryInject("wasm:bridge");
         if (impl) {
           impl.bulkDestroy(indices);
@@ -252,7 +252,7 @@ export function useLayout<Refs extends Record<string, PlaceHandle<unknown>>>(
         // Fallback: destroy entities one-by-one if bulk_destroy is not available
         for (const id of ids) {
           try {
-            engine.destroyEntity(id as never);
+            engine.destroyEntity(id);
           } catch {
             /* already destroyed */
           }
@@ -273,7 +273,7 @@ export function useLayout<Refs extends Record<string, PlaceHandle<unknown>>>(
     try {
       destroyOwned();
     } finally {
-      _refs = {} as Refs;
+      _refs = {} as Refs; // boundary: an empty record stands for Refs once the layout is disposed, because Refs is a generic record whose keys the layout created
       _active = false;
     }
   }

@@ -105,13 +105,17 @@ export type ExactPlugin<P extends GwenPlugin> = P & {
  */
 export function definePlugin<TOptions, TPlugin extends GwenPlugin>(
   factory: (options?: TOptions) => ExactPlugin<TPlugin>,
-): GwenPluginFactory<TOptions extends undefined ? void : TOptions, TPlugin> {
-  function PluginFactory(options?: TOptions): TPlugin {
+): GwenPluginFactory<TOptions extends undefined ? void : TOptions, TPlugin>;
+// The implementation signature widens two types and TypeScript does not check them against the
+// overload: `TOptions` becomes `unknown`, and `TPlugin` becomes its bound `GwenPlugin`. The
+// public return type is a deferred conditional type, which a function body cannot produce
+// without a cast, so the overload carries it instead. This is safe because the body creates
+// and converts nothing: `options` goes to `factory` as received and the plugin that `factory`
+// returns goes out as returned, so each caller sees exactly the types the overload states.
+export function definePlugin(
+  factory: (options?: unknown) => GwenPlugin,
+): (options?: unknown) => GwenPlugin {
+  return function PluginFactory(options?: unknown): GwenPlugin {
     return factory(options);
-  }
-
-  return PluginFactory as unknown as GwenPluginFactory<
-    TOptions extends undefined ? void : TOptions,
-    TPlugin
-  >;
+  };
 }

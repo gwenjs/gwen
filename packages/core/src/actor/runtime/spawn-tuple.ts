@@ -6,6 +6,6 @@ import type { ActorPlugin } from "./types";
  * A void props type takes no argument. Any other props type passes one object.
  */
 export function spawnActor<Props>(plugin: ActorPlugin<Props>, props?: Props): EntityId {
-  const args = (props === undefined ? [] : [props]) as Props extends void ? [] : [props: Props];
+  const args = (props === undefined ? [] : [props]) as Props extends void ? [] : [props: Props]; // boundary: ActorPlugin.spawn takes a rest tuple chosen by a conditional type on Props, which a generic call cannot build
   return plugin.spawn(...args);
 }

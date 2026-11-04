@@ -148,7 +148,8 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
     cachedEngine = owner ? new WeakRef(owner) : null;
     return next;
   }
-  const ctx = new Proxy({} as PluginContext, {
+  const target = {} as PluginContext; // boundary: the proxy target is an empty placeholder; every get and set below goes to the context of the current engine, so no field of the target is ever read
+  const ctx = new Proxy<PluginContext>(target, {
     get(_target, prop) {
       return Reflect.get(contextNow(), prop);
     },
@@ -170,7 +171,7 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
           const previous = engineContext.tryUse() ?? undefined;
           engineContext.set(engine, true);
           try {
-            return Reflect.apply(value as (...inner: unknown[]) => unknown, target, args);
+            return Reflect.apply(value, target, args);
           } finally {
             if (engineContext.tryUse() === engine) {
               if (previous !== undefined) engineContext.set(previous, true);
@@ -339,8 +340,7 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
       const real = useEngine("Physics3DPlugin.setup");
       ctx._engine = real;
       ctx.log = engine.logger?.child("@gwenjs/physics3d") ?? ctx.log;
-      // boundary: WASM bridge runtime is wider than the public GwenWasmModules handle.
-      const bridge = getWasmBridge() as unknown as Physics3DBridgeRuntime;
+      const bridge = getWasmBridge() as Physics3DBridgeRuntime; // boundary: core types the bridge as WasmBridge, whose getPhysicsBridge returns a 2D|3D union; Physics3DBridgeRuntime is this package's view of the same object, and its variant is checked on the next lines
       ctx._variant = bridge.variant;
       // Same object as coreBridge. Teardown clears bridgeRuntime, not coreBridge.
       ctx.bridgeRuntime = bridge;
@@ -440,9 +440,7 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
 
       // Register prefab extension handler
       ctx.offPrefabInstantiate = engine.hooks.hook("prefab:instantiate", (entityId, extensions) => {
-        const ext = (extensions as Record<string, unknown>)?.physics3d as
-          | Physics3DPrefabExtension
-          | undefined;
+        const ext = extensions?.physics3d as Physics3DPrefabExtension | undefined; // boundary: GwenPrefabExtensions is an open unknown index signature filled by user prefabs; physics3d adds no typed key
         if (!ext?.body) return;
 
         _createBody(entityId, ext.body);

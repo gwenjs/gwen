@@ -33,8 +33,7 @@ export const DEFAULT_PHYSICS3D_CONFIG: ResolvedPhysics3DConfig = {
  */
 export function normalizePhysics3DConfig(config: Physics3DConfig = {}): ResolvedPhysics3DConfig {
   const qualityPreset: Physics3DQualityPreset =
-    (config.qualityPreset as Physics3DQualityPreset | undefined) ??
-    DEFAULT_PHYSICS3D_CONFIG.qualityPreset;
+    config.qualityPreset ?? DEFAULT_PHYSICS3D_CONFIG.qualityPreset;
 
   if (
     config.maxLinearVelocity !== undefined &&

@@ -214,7 +214,13 @@ export const CoreErrorCodes = {
   PLUGIN_IN_USE: "CORE:PLUGIN_IN_USE",
   /** Thrown by `GwenHookNameError`. A hook name is not `namespace:action`, or an emit used a reserved namespace. */
   HOOK_NAME_INVALID: "CORE:HOOK_NAME_INVALID",
-  /** Thrown by `TweenPool.claim`. */
+  /**
+   * `defineSystem(name)`, `defineComponent(name)`, `defineActor(name, prefab)` or `defineActor(prefab)`
+   * was called without its setup function or factory. `defineSystem` throws when the system is set up;
+   * the other three throw at the define call.
+   */
+  DEFINITION_INCOMPLETE: "CORE:DEFINITION_INCOMPLETE",
+  /** Thrown by `TweenPool.claim`, and by `useSequence` when its wait step cannot claim a slot. */
   TWEEN_POOL_EXHAUSTED: "CORE:TWEEN_POOL_EXHAUSTED",
   /** Thrown by `init` when the compiled module does not match its glue contract (#260). */
   WASM_GLUE_MISMATCH: "CORE:WASM_GLUE_MISMATCH",
