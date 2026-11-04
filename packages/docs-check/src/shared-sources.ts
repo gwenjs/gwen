@@ -13,11 +13,20 @@ interface CachedSource {
 /**
  * Parsed source files shared between the programs of one call site.
  * The caller serves its synthetic files first and hands every other file to
- * `through`, so a synthetic file never enters the cache. A file is parsed again
- * when its size or modification time changes, or when TypeScript asks for
- * another language version. The compiler options of a site are fixed, so a
- * cache belongs to one site and is never shared with a site that has other
- * options.
+ * `through`, so a synthetic file never enters the cache.
+ *
+ * A cached file is keyed by its resolved path, the language version (or, for
+ * the options form, the language version, the implied node format and the
+ * JSDoc parsing mode TypeScript passes), and it is served only while its
+ * modification time and size are unchanged; otherwise it is parsed again.
+ *
+ * Sharing a bound `SourceFile` between programs is safe only because a cache
+ * belongs to one call site. The compiler options of a site are fixed and its
+ * paths resolve the same way in every program. The binder runs once per file,
+ * with the options of the first program that uses it, and each program writes
+ * `fileName`, `path`, `resolvedPath`, `originalFileName` and `packageJsonScope`
+ * back onto the file. A cache is therefore never shared with a site that has
+ * other options or resolves paths differently.
  */
 export class SourceCache {
   private readonly files = new Map<string, CachedSource>();
@@ -47,7 +56,7 @@ export class SourceCache {
     };
   }
 
-  /** Forget every cached file. */
+  /** Forget every cached file. Used by tests; no production code calls it. */
   clear(): void {
     this.files.clear();
   }
