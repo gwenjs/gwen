@@ -8,7 +8,18 @@
 
 import { describe, it, expect, vi } from "vitest";
 import { definePlugin } from "../src/plugin";
-import type { GwenEngineBase as GwenEngine, IGwenLogger } from "@gwenjs/schema";
+import type { GwenConfigIssue, GwenEngineBase as GwenEngine, IGwenLogger } from "@gwenjs/schema";
+
+declare module "@gwenjs/schema" {
+  interface GwenProvides {
+    physics2d: { gravity: number };
+    x: { n: number };
+    y: { n: number };
+    a: { n: number };
+    b: { n: number };
+    audio: { n: number };
+  }
+}
 
 // ─── Test helpers ─────────────────────────────────────────────────────────────
 
@@ -232,5 +243,235 @@ describe("definePlugin() — options variants", () => {
     const p2 = P({ id: "beta" });
     expect(p1.name).toBe("Plugin-alpha");
     expect(p2.name).toBe("Plugin-beta");
+  });
+});
+
+// ─── Declaration form ─────────────────────────────────────────────────────────
+
+describe("definePlugin() — declaration form", () => {
+  it("shallow merge and an undefined input keeps its default", () => {
+    type Options = { gravity: number; scale: number | undefined };
+    const defaults: Options = { gravity: -9.8, scale: 1 };
+    let received: Readonly<Options> = { gravity: Number.NaN, scale: undefined };
+    const P = definePlugin({ provides: ["physics2d"], options: { defaults } }, (options) => {
+      received = options;
+      return { name: "Physics", setup() {} };
+    });
+
+    expect(() => P({ gravity: -20, scale: undefined })).not.toThrow();
+    expect(received).toEqual({ gravity: -20, scale: 1 });
+    expect(P({ gravity: -20 }).provides).toEqual(["physics2d"]);
+  });
+
+  it("resolved options are frozen", () => {
+    type Options = { gravity: number };
+    let received: Readonly<Record<string, unknown>> = { unset: true };
+    const P = definePlugin(
+      { provides: ["physics2d"], options: { defaults: { gravity: -9.8 } } },
+      (options: Readonly<Options>) => {
+        received = options;
+        return { name: "Physics", setup() {} };
+      },
+    );
+
+    expect(() => P({ gravity: 3 })).not.toThrow();
+    const plugin = P({ gravity: 3 });
+    expect(received).toEqual({ gravity: 3 });
+    expect(Object.isFrozen(received)).toBe(true);
+    expect(Reflect.set(received, "gravity", 1)).toBe(false);
+    expect(received).toEqual({ gravity: 3 });
+    expect(plugin.provides).toEqual(["physics2d"]);
+    expect(Object.isFrozen(plugin.provides)).toBe(true);
+  });
+
+  it("the function form of provides is resolved and deduplicated", () => {
+    const P = definePlugin(
+      { provides: () => ["a", "a", "b", "a"], options: { defaults: {} } },
+      () => ({ name: "Dup", setup() {} }),
+    );
+
+    expect(() => P()).not.toThrow();
+    const plugin = P();
+    expect(plugin.provides).toEqual(["a", "b"]);
+    expect(Object.isFrozen(plugin.provides)).toBe(true);
+  });
+
+  it("the function form of provides reads the resolved options", () => {
+    const Off = definePlugin(
+      {
+        provides: (options) => (options.audio ? ["audio"] : []),
+        options: { defaults: { audio: false } },
+      },
+      () => ({ name: "Off", setup() {} }),
+    );
+    const On = definePlugin(
+      {
+        provides: (options) => (options.audio ? ["audio"] : []),
+        options: { defaults: { audio: true } },
+      },
+      () => ({ name: "On", setup() {} }),
+    );
+
+    expect(() => Off({ audio: true })).not.toThrow();
+    expect(Off({ audio: true }).provides).toEqual(["audio"]);
+    expect(Off().provides).toEqual([]);
+    expect(On({}).provides).toEqual(["audio"]);
+  });
+
+  it("setup keeps its identity", () => {
+    const setup = (): void => {};
+    const teardown = (): void => {};
+    const onError = (): void => {};
+    const Bare = definePlugin(() => ({ name: "Bare", setup, teardown, onError }));
+    const Services = definePlugin({ provides: ["x"] }, () => ({
+      name: "Services",
+      setup,
+      teardown,
+      onError,
+    }));
+    const WithOptions = definePlugin({ provides: ["x"], options: { defaults: {} } }, () => ({
+      name: "WithOptions",
+      setup,
+      teardown,
+      onError,
+    }));
+
+    expect(() => Services()).not.toThrow();
+    expect(() => WithOptions()).not.toThrow();
+    for (const plugin of [Bare(), Services(), WithOptions()]) {
+      expect(plugin.setup).toBe(setup);
+      expect(plugin.teardown).toBe(teardown);
+      expect(plugin.onError).toBe(onError);
+    }
+  });
+
+  it("invalid options do not throw at the factory call", () => {
+    type Options = { bad: boolean };
+    const issue: GwenConfigIssue = {
+      path: "bad",
+      expected: "false",
+      received: "true",
+      owner: "physics2d",
+    };
+    let validations = 0;
+    let validated: Readonly<Record<string, unknown>> = { unset: true };
+    const P = definePlugin(
+      {
+        provides: [],
+        options: {
+          defaults: { bad: false },
+          validate(options: Readonly<Options>) {
+            validations += 1;
+            validated = options;
+            return options.bad ? [issue] : [];
+          },
+        },
+      },
+      () => ({ name: "Strict", setup() {} }),
+    );
+
+    expect(() => P({ bad: true })).not.toThrow();
+    const plugin = P({ bad: true });
+    expect(validations).toBe(0);
+    expect(plugin.validateOptions()).toEqual([issue]);
+    expect(validations).toBe(1);
+    expect(validated).toEqual({ bad: true });
+    expect(Object.isFrozen(validated)).toBe(true);
+    expect(P().validateOptions()).toEqual([]);
+  });
+
+  it("overload 1 gives provides [] and validateOptions []", () => {
+    const P = definePlugin(() => ({ name: "Bare", setup() {} }));
+
+    expect(() => P()).not.toThrow();
+    const plugin = P();
+    expect(plugin.provides).toEqual([]);
+    expect(plugin.validateOptions()).toEqual([]);
+    expect(Object.isFrozen(plugin.provides)).toBe(true);
+  });
+
+  it("overload 2 declares provides and validateOptions returns []", () => {
+    const P = definePlugin({ provides: ["x"] }, () => ({ name: "Services", setup() {} }));
+
+    expect(() => P()).not.toThrow();
+    const plugin = P();
+    expect(plugin.provides).toEqual(["x"]);
+    expect(plugin.validateOptions()).toEqual([]);
+    expect(Object.keys(plugin)).toEqual(
+      expect.arrayContaining(["name", "setup", "provides", "validateOptions"]),
+    );
+  });
+
+  it("empty defaults {} with no input resolves {}", () => {
+    let received: Readonly<Record<string, unknown>> = { unset: true };
+    const P = definePlugin({ provides: [], options: { defaults: {} } }, (options) => {
+      received = options;
+      return { name: "Empty", setup() {} };
+    });
+
+    expect(() => P()).not.toThrow();
+    expect(received).toEqual({});
+    expect(Object.keys(received)).toEqual([]);
+    expect(Object.isFrozen(received)).toBe(true);
+  });
+
+  it("provides: [] with options is allowed", () => {
+    const P = definePlugin({ provides: [], options: { defaults: { n: 1 } } }, () => ({
+      name: "Quiet",
+      setup() {},
+    }));
+
+    expect(() => P({ n: 2 })).not.toThrow();
+    const plugin = P({ n: 2 });
+    expect(plugin.provides).toEqual([]);
+    expect(plugin.validateOptions()).toEqual([]);
+  });
+
+  it("a declaration with two keys keeps both in order", () => {
+    const P = definePlugin({ provides: ["y", "x"], options: { defaults: { n: 1 } } }, () => ({
+      name: "Two",
+      setup() {},
+    }));
+
+    expect(() => P()).not.toThrow();
+    expect(P().provides).toEqual(["y", "x"]);
+  });
+
+  it("nested object input replaces the nested default whole", () => {
+    type Options = { pos: { x: number; y?: number } };
+    const defaults: Options = { pos: { x: 1, y: 2 } };
+    let received: Readonly<Record<string, unknown>> = { unset: true };
+    const P = definePlugin({ provides: [], options: { defaults } }, (options) => {
+      received = options;
+      return { name: "Nested", setup() {} };
+    });
+
+    expect(() => P({ pos: { x: 9 } })).not.toThrow();
+    expect(received).toEqual({ pos: { x: 9 } });
+    expect(received.pos).toEqual({ x: 9 });
+  });
+
+  it("two instances from the same factory are independent", () => {
+    type Options = { n: number };
+    const provided: "x"[] = ["x"];
+    const seen: Readonly<Options>[] = [];
+    const P = definePlugin({ provides: provided, options: { defaults: { n: 0 } } }, (options) => {
+      seen.push(options);
+      return { name: "Twin", setup() {} };
+    });
+
+    expect(() => P({ n: 1 })).not.toThrow();
+    seen.length = 0;
+    const a = P({ n: 1 });
+    const b = P({ n: 2 });
+    expect(seen).toEqual([{ n: 1 }, { n: 2 }]);
+    expect(seen.every((options) => Object.isFrozen(options))).toBe(true);
+    expect(a).not.toBe(b);
+    expect(a.provides).toEqual(["x"]);
+    expect(b.provides).toEqual(["x"]);
+    expect(a.provides).not.toBe(b.provides);
+    expect(a.provides).not.toBe(provided);
+    expect(Object.isFrozen(provided)).toBe(false);
+    expect(provided).toEqual(["x"]);
   });
 });
