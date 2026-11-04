@@ -118,6 +118,20 @@ export async function readSourceText(file: SourceFile): Promise<string | undefin
   }
 }
 
+/**
+ * Text of the file at `full`, or `undefined` when it, or a directory above it, is missing. Any
+ * other read error rejects.
+ */
+export async function readTextIfPresent(full: string): Promise<string | undefined> {
+  try {
+    return await readFile(full, "utf8");
+  } catch (error) {
+    const code = readErrorCode(error);
+    if (code === "ENOENT" || code === "ENOTDIR") return undefined;
+    throw error;
+  }
+}
+
 export function parseSource(file: SourceFile, text: string): ts.SourceFile {
   return ts.createSourceFile(file.relative, text, ts.ScriptTarget.Latest, true);
 }
