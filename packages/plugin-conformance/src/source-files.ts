@@ -11,7 +11,7 @@ export interface SourceFile {
 
 const SCRIPT_FILE = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$/;
 const DECLARATION_FILE = /\.d\.[mc]?ts$/;
-const DIST_FILE = /\.(js|mjs|d\.ts)$/;
+const DIST_FILE = /\.([cm]?js|d\.[cm]?ts)$/;
 const TEST_NAME = /\.(test|spec)\./;
 const SETUP_NAME = /\.setup\./;
 const TEST_DIRECTORIES: ReadonlySet<string> = new Set(["tests", "test", "__tests__"]);
@@ -97,7 +97,7 @@ export async function listRuntimeFiles(root: string): Promise<readonly SourceFil
     .sort((left, right) => compareText(left.relative, right.relative));
 }
 
-/** The `.js`, `.mjs` and `.d.ts` files under `dist`, in path order. */
+/** The `.js`, `.mjs`, `.cjs`, `.d.ts`, `.d.mts` and `.d.cts` files under `dist`, in path order. */
 export async function listDistFiles(root: string): Promise<readonly SourceFile[]> {
   return (await listFiles(path.join(root, "dist")))
     .map((full) => ({ relative: toRelative(root, full), full }))

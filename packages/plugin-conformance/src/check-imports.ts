@@ -34,7 +34,17 @@ const FRAMEWORK_PACKAGES: ReadonlySet<string> = new Set(
   Object.keys(FRAMEWORK_ENTRIES).map(packageOfEntry),
 );
 const TEST_ONLY: ReadonlySet<string> = new Set(FRAMEWORK_TEST_ONLY_ENTRIES);
-const EXTENSION_SUFFIX = "/extension";
+const EXTENSION_SEGMENT = "extension";
+const CONFORMANCE_PACKAGE = "@gwenjs/plugin-conformance";
+/** Entries of the conformance package that a test file may import, whatever its snapshot lists. */
+const CONFORMANCE_TEST_ENTRIES: ReadonlySet<string> = new Set([
+  CONFORMANCE_PACKAGE,
+  `${CONFORMANCE_PACKAGE}/runtime`,
+  `${CONFORMANCE_PACKAGE}/vitest`,
+]);
+const FILE_URL = /^file:/i;
+/** A `node:` builtin or any other URL scheme (`https:`, `data:`): not a package. */
+const URL_SCHEME = /^[a-z][a-z0-9+.-]*:/i;
 
 /** Where a file is read: the runtime files of `src`, the test files, or the build output. */
 type ScanKind = "src" | "test" | "dist";
@@ -152,12 +162,42 @@ function isCommunity(manifest: ImportManifest): boolean {
   return !manifest.name.startsWith("@gwenjs/");
 }
 
-/** Rule 7: `<base>/extension` of a package listed in `gwen.extends`, for a community plugin only. */
-function isListedExtension(manifest: ImportManifest, specifier: string): boolean {
+/**
+ * Rule 7: `<base>/extension` of a package `<base>` listed in `gwen.extends`, for a community
+ * plugin only. A framework package or a forbidden package keeps its own rules.
+ */
+function isListedExtension(
+  manifest: ImportManifest,
+  pkg: string,
+  rest: readonly string[],
+): boolean {
   return (
     isCommunity(manifest) &&
-    specifier.endsWith(EXTENSION_SUFFIX) &&
-    manifest.extendsBases.has(specifier.slice(0, -EXTENSION_SUFFIX.length))
+    rest.length === 1 &&
+    rest[0] === EXTENSION_SEGMENT &&
+    manifest.extendsBases.has(pkg) &&
+    !FRAMEWORK_PACKAGES.has(pkg) &&
+    !FORBIDDEN_PACKAGES.has(pkg)
+  );
+}
+
+function leavesRoot(file: SourceFile, site: ImportSite, hint: string): ConformanceFinding {
+  return finding(
+    ConformanceErrorCodes.IMPORT_DEEP,
+    `"${site.specifier}" leaves the package root`,
+    hint,
+    file.relative,
+    site.line,
+  );
+}
+
+function notAnEntry(file: SourceFile, site: ImportSite, pkg: string): ConformanceFinding {
+  return finding(
+    ConformanceErrorCodes.IMPORT_DEEP,
+    `"${site.specifier}" is not an entry of ${pkg}`,
+    `Import one of the public entries of ${pkg}.`,
+    file.relative,
+    site.line,
   );
 }
 
@@ -190,6 +230,27 @@ async function checkThirdParty(
   ];
 }
 
+/** One IMPORT_UNDECLARED when `pkg` is in neither `peerDependencies` nor, in a test, `devDependencies`. */
+function undeclaredFindings(
+  run: ImportRun,
+  file: SourceFile,
+  kind: ScanKind,
+  site: ImportSite,
+  pkg: string,
+): ConformanceFinding[] {
+  if (run.manifest.peers.has(pkg) || (kind === "test" && run.manifest.devs.has(pkg))) return [];
+  const where = kind === "test" ? "peerDependencies or devDependencies" : "peerDependencies";
+  return [
+    finding(
+      ConformanceErrorCodes.IMPORT_UNDECLARED,
+      `${pkg} is imported but not declared in ${where}`,
+      `Add "${pkg}" to peerDependencies in package.json.`,
+      file.relative,
+      site.line,
+    ),
+  ];
+}
+
 function checkFrameworkEntry(
   run: ImportRun,
   file: SourceFile,
@@ -199,17 +260,7 @@ function checkFrameworkEntry(
 ): readonly ConformanceFinding[] {
   const { specifier } = site;
   const names = FRAMEWORK_ENTRIES[specifier];
-  if (names === undefined) {
-    return [
-      finding(
-        ConformanceErrorCodes.IMPORT_DEEP,
-        `"${specifier}" is not an entry of ${pkg}`,
-        `Import one of the public entries of ${pkg}.`,
-        file.relative,
-        site.line,
-      ),
-    ];
-  }
+  if (names === undefined) return [notAnEntry(file, site, pkg)];
   if (TEST_ONLY.has(specifier) && kind === "src") {
     return [
       finding(
@@ -221,20 +272,7 @@ function checkFrameworkEntry(
       ),
     ];
   }
-  const findings: ConformanceFinding[] = [];
-  const declared = run.manifest.peers.has(pkg) || (kind === "test" && run.manifest.devs.has(pkg));
-  if (!declared) {
-    const where = kind === "test" ? "peerDependencies or devDependencies" : "peerDependencies";
-    findings.push(
-      finding(
-        ConformanceErrorCodes.IMPORT_UNDECLARED,
-        `${pkg} is imported but not declared in ${where}`,
-        `Add "${pkg}" to peerDependencies in package.json.`,
-        file.relative,
-        site.line,
-      ),
-    );
-  }
+  const findings = undeclaredFindings(run, file, kind, site, pkg);
   const exported = new Set(names);
   for (const imported of site.names) {
     if (exported.has(imported.name)) continue;
@@ -264,21 +302,24 @@ async function checkSite(
   const { name } = run.manifest;
   const dist = kind === "dist";
   if (name !== "" && (specifier === name || specifier.startsWith(`${name}/`))) return [];
-  if (isRelative(specifier)) {
-    if (dist || !escapesRoot(run, file, specifier)) return [];
+  if (path.win32.isAbsolute(specifier) || FILE_URL.test(specifier)) {
+    if (dist) return [];
     return [
-      finding(
-        ConformanceErrorCodes.IMPORT_DEEP,
-        `"${specifier}" leaves the package root`,
-        "Keep relative imports inside the package.",
-        file.relative,
-        site.line,
+      leavesRoot(
+        file,
+        site,
+        "Import a package by name, or a file of this package by a relative path.",
       ),
     ];
   }
-  if (isListedExtension(run.manifest, specifier)) return [];
+  if (specifier.startsWith("#") || URL_SCHEME.test(specifier)) return [];
+  if (isRelative(specifier)) {
+    if (dist || !escapesRoot(run, file, specifier)) return [];
+    return [leavesRoot(file, site, "Keep relative imports inside the package.")];
+  }
 
   const { pkg, rest } = splitSpecifier(specifier);
+  if (isListedExtension(run.manifest, pkg, rest)) return [];
   if (!pkg.startsWith("@gwenjs/")) return dist ? [] : checkThirdParty(run, file, site, pkg);
   if (rest.some(isInternalSegment)) {
     return [
@@ -314,6 +355,10 @@ async function checkSite(
       ),
     ];
   }
+  if (kind === "test" && pkg === CONFORMANCE_PACKAGE) {
+    if (!CONFORMANCE_TEST_ENTRIES.has(specifier)) return [notAnEntry(file, site, pkg)];
+    return undeclaredFindings(run, file, kind, site, pkg);
+  }
   if (!FRAMEWORK_PACKAGES.has(pkg)) {
     return [
       finding(
@@ -347,8 +392,9 @@ async function listScans(root: string): Promise<readonly Scan[]> {
 
 /**
  * Import rules: every module specifier of `src`, of the test files, and (internal entries only)
- * of `dist`. A finding per offending line. Self imports are always accepted. A file or a
- * directory that cannot be read (any error but a missing one) rejects.
+ * of `dist`. A finding per offending import line, and one IMPORT_NOT_PUBLIC per name. Self imports
+ * are always accepted. A file or a directory that cannot be read (any error but a missing one)
+ * rejects.
  */
 export async function checkImports(
   context: PackageContext,
