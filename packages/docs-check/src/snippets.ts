@@ -2,6 +2,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { gwenSourceAliases } from "../../../vitest.aliases.js";
+import { fileDiagnostics } from "./file-diagnostics.js";
 import type { Fence } from "./fences.js";
 import { SourceCache } from "./shared-sources.js";
 
@@ -54,10 +55,8 @@ function typecheck(fence: Fence): { failure: SnippetFailure | null; program?: ts
   };
   const roots = fence.tag === "run" ? [snippetName, engineName] : [snippetName];
   const program = ts.createProgram(roots, options, host);
-  const diagnostics = ts.getPreEmitDiagnostics(program).filter((diagnostic) => {
-    const name = diagnostic.file?.fileName;
-    return name !== undefined && path.resolve(name) === snippetName;
-  });
+  const snippet = program.getSourceFile(snippetName);
+  const diagnostics = snippet ? fileDiagnostics(program, [snippet]) : [];
   const first = diagnostics[0];
   if (!first) return { failure: null, program };
   const start = first.start ?? 0;
@@ -112,7 +111,8 @@ export function checkFences(fences: Fence[]): SnippetFailure[] {
   );
   const seen = new Set<string>();
   const failures: SnippetFailure[] = [];
-  for (const diagnostic of ts.getPreEmitDiagnostics(program)) {
+  const snippets = entries.flatMap((entry) => program.getSourceFile(entry.fileName) ?? []);
+  for (const diagnostic of fileDiagnostics(program, snippets)) {
     const name = diagnostic.file?.fileName;
     if (name === undefined) continue;
     const hit = byName.get(path.resolve(name));
