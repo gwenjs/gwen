@@ -932,7 +932,10 @@ async function unrecordedHits(rule: RuleId): Promise<string[]> {
 
 // ── tests ────────────────────────────────────────────────────────────────────
 
-describe("deps-graph", () => {
+// These tests walk every packages/*/src file and starve on a loaded CI runner (0.3 s alone).
+const SCAN_TEST_MS = 30_000;
+
+describe("deps-graph", { timeout: SCAN_TEST_MS }, () => {
   it("every @gwenjs import and augmentation is a declared dependency", async () => {
     // The scanner fixtures live in this test, not in a test of their own: a stand-alone test
     // would pass on the base (verify-red copies only this file there) and count as "not red".
