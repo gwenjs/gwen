@@ -38,6 +38,8 @@ export type {
   GwenEngineBase,
   PluginErrorContext,
   GwenPlugin,
+  GwenEngineServiceKey,
+  GwenPluginServiceKey,
   GwenPluginRequirement,
   GwenPluginRequires,
   GwenProvides,

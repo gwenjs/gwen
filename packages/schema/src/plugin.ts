@@ -17,6 +17,7 @@ import type { GwenRuntimeHookName, GwenRuntimeHooks } from "./runtime-hooks.js";
 import type { CameraStateStore, LayerHost, ScreenInfoStore, ViewportStore } from "./renderer.js";
 import type { TransformReader2D } from "./transforms.js";
 import type { AssetsService } from "./assets.js";
+import type { GwenConfigIssue } from "./engine-config.js";
 
 /**
  * Augmentable interface for the typed provide/inject registry.
@@ -57,6 +58,18 @@ export interface GwenProvides {
  * Nothing checks this prefix yet.
  */
 export type GwenServiceKey = keyof GwenProvides & string;
+
+/**
+ * Service keys the engine itself registers. A plugin never declares them in
+ * {@link GwenPlugin.provides}.
+ */
+export type GwenEngineServiceKey = "logger" | "errors" | "wasm:bridge" | "memory";
+
+/**
+ * Service keys a plugin may declare in {@link GwenPlugin.provides}:
+ * every {@link GwenServiceKey} except the {@link GwenEngineServiceKey} ones.
+ */
+export type GwenPluginServiceKey = Exclude<GwenServiceKey, GwenEngineServiceKey>;
 
 /**
  * Minimal hook bus surface exposed to plugins via `GwenEngineBase.hooks`.
@@ -108,17 +121,20 @@ export interface HookBusBase {
  *   }
  * }
  *
- * export const AudioPlugin = definePlugin((opts: AudioOptions = {}) => ({
- *   name: 'AudioPlugin',
- *   setup(engine: GwenEngineBase) {
- *     const log = engine.logger.child('AudioPlugin')
- *     const manager = new AudioManager(opts)
- *     engine.provide('audio', manager)
- *     engine.hooks.hook('engine:stop', () => manager.suspend())
- *     engine.disposables.add('audio-manager', createDisposable(() => manager.dispose()))
- *     log.info('audio ready')
- *   },
- * }))
+ * export const AudioPlugin = definePlugin(
+ *   { provides: ['audio'], options: { defaults: audioDefaults } },
+ *   (opts) => ({
+ *     name: 'AudioPlugin',
+ *     setup(engine) {
+ *       const log = engine.logger.child('AudioPlugin')
+ *       const manager = new AudioManager(opts)
+ *       engine.provide('audio', manager)
+ *       engine.hooks.hook('engine:stop', () => manager.suspend())
+ *       engine.disposables.add('audio-manager', createDisposable(() => manager.dispose()))
+ *       log.info('audio ready')
+ *     },
+ *   }),
+ * )
  * ```
  */
 export interface GwenEngineBase {
@@ -276,15 +292,18 @@ export interface GwenPluginRequirement {
  * ```ts
  * import { definePlugin } from '@gwenjs/kit'
  *
- * export const MyPlugin = definePlugin((opts: { debug?: boolean } = {}) => ({
- *   name: 'MyPlugin',
- *   setup(engine) {
- *     if (opts.debug) engine.logger.child('MyPlugin').info('setup')
- *   },
- *   onError(error, context) {
- *     if (context.phase === 'setup') context.recover()
- *   },
- * }))
+ * export const MyPlugin = definePlugin(
+ *   { provides: [], options: { defaults: { debug: false } } },
+ *   (opts) => ({
+ *     name: 'MyPlugin',
+ *     setup(engine) {
+ *       if (opts.debug) engine.logger.child('MyPlugin').info('setup')
+ *     },
+ *     onError(error, context) {
+ *       if (context.phase === 'setup') context.recover()
+ *     },
+ *   }),
+ * )
  * ```
  */
 export interface GwenPlugin {
@@ -333,4 +352,18 @@ export interface GwenPlugin {
    * ```
    */
   onError?(error: unknown, context: PluginErrorContext): void;
+
+  /**
+   * Service keys this plugin instance provides in `setup()`. Absent means none.
+   * `definePlugin` writes it from the declaration's `provides`; a raw plugin
+   * object may set it as a plain field.
+   */
+  readonly provides?: readonly GwenPluginServiceKey[];
+
+  /**
+   * Checks the options this instance was created with. Returns the issues, or
+   * `[]` when the options are valid. `definePlugin` writes it, bound to the
+   * resolved options. It is not a lifecycle method: it never runs at the factory call.
+   */
+  readonly validateOptions?: () => readonly GwenConfigIssue[];
 }
