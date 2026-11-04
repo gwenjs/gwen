@@ -24,4 +24,6 @@ export const GWEN_PLUGIN_KEYS = Object.freeze([
   "teardown",
   "onError",
   "requires",
+  "provides",
+  "validateOptions",
 ] as const);
