@@ -2190,3 +2190,20 @@ test("the pull request test filter leaves out the root project", (t) => {
   assert.ok(kept !== null, "pnpm lists the workspace with the exclusion");
   assert.deepEqual([...kept].sort(), without.filter((name) => name !== "gwen").sort());
 });
+
+test("the TypeScript job runs the package tests one project at a time", () => {
+  const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+  assert.match(
+    pkg.scripts["test:ts"],
+    /(^| )--workspace-concurrency=1( |$)/,
+    "test:ts runs one workspace project at a time: four vitest runs on two cores starve the 5 s tests",
+  );
+  const step = stepText(jobBlock(readCi(), "typescript"), "Test packages");
+  assert.notEqual(step, "", "the typescript job has a Test packages step");
+  assert.match(step, /pnpm test:ts/, "the full path runs test:ts");
+  assert.match(
+    step,
+    /pnpm \$FILTERS (?:\S+ )*--workspace-concurrency=1 (?:\S+ )*--if-present test/,
+    "the pull request path runs one project at a time and keeps --if-present",
+  );
+});
