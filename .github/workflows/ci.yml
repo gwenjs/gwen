@@ -281,7 +281,9 @@ jobs:
             exit 0
           fi
           git fetch --no-tags origin "$BASE"
-          filters="--filter ...[origin/$BASE...HEAD]"
+          # pnpm gives every file outside a package (docs/**) to the root project, gwen. Its test
+          # script reruns Rust, every package and WASM, so the root project stays out of the filter.
+          filters="--filter ...[origin/$BASE...HEAD] --filter !gwen"
           # crates/** belongs to no pnpm package, but core and its dependents consume it.
           if [ "$RUST" = "true" ]; then filters="$filters --filter ...@gwenjs/core"; fi
           echo "full=false" >> "$GITHUB_OUTPUT"
