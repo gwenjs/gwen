@@ -2117,3 +2117,76 @@ test("wasm-capacity is a required job", () => {
   assert.match(block, /os: ubuntu-24.04\n/);
   assert.doesNotMatch(block, /continue-on-error/);
 });
+
+// Diff of 2 docs files and 12 package files, both commits on v1-alpha.
+// pnpm gives the docs files to the root project, named gwen.
+const ROOT_FILTER_RANGE = "3567481a...85e5b3d5";
+
+/**
+ * Names of the projects pnpm selects for the given filters, or null when pnpm cannot answer.
+ *
+ * @param {string[]} filters
+ * @returns {string[] | null}
+ */
+function selectedProjects(filters) {
+  const run = spawnSync("pnpm", [...filters, "list", "--depth", "-1", "--json"], {
+    cwd: root,
+    encoding: "utf8",
+    env: withoutGitHookEnv(process.env),
+  });
+  if (run.error || run.status !== 0) return null;
+  return JSON.parse(run.stdout).map((/** @type {{ name: string }} */ project) => project.name);
+}
+
+/**
+ * Raw text of one step of a job. namedSteps stops at the first indented line of a run block.
+ *
+ * @param {string} jobText
+ * @param {string} name
+ * @returns {string}
+ */
+function stepText(jobText, name) {
+  const lines = jobText.split("\n");
+  const start = lines.indexOf(`      - name: ${name}`);
+  if (start === -1) return "";
+  let end = start + 1;
+  while (end < lines.length && !/^ {6}- /.test(lines[end] ?? "")) end++;
+  return lines.slice(start, end).join("\n");
+}
+
+test("the pull request test filter leaves out the root project", (t) => {
+  const job = jobBlock(readCi(), "typescript");
+  const select = stepText(job, "Select packages");
+  assert.notEqual(select, "", "the typescript job has a Select packages step");
+  const base = select.match(/^ +filters="(--filter \.\.\.\[origin\/\$BASE\.\.\.HEAD\][^"]*)"$/m);
+  assert.ok(base, "Select packages builds filters= from the changed-since filter");
+  assert.match(
+    base[1] ?? "",
+    /(^| )--filter '?!gwen'?( |$)/,
+    "the root project is excluded: its test script reruns the whole suite, and a docs/** change selects it",
+  );
+  for (const name of ["Typecheck", "Test packages"]) {
+    const step = stepText(job, name);
+    assert.match(step, /pnpm \$FILTERS /, `${name} splits $FILTERS into separate arguments`);
+  }
+
+  const resolvable = ["3567481a", "85e5b3d5"].every(
+    (sha) =>
+      spawnSync("git", ["cat-file", "-e", `${sha}^{commit}`], {
+        cwd: root,
+        env: withoutGitHookEnv(process.env),
+      }).status === 0,
+  );
+  const changed = [`--filter`, `...[${ROOT_FILTER_RANGE}]`];
+  const without = resolvable ? selectedProjects(changed) : null;
+  if (without === null) {
+    t.diagnostic(
+      "pnpm part skipped: the range is not in this checkout or pnpm cannot list the workspace",
+    );
+    return;
+  }
+  assert.ok(without.includes("gwen"), "without the exclusion a docs change selects the root");
+  const kept = selectedProjects([...changed, "--filter", "!gwen"]);
+  assert.ok(kept !== null, "pnpm lists the workspace with the exclusion");
+  assert.deepEqual([...kept].sort(), without.filter((name) => name !== "gwen").sort());
+});
