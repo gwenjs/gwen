@@ -1,6 +1,6 @@
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
-import { fileDiagnostics } from "../src/file-diagnostics.js";
+import { fileDiagnostics, needsFullCheck } from "../src/file-diagnostics.js";
 
 const options: ts.CompilerOptions = {
   strict: true,
@@ -30,6 +30,8 @@ function programOf(files: Record<string, string>): ts.Program {
   };
   const exists = host.fileExists.bind(host);
   host.fileExists = (fileName) => fileName in files || exists(fileName);
+  const directoryExists = host.directoryExists?.bind(host);
+  host.directoryExists = (dir) => dir === "/virtual" || (directoryExists?.(dir) ?? false);
   return ts.createProgram(Object.keys(files), options, host);
 }
 
@@ -114,4 +116,74 @@ describe("file diagnostics", () => {
 
     expect(fileDiagnostics(program, [stranger])).toEqual([]);
   });
+
+  it("does not return a deferred global diagnostic raised while checking the file", () => {
+    const text = `function* g() { yield 1; }\n${TYPE_ERROR}`;
+    const raw = programOf({ "/virtual/snippet.ts": text });
+    const rawSnippet = sourceOf(raw, "/virtual/snippet.ts");
+    const deferred = raw.getSemanticDiagnostics(rawSnippet).filter((d) => d.file === undefined);
+    expect(deferred.map((diagnostic) => diagnostic.code)).toEqual([2318]);
+    expect(needsFullCheck(rawSnippet)).toBe(false);
+
+    const program = programOf({ "/virtual/snippet.ts": text });
+    const snippet = sourceOf(program, "/virtual/snippet.ts");
+    const diagnostics = fileDiagnostics(program, [snippet]);
+
+    expect(diagnostics.every((diagnostic) => diagnostic.file === snippet)).toBe(true);
+    expect(diagnostics[0]?.code).toBe(2322);
+  });
+
+  it("reports an index-signature error of an augmented interface that only the declaring file's check finds", () => {
+    const program = programOf({
+      "/virtual/lib.ts": "export interface Hooks { [name: string]: (...a: unknown[]) => void }\n",
+      "/virtual/snippet.ts":
+        'import "./lib";\ndeclare module "./lib" { interface Hooks { bad: number } }\nexport {};\n',
+    });
+    const snippet = sourceOf(program, "/virtual/snippet.ts");
+    const expected = ts.getPreEmitDiagnostics(program).filter((d) => d.file === snippet);
+    expect(expected.map((diagnostic) => diagnostic.code)).toContain(2411);
+
+    const fresh = programOf({
+      "/virtual/lib.ts": "export interface Hooks { [name: string]: (...a: unknown[]) => void }\n",
+      "/virtual/snippet.ts":
+        'import "./lib";\ndeclare module "./lib" { interface Hooks { bad: number } }\nexport {};\n',
+    });
+
+    expect(summary(fileDiagnostics(fresh, [sourceOf(fresh, "/virtual/snippet.ts")]))).toEqual(
+      summary(expected),
+    );
+  });
 });
+
+describe("needsFullCheck", () => {
+  it("needsFullCheck is false for a plain module", () => {
+    expect(needsFullCheck(parse("import { a } from './a';\nexport const b = a;\n"))).toBe(false);
+  });
+
+  it("needsFullCheck is true for a script file", () => {
+    expect(needsFullCheck(parse("const value = 1;\ninterface Shared { a: string }\n"))).toBe(true);
+  });
+
+  it("needsFullCheck is true for a module augmentation, a declare global block and an ambient module declaration", () => {
+    const constructs: Record<string, string> = {
+      "module augmentation": 'declare module "./lib" { interface Hooks { bad: number } }',
+      "declare global": "declare global { interface Window { shared: number } }",
+      "ambient module": 'declare module "ambient-thing" { export const value: number }',
+      "nested declare global": "namespace Outer { declare global { var shared: number } }",
+      "nested ambient module": 'namespace Outer { declare module "inner" {} }',
+    };
+    for (const [name, construct] of Object.entries(constructs)) {
+      expect(needsFullCheck(parse(`export {};\n${construct}\n`)), name).toBe(true);
+    }
+  });
+});
+
+function parse(text: string): ts.SourceFile {
+  return ts.createSourceFile(
+    "/virtual/probe.ts",
+    text,
+    ts.ScriptTarget.ES2022,
+    true,
+    ts.ScriptKind.TS,
+  );
+}

@@ -18,3 +18,8 @@ export function fileDiagnostics(
   ];
   return ts.sortAndDeduplicateDiagnostics(diagnostics);
 }
+
+/** Skeleton. */
+export function needsFullCheck(_file: ts.SourceFile): boolean {
+  return false;
+}
