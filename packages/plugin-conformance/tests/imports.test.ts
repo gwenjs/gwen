@@ -28,6 +28,7 @@ const ALL_CHECKS = [
   "attw",
   "readme",
   "imports",
+  "augment",
   "hooks",
   "test-mocks",
   "manifest",
