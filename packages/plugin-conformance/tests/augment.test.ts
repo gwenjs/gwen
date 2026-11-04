@@ -147,6 +147,22 @@ describe("augment check", () => {
   );
 
   it(
+    "reads a computed key written as a template without substitution",
+    { timeout: SLOW_TEST_MS },
+    async () => {
+      const report = await checkCopy((root) =>
+        writeSource(root, "src/a.ts", providesAugmentation("[`cameraManager`]: object;")),
+      );
+      const [finding, ...rest] = augmentFindings(report);
+      expect(rest).toEqual([]);
+      expect(finding?.line).toBe(4);
+      expect(finding?.message).toBe(
+        'GwenProvides key "cameraManager" is already declared by @gwenjs/schema',
+      );
+    },
+  );
+
+  it(
     "reports a framework key declared as a method signature",
     { timeout: SLOW_TEST_MS },
     async () => {
@@ -318,7 +334,7 @@ describe("augment check", () => {
   });
 
   it(
-    "reports nothing for a declare global, a namespace and a module named by an identifier",
+    "reports nothing for a declare global, a namespace named by an identifier and a module named by an identifier",
     { timeout: SLOW_TEST_MS },
     async () => {
       const report = await checkCopy((root) =>
@@ -350,6 +366,103 @@ describe("augment check", () => {
   );
 
   it(
+    "ignores a GwenProvides interface declared in global scope",
+    { timeout: SLOW_TEST_MS },
+    async () => {
+      const report = await checkCopy((root) =>
+        writeSource(
+          root,
+          "src/a.ts",
+          [
+            "export {};",
+            "declare global {",
+            "  interface GwenProvides {",
+            "    cameraManager: number;",
+            "  }",
+            "}",
+            "",
+          ].join("\n"),
+        ),
+      );
+      expect(augmentFindings(report)).toEqual([]);
+    },
+  );
+
+  it("reports a declare module nested in a namespace", { timeout: SLOW_TEST_MS }, async () => {
+    // Pins the recursive walk: the check reads a string-named module wherever it sits.
+    const report = await checkCopy((root) =>
+      writeSource(
+        root,
+        "src/a.ts",
+        ["export {};", "declare namespace N {", '  declare module "@gwenjs/core" {}', "}", ""].join(
+          "\n",
+        ),
+      ),
+    );
+    expect(sites(report)).toEqual(["src/a.ts:3"]);
+  });
+
+  it("reads a declare module in a declaration file of src", { timeout: SLOW_TEST_MS }, async () => {
+    const report = await checkCopy((root) =>
+      writeSource(root, "src/augment.d.ts", 'export {};\ndeclare module "@gwenjs/core" {}\n'),
+    );
+    const [finding, ...rest] = augmentFindings(report);
+    expect(rest).toEqual([]);
+    expect(finding?.file).toBe("src/augment.d.ts");
+    expect(finding?.line).toBe(2);
+    expect(finding?.message).toContain("@gwenjs/core");
+  });
+
+  it(
+    "reads a GwenProvides key in a declaration file of src",
+    { timeout: SLOW_TEST_MS },
+    async () => {
+      const report = await checkCopy((root) =>
+        writeSource(
+          root,
+          "src/augment.d.ts",
+          providesAugmentation("cameraManager: object;", "ownService: number;"),
+        ),
+      );
+      const [finding, ...rest] = augmentFindings(report);
+      expect(rest).toEqual([]);
+      expect(finding?.file).toBe("src/augment.d.ts");
+      expect(finding?.line).toBe(4);
+      expect(finding?.message).toBe(
+        'GwenProvides key "cameraManager" is already declared by @gwenjs/schema',
+      );
+    },
+  );
+
+  it(
+    "reads a .d.mts file, a .d.cts file and a declaration file of a test directory",
+    { timeout: SLOW_TEST_MS },
+    async () => {
+      const text = 'export {};\ndeclare module "@gwenjs/kit" {}\n';
+      const report = await checkCopy(async (root) => {
+        await writeDeep(root, "src/deep/b.d.mts", text);
+        await writeDeep(root, "src/deep/c.d.cts", text);
+        await writeDeep(root, "tests/types/d.d.ts", text);
+      });
+      expect(sites(report)).toEqual([
+        "src/deep/b.d.mts:2",
+        "src/deep/c.d.cts:2",
+        "tests/types/d.d.ts:2",
+      ]);
+    },
+  );
+
+  it("does not read declaration files of dist", { timeout: SLOW_TEST_MS }, async () => {
+    const text = 'export {};\ndeclare module "@gwenjs/core" {}\n';
+    const report = await checkCopy(async (root) => {
+      await writeDeep(root, "dist/index.d.ts", text);
+      // Below a test directory of dist: only the dist rule keeps it out.
+      await writeDeep(root, "dist/tests/types.d.ts", text);
+    });
+    expect(augmentFindings(report)).toEqual([]);
+  });
+
+  it(
     "reports nothing for a module whose scope only looks like @gwenjs",
     { timeout: SLOW_TEST_MS },
     async () => {
@@ -374,6 +487,8 @@ describe("augment check", () => {
     "rejects when a source file cannot be read",
     { timeout: SLOW_TEST_MS },
     async () => {
+      // Not a proof for augment alone: the imports and test-mocks checks read the same file and
+      // reject with the same EACCES, so this stays green if augment swallowed the error.
       const fixture = await openFixture();
       await writeSource(fixture.root, "src/a.ts", "export const a = 1;\n");
       // The check lists `augment` while the file is readable.
