@@ -19,9 +19,12 @@ export interface FixtureManifest {
   version?: string;
   license?: string;
   type?: string;
-  gwen?: { type: string };
+  gwen?: { type: string; extends?: string[] };
   repository?: string;
   exports?: Record<string, string | ExportCondition>;
+  peerDependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+  dependencies?: Record<string, string>;
 }
 
 export interface Fixture {
@@ -111,6 +114,34 @@ export async function writeDeep(root: string, relative: string, text: string): P
   const full = path.join(root, relative);
   await mkdir(path.dirname(full), { recursive: true });
   await writeFile(full, text);
+}
+
+/** Install a package manifest at `<root>/node_modules/<name>/package.json`. */
+export async function writeInstalledPackage(
+  root: string,
+  name: string,
+  manifest: Record<string, unknown>,
+): Promise<void> {
+  await writeDeep(
+    root,
+    path.join("node_modules", name, "package.json"),
+    `${JSON.stringify({ name, version: "1.0.0", ...manifest }, null, 2)}\n`,
+  );
+}
+
+/** Source text of `count` lines that each import `specifier`, one named import per line. */
+export function importLines(specifier: string, count: number): string {
+  return Array.from(
+    { length: count },
+    (_, index) => `import { name${index} } from ${JSON.stringify(specifier)};\n`,
+  ).join("");
+}
+
+/** Declare the framework packages that `src` imports, as a plugin does. */
+export async function declarePeers(root: string, names: readonly string[]): Promise<void> {
+  await editManifest(root, (manifest) => {
+    manifest.peerDependencies = Object.fromEntries(names.map((name) => [name, "*"]));
+  });
 }
 
 export function manifestExports(
