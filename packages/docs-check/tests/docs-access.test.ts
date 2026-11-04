@@ -285,11 +285,12 @@ function virtualDiagnostics(files: Map<string, string>, entries: string[]): stri
   const virtualSources = [...virtualFiles.keys()].flatMap(
     (name) => program.getSourceFile(name) ?? [],
   );
-  const diagnostics = [
+  const ofFiles = fileDiagnostics(program, virtualSources);
+  const diagnostics = ts.sortAndDeduplicateDiagnostics([
     ...program.getOptionsDiagnostics(),
+    ...ofFiles,
     ...program.getGlobalDiagnostics(),
-    ...fileDiagnostics(program, virtualSources),
-  ];
+  ]);
   for (const diagnostic of diagnostics) {
     if (diagnostic.category !== ts.DiagnosticCategory.Error) continue;
     messages.push(ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n"));
