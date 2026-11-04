@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { gwenSourceAliases } from "../../../vitest.aliases.js";
 import type { Fence } from "./fences.js";
+import { SourceCache } from "./shared-sources.js";
 
 export interface SnippetFailure {
   file: string;
@@ -13,6 +14,12 @@ export interface SnippetFailure {
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const packageRoot = path.join(repoRoot, "packages/docs-check");
 const ENGINE_TEXT = 'declare const engine: import("@gwenjs/core").GwenEngine;\n';
+const sources = new SourceCache();
+
+/** The parsed-source cache of the fence checks, read-only: tests count its parses. */
+export function snippetSourceCache(): { readonly parses: number } {
+  return sources;
+}
 
 /**
  * Type-check one tagged fence. Untagged fences are skipped.

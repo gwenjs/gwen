@@ -9,11 +9,13 @@ import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import { gwenSourceAliases } from "../../../vitest.aliases.js";
 import { extractFences, type Fence } from "../src/fences.js";
+import { SourceCache } from "../src/shared-sources.js";
 import { checkFences } from "../src/snippets.js";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const packageRoot = path.join(repoRoot, "packages/docs-check");
 const virtualRoot = "/virtual/gwen-docs-page";
+const guideSources = new SourceCache();
 
 function pageText(file: string): string {
   return readFileSync(path.join(repoRoot, file), "utf8");
@@ -218,6 +220,22 @@ describe("deferred access pages", () => {
     expect(tagged.length).toBeGreaterThan(0);
     expect(checkFences(tagged)).toEqual([]);
   });
+
+  it("keeps the docs-access guide check reporting a real error", () => {
+    const files = new Map<string, string>([
+      [
+        virtual("src/broken.ts"),
+        'import { NoSuchExport } from "@gwenjs/core";\nexport const value = NoSuchExport;\n',
+      ],
+    ]);
+    const first = virtualDiagnostics(files, [virtual("src/broken.ts")]);
+    expect(first).toHaveLength(1);
+    expect(first[0]).toContain("NoSuchExport");
+    const parsed = guideSources.parses;
+    expect(parsed).toBeGreaterThan(0);
+    expect(virtualDiagnostics(files, [virtual("src/broken.ts")])).toEqual(first);
+    expect(guideSources.parses).toBe(parsed);
+  });
 });
 
 function checkFencesOf(file: string): Fence[] {
@@ -240,7 +258,7 @@ function virtualDiagnostics(files: Map<string, string>, entries: string[]): stri
   const host = ts.createCompilerHost(options, true);
   const virtualFiles = new Map<string, string>();
   for (const [name, text] of files) virtualFiles.set(path.resolve(name), text);
-  const read = host.getSourceFile.bind(host);
+  const read = guideSources.through(host.getSourceFile.bind(host));
   host.getSourceFile = (fileName, languageVersion, onError, shouldCreateNewSourceFile) => {
     const hit = virtualFiles.get(path.resolve(fileName));
     if (hit !== undefined) {
