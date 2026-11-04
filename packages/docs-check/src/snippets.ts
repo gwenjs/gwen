@@ -36,7 +36,7 @@ function typecheck(fence: Fence): { failure: SnippetFailure | null; program?: ts
   const engineName = path.join(packageRoot, "__docs_engine__.d.ts");
   const options = compilerOptions();
   const host = ts.createCompilerHost(options, true);
-  const read = host.getSourceFile.bind(host);
+  const read = sources.through(host.getSourceFile.bind(host));
   host.getSourceFile = (fileName, languageVersion, onError, shouldCreateNewSourceFile) => {
     const resolved = path.resolve(fileName);
     if (resolved === snippetName) {
@@ -94,7 +94,7 @@ export function checkFences(fences: Fence[]): SnippetFailure[] {
   const byName = new Map(entries.map((entry) => [path.resolve(entry.fileName), entry]));
   const options = compilerOptions();
   const host = ts.createCompilerHost(options, true);
-  const read = host.getSourceFile.bind(host);
+  const read = sources.through(host.getSourceFile.bind(host));
   host.getSourceFile = (fileName, languageVersion, onError, shouldCreateNewSourceFile) => {
     const hit = byName.get(path.resolve(fileName));
     if (hit) {
