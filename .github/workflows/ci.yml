@@ -297,12 +297,14 @@ jobs:
           FILTERS: ${{ steps.select.outputs.filters }}
         run: |
           if [ "$FULL" = "true" ]; then pnpm typecheck; else pnpm $FILTERS exec tsc --noEmit; fi
+      # One vitest at a time: the runner has two cores, and four suites at once starve
+      # the tests that have a 5 s timeout.
       - name: Test packages
         env:
           FULL: ${{ steps.select.outputs.full }}
           FILTERS: ${{ steps.select.outputs.filters }}
         run: |
-          if [ "$FULL" = "true" ]; then pnpm test:ts; else pnpm $FILTERS --if-present test; fi
+          if [ "$FULL" = "true" ]; then pnpm test:ts; else pnpm $FILTERS --workspace-concurrency=1 --if-present test; fi
       - name: Test WASM
         if: steps.select.outputs.full == 'true' || steps.select.outputs.core == 'true' || needs.changes.outputs.rust == 'true'
         run: pnpm test:wasm

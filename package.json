@@ -25,7 +25,7 @@
     "dev": "concurrently \"./scripts/clean-cargo.sh watch\" \"pnpm -r dev\"",
     "test": "./scripts/clean-cargo.sh test && pnpm -r test && pnpm test:wasm && pnpm test:scripts",
     "test:scripts": "node --test scripts/*.test.mjs scripts/wasm-capacity/*.test.mjs",
-    "test:ts": "pnpm --filter '@gwenjs/*' test",
+    "test:ts": "pnpm --filter '@gwenjs/*' --workspace-concurrency=1 test",
     "test:wasm": "pnpm --filter @gwenjs/core test:wasm",
     "test:alloc": "pnpm --filter @gwenjs/core test:alloc",
     "test:cargo": "./scripts/clean-cargo.sh test",
