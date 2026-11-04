@@ -1,4 +1,5 @@
 import { checkAttw } from "./check-attw.js";
+import { checkAugment } from "./check-augment.js";
 import { CONFORMANCE_CHECK_IDS } from "./check-ids.js";
 import { checkExports } from "./check-exports.js";
 import { checkHooks } from "./check-hooks.js";
@@ -41,10 +42,10 @@ function invalidProfileReport(profile: string): ConformanceReport {
 
 /**
  * Run the implemented checks for the package at `opts.root`.
- * `package.json` is read once. The `imports`, `hooks`, `test-mocks` and `manifest` checks always
- * run. The snapshot, publint, attw and readme checks run only when `exports` has no finding. With
- * `write`, the snapshot is rewritten from the build before it is compared. When `package.json` is
- * missing or not JSON, only the manifest check is reported.
+ * `package.json` is read once. The `imports`, `augment`, `hooks`, `test-mocks` and `manifest`
+ * checks always run. The snapshot, publint, attw and readme checks run only when `exports` has no
+ * finding. With `write`, the snapshot is rewritten from the build before it is compared. When
+ * `package.json` is missing or not JSON, only the manifest check is reported.
  * An unknown `profile` (from a JS caller) is one `INVALID_SPEC` finding, not a throw. A `src` file
  * that cannot be read (any error but a missing file) rejects with that error: a silent pass would
  * hide a violation.
@@ -63,17 +64,25 @@ export async function checkPluginPackage(
     text: loaded.text,
     manifest: loaded.manifest,
   };
-  const [exportsFindings, importsFindings, hooksFindings, testMocksFindings, manifestFindings] =
-    await Promise.all([
-      checkExports(context),
-      checkImports(context),
-      checkHooks(context),
-      checkTestMocks(context),
-      checkManifest(context),
-    ]);
+  const [
+    exportsFindings,
+    importsFindings,
+    augmentFindings,
+    hooksFindings,
+    testMocksFindings,
+    manifestFindings,
+  ] = await Promise.all([
+    checkExports(context),
+    checkImports(context),
+    checkAugment(context),
+    checkHooks(context),
+    checkTestMocks(context),
+    checkManifest(context),
+  ]);
   const byId: FindingsById = {
     exports: exportsFindings,
     imports: importsFindings,
+    augment: augmentFindings,
     hooks: hooksFindings,
     "test-mocks": testMocksFindings,
     manifest: manifestFindings,

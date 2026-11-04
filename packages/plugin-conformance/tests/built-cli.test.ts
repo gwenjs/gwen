@@ -103,7 +103,7 @@ describe("the built gwen-conformance binary", () => {
     const lines = run.stdout.split("\n");
     expect(lines.pop()).toBe("");
     const summary = lines.at(-1) ?? "";
-    const match = /^CONFORMANCE: (\d+) findings \(5 checks\)$/.exec(summary);
+    const match = /^CONFORMANCE: (\d+) findings \(6 checks\)$/.exec(summary);
     expect(match, `summary line: ${summary.slice(0, 80)}`).not.toBeNull();
     const findings = Number(match?.[1]);
     expect(findings).toBeGreaterThanOrEqual(LONG_REPORT_SUBPATHS);
