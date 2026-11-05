@@ -109,8 +109,8 @@ function emitDisabledBodies(ctx: PluginContext): void {
 
 // ─── Plugin implementation ──────────────────────────────────────────────────────
 
-const physics3dDeclaration: GwenPluginDeclaration<Physics3DConfig, never> = {
-  provides: [],
+const physics3dDeclaration: GwenPluginDeclaration<Physics3DConfig, "physics3d"> = {
+  provides: ["physics3d"],
   options: { defaults: {} },
 };
 

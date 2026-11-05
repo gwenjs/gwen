@@ -14,7 +14,7 @@
  */
 
 import { definePlugin } from "@gwenjs/kit/plugin";
-import { asFullEngine } from "@gwenjs/core/internal";
+import type { GwenEngine } from "@gwenjs/core";
 import { getOrCreateViewportManager } from "@gwenjs/renderer-core";
 import type { ViewportRegion } from "@gwenjs/renderer-core";
 
@@ -30,11 +30,9 @@ const DEFAULT_MAIN: ViewportRegion = { x: 0, y: 0, width: 1, height: 1 };
 export function createViewportsPlugin(viewports?: Record<string, ViewportRegion>) {
   const entries: [string, ViewportRegion][] = Object.entries(viewports ?? {});
 
-  return definePlugin(() => ({
+  return definePlugin({ provides: ["viewportManager"] }, () => ({
     name: "gwen:viewports",
-    setup(engineBase) {
-      // Internal plugin — narrow to the full GwenEngine for the typed viewport helper.
-      const engine = asFullEngine(engineBase);
+    setup(engine: GwenEngine) {
       const vm = getOrCreateViewportManager(engine);
       engine.hooks.hook("engine:init", () => {
         if (entries.length === 0) {

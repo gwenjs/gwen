@@ -531,6 +531,10 @@ export interface GwenEngine extends GwenEngineBase {
    * Register and initialise a plugin. Installs once per name; a duplicate call
    * resolves and warns in debug. Rejects `CORE:PLUGIN_DEPENDENCY_MISSING` before
    * `setup()` when `plugin.requires` is unmet. `requires.optional` is not checked.
+   * Rejects `CORE:PLUGIN_OPTIONS_INVALID` when `plugin.validateOptions()` lists issues,
+   * and `CORE:PLUGIN_PROVIDE_DUPLICATE` when a key in `plugin.provides` is already held.
+   * Both reject before `setup()`. Rejects `CORE:PLUGIN_PROVIDE_MISSING` when `setup()`
+   * resolves without providing every key in `plugin.provides`; the plugin is then removed.
    * Allowed in `idle` and `running` only; rejects with `GwenEngineStateError` in
    * `starting`, `stopping`, `stopped` and `faulted`.
    */

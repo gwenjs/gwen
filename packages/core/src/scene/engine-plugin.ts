@@ -111,6 +111,7 @@ export class SceneHookRegistry {
 export function SceneEnginePlugin(): GwenPlugin {
   return {
     name: "gwen:scene",
+    provides: ["scene:hook-registry"],
     setup(engine: GwenEngineBase) {
       const registry = new SceneHookRegistry();
       engine.provide("scene:hook-registry", registry);

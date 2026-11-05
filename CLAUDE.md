@@ -247,7 +247,7 @@ reserved for internal hooks.
 
 ### Plugin → service → consumer chain
 
-A plugin registers a service with `engine.provide('name', impl)` in its `setup()`.
+A plugin lists its service keys in `provides` and registers each with `engine.provide('name', impl)` in its `setup()`.
 Any system or actor can retrieve it with `useService('name')` from `@gwenjs/core/system`.
 This is the canonical way to share runtime state between unrelated parts of the game.
 
