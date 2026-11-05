@@ -4,6 +4,8 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
 import {
   GwenError,
+  type GwenConfigIssue,
+  type GwenEngineBase,
   type GwenErrorPayload,
   type GwenLogEntry,
   type IGwenScope,
@@ -15,10 +17,12 @@ import {
   GwenPluginDependencyError,
   GwenPluginNotFoundError,
   onCleanup,
+  useEngine,
   useHook,
   type GwenEngine,
   type GwenPlugin,
 } from "../src/index";
+import * as core from "../src/index";
 import { createEngine as openEngine } from "../src/node";
 
 const engines: GwenEngine[] = [];
@@ -39,6 +43,9 @@ declare module "@gwenjs/schema" {
     testSvc: { value: number };
     s1: { readonly missing: true };
     "absent:svc": { readonly missing: true };
+    "lc:alpha": { readonly n: number };
+    "lc:beta": { readonly n: number };
+    "lc:gamma": { readonly n: number };
   }
 }
 
@@ -401,6 +408,7 @@ describe("engine.use / engine.unuse", () => {
     let hits = 0;
     await engine.use({
       name: "B",
+      provides: ["testSvc"],
       setup(host) {
         host.provide("testSvc", { value: 1 });
         host.hooks.hook("engine:update", () => {
@@ -441,6 +449,7 @@ describe("engine.use / engine.unuse", () => {
     const engine = await createEngine();
     await engine.use({
       name: "B",
+      provides: ["testSvc"],
       setup(host) {
         host.provide("testSvc", { value: 2 });
       },
@@ -1106,5 +1115,565 @@ describe("plugin setup scope", () => {
     expect(thrown.cause).toBe(cause);
     expect(events.map((event) => event.code)).toEqual(["CORE:PLUGIN_SETUP_ERROR"]);
     expect(events[0]?.error).toBe(thrown);
+  });
+});
+
+describe("plugin options and provided keys", () => {
+  const optionIssues: readonly GwenConfigIssue[] = [
+    { path: "gravity", expected: "a finite number", received: "NaN", owner: "test" },
+    { path: "layers", expected: "an array of numbers", received: '"x"', owner: "test" },
+  ];
+
+  function busEvents(engine: GwenEngine): GwenErrorPayload[] {
+    const events: GwenErrorPayload[] = [];
+    engine.errors.on((event) => {
+      events.push(event);
+    });
+    return events;
+  }
+
+  function serviceEvents(engine: GwenEngine): string[] {
+    const events: string[] = [];
+    engine.hooks.hook("service:provided", (notice) => {
+      events.push(`provided:${String(notice.key)}`);
+    });
+    engine.hooks.hook("service:removed", (notice) => {
+      events.push(`removed:${String(notice.key)}`);
+    });
+    return events;
+  }
+
+  it("use() with invalid options rejects CORE:PLUGIN_OPTIONS_INVALID listing every issue, setup not called, nothing on the bus", async () => {
+    expect(typeof core.GwenPluginOptionsError).toBe("function");
+    const engine = await createEngine();
+    const events = busEvents(engine);
+    let setups = 0;
+    let registered = 0;
+    engine.hooks.hook("plugin:registered", () => {
+      registered += 1;
+    });
+    const plugin: GwenPlugin = {
+      name: "Opts",
+      validateOptions: () => optionIssues,
+      setup() {
+        setups += 1;
+      },
+    };
+    const thrown = await rejected(engine, plugin);
+    expect(thrown).toBeInstanceOf(core.GwenPluginOptionsError);
+    expect(thrown).toMatchObject({
+      code: "CORE:PLUGIN_OPTIONS_INVALID",
+      plugin: "Opts",
+      issues: optionIssues,
+    });
+    expect(thrown).toHaveProperty("issues.length", 2);
+    expect(thrown).toHaveProperty("issues.0.path", "gravity");
+    const message = thrown instanceof Error ? thrown.message : "";
+    expect(message).toContain('"gravity" expected a finite number, received NaN');
+    expect(message).toContain('"layers" expected an array of numbers, received "x"');
+    expect(setups).toBe(0);
+    expect(events).toEqual([]);
+    expect(registered).toBe(0);
+    expect(getCurrentScope()).toBeNull();
+    expect(engine.getStats().plugins).toEqual([]);
+  });
+
+  it("use(B) declaring a key A owns rejects DUPLICATE with owner A", async () => {
+    expect(typeof core.GwenPluginProvideError).toBe("function");
+    const engine = await createEngine();
+    await engine.use({
+      name: "A",
+      provides: ["lc:alpha", "lc:beta"],
+      setup(host) {
+        host.provide("lc:alpha", { n: 1 });
+        host.provide("lc:beta", { n: 3 });
+      },
+    });
+    const events = busEvents(engine);
+    let setups = 0;
+    const thrown = await rejected(engine, {
+      name: "B",
+      provides: ["lc:alpha", "lc:gamma", "lc:beta"],
+      setup(host) {
+        setups += 1;
+        host.provide("lc:alpha", { n: 2 });
+      },
+    });
+    expect(thrown).toBeInstanceOf(core.GwenPluginProvideError);
+    expect(thrown).toMatchObject({
+      code: "CORE:PLUGIN_PROVIDE_DUPLICATE",
+      plugin: "B",
+      keys: ["lc:alpha", "lc:beta"],
+      owner: "A",
+    });
+    expect(setups).toBe(0);
+    expect(engine.inject("lc:alpha")).toEqual({ n: 1 });
+    expect(events).toEqual([]);
+    expect(engine.getStats().plugins).toEqual(["A"]);
+  });
+
+  it("use(B) declaring logger rejects DUPLICATE with owner <engine>", async () => {
+    expect(typeof core.GwenPluginProvideError).toBe("function");
+    const engine = await createEngine();
+    let setups = 0;
+    const thrown = await rejected(engine, {
+      name: "B",
+      provides: ["lc:alpha", "logger" as never],
+      setup() {
+        setups += 1;
+      },
+    });
+    expect(thrown).toBeInstanceOf(core.GwenPluginProvideError);
+    expect(thrown).toMatchObject({
+      code: "CORE:PLUGIN_PROVIDE_DUPLICATE",
+      plugin: "B",
+      keys: ["logger"],
+      owner: "<engine>",
+    });
+    expect(thrown instanceof Error ? thrown.message : "").toContain(
+      "already provided by the engine",
+    );
+    expect(setups).toBe(0);
+  });
+
+  it("concurrent use(A) and use(B) declaring the same key: the second rejects DUPLICATE", async () => {
+    expect(typeof core.GwenPluginProvideError).toBe("function");
+    const engine = await createEngine();
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let secondSetups = 0;
+    const first = engine.use({
+      name: "A",
+      provides: ["lc:alpha"],
+      async setup(host) {
+        await gate;
+        host.provide("lc:alpha", { n: 1 });
+      },
+    });
+    const second = engine.use({
+      name: "B",
+      provides: ["lc:alpha"],
+      setup(host) {
+        secondSetups += 1;
+        host.provide("lc:alpha", { n: 2 });
+      },
+    });
+    release();
+    const settled = await Promise.allSettled([first, second]);
+    expect(settled[0]?.status).toBe("fulfilled");
+    expect(settled[1]?.status).toBe("rejected");
+    const reason = settled[1]?.status === "rejected" ? settled[1].reason : undefined;
+    expect(reason).toBeInstanceOf(core.GwenPluginProvideError);
+    expect(reason).toMatchObject({
+      code: "CORE:PLUGIN_PROVIDE_DUPLICATE",
+      plugin: "B",
+      keys: ["lc:alpha"],
+      owner: "A",
+    });
+    expect(secondSetups).toBe(0);
+    expect(engine.inject("lc:alpha")).toEqual({ n: 1 });
+  });
+
+  it("provide of an undeclared key in setup throws UNDECLARED and setup fails through the normal path", async () => {
+    expect(typeof core.GwenPluginProvideError).toBe("function");
+    const engine = await createEngine();
+    const events = busEvents(engine);
+    const announced = serviceEvents(engine);
+    const thrown = await rejected(engine, {
+      name: "U",
+      provides: ["lc:alpha"],
+      setup(host) {
+        host.provide("lc:alpha", { n: 1 });
+        host.provide("lc:beta", { n: 2 });
+      },
+    });
+    expect(thrown).toBeInstanceOf(core.GwenPluginProvideError);
+    expect(thrown).toMatchObject({
+      code: "CORE:PLUGIN_PROVIDE_UNDECLARED",
+      plugin: "U",
+      keys: ["lc:beta"],
+      owner: null,
+    });
+    const setupEvents = events.filter((event) => event.code === "CORE:PLUGIN_SETUP_ERROR");
+    expect(setupEvents).toHaveLength(1);
+    expect(setupEvents[0]?.error).toBe(thrown);
+    expect(engine.tryInject("lc:alpha")).toBeUndefined();
+    expect(engine.tryInject("lc:beta")).toBeUndefined();
+    expect(announced).toEqual([]);
+    expect(engine.getStats().plugins).toEqual([]);
+  });
+
+  it("an undeclared provide after setup through the captured engine throws to the caller", async () => {
+    expect(typeof core.GwenPluginProvideError).toBe("function");
+    const engine = await createEngine();
+    let captured: GwenEngineBase | undefined;
+    await engine.use({
+      name: "Late",
+      provides: ["lc:alpha"],
+      setup(host) {
+        captured = host;
+        host.provide("lc:alpha", { n: 1 });
+      },
+    });
+    let caught: unknown;
+    try {
+      captured?.provide("lc:beta", { n: 2 });
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(core.GwenPluginProvideError);
+    expect(caught).toMatchObject({
+      code: "CORE:PLUGIN_PROVIDE_UNDECLARED",
+      plugin: "Late",
+      keys: ["lc:beta"],
+      owner: null,
+    });
+    expect(engine.tryInject("lc:beta")).toBeUndefined();
+    expect(engine.inject("lc:alpha")).toEqual({ n: 1 });
+  });
+
+  it("setup resolving without a declared key rejects MISSING and the plugin is removed", async () => {
+    expect(typeof core.GwenPluginProvideError).toBe("function");
+    const engine = await createEngine();
+    const events = busEvents(engine);
+    let torn = 0;
+    let hits = 0;
+    const thrown = await rejected(engine, {
+      name: "M",
+      provides: ["lc:alpha", "lc:beta"],
+      setup(host) {
+        host.provide("lc:alpha", { n: 1 });
+        host.hooks.hook("engine:update", () => {
+          hits += 1;
+        });
+      },
+      teardown() {
+        torn += 1;
+      },
+    });
+    expect(thrown).toBeInstanceOf(core.GwenPluginProvideError);
+    expect(thrown).toMatchObject({
+      code: "CORE:PLUGIN_PROVIDE_MISSING",
+      plugin: "M",
+      keys: ["lc:beta"],
+      owner: null,
+    });
+    expect(engine.tryInject("lc:alpha")).toBeUndefined();
+    expect(torn).toBe(1);
+    expect(events.filter((event) => event.code === "CORE:PLUGIN_SETUP_ERROR")).toEqual([]);
+    expect(events).toEqual([]);
+    expect(engine.getStats().plugins).toEqual([]);
+    await engine.hooks.callHook("engine:update", 0);
+    expect(hits).toBe(0);
+  });
+
+  it("a setup that misses a declared key announces nothing", async () => {
+    expect(typeof core.GwenPluginProvideError).toBe("function");
+    const engine = await createEngine();
+    const announced = serviceEvents(engine);
+    const thrown = await rejected(engine, {
+      name: "M",
+      provides: ["lc:alpha", "lc:beta"],
+      setup(host) {
+        host.provide("lc:alpha", { n: 1 });
+      },
+    });
+    expect(thrown).toBeInstanceOf(core.GwenPluginProvideError);
+    expect(announced).toEqual([]);
+  });
+
+  it("unuse deletes exactly the declared keys", async () => {
+    expect(typeof core.GwenPluginProvideError).toBe("function");
+    const engine = await createEngine();
+    await engine.use({
+      name: "Other",
+      provides: ["lc:gamma"],
+      setup(host) {
+        host.provide("lc:gamma", { n: 9 });
+      },
+    });
+    await engine.use({
+      name: "Two",
+      provides: ["lc:alpha", "lc:beta"],
+      setup(host) {
+        host.provide("lc:alpha", { n: 1 });
+        host.provide("lc:beta", { n: 2 });
+      },
+    });
+    const announced = serviceEvents(engine);
+    await engine.unuse("Two");
+    expect(engine.tryInject("lc:alpha")).toBeUndefined();
+    expect(engine.tryInject("lc:beta")).toBeUndefined();
+    expect(engine.inject("lc:gamma")).toEqual({ n: 9 });
+    expect(engine.tryInject("logger")).toBe(engine.logger);
+    expect(announced).toEqual(["removed:lc:beta", "removed:lc:alpha"]);
+    // The reservation is released: a new plugin may declare the keys again.
+    await engine.use({
+      name: "Again",
+      provides: ["lc:alpha"],
+      setup(host) {
+        host.provide("lc:alpha", { n: 5 });
+      },
+    });
+    expect(engine.inject("lc:alpha")).toEqual({ n: 5 });
+  });
+
+  it("a raw GwenPlugin without provides may not provide", async () => {
+    expect(typeof core.GwenPluginProvideError).toBe("function");
+    const engine = await createEngine();
+    const thrown = await rejected(engine, {
+      name: "Raw",
+      setup(host) {
+        host.provide("lc:alpha", { n: 1 });
+      },
+    });
+    expect(thrown).toBeInstanceOf(core.GwenPluginProvideError);
+    expect(thrown).toMatchObject({
+      code: "CORE:PLUGIN_PROVIDE_UNDECLARED",
+      plugin: "Raw",
+      keys: ["lc:alpha"],
+      owner: null,
+    });
+    expect(engine.tryInject("lc:alpha")).toBeUndefined();
+  });
+
+  it("provides: [] and no provide installs", async () => {
+    expect(typeof core.GwenPluginProvideError).toBe("function");
+    const engine = await createEngine();
+    await engine.use({ name: "Empty", provides: [], setup() {} });
+    expect(engine.getStats().plugins).toEqual(["Empty"]);
+  });
+
+  it("one declared key that is provided installs and announces it once", async () => {
+    expect(typeof core.GwenPluginProvideError).toBe("function");
+    const engine = await createEngine();
+    const announced = serviceEvents(engine);
+    await engine.use({
+      name: "One",
+      provides: ["lc:alpha"],
+      setup(host) {
+        host.provide("lc:alpha", { n: 1 });
+      },
+    });
+    expect(engine.inject("lc:alpha")).toEqual({ n: 1 });
+    expect(announced).toEqual(["provided:lc:alpha"]);
+  });
+
+  it("two declared keys with one missing: MISSING names only the missing one", async () => {
+    expect(typeof core.GwenPluginProvideError).toBe("function");
+    const engine = await createEngine();
+    const thrown = await rejected(engine, {
+      name: "Half",
+      provides: ["lc:alpha", "lc:beta"],
+      setup(host) {
+        host.provide("lc:beta", { n: 2 });
+      },
+    });
+    expect(thrown).toBeInstanceOf(core.GwenPluginProvideError);
+    expect(thrown).toMatchObject({
+      code: "CORE:PLUGIN_PROVIDE_MISSING",
+      keys: ["lc:alpha"],
+    });
+  });
+
+  it("the same plugin installs on two engines without DUPLICATE", async () => {
+    expect(typeof core.GwenPluginProvideError).toBe("function");
+    const first = await createEngine();
+    const second = await createEngine();
+    const plugin: GwenPlugin = {
+      name: "Shared",
+      provides: ["lc:alpha"],
+      setup(host) {
+        host.provide("lc:alpha", { n: 1 });
+      },
+    };
+    await first.use(plugin);
+    await second.use(plugin);
+    expect(first.getStats().plugins).toEqual(["Shared"]);
+    expect(second.getStats().plugins).toEqual(["Shared"]);
+    expect(first.inject("lc:alpha")).toEqual({ n: 1 });
+    expect(second.inject("lc:alpha")).toEqual({ n: 1 });
+  });
+
+  it("use() after a MISSING rejection installs the fixed plugin", async () => {
+    expect(typeof core.GwenPluginProvideError).toBe("function");
+    const engine = await createEngine();
+    const thrown = await rejected(engine, {
+      name: "Fix",
+      provides: ["lc:alpha"],
+      setup() {},
+    });
+    expect(thrown).toBeInstanceOf(core.GwenPluginProvideError);
+    await engine.use({
+      name: "Fix",
+      provides: ["lc:alpha"],
+      setup(host) {
+        host.provide("lc:alpha", { n: 4 });
+      },
+    });
+    expect(engine.inject("lc:alpha")).toEqual({ n: 4 });
+    expect(engine.getStats().plugins).toEqual(["Fix"]);
+  });
+
+  it("MISSING with a throwing teardown clears the isolation: the fixed plugin keeps its setup-time hook", async () => {
+    expect(typeof core.GwenPluginProvideError).toBe("function");
+    const engine = await createEngine();
+    const events = busEvents(engine);
+    const failure = new Error("teardown-boom");
+    const thrown = await rejected(engine, {
+      name: "Iso",
+      provides: ["lc:alpha"],
+      setup() {},
+      teardown() {
+        throw failure;
+      },
+    });
+    expect(thrown).toBeInstanceOf(core.GwenPluginProvideError);
+    expect(events.filter((event) => event.error === failure)).toHaveLength(1);
+    let hits = 0;
+    await engine.use({
+      name: "Iso",
+      provides: ["lc:alpha"],
+      setup(host) {
+        host.provide("lc:alpha", { n: 1 });
+        host.hooks.hook("engine:update", () => {
+          hits += 1;
+        });
+      },
+    });
+    await engine.hooks.callHook("engine:update", 0);
+    expect(hits).toBe(1);
+  });
+
+  it("a setup that throws after a throwing onCleanup clears the isolation: the fixed plugin keeps its setup-time hook", async () => {
+    expect(typeof core.GwenPluginProvideError).toBe("function");
+    const engine = await createEngine();
+    const events = busEvents(engine);
+    const failure = new Error("c");
+    const thrown = await rejected(engine, {
+      name: "IsoSetup",
+      setup() {
+        onCleanup(() => {
+          throw failure;
+        });
+        throw new Error("s");
+      },
+    });
+    expect(thrown).toMatchObject({ message: "s" });
+    expect(events.filter((event) => event.error === failure)).toHaveLength(1);
+    let hits = 0;
+    await engine.use({
+      name: "IsoSetup",
+      setup(host) {
+        host.hooks.hook("engine:update", () => {
+          hits += 1;
+        });
+      },
+    });
+    await engine.hooks.callHook("engine:update", 0);
+    expect(hits).toBe(1);
+  });
+
+  it("a setup that throws runs its onCleanup inside the engine context", async () => {
+    expect(typeof core.GwenPluginProvideError).toBe("function");
+    const engine = await createEngine();
+    const events = busEvents(engine);
+    const seen: GwenEngine[] = [];
+    await rejected(engine, {
+      name: "CtxSetup",
+      setup() {
+        onCleanup(() => {
+          seen.push(useEngine());
+        });
+        throw new Error("s");
+      },
+    });
+    expect(seen).toHaveLength(1);
+    expect(events.filter((event) => event.error instanceof GwenContextError)).toHaveLength(0);
+  });
+
+  it("MISSING runs the setup disposer and teardown inside the engine context", async () => {
+    expect(typeof core.GwenPluginProvideError).toBe("function");
+    const engine = await createEngine();
+    const seen: GwenEngine[] = [];
+    const thrown = await rejected(engine, {
+      name: "Ctx",
+      provides: ["lc:alpha"],
+      setup() {
+        onCleanup(() => {
+          seen.push(useEngine());
+        });
+      },
+      teardown() {
+        seen.push(useEngine());
+      },
+    });
+    expect(thrown).toBeInstanceOf(core.GwenPluginProvideError);
+    expect(seen).toHaveLength(2);
+    expect(seen[0]).toBe(seen[1]);
+  });
+
+  it("a late provide through a proxy captured by a rolled-back MISSING install throws and leaks nothing", async () => {
+    expect(typeof core.GwenPluginProvideError).toBe("function");
+    const engine = await createEngine();
+    let captured: GwenEngineBase | undefined;
+    const thrown = await rejected(engine, {
+      name: "Late",
+      provides: ["lc:alpha"],
+      setup(host) {
+        captured = host;
+      },
+    });
+    expect(thrown).toBeInstanceOf(core.GwenPluginProvideError);
+    let caught: unknown;
+    try {
+      captured?.provide("lc:alpha", { n: 1 });
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toMatchObject({
+      code: "CORE:PLUGIN_PROVIDE_UNDECLARED",
+      plugin: "Late",
+      keys: ["lc:alpha"],
+    });
+    expect(engine.tryInject("lc:alpha")).toBeUndefined();
+    await engine.use({
+      name: "Late",
+      provides: ["lc:alpha"],
+      setup(host) {
+        host.provide("lc:alpha", { n: 2 });
+      },
+    });
+    expect(engine.inject("lc:alpha")).toEqual({ n: 2 });
+    // The stale proxy stays dead after the same name installs again.
+    expect(() => captured?.provide("lc:alpha", { n: 3 })).toThrow(core.GwenPluginProvideError);
+    expect(engine.inject("lc:alpha")).toEqual({ n: 2 });
+  });
+
+  it("a late provide after unuse throws and leaves the key free", async () => {
+    expect(typeof core.GwenPluginProvideError).toBe("function");
+    const engine = await createEngine();
+    let captured: GwenEngineBase | undefined;
+    await engine.use({
+      name: "Gone",
+      provides: ["lc:alpha"],
+      setup(host) {
+        captured = host;
+        host.provide("lc:alpha", { n: 1 });
+      },
+    });
+    await engine.unuse("Gone");
+    expect(() => captured?.provide("lc:alpha", { n: 2 })).toThrow(core.GwenPluginProvideError);
+    expect(engine.tryInject("lc:alpha")).toBeUndefined();
+    await engine.use({
+      name: "Next",
+      provides: ["lc:alpha"],
+      setup(host) {
+        host.provide("lc:alpha", { n: 3 });
+      },
+    });
+    expect(engine.inject("lc:alpha")).toEqual({ n: 3 });
   });
 });

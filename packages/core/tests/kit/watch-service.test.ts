@@ -3,7 +3,7 @@ import { type GwenEngine } from "@gwenjs/core";
 import { createEngine } from "@gwenjs/core/node";
 import { GwenContextError } from "@gwenjs/kit";
 import * as plugin from "@gwenjs/kit/plugin";
-import type { GwenEngineBase } from "@gwenjs/schema";
+import type { GwenEngineBase, GwenPluginServiceKey } from "@gwenjs/schema";
 
 declare module "@gwenjs/schema" {
   interface GwenProvides {
@@ -28,22 +28,29 @@ function watch(): typeof plugin.watchService {
   return plugin.watchService;
 }
 
-function usePlugin(engine: GwenEngine, name: string, setup: (host: GwenEngineBase) => void) {
-  return engine.use(plugin.definePlugin(() => ({ name, setup }))());
+function usePlugin(
+  engine: GwenEngine,
+  name: string,
+  provides: readonly GwenPluginServiceKey[],
+  setup: (host: GwenEngineBase) => void,
+) {
+  return engine.use(plugin.definePlugin({ provides }, () => ({ name, setup }))());
 }
 
 describe("watchService and optionalService", () => {
   it("watchService inside setup reads the logger once", async () => {
     const engine = await open();
     const seen: unknown[] = [];
-    await usePlugin(engine, "watch-logger", () => watch()("logger", (value) => seen.push(value)));
+    await usePlugin(engine, "watch-logger", [], () =>
+      watch()("logger", (value) => seen.push(value)),
+    );
     expect(seen).toEqual([engine.logger]);
   });
   it("the first watchService callback provides and sees undefined then the marker", async () => {
     const engine = await open();
     const marker = { n: 7 };
     const seen: unknown[] = [];
-    await usePlugin(engine, "watch-fill", (host) => {
+    await usePlugin(engine, "watch-fill", ["p72:marker"], (host) => {
       watch()("p72:marker", (value) => {
         seen.push(value);
         if (value === undefined) host.provide("p72:marker", marker);
@@ -56,14 +63,18 @@ describe("watchService and optionalService", () => {
     const marker = { n: 2 };
     const next = { n: 4 };
     const seen: unknown[] = [];
-    await usePlugin(engine, "watcher", () => watch()("p72:marker", (value) => seen.push(value)));
-    await usePlugin(engine, "provider", (host) => host.provide("p72:marker", marker));
+    await usePlugin(engine, "watcher", [], () =>
+      watch()("p72:marker", (value) => seen.push(value)),
+    );
+    await usePlugin(engine, "provider", ["p72:marker"], (host) =>
+      host.provide("p72:marker", marker),
+    );
     engine.provide("p72:marker", marker);
     expect(seen).toEqual([undefined, marker]);
-    await usePlugin(engine, "replacer", (host) => host.provide("p72:marker", next));
-    expect(seen).toEqual([undefined, marker, next]);
-    await engine.unuse("replacer");
-    expect(seen).toEqual([undefined, marker, next, undefined]);
+    await engine.unuse("provider");
+    expect(seen).toEqual([undefined, marker, undefined]);
+    engine.provide("p72:marker", next);
+    expect(seen).toEqual([undefined, marker, undefined, next]);
   });
   it("disposer stops watchService; listener increments; unuse of the consumer", async () => {
     const engine = await open();
@@ -72,10 +83,10 @@ describe("watchService and optionalService", () => {
     let calls = 0;
     let stop: (() => void) | undefined;
     engine.hooks.hook("service:provided", () => (hooks += 1));
-    await usePlugin(engine, "stop", () => {
+    await usePlugin(engine, "stop", [], () => {
       stop = watch()("p72:marker", () => (stopped += 1));
     });
-    await usePlugin(engine, "consumer", () => watch()("p72:marker", () => (calls += 1)));
+    await usePlugin(engine, "consumer", [], () => watch()("p72:marker", () => (calls += 1)));
     expect(stopped).toBe(1);
     expect(calls).toBe(1);
     stop?.();
@@ -93,7 +104,9 @@ describe("watchService and optionalService", () => {
     const marker = { n: 5 };
     const slot = plugin.optionalService(engine, "p72:marker");
     expect(slot.current).toBeUndefined();
-    await usePlugin(engine, "provider", (host) => host.provide("p72:marker", marker));
+    await usePlugin(engine, "provider", ["p72:marker"], (host) =>
+      host.provide("p72:marker", marker),
+    );
     expect(slot.current).toBe(marker);
     await engine.unuse("provider");
     expect(slot.current).toBeUndefined();

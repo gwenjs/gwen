@@ -166,6 +166,7 @@ describe("plugin teardown on stop", () => {
     const torn: string[] = [];
     await engine.use({
       name: "P",
+      provides: ["svc"],
       setup(host) {
         host.provide("svc", { tag: "faulted" });
       },
@@ -207,6 +208,7 @@ describe("plugin teardown on stop", () => {
     const value = { tag: "after-await" };
     await engine.use({
       name: "P",
+      provides: ["svc"],
       async setup(host) {
         await Promise.resolve();
         host.provide("svc", value);
@@ -222,6 +224,7 @@ describe("plugin teardown on stop", () => {
     const value = { tag: "after-await" };
     await engine.use({
       name: "P",
+      provides: ["svc"],
       async setup(host) {
         await Promise.resolve();
         host.provide("svc", value);
@@ -240,9 +243,10 @@ describe("plugin teardown on stop", () => {
     const pluginMemory = new EngineMemory(bridge, errors);
     await engine.use({
       name: "P",
+      provides: ["svc"],
       setup(host) {
         host.provide("svc", { tag: "svc" });
-        host.provide("memory", pluginMemory);
+        engine.provide("memory", pluginMemory);
       },
     });
     await engine.unuse("P");
@@ -259,20 +263,14 @@ describe("plugin teardown on stop", () => {
     const second = { tag: "p2" };
     await engine.use({
       name: "P1",
+      provides: ["k"],
       setup(host) {
         host.provide("k", first);
       },
     });
-    await engine.use({
-      name: "P2",
-      setup(host) {
-        host.provide("k", second);
-      },
-    });
+    engine.provide("k", second);
     await engine.unuse("P1");
     expect(engine.inject("k")).toBe(second);
-    await engine.unuse("P2");
-    expect(engine.tryInject("k")).toBeUndefined();
   });
 
   it("teardown runs after the plugin's own services are removed", async () => {
@@ -281,6 +279,7 @@ describe("plugin teardown on stop", () => {
     const seen: unknown[] = [];
     await engine.use({
       name: "P",
+      provides: ["svc"],
       setup(host) {
         host.provide("svc", value);
       },
@@ -334,8 +333,8 @@ describe("plugin teardown on stop", () => {
       reportSetup() {},
       reportTeardown() {},
       dropIsolation() {},
-      hasService() {
-        return false;
+      hasService(key) {
+        return container.has(key);
       },
       deleteService(key, expected) {
         deleted.push(key);
@@ -354,6 +353,7 @@ describe("plugin teardown on stop", () => {
       await registry.use(
         {
           name: "P",
+          provides: ["a", "b"],
           setup(host) {
             host.provide("a", { tag: "a" });
             host.provide("b", { tag: "b" });
@@ -415,6 +415,7 @@ describe("plugin teardown on stop", () => {
     await first.use(recording("P", firstOrder));
     await second.use({
       name: "Q",
+      provides: ["svc"],
       setup(host) {
         host.provide("svc", { tag: "engine-2" });
       },
@@ -522,6 +523,7 @@ describe("plugin teardown on stop", () => {
     let aHits = 0;
     await engine.use({
       name: "A",
+      provides: ["svc"],
       setup(host) {
         host.provide("svc", { tag: "a" });
         host.hooks.hook("engine:update", () => {
@@ -616,6 +618,7 @@ describe("plugin teardown on stop", () => {
     await expect(
       syncEngine.use({
         name: "P",
+        provides: ["svc"],
         setup(host) {
           host.provide("svc", shared);
           throw new Error("setup failed");
@@ -625,6 +628,7 @@ describe("plugin teardown on stop", () => {
     expect(syncEngine.tryInject("svc")).toBeUndefined();
     await syncEngine.use({
       name: "Q",
+      provides: ["svc"],
       setup(host) {
         host.provide("svc", shared);
       },
@@ -643,6 +647,7 @@ describe("plugin teardown on stop", () => {
     await expect(
       asyncEngine.use({
         name: "P",
+        provides: ["svc"],
         async setup(host) {
           await Promise.resolve();
           host.provide("svc", asyncValue);
