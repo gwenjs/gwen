@@ -141,6 +141,7 @@ const plugin = Gravity({ value: -20 })
 - `options.defaults` donne la forme résolue et chaque valeur par défaut. La factory reçoit un objet gelé : `defaults` fusionné sur un niveau avec l'argument de l'appelant. Une clé que l'appelant met à `undefined` garde sa valeur par défaut. Un objet imbriqué passé par l'appelant remplace l'objet imbriqué par défaut en entier. Les types refusent un `undefined` explicite, sauf si le type de l'option l'inclut.
 - `options.validate` est une fonction pure optionnelle qui retourne des `GwenConfigIssue[]`. La factory ne l'appelle jamais et ne lève jamais d'erreur pour des options invalides. Le plugin expose le résultat via `plugin.validateOptions()`, et `plugin.provides` contient les clés dédupliquées et gelées.
 - `provides` et `validateOptions` dans l'objet que la factory retourne sont des erreurs de type : `definePlugin` les écrit.
+- `engine.use()` vérifie la déclaration à l'exécution, aussi pour un objet plugin brut. `validateOptions()` passe en premier : des problèmes rejettent avec `CORE:PLUGIN_OPTIONS_INVALID`, `setup()` n'est pas appelé et rien n'arrive sur `engine.errors`. Une clé déclarée que tient déjà un plugin installé ou en cours d'installation, ou le moteur, rejette avec `CORE:PLUGIN_PROVIDE_DUPLICATE` ; un second fournisseur n'écrase plus le premier. `engine.provide` sur l'argument `engine` de `setup()` lève `CORE:PLUGIN_PROVIDE_UNDECLARED` pour une clé hors de `provides`, et un plugin sans `provides` ne peut rien fournir. Quand `setup()` se termine sans toutes les clés déclarées, `use()` rejette avec `CORE:PLUGIN_PROVIDE_MISSING` et le plugin est retiré. `engine.provide` sur le moteur lui-même ne change pas.
 
 ### Enregistrer un plugin
 
@@ -354,11 +355,11 @@ logger.current?.warn("prêt");
 
 `watchService(key, onChange)` s'abonne pendant `setup()` et appelle `onChange` avec la valeur actuelle. Un remplacement appelle `onChange` avec la valeur encore stockée. Un retrait appelle `onChange(undefined)`. La fonction renvoyée arrête l'abonnement. Retirer le plugin l'arrête aussi.
 
-`service:provided` et `service:removed` portent `{ key, value, owner, reason }`. `reason` vaut `install`, `unuse`, `stop` ou `overwrite`. Lors d'un remplacement, `service:removed` nomme l'ancien propriétaire et `service:provided` nomme le plugin qui a stocké la nouvelle valeur. Les clés du moteur (`wasm:bridge`, `logger`, `errors`, `memory`) ne déclenchent pas ces hooks. Les `provide` du plugin pendant `setup()` sont annoncés après la résolution de `setup()` et avant `plugin:registered`. Un `provide` après la résolution de `setup()` est annoncé tout de suite.
+`service:provided` et `service:removed` portent `{ key, value, owner, reason }`. `reason` vaut `install`, `unuse`, `stop` ou `overwrite`. Lors d'un remplacement, `service:removed` nomme l'ancien propriétaire et `service:provided` nomme le plugin qui a stocké la nouvelle valeur. Les clés du moteur (`wasm:bridge`, `logger`, `errors`, `memory`) ne déclenchent pas ces hooks. Les `provide` du plugin pendant `setup()` sont annoncés après la résolution de `setup()` et avant `plugin:registered`, et seulement si toutes les clés déclarées sont présentes. Un `setup()` en échec, un `provide` non déclaré ou une clé déclarée manquante n'annonce rien. Un `provide` d'une clé déclarée après la résolution de `setup()` est annoncé tout de suite.
 
 ## Fournir des services
 
-Utilisez `engine.provide()` pour enregistrer un service que les systèmes peuvent accéder. Fusionnez d'abord la clé dans `GwenProvides`. Les clés de service n'ont pas de règle de nom, sauf le préfixe réservé `renderer:<name>`. Seule une valeur `RendererService` peut utiliser ce préfixe. Rien ne vérifie encore ce préfixe.
+Utilisez `engine.provide()` pour enregistrer un service que les systèmes peuvent accéder. Fusionnez d'abord la clé dans `GwenProvides`, puis listez-la dans le `provides` du plugin. Une clé hors de `provides` lève `CORE:PLUGIN_PROVIDE_UNDECLARED`. Les clés de service n'ont pas de règle de nom, sauf le préfixe réservé `renderer:<name>`. Seule une valeur `RendererService` peut utiliser ce préfixe. Rien ne vérifie encore ce préfixe.
 
 ```ts
 declare module '@gwenjs/schema' {

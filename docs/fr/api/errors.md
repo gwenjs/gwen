@@ -141,6 +141,10 @@ Cause. L'appel est hors de `defineActor()`, `plugin setup()` ou `withCleanup()`.
 - `CORE:PLUGIN_DEPENDENCY_MISSING` {#core-plugin-dependency-missing} `engine.use` rejeté parce qu'un plugin ou un service requis n'est pas installé.
 - `CORE:PLUGIN_INVALID_SHAPE` {#core-plugin-invalid-shape} `engine.use` a rejeté un plugin qui déclare une clé de cycle de vie que le moteur n'appelle jamais.
 - `CORE:PLUGIN_IN_USE` {#core-plugin-in-use} `engine.unuse` rejeté parce qu'un plugin installé exige encore ce plugin ou l'un de ses services.
+- `CORE:PLUGIN_OPTIONS_INVALID` {#core-plugin-options-invalid} `engine.use` a rejeté un plugin dont `validateOptions()` a renvoyé des problèmes. `setup` n'a pas été appelé et rien n'est parti sur `engine.errors`. Le message liste une ligne par problème.
+- `CORE:PLUGIN_PROVIDE_DUPLICATE` {#core-plugin-provide-duplicate} `engine.use` a rejeté un plugin qui déclare dans `provides` une clé déjà tenue par un plugin installé, par un plugin en cours d'installation ou par le moteur. `owner` est le nom de ce plugin, ou `<engine>`.
+- `CORE:PLUGIN_PROVIDE_UNDECLARED` {#core-plugin-provide-undeclared} `provide` sur le moteur de `setup` a reçu une clé que le plugin n'a pas déclarée dans `provides`. L'erreur part du moteur de `setup`, donc `setup` échoue par le chemin normal.
+- `CORE:PLUGIN_PROVIDE_MISSING` {#core-plugin-provide-missing} `setup` s'est terminé sans fournir toutes les clés déclarées dans `provides`. Le plugin est retiré et `teardown` s'exécute. Aucun `CORE:PLUGIN_SETUP_ERROR` n'est émis.
 - `CORE:TWEEN_POOL_EXHAUSTED` {#core-tween-pool-exhausted} Levée par `TweenPool.claim`, et par `useSequence` quand une étape d'attente ne peut pas prendre un emplacement parce que le pool `'drop'` est épuisé.
 - `CORE:WASM_GLUE_MISMATCH` {#core-wasm-glue-mismatch} `checkGwenModule` rejette un module compilé qui ne correspond pas à sa glue. `init` appelle ce contrôle avant d'acquérir une instance (#263).
 

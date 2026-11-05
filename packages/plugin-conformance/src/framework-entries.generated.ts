@@ -85,6 +85,8 @@ export const FRAMEWORK_ENTRIES: Readonly<Record<string, readonly string[]>> = {
     "GwenPluginDependencyError",
     "GwenPluginNotFoundError",
     "GwenPluginNotFoundErrorOptions",
+    "GwenPluginOptionsError",
+    "GwenPluginProvideError",
     "GwenPluginShapeError",
     "GwenProvides",
     "GwenRuntimeHooks",

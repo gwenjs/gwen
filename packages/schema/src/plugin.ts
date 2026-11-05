@@ -144,6 +144,9 @@ export interface GwenEngineBase {
    *
    * @param key - Unique service key.
    * @param value - Service implementation.
+   * @throws {GwenPluginProvideError} `CORE:PLUGIN_PROVIDE_UNDECLARED` when called on the
+   *   `setup()` engine of a plugin with a key outside its `provides`, or once that
+   *   plugin's install has failed or the plugin was removed.
    */
   provide<K extends GwenServiceKey>(key: K, value: GwenProvides[K]): void;
 

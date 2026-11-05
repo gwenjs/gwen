@@ -38,6 +38,8 @@ export {
   GwenPluginNotFoundError,
   GwenPluginDependencyError,
   GwenPluginShapeError,
+  GwenPluginOptionsError,
+  GwenPluginProvideError,
   GwenComponentLimitError,
   CoreErrorCodes,
   GwenWasmError,

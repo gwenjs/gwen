@@ -14,6 +14,8 @@
       "GwenLogger",
       "GwenPluginDependencyError",
       "GwenPluginNotFoundError",
+      "GwenPluginOptionsError",
+      "GwenPluginProvideError",
       "GwenPluginShapeError",
       "GwenSceneRouterError",
       "GwenWasmAbiError",

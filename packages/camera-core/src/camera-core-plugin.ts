@@ -14,7 +14,7 @@
  */
 
 import { definePlugin } from "@gwenjs/kit/plugin";
-import { asFullEngine } from "@gwenjs/core/internal";
+import type { GwenEngine } from "@gwenjs/core";
 import {
   getOrCreateCameraManager,
   getOrCreateViewportManager,
@@ -55,12 +55,9 @@ export function createOrthoBoundsProvider(
   };
 }
 
-export const CameraCorePlugin = definePlugin(() => ({
+export const CameraCorePlugin = definePlugin({ provides: ["cameraManager"] }, () => ({
   name: "camera-core",
-  async setup(engineBase) {
-    // Internal plugin — narrow to the full GwenEngine for engine.use() and typed helpers.
-    const engine = asFullEngine(engineBase);
-
+  async setup(engine: GwenEngine) {
     const cameras = getOrCreateCameraManager(engine);
     getOrCreateViewportManager(engine);
 

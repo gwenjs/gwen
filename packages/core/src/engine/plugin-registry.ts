@@ -12,6 +12,8 @@ import { GwenScope } from "../context/scope.js";
 import {
   CoreErrorCodes,
   GwenPluginDependencyError,
+  GwenPluginOptionsError,
+  GwenPluginProvideError,
   GwenPluginShapeError,
 } from "./engine-errors.js";
 import { popEngine, pushEngine } from "./engine-local.js";
@@ -87,6 +89,8 @@ export class PluginRegistry {
   private readonly _owned = new Map<string, Map<string, unknown>>();
   /** Provides made during `setup`, flushed after the name is stored. */
   private readonly _queued = new Map<string, QueuedProvide[]>();
+  /** Declared key → name of the plugin that holds it from `use()` until its install fails or it is removed. */
+  private readonly _reserved = new Map<string, string>();
   /** First value a not-yet-installed plugin replaced. Restored if `setup` throws. */
   private readonly _rollback = new Map<string, Map<string, { readonly previous: unknown }>>();
 
@@ -129,6 +133,30 @@ export class PluginRegistry {
             missing,
           }),
         );
+      }
+
+      const issues = plugin.validateOptions?.() ?? [];
+      if (issues.length > 0) {
+        return Promise.reject(new GwenPluginOptionsError(plugin.name, issues));
+      }
+
+      const provides = plugin.provides;
+      if (provides !== undefined && provides.length > 0) {
+        const taken = [...new Set(provides)].filter(
+          (key) => this.deps.hasService(key) || this._reserved.has(key),
+        );
+        const first = taken[0];
+        if (first !== undefined) {
+          return Promise.reject(
+            new GwenPluginProvideError({
+              code: CoreErrorCodes.PLUGIN_PROVIDE_DUPLICATE,
+              plugin: plugin.name,
+              keys: taken,
+              owner: this._ownerOf(plugin.name, first) ?? this._reserved.get(first) ?? "<engine>",
+            }),
+          );
+        }
+        for (const key of provides) this._reserved.set(key, plugin.name);
       }
 
       const run = this._install(plugin, receiver);
@@ -189,7 +217,6 @@ export class PluginRegistry {
 
   private async _runInstall(plugin: GwenPlugin, receiver: GwenEngine): Promise<void> {
     const scopedHooks = this._createScopedHooks(plugin.name, receiver);
-    const engineWithScopedHooks = this._withScopedHooks(plugin.name, scopedHooks, receiver);
     // Real receiver: the object useEngine() returns during setup, and the one
     // bindFailureReporter is bound to. useHook() guards against that object.
     // id is the plugin name because GwenScope.hook builds the isolation target
@@ -202,6 +229,7 @@ export class PluginRegistry {
       name: plugin.name,
     });
     this._scopes.set(plugin.name, scope);
+    const engineWithScopedHooks = this._withScopedHooks(plugin.name, scopedHooks, receiver, scope);
 
     try {
       // Engine context outermost, then the plugin scope, then cleanup capture.
@@ -226,23 +254,39 @@ export class PluginRegistry {
       }
       if (setupResult instanceof Promise) await setupResult;
     } catch (err) {
-      // Roll back owned services, the plugin scope, onCleanup callbacks, and scoped hooks.
-      // A created key is deleted. A replaced key is restored. Nothing is announced.
-      this._queued.delete(plugin.name);
-      this._dropOwned(plugin.name);
-      this._scopes.delete(plugin.name);
-      // A throwing onCleanup is reported. It must not replace the setup error
-      // or skip the rest of this rollback.
-      try {
-        scope.dispose();
-      } catch (cleanupError: unknown) {
-        this.deps.reportTeardown(plugin, cleanupError);
-      }
-      this._pluginCleanups.get(plugin.name)?.();
-      this._pluginCleanups.delete(plugin.name);
-      this.deps.tracker.removeAll(plugin.name, receiver.hooks);
+      this._rollbackInstall(plugin, receiver, scope);
       this.deps.reportSetup(plugin, err);
       throw err;
+    }
+
+    // Every declared key must be in the map before anything is announced.
+    // A plugin that fails here is rolled back and torn down. It is not a setup error.
+    let absent: string[] | undefined;
+    for (const key of plugin.provides ?? []) {
+      if (this.deps.hasService(key) || absent?.includes(key)) continue;
+      absent ??= [];
+      absent.push(key);
+    }
+    if (absent !== undefined) {
+      this._rollbackState(plugin);
+      // Same engine context as `_finishRemove`: the disposers and `teardown` may read it.
+      const previousEngine = pushEngine(receiver);
+      try {
+        this._disposeSetup(plugin, scope);
+        await plugin.teardown?.();
+      } catch (teardownError: unknown) {
+        this.deps.reportTeardown(plugin, teardownError);
+      } finally {
+        popEngine(receiver, previousEngine);
+        this.deps.tracker.removeAll(plugin.name, receiver.hooks);
+        this.deps.dropIsolation(plugin.name);
+      }
+      throw new GwenPluginProvideError({
+        code: CoreErrorCodes.PLUGIN_PROVIDE_MISSING,
+        plugin: plugin.name,
+        keys: absent,
+        declared: [...new Set(plugin.provides)],
+      });
     }
 
     this._plugins.push(plugin);
@@ -253,6 +297,58 @@ export class PluginRegistry {
     await this.deps.hooks.callHook("plugin:registered", plugin.name);
     if (this.deps.debug) {
       this.deps.logger.debug(`plugin registered: ${plugin.name}`);
+    }
+  }
+
+  /**
+   * Undo a `setup` that threw: owned services, reservations, the plugin scope,
+   * onCleanup callbacks, and scoped hooks.
+   * A created key is deleted. A replaced key is restored. Nothing is announced.
+   */
+  private _rollbackInstall(plugin: GwenPlugin, receiver: GwenEngine, scope: GwenScope): void {
+    this._rollbackState(plugin);
+    // A throwing onCleanup is reported. It must not replace the setup error
+    // or skip the rest of this rollback. The report isolates the plugin: clear it
+    // so a fixed plugin under the same name keeps its hooks. Same engine context
+    // as `_finishRemove`: the disposers may read it.
+    const previousEngine = pushEngine(receiver);
+    try {
+      this._disposeSetup(plugin, scope);
+    } finally {
+      popEngine(receiver, previousEngine);
+      this.deps.tracker.removeAll(plugin.name, receiver.hooks);
+      this.deps.dropIsolation(plugin.name);
+    }
+  }
+
+  /** Services, queue, reservations and scope entry of a plugin that did not finish installing. */
+  private _rollbackState(plugin: GwenPlugin): void {
+    const name = plugin.name;
+    this._queued.delete(name);
+    this._dropOwned(name);
+    this._releaseReserved(plugin);
+    this._scopes.delete(name);
+  }
+
+  /** Run the plugin scope and the `onCleanup` disposer. A throw is reported, not rethrown. */
+  private _disposeSetup(plugin: GwenPlugin, scope: GwenScope): void {
+    const dispose = this._pluginCleanups.get(plugin.name);
+    this._pluginCleanups.delete(plugin.name);
+    try {
+      scope.dispose();
+    } catch (cleanupError: unknown) {
+      this.deps.reportTeardown(plugin, cleanupError);
+    }
+    try {
+      dispose?.();
+    } catch (cleanupError: unknown) {
+      this.deps.reportTeardown(plugin, cleanupError);
+    }
+  }
+
+  private _releaseReserved(plugin: GwenPlugin): void {
+    for (const key of plugin.provides ?? []) {
+      if (this._reserved.get(key) === plugin.name) this._reserved.delete(key);
     }
   }
 
@@ -342,6 +438,7 @@ export class PluginRegistry {
   ): Promise<void> {
     const name = plugin.name;
     this._dropOwned(name, reason);
+    this._releaseReserved(plugin);
     const dispose = this._pluginCleanups.get(name);
     this._pluginCleanups.delete(name);
     const scope = this._scopes.get(name);
@@ -561,13 +658,25 @@ export class PluginRegistry {
     pluginName: string,
     scopedHooks: Hookable<GwenRuntimeHooks>,
     receiver: GwenEngine,
+    scope: GwenScope,
   ): GwenEngine {
     const proxy = new Proxy(receiver, {
       get: (target, prop) => {
         if (prop === "hooks") return scopedHooks;
         // A provide through this proxy is queued. A provide on the real engine is not.
+        // Only this proxy checks the declaration: the real engine's provide stays a plain set.
+        // The check reads the live install and reservation: a key is open to this plugin
+        // from `use()` until its install fails or it is removed. A provide through a proxy
+        // captured by a dead install cannot leak a key, even if the name is installed again.
         if (prop === "provide") {
           return (key: string, value: unknown): void => {
+            if (this._scopes.get(pluginName) !== scope || this._reserved.get(key) !== pluginName) {
+              throw new GwenPluginProvideError({
+                code: CoreErrorCodes.PLUGIN_PROVIDE_UNDECLARED,
+                plugin: pluginName,
+                keys: [key],
+              });
+            }
             this._recordProvide(pluginName, key, value);
           };
         }

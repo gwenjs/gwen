@@ -9,6 +9,7 @@ import {
   GWEN_PLUGIN_LIFECYCLE_HOOKS,
   GwenError,
   type ForbiddenPluginKey,
+  type GwenConfigIssue,
   type GwenErrorOptions,
   type GwenPluginRequirement,
 } from "@gwenjs/schema";
@@ -129,6 +130,88 @@ export class GwenPluginShapeError extends GwenError {
   }
 }
 
+/**
+ * `engine.use` rejected a plugin whose `validateOptions()` returned issues.
+ * `setup` was not called. `issues` is frozen and holds at least one entry.
+ */
+export class GwenPluginOptionsError extends GwenError {
+  override readonly code: typeof CoreErrorCodes.PLUGIN_OPTIONS_INVALID;
+  readonly plugin: string;
+  readonly issues: readonly GwenConfigIssue[];
+
+  constructor(plugin: string, issues: readonly GwenConfigIssue[]) {
+    const listed = Object.freeze([...issues]);
+    const lines = listed.map(
+      (issue) => `  "${issue.path}" expected ${issue.expected}, received ${issue.received}`,
+    );
+    // One issue per line, as the ticket words it.
+    const what = `Plugin "${plugin}" has invalid options:\n${lines.join("\n")}`;
+    super(CoreErrorCodes.PLUGIN_OPTIONS_INVALID, what, {
+      composable: "engine.use",
+      hint: __GWEN_DEV__ ? "Fix the listed options; validation runs before setup()." : undefined,
+    });
+    this.name = "GwenPluginOptionsError";
+    this.code = CoreErrorCodes.PLUGIN_OPTIONS_INVALID;
+    this.plugin = plugin;
+    this.issues = listed;
+  }
+}
+
+/**
+ * A plugin's provided keys broke a rule of `engine.use` or of `provide` on the setup engine.
+ * `DUPLICATE`: a declared key is already held, `owner` is that plugin or `"<engine>"`.
+ * `UNDECLARED`: `provide` of a key outside `provides`, thrown from the setup engine.
+ * `MISSING`: `setup` resolved without providing every declared key; `keys` holds the absent ones.
+ * `keys` is frozen. `owner` is `null` unless the code is `DUPLICATE`.
+ */
+export class GwenPluginProvideError extends GwenError {
+  override readonly code:
+    | typeof CoreErrorCodes.PLUGIN_PROVIDE_DUPLICATE
+    | typeof CoreErrorCodes.PLUGIN_PROVIDE_UNDECLARED
+    | typeof CoreErrorCodes.PLUGIN_PROVIDE_MISSING;
+  readonly plugin: string;
+  readonly keys: readonly string[];
+  readonly owner: string | null;
+
+  constructor(init: {
+    code:
+      | typeof CoreErrorCodes.PLUGIN_PROVIDE_DUPLICATE
+      | typeof CoreErrorCodes.PLUGIN_PROVIDE_UNDECLARED
+      | typeof CoreErrorCodes.PLUGIN_PROVIDE_MISSING;
+    plugin: string;
+    keys: readonly string[];
+    owner?: string | null;
+    /** Every declared key, for the `MISSING` sentence. Defaults to `keys`. */
+    declared?: readonly string[];
+  }) {
+    const plugin = init.plugin;
+    const keys = Object.freeze([...init.keys]);
+    const owner = init.owner ?? null;
+    const quote = (list: readonly string[]): string => list.map((key) => `"${key}"`).join(", ");
+    let what: string;
+    let hint: string;
+    let composable = "engine.use";
+    if (init.code === CoreErrorCodes.PLUGIN_PROVIDE_DUPLICATE) {
+      const holder = owner === "<engine>" ? "the engine" : `plugin "${owner}"`;
+      what = `Plugin "${plugin}" provides ${quote(keys)}, already provided by ${holder}.`;
+      hint = "Declare each service in one plugin only, or unuse its current provider first.";
+    } else if (init.code === CoreErrorCodes.PLUGIN_PROVIDE_UNDECLARED) {
+      what = `Plugin "${plugin}" provided "${keys[0]}" without declaring it.`;
+      hint = "Add the key to the plugin's provides, or do not provide it.";
+      composable = "engine.provide";
+    } else {
+      what = `Plugin "${plugin}" declared ${quote(init.declared ?? keys)} but did not provide ${quote(keys)}.`;
+      hint = "Call engine.provide() in setup() for every declared key, or remove it from provides.";
+    }
+    super(init.code, what, { composable, hint: __GWEN_DEV__ ? hint : undefined });
+    this.name = "GwenPluginProvideError";
+    this.code = init.code;
+    this.plugin = plugin;
+    this.keys = keys;
+    this.owner = owner;
+  }
+}
+
 // ─── Error codes ────────────────────────────────────────────────────────────
 
 /** Error codes emitted by the GWEN core engine. */
@@ -212,6 +295,14 @@ export const CoreErrorCodes = {
   PLUGIN_DEPENDENCY_MISSING: "CORE:PLUGIN_DEPENDENCY_MISSING",
   /** `engine.unuse` rejected: an installed plugin still requires this plugin or one of its services. */
   PLUGIN_IN_USE: "CORE:PLUGIN_IN_USE",
+  /** `engine.use` rejected a plugin whose `validateOptions()` returned issues. Thrown by `GwenPluginOptionsError`. */
+  PLUGIN_OPTIONS_INVALID: "CORE:PLUGIN_OPTIONS_INVALID",
+  /** `engine.use` rejected a plugin that declares a key an installed plugin or the engine already holds. */
+  PLUGIN_PROVIDE_DUPLICATE: "CORE:PLUGIN_PROVIDE_DUPLICATE",
+  /** `provide` on the setup engine received a key the plugin did not declare in `provides`. */
+  PLUGIN_PROVIDE_UNDECLARED: "CORE:PLUGIN_PROVIDE_UNDECLARED",
+  /** `setup` resolved without providing every key the plugin declared in `provides`. */
+  PLUGIN_PROVIDE_MISSING: "CORE:PLUGIN_PROVIDE_MISSING",
   /** Thrown by `GwenHookNameError`. A hook name is not `namespace:action`, or an emit used a reserved namespace. */
   HOOK_NAME_INVALID: "CORE:HOOK_NAME_INVALID",
   /**

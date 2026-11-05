@@ -28,6 +28,7 @@ export interface TweenPluginOptions {
 export function TweenPlugin(opts: TweenPluginOptions = {}): GwenPlugin {
   return {
     name: "gwen:tween",
+    provides: ["tween:manager"],
     setup(engine: GwenEngineBase) {
       const log = engine.logger.child("@gwenjs/core/tween");
       const manager = new TweenManager(engine, opts.poolSize ?? 256, opts.poolPolicy, log);

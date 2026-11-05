@@ -141,6 +141,10 @@ Cause. The call is outside `defineActor()`, `plugin setup()`, or `withCleanup()`
 - `CORE:PLUGIN_DEPENDENCY_MISSING` {#core-plugin-dependency-missing} `engine.use` rejected because a required plugin or service is not installed.
 - `CORE:PLUGIN_INVALID_SHAPE` {#core-plugin-invalid-shape} `engine.use` rejected a plugin that declares a lifecycle key the engine never calls.
 - `CORE:PLUGIN_IN_USE` {#core-plugin-in-use} `engine.unuse` rejected because an installed plugin still requires this plugin or one of its services.
+- `CORE:PLUGIN_OPTIONS_INVALID` {#core-plugin-options-invalid} `engine.use` rejected a plugin whose `validateOptions()` returned issues. `setup` was not called and nothing reached `engine.errors`. The message lists one line per issue.
+- `CORE:PLUGIN_PROVIDE_DUPLICATE` {#core-plugin-provide-duplicate} `engine.use` rejected a plugin that declares a key in `provides` that an installed plugin, a plugin still installing, or the engine already holds. `owner` is that plugin's name, or `<engine>`.
+- `CORE:PLUGIN_PROVIDE_UNDECLARED` {#core-plugin-provide-undeclared} `provide` on the setup engine received a key the plugin did not declare in `provides`. It throws from the setup engine, so `setup` fails through the normal path.
+- `CORE:PLUGIN_PROVIDE_MISSING` {#core-plugin-provide-missing} `setup` resolved without providing every key the plugin declared in `provides`. The plugin is removed and `teardown` runs. No `CORE:PLUGIN_SETUP_ERROR` is emitted.
 - `CORE:TWEEN_POOL_EXHAUSTED` {#core-tween-pool-exhausted} Thrown by `TweenPool.claim`, and by `useSequence` when a wait step cannot claim a slot because the `'drop'` pool is exhausted.
 - `CORE:WASM_GLUE_MISMATCH` {#core-wasm-glue-mismatch} `checkGwenModule` rejects a compiled module that does not match its glue. `init` calls the check before it acquires an instance (#263).
 

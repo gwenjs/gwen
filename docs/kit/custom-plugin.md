@@ -141,6 +141,7 @@ const plugin = Gravity({ value: -20 })
 - `options.defaults` gives the resolved shape and every default. The factory receives a frozen object: `defaults` merged one level deep with the caller's argument. A key the caller sets to `undefined` keeps its default. A nested object the caller passes replaces the nested default whole. The types reject an explicit `undefined` unless the option's type includes it.
 - `options.validate` is an optional pure function that returns `GwenConfigIssue[]`. The factory never calls it and never throws for bad options. The plugin exposes the result as `plugin.validateOptions()`, and `plugin.provides` holds the deduplicated, frozen keys.
 - `provides` and `validateOptions` in the object the factory returns are type errors: `definePlugin` writes them.
+- `engine.use()` checks the declaration at run time, for raw plugin objects too. `validateOptions()` runs first: issues reject with `CORE:PLUGIN_OPTIONS_INVALID`, `setup()` is not called, and nothing reaches `engine.errors`. A declared key that an installed or still-installing plugin, or the engine, already holds rejects with `CORE:PLUGIN_PROVIDE_DUPLICATE`; a second provider no longer overwrites the first. `engine.provide` on the `engine` argument of `setup()` throws `CORE:PLUGIN_PROVIDE_UNDECLARED` for a key outside `provides`, and a plugin without `provides` may not provide. When `setup()` resolves without every declared key, `use()` rejects with `CORE:PLUGIN_PROVIDE_MISSING` and the plugin is removed. `engine.provide` on the engine itself is unchanged.
 
 ### Registering a Plugin
 
@@ -357,11 +358,11 @@ assert.equal(typeof logger.current?.warn, "function");
 
 `watchService(key, onChange)` subscribes during `setup()` and calls `onChange` with the current value. A replacement calls `onChange` with the value still stored. A removal calls `onChange(undefined)`. The function it returns stops the subscription. Removing the plugin does too.
 
-`service:provided` and `service:removed` carry `{ key, value, owner, reason }`. `reason` is `install`, `unuse`, `stop`, or `overwrite`. On a replacement, `service:removed` names the previous owner and `service:provided` names the plugin that stored the new value. Engine-owned keys (`wasm:bridge`, `logger`, `errors`, `memory`) do not fire these hooks. A plugin's `provide` calls during `setup()` are announced after `setup()` resolves and before `plugin:registered`. A `provide` after `setup()` has resolved is announced then.
+`service:provided` and `service:removed` carry `{ key, value, owner, reason }`. `reason` is `install`, `unuse`, `stop`, or `overwrite`. On a replacement, `service:removed` names the previous owner and `service:provided` names the plugin that stored the new value. Engine-owned keys (`wasm:bridge`, `logger`, `errors`, `memory`) do not fire these hooks. A plugin's `provide` calls during `setup()` are announced after `setup()` resolves and before `plugin:registered`, and only when every declared key is present. A failed `setup()`, an undeclared `provide` or a missing declared key announces nothing. A `provide` of a declared key after `setup()` has resolved is announced then.
 
 ## Providing Services
 
-Use `engine.provide()` to register a service that systems can access. Merge the key into `GwenProvides` first. Service keys have no naming rule except the reserved prefix `renderer:<name>`. Only a `RendererService` value may use that prefix. Nothing checks this prefix yet.
+Use `engine.provide()` to register a service that systems can access. Merge the key into `GwenProvides` first, and list it in the plugin's `provides`. A key outside `provides` throws `CORE:PLUGIN_PROVIDE_UNDECLARED`. Service keys have no naming rule except the reserved prefix `renderer:<name>`. Only a `RendererService` value may use that prefix. Nothing checks this prefix yet.
 
 ```ts
 declare module '@gwenjs/schema' {

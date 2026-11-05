@@ -133,8 +133,8 @@ function processSensorId(
 
 // ─── Plugin implementation ───────────────────────────────────────────────────
 
-const physics2dDeclaration: GwenPluginDeclaration<Physics2DConfig, never> = {
-  provides: [],
+const physics2dDeclaration: GwenPluginDeclaration<Physics2DConfig, "physics2d"> = {
+  provides: ["physics2d"],
   options: { defaults: {} },
 };
 
