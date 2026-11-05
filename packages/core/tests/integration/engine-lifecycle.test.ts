@@ -227,6 +227,7 @@ describe("Engine lifecycle — provide / inject across plugins", () => {
     // Plugin A provides a counter service
     await engine.use({
       name: "provider",
+      provides: ["counter"],
       setup(eng) {
         eng.provide("counter", { count: 0 });
       },

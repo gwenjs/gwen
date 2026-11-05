@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createEngine } from "@gwenjs/core/node";
 import { type GwenEngine } from "@gwenjs/core";
 import { definePlugin } from "@gwenjs/kit/plugin";
-import type { GwenEngineBase, GwenPluginRequires } from "@gwenjs/schema";
+import type { GwenEngineBase, GwenPluginRequires, GwenPluginServiceKey } from "@gwenjs/schema";
 
 declare module "@gwenjs/schema" {
   interface GwenProvides {
@@ -25,11 +25,16 @@ afterEach(async () => {
 function install(
   engine: GwenEngine,
   name: string,
+  provides: readonly GwenPluginServiceKey[],
   setup: (host: GwenEngineBase) => void,
   requires?: GwenPluginRequires,
 ): Promise<void> {
   return engine.use(
-    definePlugin(() => ({ name, setup, ...(requires === undefined ? {} : { requires }) }))(),
+    definePlugin({ provides }, () => ({
+      name,
+      setup,
+      ...(requires === undefined ? {} : { requires }),
+    }))(),
   );
 }
 
@@ -41,6 +46,7 @@ describe("optional service requirements", () => {
     await install(
       engine,
       "reader",
+      [],
       (host) => {
         expect(host.tryInject("p72:alpha")).toBeUndefined();
         host.hooks.hook("service:provided", (event) => {
@@ -53,7 +59,7 @@ describe("optional service requirements", () => {
       { optional: ["p72:alpha"] },
     );
     const marker = { n: 3 };
-    await install(engine, "provider", (host) => host.provide("p72:alpha", marker));
+    await install(engine, "provider", ["p72:alpha"], (host) => host.provide("p72:alpha", marker));
     expect(seen).toBe(marker);
     await engine.unuse("provider");
     expect(removed).toBe(marker);
@@ -63,7 +69,7 @@ describe("optional service requirements", () => {
     const engine = await open();
     let provided = 0;
     engine.hooks.hook("service:provided", () => (provided += 1));
-    await install(engine, "empty", (host) => host.provide("p72:alpha", { n: 1 }), {
+    await install(engine, "empty", ["p72:alpha"], (host) => host.provide("p72:alpha", { n: 1 }), {
       optional: [],
     });
     expect(provided).toBe(1);

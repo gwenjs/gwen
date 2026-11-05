@@ -1,8 +1,14 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { createEngine } from "@gwenjs/core/node";
 import { type GwenEngine } from "@gwenjs/core";
+import * as core from "../../src/index";
 import { definePlugin } from "@gwenjs/kit/plugin";
-import type { GwenEngineBase, GwenErrorPayload, GwenPluginRequires } from "@gwenjs/schema";
+import type {
+  GwenEngineBase,
+  GwenErrorPayload,
+  GwenPluginRequires,
+  GwenPluginServiceKey,
+} from "@gwenjs/schema";
 
 declare module "@gwenjs/schema" {
   interface GwenProvides {
@@ -26,12 +32,13 @@ afterEach(async () => {
 function install(
   engine: GwenEngine,
   name: string,
+  provides: readonly GwenPluginServiceKey[],
   setup: (host: GwenEngineBase) => void | Promise<void>,
   requires?: GwenPluginRequires,
   teardown?: () => void,
 ): Promise<void> {
   return engine.use(
-    definePlugin(() => ({
+    definePlugin({ provides }, () => ({
       name,
       setup,
       ...(teardown === undefined ? {} : { teardown }),
@@ -61,6 +68,7 @@ describe("service change hooks", () => {
     await install(
       engine,
       "owner",
+      ["p72:alpha"],
       (host) => host.provide("p72:alpha", value),
       undefined,
       () => {
@@ -79,8 +87,8 @@ describe("service change hooks", () => {
     engine.hooks.hook("service:removed", (event) => {
       log.push({ key: String(event.key), reason: event.reason });
     });
-    await install(engine, "first", give("p72:alpha", 1));
-    await install(engine, "second", give("p72:beta", 2));
+    await install(engine, "first", ["p72:alpha"], give("p72:alpha", 1));
+    await install(engine, "second", ["p72:beta"], give("p72:beta", 2));
     await engine.stop();
     expect(log).toEqual([
       { key: "p72:beta", reason: "stop" },
@@ -106,13 +114,16 @@ describe("service change hooks", () => {
       { hook: "provided", reason: "overwrite", value: second, owner: undefined },
     ]);
     log.length = 0;
-    await install(engine, "p1", give("p72:beta", 1));
+    await install(engine, "p1", ["p72:beta"], give("p72:beta", 1));
     log.length = 0;
-    await install(engine, "p2", give("p72:beta", 2));
-    expect(log).toEqual([
-      { hook: "removed", reason: "overwrite", value: { n: 1 }, owner: "p1" },
-      { hook: "provided", reason: "overwrite", value: { n: 2 }, owner: "p2" },
-    ]);
+    await expect(install(engine, "p2", ["p72:beta"], give("p72:beta", 2))).rejects.toMatchObject({
+      code: "CORE:PLUGIN_PROVIDE_DUPLICATE",
+      plugin: "p2",
+      keys: ["p72:beta"],
+      owner: "p1",
+    });
+    expect(log).toEqual([]);
+    expect(engine.inject("p72:beta")).toEqual({ n: 1 });
   });
   it("provide logger emits nothing and provide p72:alpha emits provided", async () => {
     const engine = await open();
@@ -138,7 +149,7 @@ describe("service change hooks", () => {
       throw new Error("first-listener");
     });
     engine.hooks.hook("service:provided", () => (second += 1));
-    await install(engine, "src", give("p72:alpha", 1));
+    await install(engine, "src", ["p72:alpha"], give("p72:alpha", 1));
     await engine.unuse("src");
     expect(second).toBe(1);
     expect(bus).toHaveLength(1);
@@ -153,7 +164,7 @@ describe("service change hooks", () => {
       if (event.code === "CORE:PLUGIN_RUNTIME_ERROR") rejected += 1;
     });
     rejecting.hooks.hook("service:provided", () => Promise.reject(new Error("later")));
-    await install(rejecting, "async-listener", give("p72:beta", 1));
+    await install(rejecting, "async-listener", ["p72:beta"], give("p72:beta", 1));
     if (rejected === 0) await Promise.resolve();
     expect(rejected).toBe(1);
   });
@@ -182,21 +193,22 @@ describe("service change hooks", () => {
     engine.hooks.hook("service:provided", (event) => log.push(String(event.key)));
     engine.hooks.hook("service:removed", () => log.push("removed"));
     engine.hooks.hook("plugin:registered", () => log.push("plugin:registered"));
-    await install(engine, "kept", (host) => host.provide("p72:alpha", first));
+    await install(engine, "kept", ["p72:alpha"], (host) => host.provide("p72:alpha", first));
     log.length = 0;
     await expect(
-      install(engine, "bad", (host) => {
-        host.provide("p72:alpha", { n: 2 });
+      install(engine, "bad", ["p72:beta"], (host) => {
+        host.provide("p72:beta", { n: 2 });
         throw new Error("setup-boom");
       }),
     ).rejects.toThrow(/setup-boom/);
     expect(log).toEqual([]);
+    expect(engine.tryInject("p72:beta")).toBeUndefined();
     expect(engine.tryInject("p72:alpha")).toBe(first);
     await engine.unuse("kept");
     expect(log).toEqual(["removed"]);
     expect(engine.tryInject("p72:alpha")).toBeUndefined();
     log.length = 0;
-    await install(engine, "good", (host) => {
+    await install(engine, "good", ["p72:alpha", "p72:beta"], (host) => {
       host.provide("p72:alpha", { n: 1 });
       host.provide("p72:beta", { n: 2 });
     });
@@ -207,8 +219,8 @@ describe("service change hooks", () => {
     const log: string[] = [];
     engine.hooks.hook("service:removed", () => log.push("removed"));
     engine.hooks.hook("service:provided", (event) => log.push(String(event.key)));
-    await install(engine, "provider", give("p72:alpha", 1));
-    await install(engine, "hard", () => {}, { services: ["p72:alpha"] });
+    await install(engine, "provider", ["p72:alpha"], give("p72:alpha", 1));
+    await install(engine, "hard", [], () => {}, { services: ["p72:alpha"] });
     log.length = 0;
     await expect(engine.unuse("provider")).rejects.toMatchObject({ code: "CORE:PLUGIN_IN_USE" });
     expect(log).toEqual([]);
@@ -216,7 +228,8 @@ describe("service change hooks", () => {
     engine.provide("p72:beta", { n: 9 });
     expect(log).toEqual(["p72:beta"]);
   });
-  it("a provide after setup is announced with install and removed on unuse", async () => {
+  it("a provide after an await inside setup is announced with install and removed on unuse", async () => {
+    expect(typeof core.GwenPluginProvideError).toBe("function");
     const engine = await open();
     const log: string[] = [];
     const note =
@@ -224,19 +237,45 @@ describe("service change hooks", () => {
         log.push(`${kind}:${String(event.key)}:${event.owner ?? ""}:${event.reason}`);
     engine.hooks.hook("service:provided", note("provided"));
     engine.hooks.hook("service:removed", note("removed"));
-    let host: GwenEngineBase | undefined;
-    await install(engine, "late", async (scoped) => {
-      host = scoped;
-      await Promise.resolve();
-    });
+    engine.hooks.hook("plugin:registered", () => log.push("plugin:registered"));
     const value = { n: 1 };
-    host?.provide("p72:alpha", value);
-    expect(log).toEqual(["provided:p72:alpha:late:install"]);
+    await install(engine, "late", ["p72:alpha"], async (host) => {
+      await Promise.resolve();
+      host.provide("p72:alpha", value);
+    });
+    expect(log).toEqual(["provided:p72:alpha:late:install", "plugin:registered"]);
     expect(engine.tryInject("p72:alpha")).toBe(value);
     await engine.unuse("late");
     expect(engine.tryInject("p72:alpha")).toBeUndefined();
-    expect(log).toEqual(["provided:p72:alpha:late:install", "removed:p72:alpha:late:unuse"]);
-    await install(engine, "late", () => {});
-    expect(log).toHaveLength(2);
+    expect(log).toEqual([
+      "provided:p72:alpha:late:install",
+      "plugin:registered",
+      "removed:p72:alpha:late:unuse",
+    ]);
+    await install(engine, "late", [], () => {});
+    expect(log).toHaveLength(4);
+  });
+  it("an installed plugin re-providing its declared key through the captured engine announces removed then provided with reason overwrite", async () => {
+    expect(typeof core.GwenPluginProvideError).toBe("function");
+    const engine = await open();
+    const log: string[] = [];
+    const note =
+      (kind: string) => (event: { key: string; owner: string | undefined; reason: string }) =>
+        log.push(`${kind}:${String(event.key)}:${event.owner ?? ""}:${event.reason}`);
+    let captured: GwenEngineBase | undefined;
+    const first = { n: 1 };
+    const second = { n: 2 };
+    await install(engine, "again", ["p72:alpha"], (host) => {
+      captured = host;
+      host.provide("p72:alpha", first);
+    });
+    engine.hooks.hook("service:provided", note("provided"));
+    engine.hooks.hook("service:removed", note("removed"));
+    captured?.provide("p72:alpha", second);
+    expect(log).toEqual([
+      "removed:p72:alpha:again:overwrite",
+      "provided:p72:alpha:again:overwrite",
+    ]);
+    expect(engine.tryInject("p72:alpha")).toBe(second);
   });
 });

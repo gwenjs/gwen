@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { GWEN_PLUGIN_KEYS, GwenError } from "@gwenjs/schema";
-import { defineComponent, Types } from "../../src/index.js";
+import { defineComponent, GwenPluginProvideError, Types } from "../../src/index.js";
 import { createRealEngine, type RealEngineHandle } from "./harness.js";
 import "../../../physics2d/src/augment";
 import { Physics2DPlugin } from "../../../physics2d/src/plugin/index";
@@ -196,5 +196,75 @@ describe("official plugin shape", () => {
     for (const plugin of plugins) {
       expect(strayKeys(plugin), plugin.name).toEqual([]);
     }
+  });
+});
+
+describe("official plugin provided keys", () => {
+  async function installAll(handle: RealEngineHandle): Promise<void> {
+    await handle.engine.use(createViewportsPlugin());
+    await handle.engine.use(
+      ScreenPlugin({ sizeProvider: StaticSizeProvider({ width: 800, height: 600 }) }),
+    );
+    await handle.engine.use(CameraCorePlugin());
+  }
+
+  async function rejectsDuplicate(
+    handle: RealEngineHandle,
+    key: "viewportManager" | "screenService" | "cameraManager",
+    owner: string,
+  ): Promise<void> {
+    let caught: unknown;
+    try {
+      await handle.engine.use({ name: "second", provides: [key], setup() {} });
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(GwenPluginProvideError);
+    expect(caught).toMatchObject({ code: "CORE:PLUGIN_PROVIDE_DUPLICATE", owner, keys: [key] });
+  }
+
+  it("viewports, screen and camera-core register viewportManager, screenService and cameraManager", async () => {
+    expect(typeof GwenPluginProvideError).toBe("function");
+    await withEngine("light", async (handle) => {
+      await installAll(handle);
+      expect(handle.engine.tryInject("viewportManager")).toBeDefined();
+      expect(handle.engine.tryInject("screenService")).toBeDefined();
+      expect(handle.engine.tryInject("cameraManager")).toBeDefined();
+    });
+  });
+
+  it("a second plugin declaring viewportManager rejects DUPLICATE with owner gwen:viewports", async () => {
+    expect(typeof GwenPluginProvideError).toBe("function");
+    await withEngine("light", async (handle) => {
+      await installAll(handle);
+      await rejectsDuplicate(handle, "viewportManager", "gwen:viewports");
+    });
+  });
+
+  it("a second plugin declaring screenService rejects DUPLICATE with owner gwen:screen", async () => {
+    expect(typeof GwenPluginProvideError).toBe("function");
+    await withEngine("light", async (handle) => {
+      await installAll(handle);
+      await rejectsDuplicate(handle, "screenService", "gwen:screen");
+    });
+  });
+
+  it("a second plugin declaring cameraManager rejects DUPLICATE with owner camera-core", async () => {
+    expect(typeof GwenPluginProvideError).toBe("function");
+    await withEngine("light", async (handle) => {
+      await installAll(handle);
+      await rejectsDuplicate(handle, "cameraManager", "camera-core");
+    });
+  });
+
+  it("unuse of gwen:screen removes screenService and keeps the other two keys", async () => {
+    expect(typeof GwenPluginProvideError).toBe("function");
+    await withEngine("light", async (handle) => {
+      await installAll(handle);
+      await handle.engine.unuse("gwen:screen");
+      expect(handle.engine.tryInject("screenService")).toBeUndefined();
+      expect(handle.engine.tryInject("viewportManager")).toBeDefined();
+      expect(handle.engine.tryInject("cameraManager")).toBeDefined();
+    });
   });
 });

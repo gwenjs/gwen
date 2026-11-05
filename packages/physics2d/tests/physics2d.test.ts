@@ -212,9 +212,9 @@ describe("Physics2DPlugin", () => {
     expect(plugin.name).toBe("@gwenjs/physics2d");
   });
 
-  it("declares an empty provides list and no providesHooks or extensions", () => {
+  it("declares provides physics2d and no providesHooks or extensions", () => {
     const plugin = Physics2DPlugin();
-    expect(plugin.provides).toEqual([]);
+    expect(plugin.provides).toEqual(["physics2d"]);
     expect("providesHooks" in plugin).toBe(false);
     expect("extensions" in plugin).toBe(false);
   });
