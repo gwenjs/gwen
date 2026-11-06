@@ -42,6 +42,8 @@
       "@gwenjs/physics2d/helpers/movement": ["./packages/physics2d/src/helpers/movement.ts"],
       "@gwenjs/physics2d/helpers/contact": ["./packages/physics2d/src/helpers/contact.ts"],
       "@gwenjs/physics2d/helpers": ["./packages/physics2d/src/helpers/index.ts"],
+      "@gwenjs/physics-core": ["./packages/physics-core/src/index.ts"],
+      "@gwenjs/physics-core/module": ["./packages/physics-core/src/module/index.ts"],
       "@gwenjs/physics2d/module": ["./packages/physics2d/src/module.ts"],
       "@gwenjs/physics2d/tilemap": ["./packages/physics2d/src/tilemap.ts"],
       "@gwenjs/physics2d/debug": ["./packages/physics2d/src/debug.ts"],
