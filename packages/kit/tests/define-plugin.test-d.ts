@@ -138,6 +138,43 @@ describe("definePlugin", () => {
     >().toEqualTypeOf<`"validateOptions" is set by definePlugin's first argument`>();
   });
 
+  it("PluginKeyError names definePlugin's first argument for extensionApi", () => {
+    expectTypeOf<
+      PluginKeyError<"extensionApi">
+    >().toEqualTypeOf<`"extensionApi" is set by definePlugin's first argument`>();
+  });
+
+  it("extensionApi in the declaration compiles (overloads 2 and 3) and extensionApi in the factory return is an error", () => {
+    const declaration: GwenPluginDeclaration<{ n: number }, "x"> = {
+      provides: ["x"],
+      extensionApi: { major: 1, minor: 2 },
+      options: { defaults: { n: 0 } },
+    };
+    const withOptions = definePlugin(declaration, () => ({ name: "O", setup() {} }));
+    expectTypeOf(withOptions().name).toEqualTypeOf<string>();
+    // @ts-expect-error extensionApi is set by definePlugin's first argument
+    definePlugin(declaration, () => ({
+      name: "O",
+      setup() {},
+      extensionApi: { major: 1, minor: 2 },
+    }));
+
+    const services = definePlugin(
+      { provides: ["x"], extensionApi: { major: 1, minor: 2 } },
+      () => ({
+        name: "S",
+        setup() {},
+      }),
+    );
+    expectTypeOf(services().name).toEqualTypeOf<string>();
+    // @ts-expect-error extensionApi is set by definePlugin's first argument
+    definePlugin({ provides: ["x"], extensionApi: { major: 1, minor: 2 } }, () => ({
+      name: "S",
+      setup() {},
+      extensionApi: { major: 1, minor: 0 },
+    }));
+  });
+
   it("all three overloads infer", () => {
     const withOptions = definePlugin(
       { provides: ["physics2d"], options: { defaults: { gravity: -9.8 } } },

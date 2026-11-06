@@ -14,6 +14,7 @@ const ALLOW: Readonly<Record<string, string>> = {
   _setCurrentScope: "marked @internal, engine use only (scope-slot.ts)",
   tryUseEngine: "never throws: returns undefined where useEngine throws (engine-slot.ts)",
   optionalService: "live read of a service, undefined when absent (plugin/watch-service.ts)",
+  isExtensionApiCompatible: "pure compare, same two checks as engine.use step 3b, reads no context",
   satisfiesPluginContract: "compile-time check that returns its plugin, not a composable",
   unpackEntityId: "pure helper, inverse of createEntityId",
   watchService: "subscribes inside setup and returns a dispose function (plugin/watch-service.ts)",

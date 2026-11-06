@@ -520,4 +520,75 @@ describe("definePlugin() — declaration form", () => {
     expect(P()).toBe(shared);
     expect(shared).toHaveProperty("provides", ["x"]);
   });
+
+  it("a factory that returns the same object twice keeps extensionApi on both calls", () => {
+    function second<T>(create: () => T): T | undefined {
+      create();
+      try {
+        return create();
+      } catch {
+        return undefined;
+      }
+    }
+
+    const sharedServices = { name: "SharedServices", setup() {} };
+    const services = definePlugin(
+      { provides: [], extensionApi: { major: 1, minor: 0 } },
+      () => sharedServices,
+    );
+    const sharedOptions = { name: "SharedOptions", setup() {} };
+    const withOptions = definePlugin(
+      { provides: [], extensionApi: { major: 2, minor: 3 }, options: { defaults: { n: 0 } } },
+      () => sharedOptions,
+    );
+
+    const servicesAgain = second(services);
+    const optionsAgain = second(withOptions);
+    expect([
+      Object.getOwnPropertyDescriptor(servicesAgain ?? {}, "extensionApi"),
+      Object.getOwnPropertyDescriptor(optionsAgain ?? {}, "extensionApi"),
+    ]).toEqual([
+      { value: { major: 1, minor: 0 }, writable: false, enumerable: true, configurable: false },
+      { value: { major: 2, minor: 3 }, writable: false, enumerable: true, configurable: false },
+    ]);
+    expect(servicesAgain).toBe(sharedServices);
+    expect(optionsAgain).toBe(sharedOptions);
+  });
+
+  it("the declaration extensionApi is a frozen own key of the plugin", () => {
+    const servicesApi = { major: 1, minor: 2 };
+    const services = definePlugin({ provides: ["x"], extensionApi: servicesApi }, () => ({
+      name: "Services",
+      setup() {},
+    }))();
+    const optionsApi = { major: 1, minor: 2 };
+    const withOptions = definePlugin(
+      { provides: [], extensionApi: optionsApi, options: { defaults: { n: 0 } } },
+      () => ({ name: "Options", setup() {} }),
+    )();
+    servicesApi.minor = 9;
+    optionsApi.minor = 9;
+
+    const servicesValue = Object.getOwnPropertyDescriptor(services, "extensionApi")?.value;
+    const optionsValue = Object.getOwnPropertyDescriptor(withOptions, "extensionApi")?.value;
+    expect(Object.hasOwn(services, "extensionApi")).toBe(true);
+    expect(Object.getOwnPropertyDescriptor(services, "extensionApi")?.enumerable).toBe(true);
+    expect(Object.getOwnPropertyDescriptor(services, "extensionApi")?.writable).toBe(false);
+    expect(Object.getOwnPropertyDescriptor(services, "extensionApi")?.configurable).toBe(false);
+    expect(Object.isFrozen(servicesValue)).toBe(true);
+    expect(servicesValue).toEqual({ major: 1, minor: 2 });
+    expect(servicesValue).not.toBe(servicesApi);
+    expect(Object.hasOwn(withOptions, "extensionApi")).toBe(true);
+    expect(Object.getOwnPropertyDescriptor(withOptions, "extensionApi")?.enumerable).toBe(true);
+    expect(Object.getOwnPropertyDescriptor(withOptions, "extensionApi")?.writable).toBe(false);
+    expect(Object.getOwnPropertyDescriptor(withOptions, "extensionApi")?.configurable).toBe(false);
+    expect(Object.isFrozen(optionsValue)).toBe(true);
+    expect(optionsValue).toEqual({ major: 1, minor: 2 });
+    expect(optionsValue).not.toBe(optionsApi);
+
+    const bare = definePlugin(() => ({ name: "Bare", setup() {} }))();
+    const omitted = definePlugin({ provides: ["x"] }, () => ({ name: "Omitted", setup() {} }))();
+    expect(Object.hasOwn(bare, "extensionApi")).toBe(false);
+    expect(Object.hasOwn(omitted, "extensionApi")).toBe(false);
+  });
 });
