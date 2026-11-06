@@ -245,7 +245,7 @@ Cause. Le handle de corps n'a aucun propriétaire. Fix. Ajoutez le corps avant l
 
 ### PHYSICS2D:INVALID_LAYERS {#physics2d-invalid-layers}
 
-Cause. Bit de calque invalide, ou plus de 32 calques. Fix. Bits entiers de 0 à 31.
+Cause. Le code reste dans `Physics2DErrorCodes` (`packages/physics2d/src/errors.ts:9`). Un bit de calque invalide, ou plus de 32 calques, n'est plus levé sous ce code. `checkPhysics2DConfig` (`packages/physics2d/src/config.ts:57`) les signale comme problèmes de `CORE:PLUGIN_OPTIONS_INVALID` : chemin `layers.<name>` pour un bit (`packages/physics2d/src/config.ts:46`), chemin `layers` au-delà de 32 calques (`packages/physics2d/src/config.ts:62`). `engine.use` rejette avant `setup`. Fix. Bits entiers de 0 à 31, et au plus 32 calques.
 
 ### PHYSICS2D:UNKNOWN_LAYER {#physics2d-unknown-layer}
 

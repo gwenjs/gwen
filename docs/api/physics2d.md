@@ -20,6 +20,8 @@ function Physics2DPlugin(options?: Physics2DPluginOptions): PluginDef
 
 **Description.** Creates the 2D physics plugin. Register in your app config to enable physics simulation.
 
+`options.layers` maps each name to a bit index in `[0, 31]`, at most 32 names. A bit outside that range, or more than 32 layers, makes `engine.use(Physics2DPlugin(...))` reject `CORE:PLUGIN_OPTIONS_INVALID`. The issue path is `layers.<name>` for a bit and `layers` for the count. Calling `Physics2DPlugin(...)` does not throw for layers.
+
 **Returns:** `PluginDef` — physics plugin definition.
 
 **Example:**
@@ -265,6 +267,8 @@ function onSensorExit(sensorId: number, callback: (entityId: bigint) => void): (
 **Description.** Called when another entity leaves a sensor collider. Returns a function that removes the callback.
 
 ## Layers
+
+`Physics2DPlugin({ layers })` takes bit indices. A bit outside `[0, 31]`, or more than 32 layers, makes `engine.use(Physics2DPlugin(...))` reject `CORE:PLUGIN_OPTIONS_INVALID` (paths `layers.<name>` and `layers`). The factory call itself does not throw for layers.
 
 ### defineLayers(names)
 

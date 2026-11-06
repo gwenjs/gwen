@@ -49,6 +49,7 @@
       "Physics2DLayerDefinition",
       "Physics2DPluginHooks",
       "Physics2DPrefabExtension",
+      "Physics2DProvides",
       "PhysicsColliderDef",
       "PhysicsColliderShape",
       "PhysicsKinematicSyncSystemOptions",
