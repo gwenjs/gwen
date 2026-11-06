@@ -241,13 +241,26 @@ export interface PluginErrorContext {
 }
 
 /**
+ * Version of a base plugin's extension surface. Not the package version.
+ * `major` is an integer >= 1. `minor` is an integer >= 0.
+ */
+export interface GwenExtensionApi {
+  readonly major: number;
+  readonly minor: number;
+}
+
+/**
  * Plugins and services that must already be installed, plus optional services.
  * `engine.use()` checks `plugins` and `services` before `setup()`.
  * `optional` is not checked and does not block `unuse()`.
- * Plugin names are strings. Service names are {@link GwenServiceKey}s.
+ * A `plugins` entry is a name, or `{ name, extensionApi }` for a base plugin.
+ * Service names are {@link GwenServiceKey}s.
  */
 export interface GwenPluginRequires {
-  readonly plugins?: readonly string[];
+  readonly plugins?: readonly (
+    | string
+    | { readonly name: string; readonly extensionApi: GwenExtensionApi }
+  )[];
   readonly services?: readonly GwenServiceKey[];
   /** Services that may be absent. `use()` does not check them. */
   readonly optional?: readonly GwenServiceKey[];
@@ -369,4 +382,10 @@ export interface GwenPlugin {
    * resolved options. It is not a lifecycle method: it never runs at the factory call.
    */
   readonly validateOptions?: () => readonly GwenConfigIssue[];
+
+  /**
+   * Extension surface this base provides. Not the package version.
+   * `engine.use()` reads it when another plugin names this base as an object.
+   */
+  readonly extensionApi?: GwenExtensionApi;
 }
