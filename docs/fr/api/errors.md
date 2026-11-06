@@ -42,7 +42,6 @@ onStart(async () => {
 ## Codes réservés
 
 - `CORE:INTROSPECTION_PAGE_INVALID` {#core-introspection-page-invalid}
-- `CORE:PLUGIN_EXTENSION_API_MISMATCH` {#core-plugin-extension-api-mismatch}
 - `APP:PLUGIN_REQUIREMENT_MISSING` {#app-plugin-requirement-missing}
 - `APP:PLUGIN_REQUIREMENT_ORDER` {#app-plugin-requirement-order}
 - `APP:SERVICE_PROVIDER_MISSING` {#app-service-provider-missing}
@@ -139,8 +138,9 @@ Cause. L'appel est hors de `defineActor()`, `plugin setup()` ou `withCleanup()`.
 - `CORE:INVALID_CONFIG` {#core-invalid-config}
 - `CORE:PLUGIN_NOT_FOUND` {#core-plugin-not-found}
 - `CORE:PLUGIN_DEPENDENCY_MISSING` {#core-plugin-dependency-missing} `engine.use` rejeté parce qu'un plugin ou un service requis n'est pas installé.
-- `CORE:PLUGIN_INVALID_SHAPE` {#core-plugin-invalid-shape} `engine.use` a rejeté un plugin qui déclare une clé de cycle de vie que le moteur n'appelle jamais.
+- `CORE:PLUGIN_INVALID_SHAPE` {#core-plugin-invalid-shape} `engine.use` a rejeté un plugin qui déclare une clé de cycle de vie que le moteur n'appelle jamais, un `extensionApi` invalide (`major` entier >= 1, `minor` entier >= 0), ou une entrée `requires.plugins` invalide (nom absent ou non textuel, `extensionApi` invalide, ou le même nom deux fois). `keys` nomme le champ.
 - `CORE:PLUGIN_IN_USE` {#core-plugin-in-use} `engine.unuse` rejeté parce qu'un plugin installé exige encore ce plugin ou l'un de ses services.
+- `CORE:PLUGIN_EXTENSION_API_MISMATCH` {#core-plugin-extension-api-mismatch} `engine.use` a rejeté une extension parce qu'une base installée a un majeur d'API d'extension différent, un mineur plus bas, ou aucune. `mismatches` liste chaque base. `setup` n'a pas été appelé et rien n'est parti sur `engine.errors`.
 - `CORE:PLUGIN_OPTIONS_INVALID` {#core-plugin-options-invalid} `engine.use` a rejeté un plugin dont `validateOptions()` a renvoyé des problèmes. `setup` n'a pas été appelé et rien n'est parti sur `engine.errors`. Le message liste une ligne par problème.
 - `CORE:PLUGIN_PROVIDE_DUPLICATE` {#core-plugin-provide-duplicate} `engine.use` a rejeté un plugin qui déclare dans `provides` une clé déjà tenue par un plugin installé, par un plugin en cours d'installation ou par le moteur. `owner` est le nom de ce plugin, ou `<engine>`.
 - `CORE:PLUGIN_PROVIDE_UNDECLARED` {#core-plugin-provide-undeclared} `provide` sur le moteur de `setup` a reçu une clé que le plugin n'a pas déclarée dans `provides`. L'erreur part du moteur de `setup`, donc `setup` échoue par le chemin normal.

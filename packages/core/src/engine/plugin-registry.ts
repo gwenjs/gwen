@@ -3,6 +3,7 @@ import {
   GWEN_PLUGIN_KEYS,
   GWEN_PLUGIN_LIFECYCLE_HOOKS,
   type ForbiddenPluginKey,
+  type GwenExtensionApi,
   type GwenPluginRequirement,
   type GwenServiceKey,
   type IGwenLogger,
@@ -12,9 +13,11 @@ import { GwenScope } from "../context/scope.js";
 import {
   CoreErrorCodes,
   GwenPluginDependencyError,
+  GwenPluginExtensionApiError,
   GwenPluginOptionsError,
   GwenPluginProvideError,
   GwenPluginShapeError,
+  type GwenExtensionApiMismatch,
 } from "./engine-errors.js";
 import { popEngine, pushEngine } from "./engine-local.js";
 import type { ServiceChangeNotice } from "./service-change.js";
@@ -68,6 +71,30 @@ interface QueuedProvide {
   readonly previous: unknown;
   readonly previousOwner: string | undefined;
   readonly overwrite: boolean;
+}
+
+function isExtensionApi(value: unknown): value is GwenExtensionApi {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  if (!("major" in value) || !("minor" in value)) return false;
+  const major = value.major;
+  const minor = value.minor;
+  return (
+    typeof major === "number" &&
+    Number.isInteger(major) &&
+    major >= 1 &&
+    typeof minor === "number" &&
+    Number.isInteger(minor) &&
+    minor >= 0
+  );
+}
+
+/** A string name, or an object entry's name when its extension API is valid. */
+function requirementName(entry: unknown): string | undefined {
+  if (typeof entry === "string") return entry;
+  if (typeof entry !== "object" || entry === null || Array.isArray(entry)) return undefined;
+  if (!("name" in entry) || typeof entry.name !== "string") return undefined;
+  if (!("extensionApi" in entry) || !isExtensionApi(entry.extensionApi)) return undefined;
+  return entry.name;
 }
 
 /**
@@ -135,6 +162,11 @@ export class PluginRegistry {
         );
       }
 
+      const mismatches = this._extensionApiMismatches(plugin);
+      if (mismatches.length > 0) {
+        return Promise.reject(new GwenPluginExtensionApiError({ plugin: plugin.name, mismatches }));
+      }
+
       const issues = plugin.validateOptions?.() ?? [];
       if (issues.length > 0) {
         return Promise.reject(new GwenPluginOptionsError(plugin.name, issues));
@@ -173,6 +205,7 @@ export class PluginRegistry {
       Object.prototype.hasOwnProperty.call(GWEN_PLUGIN_LIFECYCLE_HOOKS, key),
     );
     if (found.length > 0) throw new GwenPluginShapeError(plugin.name, found);
+    this._assertExtensionFields(plugin);
     if (__GWEN_DEV__ && this.deps.debug) {
       const allowed: ReadonlySet<string> = new Set(GWEN_PLUGIN_KEYS);
       for (const key of Object.keys(plugin)) {
@@ -182,18 +215,64 @@ export class PluginRegistry {
     }
   }
 
+  private _assertExtensionFields(plugin: GwenPlugin): void {
+    if (
+      Object.prototype.hasOwnProperty.call(plugin, "extensionApi") &&
+      !isExtensionApi(plugin.extensionApi)
+    ) {
+      throw new GwenPluginShapeError(plugin.name, ["extensionApi"]);
+    }
+    const plugins = plugin.requires?.plugins;
+    if (plugins === undefined) return;
+    if (!Array.isArray(plugins)) throw new GwenPluginShapeError(plugin.name, ["requires"]);
+    const seen = new Set<string>();
+    for (const entry of plugins) {
+      const name = requirementName(entry);
+      if (name === undefined || seen.has(name)) {
+        throw new GwenPluginShapeError(plugin.name, ["requires"]);
+      }
+      seen.add(name);
+    }
+  }
+
   private _missingRequirements(plugin: GwenPlugin): GwenPluginRequirement[] {
     const requires = plugin.requires;
     const plugins = requires?.plugins ?? [];
     const services = requires?.services ?? [];
-    return [
-      ...plugins
-        .filter((name) => !this._pluginNames.has(name))
-        .map((name) => ({ kind: "plugin" as const, name })),
-      ...services
-        .filter((name) => !this.deps.hasService(name))
-        .map((name) => ({ kind: "service" as const, name })),
-    ];
+    const missing: GwenPluginRequirement[] = [];
+    for (const entry of plugins) {
+      const pluginName = typeof entry === "string" ? entry : entry.name;
+      if (!this._pluginNames.has(pluginName)) {
+        missing.push({ kind: "plugin", name: pluginName });
+      }
+    }
+    for (const name of services) {
+      if (!this.deps.hasService(name)) missing.push({ kind: "service", name });
+    }
+    return missing;
+  }
+
+  private _extensionApiMismatches(plugin: GwenPlugin): GwenExtensionApiMismatch[] {
+    const plugins = plugin.requires?.plugins ?? [];
+    const mismatches: GwenExtensionApiMismatch[] = [];
+    for (const entry of plugins) {
+      if (typeof entry === "string") continue;
+      const required = entry.extensionApi;
+      const actual = this._actualExtensionApi(entry.name);
+      const compatible =
+        actual !== undefined && actual.major === required.major && actual.minor >= required.minor;
+      if (compatible) continue;
+      mismatches.push({
+        base: entry.name,
+        required: { major: required.major, minor: required.minor },
+        actual: actual === undefined ? null : { major: actual.major, minor: actual.minor },
+      });
+    }
+    return mismatches;
+  }
+
+  private _actualExtensionApi(baseName: string): GwenExtensionApi | undefined {
+    return this.pluginNamed(baseName)?.extensionApi;
   }
 
   private _warnDuplicate(name: string): void {
@@ -380,7 +459,10 @@ export class PluginRegistry {
     const dependents: string[] = [];
     for (const plugin of this._plugins) {
       const requires = plugin.requires;
-      const needsPlugin = (requires?.plugins ?? []).includes(name);
+      const needsPlugin = (requires?.plugins ?? []).some((entry) => {
+        const requiredName = typeof entry === "string" ? entry : entry.name;
+        return requiredName === name;
+      });
       const needsService =
         owned !== undefined && (requires?.services ?? []).some((key) => owned.has(key));
       if (needsPlugin || needsService) dependents.push(plugin.name);

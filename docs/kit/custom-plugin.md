@@ -313,7 +313,7 @@ setup(engine) {
 }
 ```
 
-In a development build with `debug: true`, an own key other than `name`, `setup`, `teardown`, `onError`, `requires`, `provides`, or `validateOptions`, and not starting with `_`, logs a warning and is ignored.
+In a development build with `debug: true`, an own key other than `name`, `setup`, `teardown`, `onError`, `requires`, `provides`, `validateOptions`, or `extensionApi`, and not starting with `_`, logs a warning and is ignored.
 
 The same keys fail at compile time. `definePlugin` replaces every key outside `name`, `setup`, `teardown`, `onError` and `requires` with a `PluginKeyError` message, so an extra key in the returned object is a type error. Declare the options in the first argument, `definePlugin({ provides: [], options: { defaults } }, (opts) => ...)`. Leave the type arguments to inference: the options type comes from `options.defaults`.
 
