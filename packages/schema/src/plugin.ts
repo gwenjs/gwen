@@ -250,6 +250,16 @@ export interface GwenExtensionApi {
 }
 
 /**
+ * Service a base provides under `"<namespace>:extension"`.
+ * `extensionApi` matches the base plugin. `registrations` counts the live
+ * entries held for extensions. It is 0 when none are registered.
+ */
+export interface GwenExtensionService {
+  readonly extensionApi: GwenExtensionApi;
+  readonly registrations: number;
+}
+
+/**
  * Plugins and services that must already be installed, plus optional services.
  * `engine.use()` checks `plugins` and `services` before `setup()`.
  * `optional` is not checked and does not block `unuse()`.

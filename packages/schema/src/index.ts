@@ -40,6 +40,7 @@ export type {
   GwenPlugin,
   GwenEngineServiceKey,
   GwenExtensionApi,
+  GwenExtensionService,
   GwenPluginServiceKey,
   GwenPluginRequirement,
   GwenPluginRequires,
