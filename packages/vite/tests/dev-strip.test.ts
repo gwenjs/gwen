@@ -42,6 +42,8 @@ const REAL_HINTS = [
   requirementHint,
   shapeHint,
   "or build it with defineGwenModule from @gwenjs/kit",
+  "an equal or higher minor",
+  "extensionApi is { major: integer >= 1, minor: integer >= 0 }; each requires.plugins entry is a name or { name, extensionApi }, once.",
 ];
 
 /**
@@ -154,7 +156,7 @@ function gwenAlias(mode: "src" | "dist"): Plugin {
   GwenWasmAbiError,
   useEngine,
 } from ${JSON.stringify(dist)};
-export { GwenPluginNotFoundError, GwenPluginDependencyError, GwenPluginShapeError } from ${JSON.stringify(errors)};
+export { GwenPluginNotFoundError, GwenPluginDependencyError, GwenPluginShapeError, GwenPluginExtensionApiError } from ${JSON.stringify(errors)};
 // createEngine above is dist and has no unknown-key warning. This names the source class.
 import { PluginRegistry } from ${JSON.stringify(join(repoRoot, "packages/core/src/engine/plugin-registry.ts"))};
 new PluginRegistry(undefined);
@@ -167,9 +169,9 @@ function writeFixture(dir: string, shapeError = true): void {
   mkdirSync(join(dir, "src", "layouts"), { recursive: true });
   const hintText = `${STAND_IN_TEXTS.join(" ")} __GWEN_DEV__ import.meta.env`;
   // Published dist does not export this class, so the node_modules build omits it.
-  const shapeName = shapeError ? ", GwenPluginShapeError" : "";
+  const shapeName = shapeError ? ", GwenPluginShapeError, GwenPluginExtensionApiError" : "";
   const shapeLog = shapeError
-    ? `console.log(new GwenPluginShapeError("demo", ["onRender"]).message);\n`
+    ? `console.log(new GwenPluginShapeError("demo", ["onRender"]).message);\nconsole.log(new GwenPluginExtensionApiError({ plugin: "demo", mismatches: [{ base: "base", required: { major: 1, minor: 0 }, actual: null }] }).message);\n`
     : "";
   // Kit dist gains GwenModuleDefinitionError only after a rebuild. The node_modules
   // build (shapeError false) keeps the published artifact and omits the import.
