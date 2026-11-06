@@ -44,10 +44,10 @@ export type {
   RendererStatsCollector,
 } from "./stats.js";
 
-// LayerManager — getOrCreateLayerManager is the only public entry point.
-// LayerManager itself is intentionally not exported: plugin authors must use
-// getOrCreateLayerManager(engine, container) so the instance is always bound
-// to the engine logger and shared across all renderer plugins.
+// LayerManager itself is intentionally not exported. gwen:viewports creates the
+// shared instance through createManagerServices. Plugin authors read it with
+// getOrCreateLayerManager(engine, container), which binds the first root.
+export { createManagerServices } from "./create-manager-services.js";
 export { getOrCreateLayerManager } from "./get-or-create-layer-manager.js";
 
 // defineRendererService

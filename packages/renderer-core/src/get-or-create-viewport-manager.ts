@@ -1,9 +1,9 @@
 // packages/renderer-core/src/get-or-create-viewport-manager.ts
 /**
- * @file getOrCreateViewportManager — lazy singleton factory.
+ * @file getOrCreateViewportManager — read the viewport service.
  *
- * Plugin setup code calls this instead of `new ViewportManagerImpl()`.
- * Wires `engine.hooks.callHook` so viewport changes propagate as engine events.
+ * `gwen:viewports` creates the manager. Plugin setup code reads it here.
+ * The {@link createViewportManager} helper keeps the `callHook` cast in this file.
  *
  * @example
  * ```ts
@@ -19,15 +19,9 @@ import { reportRejectedHook } from "@gwenjs/core/internal";
 import { ViewportManagerImpl } from "./viewport-manager.js";
 import type { ViewportManager } from "./viewport-manager.js";
 
-/**
- * Return the shared {@link ViewportManager} for this engine instance, creating it
- * if it does not yet exist.
- */
-export function getOrCreateViewportManager(engine: GwenEngine): ViewportManager {
-  const existing = engine.tryInject("viewportManager");
-  if (existing) return existing;
-
-  const manager = new ViewportManagerImpl((event, payload) => {
+/** Build a viewport manager wired to this engine's hook bus. Not a package export. */
+export function createViewportManager(engine: GwenEngine): ViewportManager {
+  return new ViewportManagerImpl((event, payload) => {
     reportRejectedHook(
       engine,
       "@gwenjs/renderer-core",
@@ -35,6 +29,13 @@ export function getOrCreateViewportManager(engine: GwenEngine): ViewportManager 
       (engine.hooks.callHook as (name: string, ...args: unknown[]) => unknown)(event, payload), // boundary: the manager hands over a plain string event and an unknown payload, while callHook accepts only the keys of the hook map and each hook's own arguments
     );
   });
-  engine.provide("viewportManager", manager);
-  return manager;
+}
+
+/**
+ * Read the shared {@link ViewportManager} declared by `gwen:viewports`.
+ *
+ * Reads the service declared by gwen:viewports. Does not create it. Removal is #230 G2's.
+ */
+export function getOrCreateViewportManager(engine: GwenEngine): ViewportManager {
+  return engine.inject("viewportManager");
 }
