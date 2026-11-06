@@ -1,0 +1,46 @@
+{
+  ".": {
+    "values": [
+      "BODY_KIND_CODE",
+      "LAYER_ALL",
+      "LAYER_ERROR_CODES",
+      "LayerRegistry",
+      "MAX_LAYERS",
+      "QUALITY_PRESET_CODE",
+      "SENSOR_ID_FOOT",
+      "clearEngineContacts",
+      "createContactRegistry",
+      "createSensorRegistry",
+      "defineLayers",
+      "onContact",
+      "onSensorEnter",
+      "onSensorExit",
+      "readCollisionEvents"
+    ],
+    "types": [
+      "BodyKind",
+      "BodyOptions",
+      "BoxColliderOptions",
+      "CapsuleColliderOptions",
+      "ColliderFilterOptions",
+      "CollisionContact",
+      "CollisionEventLayout",
+      "ContactRegistry",
+      "Dim",
+      "DimRot",
+      "DimVec",
+      "InternalCollisionEvent",
+      "KinematicBodyOptions",
+      "LayerSelector",
+      "PhysicsConfigBase",
+      "QualityPreset",
+      "SensorRegistry",
+      "SensorState",
+      "SphereColliderOptions"
+    ]
+  },
+  "./module": {
+    "values": [],
+    "types": []
+  }
+}
