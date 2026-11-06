@@ -10,6 +10,10 @@ export type {
   GwenPluginSetupEngine,
 } from "../define-plugin.js";
 
+export { isExtensionApiCompatible } from "./extension-api.js";
+export { createExtensionRegistry } from "./extension-registry.js";
+export type { ExtensionRegistry } from "./extension-registry.js";
+
 export { optionalService, watchService } from "./watch-service.js";
 
 export { satisfiesPluginContract } from "../plugin-types.js";

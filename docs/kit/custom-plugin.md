@@ -140,8 +140,46 @@ const plugin = Gravity({ value: -20 })
 - Each `provides` key must be a key of `GwenProvides` and not an engine key (`logger`, `errors`, `wasm:bridge`, `memory`). In `setup`, `engine.provide` accepts only the declared keys at compile time. `provides` may be a function of the resolved options, `(opts) => [...]`.
 - `options.defaults` gives the resolved shape and every default. The factory receives a frozen object: `defaults` merged one level deep with the caller's argument. A key the caller sets to `undefined` keeps its default. A nested object the caller passes replaces the nested default whole. The types reject an explicit `undefined` unless the option's type includes it.
 - `options.validate` is an optional pure function that returns `GwenConfigIssue[]`. The factory never calls it and never throws for bad options. The plugin exposes the result as `plugin.validateOptions()`, and `plugin.provides` holds the deduplicated, frozen keys.
-- `provides` and `validateOptions` in the object the factory returns are type errors: `definePlugin` writes them.
+- `provides`, `validateOptions`, and `extensionApi` in the object the factory returns are type errors: `definePlugin` writes them.
 - `engine.use()` checks the declaration at run time, for raw plugin objects too. `validateOptions()` runs first: issues reject with `CORE:PLUGIN_OPTIONS_INVALID`, `setup()` is not called, and nothing reaches `engine.errors`. A declared key that an installed or still-installing plugin, or the engine, already holds rejects with `CORE:PLUGIN_PROVIDE_DUPLICATE`; a second provider no longer overwrites the first. `engine.provide` on the `engine` argument of `setup()` throws `CORE:PLUGIN_PROVIDE_UNDECLARED` for a key outside `provides`, and a plugin without `provides` may not provide. When `setup()` resolves without every declared key, `use()` rejects with `CORE:PLUGIN_PROVIDE_MISSING` and the plugin is removed. `engine.provide` on the engine itself is unchanged.
+
+### Declaring an extension API
+
+A base sets `extensionApi: { major, minor }` on the first argument of `definePlugin`. That is the version of its extension surface, not the package version. `definePlugin` copies it onto the plugin as a frozen enumerable property. Leave it out of the factory return.
+
+An extension names that base with `{ name, extensionApi }` inside `requires.plugins`. `isExtensionApiCompatible(required, actual)` is the check `engine.use` runs: `actual` is defined, the majors are equal, and `actual.minor` is greater than or equal to `required.minor`.
+
+The base creates one registry per engine inside `setup` and calls callback items only through `invokeEach`. `register(owner, item)` returns an idempotent disposer. The extension passes that disposer to `onCleanup`. A throwing item emits one error naming its owner, that registration is disposed, and the next items still run.
+
+```ts
+import { createExtensionRegistry, definePlugin, isExtensionApiCompatible } from '@gwenjs/kit/plugin'
+import type { ExtensionRegistry } from '@gwenjs/kit/plugin'
+import type { GwenExtensionService } from '@gwenjs/schema'
+
+declare module '@gwenjs/schema' {
+  interface GwenProvides {
+    'widgets:extension': GwenExtensionService
+  }
+}
+
+export const Widgets = definePlugin(
+  { provides: ['widgets:extension'], extensionApi: { major: 1, minor: 0 } },
+  () => ({
+    name: 'widgets',
+    setup(engine) {
+      const presets: ExtensionRegistry<{ id: string }> = createExtensionRegistry({ name: 'presets' })
+      engine.provide('widgets:extension', {
+        extensionApi: { major: 1, minor: 0 },
+        get registrations() {
+          return presets.size
+        },
+      })
+    },
+  }),
+)
+
+const fits = isExtensionApiCompatible({ major: 1, minor: 0 }, { major: 1, minor: 2 })
+```
 
 ### Registering a Plugin
 
@@ -703,7 +741,7 @@ const MyPlugin = definePlugin(declaration, (opts) => ({
 }))
 ```
 
-`declaration` is `{ provides, options?: { defaults, validate? } }`. A plugin with neither passes only the factory: `definePlugin(() => ({ ... }))`.
+`declaration` is `{ provides, extensionApi?, options?: { defaults, validate? } }`. A plugin with neither services nor options passes only the factory: `definePlugin(() => ({ ... }))`.
 
 ### GwenEngineBase
 

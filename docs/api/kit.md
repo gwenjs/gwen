@@ -42,12 +42,12 @@ export const mover = defineSystem('Mover', () => {
 
 Plugin authoring utilities and schema type re-exports.
 
-**Exports:** `definePlugin`, `satisfiesPluginContract`, `optionalService`, `watchService`, `GwenPluginFactory`, `GwenPluginDeclaration`, `GwenPluginOptionsInput`, `GwenPluginSetupEngine`, `GwenPluginDefinition`, `GwenDeclaredPlugin`, `GwenPluginProvidedKeys` (types), plus schema re-exports: `GwenPlugin`, `GwenProvides`, `GwenRuntimeHooks`, `EntityId`, `ComponentType`, `PluginErrorContext`, `createEntityId`, `unpackEntityId`.
+**Exports:** `definePlugin`, `createExtensionRegistry`, `isExtensionApiCompatible`, `satisfiesPluginContract`, `optionalService`, `watchService`, `GwenPluginFactory`, `GwenPluginDeclaration`, `GwenPluginOptionsInput`, `GwenPluginSetupEngine`, `GwenPluginDefinition`, `GwenDeclaredPlugin`, `GwenPluginProvidedKeys`, `ExtensionRegistry` (types), plus schema re-exports: `GwenPlugin`, `GwenProvides`, `GwenRuntimeHooks`, `EntityId`, `ComponentType`, `PluginErrorContext`, `createEntityId`, `unpackEntityId`.
 
 **Usage:**
 ```ts
-import { definePlugin, satisfiesPluginContract } from '@gwenjs/kit/plugin'
-import type { GwenPlugin } from '@gwenjs/kit/plugin'
+import { createExtensionRegistry, definePlugin, isExtensionApiCompatible, satisfiesPluginContract } from '@gwenjs/kit/plugin'
+import type { ExtensionRegistry, GwenPlugin } from '@gwenjs/kit/plugin'
 import type { GwenEngineBase } from '@gwenjs/schema'
 ```
 
@@ -68,12 +68,30 @@ function definePlugin<O extends object, const K extends GwenPluginServiceKey, TP
 
 // 2. Services, no options
 function definePlugin<const K extends GwenPluginServiceKey, TPlugin extends GwenPluginDefinition<K>>(
-  declaration: { readonly provides: readonly K[] },
+  declaration: { readonly provides: readonly K[]; readonly extensionApi?: GwenExtensionApi },
   factory: () => ExactPlugin<TPlugin>
 ): GwenPluginFactory<void, TPlugin & GwenDeclaredPlugin<K>>
 ```
 
-**Description.** Creates a reusable plugin factory. The optional first argument declares the service keys the plugin provides and its options (`defaults`, optional `validate`). The factory function receives the frozen resolved options, which are `defaults` merged one level deep with the caller's argument, and returns a plugin definition. `definePlugin` writes `provides` and `validateOptions` onto it. The only keys are `name`, `setup(engine)`, `teardown`, `onError` and `requires`. Any other key is a type error, and `engine.use()` rejects a frame callback such as `onUpdate` with `CORE:PLUGIN_INVALID_SHAPE`. Register frame work with `engine.hooks.hook` inside `setup`. A `setup()` error is not wrapped: it is published as `CORE:PLUGIN_SETUP_ERROR`, then `engine.use()` rejects with the original error.
+**Description.** Creates a reusable plugin factory. The optional first argument declares the service keys the plugin provides, its options (`defaults`, optional `validate`), and an optional `extensionApi`. The factory function receives the frozen resolved options, which are `defaults` merged one level deep with the caller's argument, and returns a plugin definition. `definePlugin` writes `provides` and `validateOptions` onto it, and `extensionApi` when the declaration has one. The only keys in the factory return are `name`, `setup(engine)`, `teardown`, `onError` and `requires`. Any other key is a type error, and `engine.use()` rejects a frame callback such as `onUpdate` with `CORE:PLUGIN_INVALID_SHAPE`. Register frame work with `engine.hooks.hook` inside `setup`. A `setup()` error is not wrapped: it is published as `CORE:PLUGIN_SETUP_ERROR`, then `engine.use()` rejects with the original error.
+
+### createExtensionRegistry({ name })
+
+**Signature:**
+```ts
+function createExtensionRegistry<T>(opts: { readonly name: string }): ExtensionRegistry<T>
+```
+
+**Description.** Returns a registry of extension contributions. It reads no ambient context, so a base creates one inside `setup` for each engine. `register(owner, item)` returns an idempotent disposer. `forEach` and `invokeEach` walk the items that were registered when the pass started, in that order. A dispose during the pass skips an item not yet visited. `invokeEach(errors, failureCode, fn)` never rethrows: a throwing item emits one `error` event on `errors` and that registration is disposed.
+
+### isExtensionApiCompatible(required, actual)
+
+**Signature:**
+```ts
+function isExtensionApiCompatible(required: GwenExtensionApi, actual: GwenExtensionApi | undefined): boolean
+```
+
+**Description.** Pure. True when `actual` is defined, `actual.major === required.major`, and `actual.minor >= required.minor`. This is the check `engine.use` runs for an object entry of `requires.plugins`.
 
 **Example:**
 ```ts

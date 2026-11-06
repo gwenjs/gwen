@@ -3,8 +3,9 @@
  *
  * Returns a typed factory function. Plugin authors provide a factory that
  * returns a plain object conforming to the {@link GwenPlugin} interface.
- * The first argument declares the services the plugin provides and the options
- * it accepts. `definePlugin` writes `provides` and `validateOptions` onto the
+ * The first argument declares the services the plugin provides, the options
+ * it accepts, and, for a base, its `extensionApi`. `definePlugin` writes
+ * `provides`, `validateOptions`, and `extensionApi` when declared, onto the
  * plugin the factory returns.
  *
  * @example
@@ -36,6 +37,7 @@ import {
   type ForbiddenPluginKey,
   type GwenConfigIssue,
   type GwenEngineBase,
+  type GwenExtensionApi,
   type GwenPlugin,
   type GwenPluginServiceKey,
   type GwenProvides,
@@ -58,12 +60,12 @@ export type GwenPluginFactory<Options, P extends GwenPlugin> = [Options] extends
 /**
  * Compile-time message for a key `definePlugin` does not accept.
  * A lifecycle key names the hook to register inside `setup`.
- * `provides` and `validateOptions` are written by `definePlugin` from its first argument.
+ * `provides`, `validateOptions`, and `extensionApi` are written by `definePlugin` from its first argument.
  * Any other extra key names the keys a plugin object may declare.
  */
 export type PluginKeyError<K extends PropertyKey> = K extends ForbiddenPluginKey
   ? `"${K}" is never called by the engine. In setup(), use engine.hooks.hook("${(typeof GWEN_PLUGIN_LIFECYCLE_HOOKS)[K]}", …)`
-  : K extends "provides" | "validateOptions"
+  : K extends "provides" | "validateOptions" | "extensionApi"
     ? `"${K}" is set by definePlugin's first argument`
     : `"${K & string}" is not a GwenPlugin key (allowed: name, setup, teardown, onError, requires)`;
 
@@ -94,6 +96,11 @@ export type GwenPluginOptionsInput<O> = { [P in keyof O]?: O[P] };
 export interface GwenPluginDeclaration<O extends object, K extends GwenPluginServiceKey> {
   /** Service keys the plugin provides. Use the function form when the set depends on the options. */
   provides: readonly K[] | ((options: Readonly<O>) => readonly K[]);
+  /**
+   * Version of this base's extension surface. Not the package version.
+   * Copied onto the plugin. Absent on a plugin that is not a base.
+   */
+  readonly extensionApi?: GwenExtensionApi;
   options: {
     /** The resolved options shape. Every required key of `O` must be present. */
     defaults: O;
@@ -116,25 +123,27 @@ export type GwenPluginSetupEngine<K extends GwenPluginServiceKey> = Omit<
 
 /**
  * The plugin object a factory passed to {@link definePlugin} returns.
- * `provides` and `validateOptions` are absent: `definePlugin` writes them.
+ * `provides`, `validateOptions`, and `extensionApi` are absent: `definePlugin` writes them.
  *
  * @typeParam K - The service keys the plugin provides.
  */
 export type GwenPluginDefinition<K extends GwenPluginServiceKey> = Omit<
   GwenPlugin,
-  "setup" | "provides" | "validateOptions"
+  "setup" | "provides" | "validateOptions" | "extensionApi"
 > & {
   setup(engine: GwenPluginSetupEngine<K>): void | Promise<void>;
 };
 
 /**
- * The two members `definePlugin` writes onto every plugin it produces.
+ * Members `definePlugin` writes. `extensionApi` is optional on the type.
+ * The key is present at run time only when the declaration passed one.
  *
  * @typeParam K - The service keys the plugin provides.
  */
 export type GwenDeclaredPlugin<K extends GwenPluginServiceKey> = {
   readonly provides: readonly K[];
   readonly validateOptions: () => readonly GwenConfigIssue[];
+  readonly extensionApi?: GwenExtensionApi;
 };
 
 /**
@@ -150,8 +159,9 @@ export type GwenPluginProvidedKeys<F> = F extends (...args: never[]) => GwenDecl
  * Define a GWEN plugin via a factory function.
  *
  * The factory returns a plain object conforming to {@link GwenPlugin}.
- * `definePlugin` writes `provides` and `validateOptions` onto that object and
- * leaves `setup`, `teardown` and `onError` untouched. A `setup` failure reaches
+ * `definePlugin` writes `provides` and `validateOptions` onto that object, and
+ * `extensionApi` when the declaration has one. It leaves `setup`, `teardown`
+ * and `onError` untouched. A `setup` failure reaches
  * the caller as the original throw. The returned factory never validates and
  * never throws for bad options: `validateOptions()` is a method of the plugin, and nothing calls it
  * at the factory call.
@@ -160,8 +170,8 @@ export type GwenPluginProvidedKeys<F> = F extends (...args: never[]) => GwenDecl
  * frozen or sealed object throws a `TypeError` at the factory call.
  *
  * Keys the engine never calls (`onUpdate`, `onRender`, …) are a type error.
- * Register that work with `engine.hooks.hook` inside `setup`. `provides` and
- * `validateOptions` in the factory return are a type error too.
+ * Register that work with `engine.hooks.hook` inside `setup`. `provides`,
+ * `validateOptions`, and `extensionApi` in the factory return are a type error too.
  *
  * Overload 1 declares no services and no options. The types give its factory
  * no argument. The returned function passes whatever argument it receives
@@ -205,7 +215,7 @@ export function definePlugin<TPlugin extends GwenPluginDefinition<never>>(
  * @typeParam O - The resolved options shape, inferred from `options.defaults`.
  * @typeParam K - The service keys the plugin provides.
  * @typeParam TPlugin - The concrete plugin type the factory produces.
- * @param declaration - `{ provides, options: { defaults, validate? } }`.
+ * @param declaration - `{ provides, options: { defaults, validate? }, extensionApi? }`.
  * @param factory - A function that receives the resolved options and returns a `GwenPlugin` object.
  * @returns A typed {@link GwenPluginFactory} whose argument is {@link GwenPluginOptionsInput}.
  *
@@ -244,7 +254,7 @@ export function definePlugin<
  *
  * @typeParam K - The service keys the plugin provides.
  * @typeParam TPlugin - The concrete plugin type the factory produces.
- * @param declaration - `{ provides }`.
+ * @param declaration - `{ provides, extensionApi? }`.
  * @param factory - A function that returns a `GwenPlugin` object.
  * @returns A typed {@link GwenPluginFactory} that takes no argument.
  *
@@ -262,14 +272,14 @@ export function definePlugin<
   const K extends GwenPluginServiceKey,
   TPlugin extends GwenPluginDefinition<K>,
 >(
-  declaration: { readonly provides: readonly K[] },
+  declaration: { readonly provides: readonly K[]; readonly extensionApi?: GwenExtensionApi },
   factory: () => ExactPlugin<TPlugin>,
 ): GwenPluginFactory<void, TPlugin & GwenDeclaredPlugin<K>>;
 // The implementation signature widens the overloads to runtime shapes, and TypeScript checks it
 // only loosely against them. The public return types are deferred conditional types, which a
 // function body cannot produce without a cast, so the overloads carry them instead. This is safe
 // because the body creates and converts nothing: each factory's return value goes out as returned,
-// with two members written onto it, so each caller sees exactly the types its overload states.
+// with its declared members written onto it, so each caller sees exactly the types its overload states.
 export function definePlugin(
   ...args:
     | [factory: RuntimeFactory]
@@ -278,10 +288,13 @@ export function definePlugin(
   if (args.length === 1) {
     const [factory] = args;
     return function PluginFactory(input?: unknown): unknown {
-      return declare(factory(input), [], () => []);
+      return declare(factory(input), [], () => [], undefined);
     };
   }
   const [declaration, factory] = args;
+  // One frozen copy for every call of this factory. A second defineProperty
+  // on a shared return object is allowed only when the value is identical.
+  const extensionApi = copyExtensionApi(declaration);
   return function PluginFactory(input?: unknown): unknown {
     const resolved = Object.freeze({
       ...declaration.options?.defaults,
@@ -292,7 +305,12 @@ export function definePlugin(
       typeof declaration.provides === "function"
         ? declaration.provides(resolved)
         : declaration.provides;
-    return declare(plugin, provides, () => declaration.options?.validate?.(resolved) ?? []);
+    return declare(
+      plugin,
+      provides,
+      () => declaration.options?.validate?.(resolved) ?? [],
+      extensionApi,
+    );
   };
 }
 
@@ -306,6 +324,7 @@ type RuntimeOptionsFactory = (options: Readonly<object>) => unknown;
 type RuntimeDeclaration = {
   readonly provides: GwenPluginDeclaration<object, GwenPluginServiceKey>["provides"];
   readonly options?: GwenPluginDeclaration<object, GwenPluginServiceKey>["options"];
+  readonly extensionApi?: GwenExtensionApi;
 };
 
 /** The own enumerable entries of `input` whose value is not `undefined`. */
@@ -319,13 +338,20 @@ function definedEntries(input: unknown): Record<string, unknown> {
   return entries;
 }
 
-/** Writes `provides` (deduplicated, frozen) and `validateOptions` onto `plugin`. */
+/** A frozen own copy, or `undefined` when the declaration has no `extensionApi`. */
+function copyExtensionApi(declaration: RuntimeDeclaration): GwenExtensionApi | undefined {
+  if (declaration.extensionApi === undefined) return undefined;
+  return Object.freeze({ ...declaration.extensionApi });
+}
+
+/** Writes `provides`, `validateOptions`, and `extensionApi` when `extensionApi` is set. */
 function declare(
   plugin: unknown,
   provides: readonly string[],
   validateOptions: () => readonly GwenConfigIssue[],
+  extensionApi: GwenExtensionApi | undefined,
 ): unknown {
-  return Object.defineProperties(plugin, {
+  const declared: unknown = Object.defineProperties(plugin, {
     provides: {
       value: Object.freeze([...new Set(provides)]),
       enumerable: true,
@@ -333,4 +359,11 @@ function declare(
     },
     validateOptions: { value: validateOptions, enumerable: true, configurable: true },
   });
+  if (extensionApi !== undefined) {
+    Object.defineProperty(declared, "extensionApi", {
+      value: extensionApi,
+      enumerable: true,
+    });
+  }
+  return declared;
 }

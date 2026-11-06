@@ -125,9 +125,11 @@ Types: `AutoImport`, `DeepPartial`, `EngineSlot`, `GwenContextBoundary`, `GwenCo
 
 ### `./plugin`
 
-Values: `createEntityId`, `definePlugin`, `optionalService`, `satisfiesPluginContract`, `unpackEntityId`, `watchService`
+Values: `createEntityId`, `createExtensionRegistry`, `definePlugin`, `isExtensionApiCompatible`, `optionalService`, `satisfiesPluginContract`, `unpackEntityId`, `watchService`
 
-Types: `ComponentType`, `EntityId`, `GwenDeclaredPlugin`, `GwenPlugin`, `GwenPluginDeclaration`, `GwenPluginDefinition`, `GwenPluginFactory`, `GwenPluginOptionsInput`, `GwenPluginProvidedKeys`, `GwenPluginSetupEngine`, `GwenProvides`, `GwenRuntimeHooks`, `PluginErrorContext`
+`createExtensionRegistry({ name })` builds a per-engine list of extension contributions. `register` returns an idempotent disposer. `invokeEach` catches a throwing item, emits one error, disposes that item, and continues. `isExtensionApiCompatible(required, actual)` is true when `actual` is defined, the majors are equal, and `actual.minor >= required.minor`.
+
+Types: `ComponentType`, `EntityId`, `ExtensionRegistry`, `GwenDeclaredPlugin`, `GwenPlugin`, `GwenPluginDeclaration`, `GwenPluginDefinition`, `GwenPluginFactory`, `GwenPluginOptionsInput`, `GwenPluginProvidedKeys`, `GwenPluginSetupEngine`, `GwenProvides`, `GwenRuntimeHooks`, `PluginErrorContext`
 
 ### `./module`
 
