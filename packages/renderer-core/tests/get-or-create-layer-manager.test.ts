@@ -1,11 +1,14 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { createManagerServices } from "../src/create-manager-services.js";
 import { getOrCreateLayerManager } from "../src/get-or-create-layer-manager.js";
 import { LayerManager } from "../src/layer-manager.js";
 import type { GwenEngine, GwenLogger } from "@gwenjs/core";
 
+let services = new Map<string, unknown>();
+
 function makeEngine(): GwenEngine {
-  const services = new Map<string, unknown>();
+  services = new Map<string, unknown>();
   const childLogger: GwenLogger = {
     debug: vi.fn(),
     info: vi.fn(),
@@ -27,10 +30,23 @@ function makeEngine(): GwenEngine {
       services.set(key, value);
     }),
     tryInject: vi.fn((key: string) => services.get(key)),
+    inject: (key: string) => {
+      const value = services.get(key);
+      if (value === undefined) throw new Error(`No plugin provides service "${key}".`);
+      return value;
+    },
     hooks: {
       hook: vi.fn(),
     },
   } as unknown as GwenEngine;
+}
+
+function seed(engine: GwenEngine): LayerManager {
+  const created = createManagerServices(engine);
+  services.set("layerManager", created.layerManager);
+  const manager = created.layerManager;
+  if (!(manager instanceof LayerManager)) throw new Error("expected LayerManager");
+  return manager;
 }
 
 describe("getOrCreateLayerManager", () => {
@@ -43,44 +59,51 @@ describe("getOrCreateLayerManager", () => {
     document.body.appendChild(container);
   });
 
-  it("returns a LayerManager instance", () => {
+  it("returns the declared LayerManager", () => {
+    const seeded = seed(engine);
     const manager = getOrCreateLayerManager(engine, container);
     expect(manager).toBeInstanceOf(LayerManager);
+    expect(manager).toBe(seeded);
   });
 
-  it("provides the manager on the engine under 'layerManager'", () => {
+  it("does not provide a manager of its own", () => {
+    seed(engine);
     getOrCreateLayerManager(engine, container);
-    expect(engine.provide).toHaveBeenCalledWith("layerManager", expect.any(LayerManager));
+    expect(engine.provide).not.toHaveBeenCalled();
   });
 
   it("returns the same instance on subsequent calls (singleton per engine)", () => {
+    seed(engine);
     const first = getOrCreateLayerManager(engine, container);
     const second = getOrCreateLayerManager(engine, container);
     expect(first).toBe(second);
   });
 
-  it("only provides the manager once even when called multiple times", () => {
+  it("does not provide again when called twice", () => {
+    seed(engine);
     getOrCreateLayerManager(engine, container);
     getOrCreateLayerManager(engine, container);
-    expect(engine.provide).toHaveBeenCalledOnce();
+    expect(engine.provide).not.toHaveBeenCalled();
   });
 
   it("uses engine.logger.child() to bind to the engine log hierarchy", () => {
-    getOrCreateLayerManager(engine, container);
+    seed(engine);
     expect(engine.logger.child).toHaveBeenCalledWith("renderer-core");
   });
 
   it("second call ignores the new container and reuses the existing manager", () => {
+    seed(engine);
     const first = getOrCreateLayerManager(engine, container);
     const otherContainer = document.createElement("div");
     const second = getOrCreateLayerManager(engine, otherContainer);
     expect(second).toBe(first);
   });
 
-  it("registers an engine:tick hook for beginFrame() on first call only", () => {
+  it("registers an engine:tick hook for beginFrame() once at creation", () => {
+    seed(engine);
     getOrCreateLayerManager(engine, container);
     getOrCreateLayerManager(engine, container);
-    // engine:tick hook must be registered exactly once (manager is a singleton)
+    // engine:tick is registered once when the manager is created, not on each read
     expect(engine.hooks.hook).toHaveBeenCalledTimes(2);
     expect(engine.hooks.hook).toHaveBeenCalledWith("engine:tick", expect.any(Function));
     expect(engine.hooks.hook).toHaveBeenCalledWith("engine:render", expect.any(Function));

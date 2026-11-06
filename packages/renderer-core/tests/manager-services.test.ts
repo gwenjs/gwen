@@ -199,8 +199,11 @@ describe("declared manager services", () => {
     expect(engine.tryInject("layerManager")).toBeUndefined();
     expect(engine.tryInject("viewportManager")).toBeUndefined();
     await engine.use(createViewportsPlugin());
+    expect(engine.tryInject("cameraManager")).toBeDefined();
     expect(engine.tryInject("cameraManager")).not.toBe(firstCamera);
+    expect(engine.tryInject("layerManager")).toBeDefined();
     expect(engine.tryInject("layerManager")).not.toBe(firstLayer);
+    expect(engine.tryInject("viewportManager")).toBeDefined();
     expect(engine.tryInject("viewportManager")).not.toBe(firstViewport);
   });
 });

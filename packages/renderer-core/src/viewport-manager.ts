@@ -16,7 +16,7 @@ import type {
 /** Same type as schema {@link ViewportStore}. */
 export type { ViewportManager };
 
-/** @internal — injected by getOrCreateViewportManager */
+/** @internal — injected by gwen:viewports */
 export type ViewportCallHook = (event: string, payload: unknown) => void;
 
 export class ViewportManagerImpl implements ViewportManager {

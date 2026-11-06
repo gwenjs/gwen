@@ -3,6 +3,7 @@ import { afterEach, describe, it, expect, vi } from "vitest";
 import { createEngine } from "@gwenjs/core/node";
 import type { EntityId, GwenEngine } from "@gwenjs/core";
 import { getOrCreateCameraManager, getOrCreateViewportManager } from "@gwenjs/renderer-core";
+import { createViewportsPlugin } from "../../app/src/viewports-plugin.js";
 import { Camera, CameraBounds } from "../src/components.js";
 import { getCameraStores } from "../src/camera-stores.js";
 import { CameraSystem } from "../src/camera-system.js";
@@ -18,6 +19,7 @@ async function makeEngine(): Promise<GwenEngine> {
   const engine = await createEngine({ maxEntities: 100 });
   openEngines.push(engine);
   liveQuerySpy.current = vi.spyOn(engine, "createLiveQuery");
+  await engine.use(createViewportsPlugin());
   getOrCreateCameraManager(engine);
   getOrCreateViewportManager(engine);
   engine.inject("viewportManager").set("main", { x: 0, y: 0, width: 1, height: 1 });

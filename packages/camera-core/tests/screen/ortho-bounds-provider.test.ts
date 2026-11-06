@@ -1,11 +1,18 @@
 import { describe, it, expect } from "vitest";
 import { createEngine } from "@gwenjs/core/node";
-import { getOrCreateCameraManager, getOrCreateScreenService } from "@gwenjs/renderer-core";
+import {
+  getOrCreateCameraManager,
+  getOrCreateScreenService,
+  ScreenPlugin,
+} from "@gwenjs/renderer-core";
+import { createViewportsPlugin } from "../../../app/src/viewports-plugin.js";
 import { createOrthoBoundsProvider } from "../../src/camera-core-plugin.js";
 import type { CameraState } from "@gwenjs/renderer-core";
 
 async function makeEngine() {
   const engine = await createEngine({ maxEntities: 100 });
+  await engine.use(createViewportsPlugin());
+  await engine.use(ScreenPlugin());
   const cameras = getOrCreateCameraManager(engine);
   const svc = getOrCreateScreenService(engine);
   svc.registerBoundsProvider(createOrthoBoundsProvider(cameras));

@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createEngine } from "@gwenjs/core/node";
+import type { GwenEngine } from "@gwenjs/core";
 import type { LayerHost } from "@gwenjs/schema";
 import { GwenError } from "@gwenjs/schema";
 import { LayerManager } from "../src/layer-manager.js";
@@ -26,7 +27,13 @@ import {
 } from "../src/errors.js";
 import { createRendererStats } from "../src/stats.js";
 import type { RendererKind } from "../src/types.js";
+import { ScreenPlugin } from "../src/screen-plugin.js";
 import { createViewportsPlugin } from "../../app/src/viewports-plugin.js";
+
+async function installManagers(engine: GwenEngine): Promise<void> {
+  await engine.use(createViewportsPlugin());
+  await engine.use(ScreenPlugin());
+}
 
 function surfaceService(name: string, order: number, onRender: () => void): SurfaceRendererService {
   let canvas: HTMLCanvasElement | null = null;
@@ -364,6 +371,7 @@ describe("LayerManager", () => {
   it("calls renderViews once per engine:render with writeCameraViews output", async () => {
     const engine = await createEngine({ maxEntities: 32 });
     try {
+      await installManagers(engine);
       getOrCreateViewportManager(engine).set("main", { x: 0, y: 0, width: 1, height: 1 });
       getOrCreateScreenService(engine).setContainerSize(200, 100, 1);
       getOrCreateCameraManager(engine).set("main", {
@@ -446,6 +454,7 @@ describe("LayerManager", () => {
   it("does not call renderViews for a surface registered after mount", async () => {
     const engine = await createEngine({ maxEntities: 32 });
     try {
+      await installManagers(engine);
       const calls = { early: 0, late: 0 };
       const early = surfaceService("renderer:early", 0, () => {
         calls.early += 1;
@@ -473,6 +482,7 @@ describe("LayerManager", () => {
   it("dispose drops the engine:render hook", async () => {
     const engine = await createEngine({ maxEntities: 32 });
     try {
+      await installManagers(engine);
       let calls = 0;
       const service = surfaceService("renderer:surface", 0, () => {
         calls += 1;
@@ -780,6 +790,7 @@ describe("getOrCreateLayerManager layerManager guard", () => {
     const engine = await createEngine({ maxEntities: 32 });
     const root = mountRoot();
     try {
+      await engine.use(createViewportsPlugin());
       const other = mountRoot();
       try {
         const first = getOrCreateLayerManager(engine, root);
@@ -792,6 +803,7 @@ describe("getOrCreateLayerManager layerManager guard", () => {
       const engineB = await createEngine({ maxEntities: 32 });
       const rootB = mountRoot();
       try {
+        await engineB.use(createViewportsPlugin());
         const onB = getOrCreateLayerManager(engineB, rootB);
         const onA = getOrCreateLayerManager(engine, root);
         expect(onB).not.toBe(onA);

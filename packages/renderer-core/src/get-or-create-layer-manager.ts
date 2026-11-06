@@ -1,12 +1,30 @@
 /**
- * @file getOrCreateLayerManager — lazy singleton factory.
+ * @file getOrCreateLayerManager — read the layer service and bind its root.
  *
- * Renderer plugins call this function instead of `new LayerManager(root)`.
- * It creates the LayerManager on first call (bound to the engine's logger and
- * service registry), then returns the same instance on subsequent calls.
+ * `gwen:viewports` creates the LayerManager. The first container passed here
+ * is stored. A later call keeps that root.
  *
- * This means the end user never has to install a separate RendererCorePlugin —
- * the wiring happens transparently when the first renderer plugin installs itself.
+ * @example
+ * ```ts
+ * import { definePlugin } from '@gwenjs/kit/plugin'
+ * import { getOrCreateLayerManager } from '@gwenjs/renderer-core'
+ *
+ * const canvasDefaults: { container?: HTMLElement } = {}
+ *
+ * export const CanvasRendererPlugin = definePlugin(
+ *   { provides: [], options: { defaults: canvasDefaults } },
+ *   (opts) => ({
+ *     name: 'renderer:canvas',
+ *     requires: { services: ['layerManager'] },
+ *     setup(engine) {
+ *       const manager = getOrCreateLayerManager(engine, opts.container ?? document.body)
+ *       manager.register(canvasService)
+ *       engine.hooks.hook('engine:init', () => manager.mount())
+ *       engine.hooks.hook('engine:stop', () => manager.unregister('renderer:canvas'))
+ *     },
+ *   }),
+ * )
+ * ```
  */
 
 import type { GwenEngine } from "@gwenjs/core";
@@ -20,41 +38,17 @@ import { LayerManager } from "./layer-manager.js";
 // population that never happens.
 
 /**
- * Return the shared {@link LayerManager} for this engine instance, creating it
- * if it does not yet exist.
+ * Read the shared {@link LayerManager} declared by `gwen:viewports` and bind
+ * `container` when the manager has no root yet.
  *
- * The first renderer plugin to call this function determines the `container`.
- * Subsequent plugins receive the same instance — their `container` argument is
- * ignored. Register all renderer plugins before calling `LayerManager.mount()`.
+ * The first call that finds an unbound manager stores `container`.
+ * Later calls return the same instance and ignore `container`.
  *
- * The LayerManager is automatically bound to `engine.logger` so all renderer
- * warnings flow through the engine logger.
- *
- * @example
- * ```ts
- * import { definePlugin } from '@gwenjs/kit/plugin'
- * import { getOrCreateLayerManager } from '@gwenjs/renderer-core'
- *
- * const canvasDefaults: { container?: HTMLElement } = {}
- *
- * export const CanvasRendererPlugin = definePlugin(
- *   { provides: [], options: { defaults: canvasDefaults } },
- *   (opts) => ({
- *     name: 'renderer:canvas',
- *     setup(engine) {
- *       const manager = getOrCreateLayerManager(engine, opts.container ?? document.body)
- *       manager.register(canvasService)
- *       engine.hooks.hook('engine:init', () => manager.mount())
- *       engine.hooks.hook('engine:stop', () => manager.unregister('renderer:canvas'))
- *     },
- *   }),
- * )
- * ```
+ * Reads the service declared by gwen:viewports. Does not create it. Removal is #230 G2's.
  */
 export function getOrCreateLayerManager(engine: GwenEngine, container: HTMLElement): LayerManager {
-  const existing = engine.tryInject("layerManager");
-  if (existing instanceof LayerManager) return existing;
-  if (existing !== undefined) {
+  const existing = engine.inject("layerManager");
+  if (!(existing instanceof LayerManager)) {
     throw new GwenError(
       RendererErrorCodes.FOREIGN_LAYER_MANAGER,
       "The provided layerManager is not a LayerManager from this package.",
@@ -66,14 +60,6 @@ export function getOrCreateLayerManager(engine: GwenEngine, container: HTMLEleme
       },
     );
   }
-
-  const manager = new LayerManager(container, engine.logger.child("renderer-core"), engine);
-  engine.provide("layerManager", manager);
-
-  // Reset per-frame stats totals at the start of every tick.
-  // Registered once (LayerManager is a singleton per engine) so multiple renderer
-  // plugins calling getOrCreateLayerManager() do not double-register the hook.
-  engine.hooks.hook("engine:tick", () => manager.beginFrame());
-
-  return manager;
+  existing.bindRoot(container);
+  return existing;
 }

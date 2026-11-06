@@ -34,14 +34,17 @@ describe("createViewportsPlugin", () => {
       p2: { x: 0.5, y: 0, width: 0.5, height: 1 },
     };
     const engine = await openWith(viewports);
-    const registered = engine.inject("viewportManager");
-    expect(registered.get("p1")?.region).toEqual(viewports.p1);
-    expect(registered.get("p2")?.region).toEqual(viewports.p2);
+    const viewportManager = engine.inject("viewportManager");
+    expect([...viewportManager.getAll().keys()]).toEqual(["p1", "p2"]);
+    expect(viewportManager.get("p1")?.region).toEqual(viewports.p1);
+    expect(viewportManager.get("p2")?.region).toEqual(viewports.p2);
   });
 
   it("registers default fullscreen 'main' viewport when no config is provided", async () => {
     const engine = await openWith(undefined);
-    expect(engine.inject("viewportManager").get("main")?.region).toEqual({
+    const viewportManager = engine.inject("viewportManager");
+    expect([...viewportManager.getAll().keys()]).toEqual(["main"]);
+    expect(viewportManager.get("main")?.region).toEqual({
       x: 0,
       y: 0,
       width: 1,
@@ -51,7 +54,9 @@ describe("createViewportsPlugin", () => {
 
   it("registers default fullscreen 'main' viewport when empty map is provided", async () => {
     const engine = await openWith({});
-    expect(engine.inject("viewportManager").get("main")?.region).toEqual({
+    const viewportManager = engine.inject("viewportManager");
+    expect([...viewportManager.getAll().keys()]).toEqual(["main"]);
+    expect(viewportManager.get("main")?.region).toEqual({
       x: 0,
       y: 0,
       width: 1,

@@ -465,7 +465,7 @@ Cause. `screenToWorld` a été appelé avec une caméra perspective. Fix. Utilis
 
 ### RENDERER:FOREIGN_LAYER_MANAGER {#renderer-foreign-layer-manager}
 
-Cause. `getOrCreateLayerManager` a trouvé une valeur `layerManager` qui n'est pas le `LayerManager` de ce package. Fix. Retirez cette valeur et laissez `getOrCreateLayerManager` créer le manager, ou fournissez le `LayerManager` qu'il a créé.
+Cause. `getOrCreateLayerManager` a trouvé une valeur `layerManager` qui n'est pas le `LayerManager` de ce package. Fix. Retirez cette valeur. `gwen:viewports` fournit le `LayerManager` créé par ce package.
 
 ### RENDERER:CONFORMANCE_FAILED {#renderer-conformance-failed}
 

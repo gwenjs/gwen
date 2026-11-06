@@ -1,38 +1,35 @@
 // packages/camera-core/src/camera-core-plugin.ts
 /**
- * @file CameraCorePlugin — installs CameraManager, ViewportManager, CameraSystem,
- * and registers the orthographic bounds provider with ScreenService.
+ * @file CameraCorePlugin — registers CameraSystem and the orthographic bounds provider.
  *
+ * The viewport and camera services come from `gwen:viewports`.
+ * The orthographic bounds provider is registered when `gwen:screen` is installed before it.
+ * This plugin reads those services. It does not provide them.
  * Called automatically by Camera2DPlugin and Camera3DPlugin.
  * Users do not install this plugin manually unless building a custom camera composable.
  *
  * @example
  * ```ts
- * // Only if building a custom camera — normally not needed
+ * // Only if building a custom camera — normally not needed.
+ * // gwen:viewports must already be installed.
+ * // The bounds provider is registered when gwen:screen is installed before it.
  * await engine.use(CameraCorePlugin())
  * ```
  */
 
 import { definePlugin } from "@gwenjs/kit/plugin";
 import type { GwenEngine } from "@gwenjs/core";
-import {
-  getOrCreateCameraManager,
-  getOrCreateViewportManager,
-  getOrCreateScreenService,
-} from "@gwenjs/renderer-core";
-import type { ViewportBoundsProvider } from "@gwenjs/renderer-core";
+import type { CameraManager, ViewportBoundsProvider } from "@gwenjs/renderer-core";
 import { CameraSystem } from "./camera-system.js";
 
 /**
  * Orthographic bounds provider — computes axis-aligned world-space bounds
- * for orthographic cameras. Registered automatically by CameraCorePlugin.
+ * for orthographic cameras. CameraCorePlugin registers it when `gwen:screen` is installed before it.
  * Returns undefined for perspective cameras or inactive cameras.
  *
  * @internal Exported for testing; prefer `CameraCorePlugin` for production use.
  */
-export function createOrthoBoundsProvider(
-  cameraManager: ReturnType<typeof getOrCreateCameraManager>,
-): ViewportBoundsProvider {
+export function createOrthoBoundsProvider(cameraManager: CameraManager): ViewportBoundsProvider {
   return {
     compute(viewportId: string, pixelWidth: number, pixelHeight: number) {
       const cam = cameraManager.get(viewportId);
@@ -55,16 +52,20 @@ export function createOrthoBoundsProvider(
   };
 }
 
-export const CameraCorePlugin = definePlugin({ provides: ["cameraManager"] }, () => ({
+export const CameraCorePlugin = definePlugin(() => ({
   name: "camera-core",
+  requires: {
+    services: ["cameraManager", "viewportManager"],
+    // screenService stays optional so unuse("gwen:screen") is legal while this plugin remains.
+    optional: ["screenService"],
+  },
   async setup(engine: GwenEngine) {
-    const cameras = getOrCreateCameraManager(engine);
-    getOrCreateViewportManager(engine);
-
-    // Register the orthographic bounds provider with ScreenService.
-    // External camera plugins (camera2d, camera3d) may override this by calling
-    // getOrCreateScreenService(engine).registerBoundsProvider() in their own setup.
-    getOrCreateScreenService(engine).registerBoundsProvider(createOrthoBoundsProvider(cameras));
+    const cameras = engine.inject("cameraManager");
+    const screen = engine.tryInject("screenService");
+    // External camera plugins may replace this provider from their own setup.
+    if (screen !== undefined) {
+      screen.registerBoundsProvider(createOrthoBoundsProvider(cameras));
+    }
 
     await engine.use(CameraSystem());
   },

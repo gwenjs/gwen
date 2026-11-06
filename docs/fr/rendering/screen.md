@@ -43,6 +43,11 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
 
 ## Configuration zéro
 
+`screenService` est un service du framework fourni par `gwen:screen`.
+`viewportManager`, `cameraManager` et `layerManager` sont fournis par `gwen:viewports`.
+Déclarez ceux que vous lisez dans `requires.services` ou `requires.optional`.
+`getOrCreateScreenService` est un lecteur hérité : il ne crée pas le service.
+
 `ScreenPlugin` est enregistré automatiquement par `@gwenjs/app` — aucune configuration
 requise pour les jeux navigateur :
 

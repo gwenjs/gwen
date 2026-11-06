@@ -3,12 +3,14 @@ import { describe, it, expect, vi } from "vitest";
 import { createEngine } from "@gwenjs/core/node";
 import type { GwenEngine } from "@gwenjs/core";
 import { getOrCreateCameraManager, getOrCreateViewportManager } from "@gwenjs/renderer-core";
+import { createViewportsPlugin } from "../../app/src/viewports-plugin.js";
 import { Camera, CameraBounds, CameraPath, CameraShake, FollowTarget } from "../src/components.js";
 import { getCameraStores } from "../src/camera-stores.js";
 import { CameraSystem } from "../src/camera-system.js";
 
 async function makeEngine(): Promise<GwenEngine> {
   const engine = await createEngine({ maxEntities: 100 });
+  await engine.use(createViewportsPlugin());
   getOrCreateCameraManager(engine);
   getOrCreateViewportManager(engine);
   return engine;
