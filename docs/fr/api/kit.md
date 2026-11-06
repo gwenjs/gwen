@@ -50,12 +50,30 @@ function definePlugin<O extends object, const K extends GwenPluginServiceKey, TP
 
 // 2. Des services, sans options
 function definePlugin<const K extends GwenPluginServiceKey, TPlugin extends GwenPluginDefinition<K>>(
-  declaration: { readonly provides: readonly K[] },
+  declaration: { readonly provides: readonly K[]; readonly extensionApi?: GwenExtensionApi },
   factory: () => ExactPlugin<TPlugin>
 ): GwenPluginFactory<void, TPlugin & GwenDeclaredPlugin<K>>
 ```
 
-**Description.** Crée une fabrique de plugin. Le premier argument, optionnel, déclare les clés de service que le plugin fournit et ses options (`defaults`, `validate` optionnel). La fabrique reçoit les options résolues et gelées, c'est-à-dire `defaults` fusionné sur un niveau avec l'argument de l'appelant, et retourne une définition de plugin. `definePlugin` écrit `provides` et `validateOptions` dessus. Les seules clés sont `name`, `setup(engine)`, `teardown`, `onError` et `requires`. Toute autre clé est une erreur de type, et `engine.use()` rejette un callback de frame comme `onUpdate` avec `CORE:PLUGIN_INVALID_SHAPE`. Enregistrez le travail de frame avec `engine.hooks.hook` dans `setup`. Une erreur de `setup()` n'est pas enveloppée : elle est publiée en `CORE:PLUGIN_SETUP_ERROR`, puis `engine.use()` rejette avec l'erreur d'origine. `optionalService` et `watchService` s'importent aussi depuis `@gwenjs/kit/plugin`.
+**Description.** Crée une fabrique de plugin. Le premier argument, optionnel, déclare les clés de service que le plugin fournit, ses options (`defaults`, `validate` optionnel) et un `extensionApi` optionnel. La fabrique reçoit les options résolues et gelées, c'est-à-dire `defaults` fusionné sur un niveau avec l'argument de l'appelant, et retourne une définition de plugin. `definePlugin` écrit `provides` et `validateOptions` dessus, et `extensionApi` quand la déclaration le porte. Les seules clés du retour de la factory sont `name`, `setup(engine)`, `teardown`, `onError` et `requires`. Toute autre clé est une erreur de type, et `engine.use()` rejette un callback de frame comme `onUpdate` avec `CORE:PLUGIN_INVALID_SHAPE`. Enregistrez le travail de frame avec `engine.hooks.hook` dans `setup`. Une erreur de `setup()` n'est pas enveloppée : elle est publiée en `CORE:PLUGIN_SETUP_ERROR`, puis `engine.use()` rejette avec l'erreur d'origine. `createExtensionRegistry`, `isExtensionApiCompatible`, `ExtensionRegistry` (type), `optionalService` et `watchService` s'importent aussi depuis `@gwenjs/kit/plugin`.
+
+### createExtensionRegistry({ name })
+
+**Signature :**
+```ts
+function createExtensionRegistry<T>(opts: { readonly name: string }): ExtensionRegistry<T>
+```
+
+**Description.** Retourne un registre de contributions d'extension. Il ne lit aucun contexte ambiant : une base en crée un dans `setup`, pour chaque moteur. `register(owner, item)` retourne un disposer idempotent. `forEach` et `invokeEach` parcourent les items présents au début du passage, dans cet ordre. Un dispose pendant le passage saute un item pas encore visité. `invokeEach(errors, failureCode, fn)` ne relance jamais : un item qui lance émet un événement `error` sur `errors` et cet enregistrement est disposé.
+
+### isExtensionApiCompatible(required, actual)
+
+**Signature :**
+```ts
+function isExtensionApiCompatible(required: GwenExtensionApi, actual: GwenExtensionApi | undefined): boolean
+```
+
+**Description.** Pure. Vrai quand `actual` est défini, `actual.major === required.major`, et `actual.minor >= required.minor`. C'est le contrôle de `engine.use` pour une entrée objet de `requires.plugins`.
 
 **Exemple:**
 ```ts

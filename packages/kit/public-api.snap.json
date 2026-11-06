@@ -27,7 +27,9 @@
   "./plugin": {
     "values": [
       "createEntityId",
+      "createExtensionRegistry",
       "definePlugin",
+      "isExtensionApiCompatible",
       "optionalService",
       "satisfiesPluginContract",
       "unpackEntityId",
@@ -36,6 +38,7 @@
     "types": [
       "ComponentType",
       "EntityId",
+      "ExtensionRegistry",
       "GwenDeclaredPlugin",
       "GwenPlugin",
       "GwenPluginDeclaration",

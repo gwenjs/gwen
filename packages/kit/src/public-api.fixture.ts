@@ -15,6 +15,7 @@ type _0 = [
 type _1 = [
   T_plugin.ComponentType,
   T_plugin.EntityId,
+  T_plugin.ExtensionRegistry<never>,
   T_plugin.GwenDeclaredPlugin<never>,
   T_plugin.GwenPlugin,
   T_plugin.GwenPluginDeclaration<never, never>,
