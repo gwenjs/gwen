@@ -24,8 +24,7 @@ export const DEFAULT_PHYSICS3D_CONFIG: ResolvedPhysics3DConfig = {
  * Normalize a partial `Physics3DConfig` into a fully-resolved config.
  *
  * Missing fields are filled with {@link DEFAULT_PHYSICS3D_CONFIG} values.
- * Gravity components are applied independently so callers can override
- * only the axes they care about.
+ * `gravity`, when set, replaces the default vector.
  *
  * @param config - Partial configuration from the plugin constructor.
  * @returns A fully-resolved configuration object.
@@ -45,11 +44,7 @@ export function normalizePhysics3DConfig(config: Physics3DConfig = {}): Resolved
   }
 
   return {
-    gravity: {
-      x: config.gravity?.x ?? DEFAULT_PHYSICS3D_CONFIG.gravity.x,
-      y: config.gravity?.y ?? DEFAULT_PHYSICS3D_CONFIG.gravity.y,
-      z: config.gravity?.z ?? DEFAULT_PHYSICS3D_CONFIG.gravity.z,
-    },
+    gravity: config.gravity ?? DEFAULT_PHYSICS3D_CONFIG.gravity,
     maxEntities: config.maxEntities ?? DEFAULT_PHYSICS3D_CONFIG.maxEntities,
     qualityPreset,
     debug: config.debug ?? DEFAULT_PHYSICS3D_CONFIG.debug,

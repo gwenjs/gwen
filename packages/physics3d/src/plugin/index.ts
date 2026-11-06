@@ -1,4 +1,4 @@
-import { definePlugin, type GwenPluginDeclaration } from "@gwenjs/kit/plugin";
+import { definePlugin } from "@gwenjs/kit/plugin";
 import { engineContext, getWasmBridge, reportRejectedHook } from "@gwenjs/core/internal";
 import { createEngineLocal, useEngine } from "@gwenjs/core";
 import type { GwenEngine } from "@gwenjs/core";
@@ -12,7 +12,12 @@ import type {
   Physics3DEntityId,
 } from "../types";
 
-import { normalizePhysics3DConfig, buildLayerRegistry, QUALITY_PRESETS } from "../config";
+import {
+  DEFAULT_PHYSICS3D_CONFIG,
+  normalizePhysics3DConfig,
+  buildLayerRegistry,
+  QUALITY_PRESETS,
+} from "../config";
 
 import { _dispatchContactEvent, _clearContactCallbacks } from "../composables/on-contact";
 import {
@@ -109,9 +114,11 @@ function emitDisabledBodies(ctx: PluginContext): void {
 
 // ─── Plugin implementation ──────────────────────────────────────────────────────
 
-const physics3dDeclaration: GwenPluginDeclaration<Physics3DConfig, "physics3d"> = {
-  provides: ["physics3d"],
-  options: { defaults: {} },
+const physics3dDefaults: Physics3DConfig = DEFAULT_PHYSICS3D_CONFIG;
+
+const physics3dDeclaration = {
+  provides: ["physics3d"] as const,
+  options: { defaults: physics3dDefaults },
 };
 
 /**
@@ -119,7 +126,7 @@ const physics3dDeclaration: GwenPluginDeclaration<Physics3DConfig, "physics3d"> 
  * core WASM. Falls back to a deterministic TypeScript simulation when the WASM
  * physics3d variant is not loaded (e.g. during tests).
  */
-export const Physics3DPlugin = definePlugin(physics3dDeclaration, (config) => {
+export const Physics3DPlugin = definePlugin(physics3dDeclaration, (config: Physics3DConfig) => {
   /** One core bridge per engine. Teardown does not delete the entry. */
   const coreByEngine = new WeakMap<GwenEngine, Physics3DBridgeRuntime>();
 

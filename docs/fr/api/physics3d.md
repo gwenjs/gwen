@@ -37,7 +37,7 @@ export default defineConfig({
 
 | Champ | Type | Défaut | Description |
 |---|---|---|---|
-| `gravity` | `Partial<Physics3DVec3>` | `{ x: 0, y: -9.81, z: 0 }` | Vecteur de gravité du monde |
+| `gravity` | `Physics3DVec3` | `{ x: 0, y: -9.81, z: 0 }` | Vecteur de gravité du monde |
 | `maxEntities` | `number` | `10_000` | Nombre maximum d'entités physiques |
 | `qualityPreset` | `Physics3DQualityPreset` | `'medium'` | Qualité du solveur : `'low'`, `'medium'`, `'high'` ou `'esport'` |
 | `debug` | `boolean` | `false` | Active les journaux de débogage physique à l'exécution |
@@ -431,7 +431,7 @@ Activez `bvhPrebake: true` (via `vite.bvhPrebake` dans la configuration du modul
 
 ```ts
 interface Physics3DConfig {
-  gravity: Partial<Physics3DVec3>
+  gravity: Physics3DVec3
   maxEntities: number
   qualityPreset: 'low' | 'medium' | 'high' | 'esport'
   debug: boolean
