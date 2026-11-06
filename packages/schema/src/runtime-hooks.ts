@@ -193,12 +193,12 @@ export type ReservedHookNamespace = (typeof GWEN_RESERVED_HOOK_NAMESPACES)[numbe
 
 /**
  * Framework namespaces and the package that owns each one.
- * `physics2d` is not a key: the open maintainer question keeps `physics` on `@gwenjs/physics2d`.
+ * `physics` is the shared layer in `@gwenjs/physics-core`. `physics3d` stays its own key.
  */
 export const GWEN_FRAMEWORK_HOOK_NAMESPACES = Object.freeze({
   viewport: "@gwenjs/renderer-core",
   camera: "@gwenjs/camera-core",
-  physics: "@gwenjs/physics2d",
+  physics: "@gwenjs/physics-core",
   physics3d: "@gwenjs/physics3d",
 } as const);
 
