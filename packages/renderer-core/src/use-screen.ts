@@ -5,7 +5,8 @@
  * The returned object is stable — mutated in place, never recreated.
  * It is safe to capture in closures and async callbacks.
  *
- * Requires `ScreenPlugin` to be installed (registered automatically by `@gwenjs/app`).
+ * Provided by `gwen:screen` (registered automatically by `@gwenjs/app`).
+ * Declare `screenService` in `requires.services` or `requires.optional`.
  *
  * @example Player clamping (system)
  * ```ts

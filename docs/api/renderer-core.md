@@ -239,17 +239,33 @@ Contract properties (`name`, `contractVersion`, `layers`, `getLayerElement`,
 `mount`, `unmount`, `resize`, `setStatsCollector`, `flush`) always take precedence
 over same-named keys in `extension`.
 
+### `createManagerServices(engine)`
+
+```ts
+function createManagerServices(engine: GwenEngine): {
+  viewportManager: ViewportManager
+  cameraManager: CameraManager
+  layerManager: LayerHost
+}
+```
+
+Creates one `ViewportManager`, one `CameraManager` and one `LayerManager` for this engine.
+Registers `engine:tick` → `beginFrame` once. Does not call `engine.provide`.
+
+The shared managers are framework services provided by `gwen:viewports`
+(`viewportManager`, `cameraManager`, `layerManager`) and `gwen:screen` (`screenService`).
+Declare them in `requires.services` or `requires.optional`.
+
 ### `getOrCreateLayerManager()`
 
 ```ts
 function getOrCreateLayerManager(engine: GwenEngine, container: HTMLElement): LayerManager
 ```
 
-The entry point for renderer plugins. Returns the shared `LayerManager` for this engine,
-creating it on first call. On first call it also:
-- Binds the manager to `engine.logger` so all renderer warnings flow through the engine logger.
-- Registers an `engine:tick` handler that calls `manager.beginFrame()` at the start of every frame,
-  keeping per-frame stats totals accurate without any plugin-side wiring.
+Legacy reader. Returns the `LayerManager` `gwen:viewports` already provided.
+It does not create one. The first call that finds an unbound manager stores `container`.
+Later calls keep that root. `createManagerServices` binds the logger and the `engine:tick`
+handler that calls `beginFrame()`.
 
 ```ts
 // Inside a renderer plugin:
@@ -395,8 +411,8 @@ function useViewportManager(): ViewportManager
 Composable accessor for the shared `ViewportManager`. Call inside `defineSystem`,
 `defineActor`, or `defineScene` setup functions.
 
-Requires `CameraCorePlugin` (from `@gwenjs/camera-core`) to be installed — it
-creates the manager when it registers.
+Provided by `gwen:viewports`. Declare `viewportManager` in `requires.services`
+or `requires.optional`.
 
 ```ts
 import { useViewportManager } from '@gwenjs/renderer-core'
@@ -427,10 +443,11 @@ const SplitScreenSystem = defineSystem('SplitScreenSystem', () => {
 function getOrCreateViewportManager(engine: GwenEngine): ViewportManager
 ```
 
-Plugin-level factory. Returns the shared `ViewportManager` for this engine,
-creating it on first call and registering it as `engine.provide('viewportManager', …)`.
+Legacy reader. Returns the `ViewportManager` provided by `gwen:viewports`.
+It does not create one and it does not call `engine.provide`.
 
 Use this inside `definePlugin`'s `setup(engine)` — not in systems or actors.
+Declare `viewportManager` in `requires.services` or `requires.optional`.
 
 ```ts
 import { getOrCreateViewportManager } from '@gwenjs/renderer-core'
@@ -493,7 +510,8 @@ function useCameraManager(): CameraManager
 Composable accessor for the shared `CameraManager`. Call inside `defineSystem`,
 `defineActor`, or `defineScene` setup functions.
 
-Requires `CameraCorePlugin` (from `@gwenjs/camera-core`) to be installed.
+Provided by `gwen:viewports`. Declare `cameraManager` in `requires.services`
+or `requires.optional`.
 
 ```ts
 import { useCameraManager } from '@gwenjs/renderer-core'
@@ -517,10 +535,11 @@ const MyRenderSystem = defineSystem('MyRenderSystem', () => {
 function getOrCreateCameraManager(engine: GwenEngine): CameraManager
 ```
 
-Plugin-level factory. Returns the shared `CameraManager` for this engine,
-creating it on first call and registering it as `engine.provide('cameraManager', …)`.
+Legacy reader. Returns the `CameraManager` provided by `gwen:viewports`.
+It does not create one and it does not call `engine.provide`.
 
 Use this inside `definePlugin`'s `setup(engine)` — not in systems or actors.
+Declare `cameraManager` in `requires.services` or `requires.optional`.
 
 ```ts
 import { getOrCreateCameraManager } from '@gwenjs/renderer-core'

@@ -174,6 +174,8 @@ describe("CameraSystem — XR cameras are skipped", () => {
     const engine = await createEngine({ maxEntities: 100 });
     const { getOrCreateCameraManager, getOrCreateViewportManager } =
       await import("@gwenjs/renderer-core");
+    const { createViewportsPlugin } = await import("../../app/src/viewports-plugin.js");
+    await engine.use(createViewportsPlugin());
     getOrCreateCameraManager(engine);
     getOrCreateViewportManager(engine);
     const { CameraSystem } = await import("../src/camera-system.js");

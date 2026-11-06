@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { useScreen } from "../../src/use-screen.js";
+import { createManagerServices } from "../../src/create-manager-services.js";
 import { getOrCreateScreenService } from "../../src/get-or-create-screen-service.js";
 import { StaticSizeProvider } from "../../src/screen-size-providers.js";
 import { ScreenPlugin } from "../../src/screen-plugin.js";
@@ -7,8 +8,10 @@ import { createEngine } from "@gwenjs/core/node";
 
 async function makeEngine() {
   const engine = await createEngine({ maxEntities: 100 });
+  const managers = createManagerServices(engine);
+  engine.provide("viewportManager", managers.viewportManager);
   const plugin = ScreenPlugin({ sizeProvider: StaticSizeProvider({ width: 800, height: 600 }) });
-  // Manually call setup to register the service (no full engine.use needed for unit test)
+  // Direct setup: requires is checked by engine.use, not by this call.
   plugin.setup(engine);
   return engine;
 }
@@ -22,7 +25,7 @@ describe("useScreen", () => {
       // Simulate viewport:add hook being called
       const svc = getOrCreateScreenService(engine);
       svc.setContainerSize(800, 600);
-      // viewportManager is created by getOrCreateScreenService
+      // viewportManager is provided before ScreenPlugin setup
       const vm = engine.inject("viewportManager");
       vm.set("main", { x: 0, y: 0, width: 1, height: 1 });
       svc.setContainerSize(800, 600);

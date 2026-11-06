@@ -1,7 +1,7 @@
 /**
- * @file getOrCreateScreenService — lazy singleton factory.
+ * @file getOrCreateScreenService — read the screen service.
  *
- * Plugin setup code calls this to access or create the shared `ScreenService`.
+ * `gwen:screen` creates the service. Plugin setup code reads it here.
  * Game code should use `useScreen()` instead.
  *
  * @example
@@ -16,29 +16,20 @@
  * ```
  */
 
-import { asFullEngine } from "@gwenjs/core/internal";
 import type { GwenEngineBase } from "@gwenjs/schema";
-import { getOrCreateViewportManager } from "./get-or-create-viewport-manager.js";
-import { ScreenServiceImpl } from "./screen-service.js";
 import type { ScreenService } from "./screen-service.js";
 
 /**
- * Return the shared {@link ScreenService} for this engine instance, creating it if needed.
+ * Read the shared {@link ScreenService} declared by `gwen:screen`.
  *
- * Ensures `ViewportManager` also exists (creates it if absent).
  * For use inside plugin `setup(engine)` functions only.
  * Game code should use `useScreen()` instead.
+ *
+ * Reads the service declared by gwen:screen. Does not create it. Removal is #230 G2's.
  *
  * @param engine - The current engine instance.
  * @returns The shared `ScreenService`.
  */
 export function getOrCreateScreenService(engine: GwenEngineBase): ScreenService {
-  const existing = engine.tryInject("screenService");
-  if (existing) return existing;
-
-  const vm = getOrCreateViewportManager(asFullEngine(engine));
-  const log = engine.logger.child("renderer-core:screen");
-  const service = new ScreenServiceImpl(log, vm);
-  engine.provide("screenService", service);
-  return service;
+  return engine.inject("screenService");
 }

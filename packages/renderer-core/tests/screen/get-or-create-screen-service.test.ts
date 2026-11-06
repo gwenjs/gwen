@@ -1,9 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
 import { getOrCreateScreenService } from "../../src/get-or-create-screen-service.js";
 import { ScreenServiceImpl } from "../../src/screen-service.js";
+import { ViewportManagerImpl } from "../../src/viewport-manager.js";
 import type { GwenEngine, GwenLogger } from "@gwenjs/core";
 
-function makeEngine(): GwenEngine {
+function makeEngine(): { engine: GwenEngine; services: Map<string, unknown> } {
   const services = new Map<string, unknown>();
   const childLogger: GwenLogger = {
     debug: vi.fn(),
@@ -19,31 +20,48 @@ function makeEngine(): GwenEngine {
     error: vi.fn(),
     child: vi.fn().mockReturnValue(childLogger),
   };
-  return {
+  const engine = {
     logger,
     provide: vi.fn((key: string, value: unknown) => {
       services.set(key, value);
     }),
     tryInject: vi.fn((key: string) => services.get(key)),
+    inject: (key: string) => {
+      const value = services.get(key);
+      if (value === undefined) throw new Error(`No plugin provides service "${key}".`);
+      return value;
+    },
     hooks: { hook: vi.fn() },
   } as unknown as GwenEngine;
+  return { engine, services };
+}
+
+function seedScreen(services: Map<string, unknown>, engine: GwenEngine): ScreenServiceImpl {
+  const vm = new ViewportManagerImpl(() => {});
+  const svc = new ScreenServiceImpl(engine.logger.child("renderer-core:screen"), vm);
+  services.set("screenService", svc);
+  return svc;
 }
 
 describe("getOrCreateScreenService", () => {
-  it("returns a ScreenServiceImpl instance", () => {
-    const engine = makeEngine();
+  it("returns the declared ScreenServiceImpl", () => {
+    const { engine, services } = makeEngine();
+    const seeded = seedScreen(services, engine);
     const svc = getOrCreateScreenService(engine);
     expect(svc).toBeInstanceOf(ScreenServiceImpl);
+    expect(svc).toBe(seeded);
   });
 
-  it("provides the service under screenService key", () => {
-    const engine = makeEngine();
+  it("does not provide a screenService of its own", () => {
+    const { engine, services } = makeEngine();
+    seedScreen(services, engine);
     getOrCreateScreenService(engine);
-    expect(engine.provide).toHaveBeenCalledWith("screenService", expect.any(ScreenServiceImpl));
+    expect(engine.provide).not.toHaveBeenCalled();
   });
 
   it("returns the same instance on subsequent calls (singleton)", () => {
-    const engine = makeEngine();
+    const { engine, services } = makeEngine();
+    seedScreen(services, engine);
     const first = getOrCreateScreenService(engine);
     const second = getOrCreateScreenService(engine);
     expect(first).toBe(second);

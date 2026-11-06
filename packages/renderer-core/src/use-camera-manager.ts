@@ -3,7 +3,8 @@
  * @file useCameraManager — composable accessor for CameraManager.
  *
  * Use inside `defineSystem`, `defineActor`, or `defineScene` setup functions.
- * Requires CameraCorePlugin (from @gwenjs/camera-core) to have been installed.
+ * Provided by `gwen:viewports`. Declare `cameraManager` in `requires.services`
+ * or `requires.optional` on a plugin that reads it during setup.
  *
  * @example
  * ```ts

@@ -1,8 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
 import type { GwenEngine, GwenLogger } from "@gwenjs/core";
+import { createManagerServices } from "../src/create-manager-services.js";
 import { getOrCreateCameraManager } from "../src/get-or-create-camera-manager.js";
 import { getOrCreateScreenService } from "../src/get-or-create-screen-service.js";
 import { getOrCreateViewportManager } from "../src/get-or-create-viewport-manager.js";
+import { ScreenServiceImpl } from "../src/screen-service.js";
 import { writeCameraViews } from "../src/write-camera-views.js";
 import type { CameraState } from "../src/camera-types.js";
 import type { RenderView } from "../src/types.js";
@@ -30,8 +32,24 @@ function makeEngine(): GwenEngine {
       services.set(key, value);
     }),
     tryInject: vi.fn((key: string) => services.get(key)),
+    inject: (key: string) => {
+      const value = services.get(key);
+      if (value === undefined) throw new Error(`No plugin provides service "${key}".`);
+      return value;
+    },
     hooks: { hook: vi.fn(), callHook: vi.fn() },
   } as unknown as GwenEngine;
+}
+
+function declareManagers(engine: GwenEngine): void {
+  const created = createManagerServices(engine);
+  engine.provide("viewportManager", created.viewportManager);
+  engine.provide("cameraManager", created.cameraManager);
+  engine.provide("layerManager", created.layerManager);
+  engine.provide(
+    "screenService",
+    new ScreenServiceImpl(engine.logger.child("renderer-core:screen"), created.viewportManager),
+  );
 }
 
 function makeSlot(): RenderView {
@@ -64,6 +82,7 @@ describe("writeCameraViews", () => {
 
   it("renders one perspective camera view into the caller buffer", () => {
     const engine = makeEngine();
+    declareManagers(engine);
     const viewports = getOrCreateViewportManager(engine);
     const cameras = getOrCreateCameraManager(engine);
     const screen = getOrCreateScreenService(engine);
@@ -111,6 +130,7 @@ describe("writeCameraViews", () => {
 
   it("writes a YXZ yaw of half pi into a column-major view matrix", () => {
     const engine = makeEngine();
+    declareManagers(engine);
     getOrCreateViewportManager(engine).set("main", { x: 0, y: 0, width: 1, height: 1 });
     getOrCreateScreenService(engine).setContainerSize(10, 10, 1);
     getOrCreateCameraManager(engine).set(
@@ -131,6 +151,7 @@ describe("writeCameraViews", () => {
 
   it("writes an orthographic projection from pixels and zoom", () => {
     const engine = makeEngine();
+    declareManagers(engine);
     getOrCreateViewportManager(engine).set("main", { x: 0, y: 0, width: 1, height: 1 });
     getOrCreateScreenService(engine).setContainerSize(100, 50, 2);
     getOrCreateCameraManager(engine).set(
@@ -151,6 +172,7 @@ describe("writeCameraViews", () => {
 
   it("places a right-half viewport in device pixels", () => {
     const engine = makeEngine();
+    declareManagers(engine);
     getOrCreateViewportManager(engine).set("right", { x: 0.5, y: 0, width: 0.5, height: 1 });
     getOrCreateScreenService(engine).setContainerSize(200, 100, 2);
     getOrCreateCameraManager(engine).set(
@@ -168,6 +190,7 @@ describe("writeCameraViews", () => {
 
   it("skips inactive cameras and does not grow a short buffer", () => {
     const engine = makeEngine();
+    declareManagers(engine);
     const viewports = getOrCreateViewportManager(engine);
     viewports.set("main", { x: 0, y: 0, width: 1, height: 1 });
     viewports.set("off", { x: 0, y: 0, width: 1, height: 1 });
@@ -192,6 +215,7 @@ describe("writeCameraViews", () => {
 
   it("counts a short matrix without writing the slot", () => {
     const engine = makeEngine();
+    declareManagers(engine);
     getOrCreateViewportManager(engine).set("main", { x: 0, y: 0, width: 1, height: 1 });
     getOrCreateScreenService(engine).setContainerSize(10, 10, 1);
     getOrCreateCameraManager(engine).set(

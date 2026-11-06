@@ -101,15 +101,33 @@ export type HTMLRendererService = ReturnType<typeof HTMLRenderer>
 
 Les propriétés du contrat (`name`, `contractVersion`, `layers`, `getLayerElement`, `mount`, `unmount`, `resize`, `setStatsCollector`, `flush`) ont toujours la priorité sur les clés homonymes dans `extension`.
 
+## `createManagerServices(engine)`
+
+```ts
+function createManagerServices(engine: GwenEngine): {
+  viewportManager: ViewportManager
+  cameraManager: CameraManager
+  layerManager: LayerHost
+}
+```
+
+Crée un `ViewportManager`, un `CameraManager` et un `LayerManager` pour cette instance d'engine.
+Enregistre `engine:tick` → `beginFrame` une fois. N'appelle pas `engine.provide`.
+
+Les managers partagés sont des services du framework fournis par `gwen:viewports`
+(`viewportManager`, `cameraManager`, `layerManager`) et `gwen:screen` (`screenService`).
+Déclarez-les dans `requires.services` ou `requires.optional`.
+
 ## getOrCreateLayerManager()
 
 ```ts
 function getOrCreateLayerManager(engine: GwenEngine, container: HTMLElement): LayerManager
 ```
 
-Point d'entrée pour les plugins renderer. Retourne le `LayerManager` partagé pour cette instance d'engine, en le créant au premier appel. Au premier appel, il :
-- Lie le manager à `engine.logger` pour que tous les avertissements transitent par le logger du moteur.
-- Enregistre un handler `engine:tick` qui appelle `manager.beginFrame()` au début de chaque frame, maintenant les totaux de stats par frame sans aucun câblage côté plugin.
+Lecteur hérité. Retourne le `LayerManager` déjà fourni par `gwen:viewports`.
+Il n'en crée pas. Le premier appel qui trouve un manager sans racine mémorise `container`.
+Les appels suivants gardent cette racine. `createManagerServices` lie le logger et le
+handler `engine:tick` qui appelle `beginFrame()`.
 
 ```ts
 // Dans un plugin renderer :
@@ -291,7 +309,8 @@ function useViewportManager(): ViewportManager
 Composable pour accéder au `ViewportManager` partagé. À appeler dans `defineSystem`,
 `defineActor`, ou les fonctions de setup `defineScene`.
 
-Requiert que `CameraCorePlugin` (de `@gwenjs/camera-core`) soit installé.
+Fourni par `gwen:viewports`. Déclarez `viewportManager` dans `requires.services`
+ou `requires.optional`.
 
 ```ts
 import { useViewportManager } from '@gwenjs/renderer-core'
@@ -322,10 +341,11 @@ const SplitScreenSystem = defineSystem('SplitScreenSystem', () => {
 function getOrCreateViewportManager(engine: GwenEngine): ViewportManager
 ```
 
-Factory niveau plugin. Retourne le `ViewportManager` partagé pour cette instance d'engine,
-en le créant au premier appel et en l'enregistrant via `engine.provide('viewportManager', …)`.
+Lecteur hérité. Retourne le `ViewportManager` fourni par `gwen:viewports`.
+Il n'en crée pas et n'appelle pas `engine.provide`.
 
 À utiliser dans `setup(engine)` d'un `definePlugin` — pas dans les systèmes ou acteurs.
+Déclarez `viewportManager` dans `requires.services` ou `requires.optional`.
 
 ```ts
 import { getOrCreateViewportManager } from '@gwenjs/renderer-core'
@@ -388,7 +408,8 @@ function useCameraManager(): CameraManager
 Composable pour accéder au `CameraManager` partagé. À appeler dans `defineSystem`,
 `defineActor`, ou les fonctions de setup `defineScene`.
 
-Requiert que `CameraCorePlugin` (de `@gwenjs/camera-core`) soit installé.
+Fourni par `gwen:viewports`. Déclarez `cameraManager` dans `requires.services`
+ou `requires.optional`.
 
 ```ts
 import { useCameraManager } from '@gwenjs/renderer-core'
@@ -412,10 +433,11 @@ const MyRenderSystem = defineSystem('MyRenderSystem', () => {
 function getOrCreateCameraManager(engine: GwenEngine): CameraManager
 ```
 
-Factory niveau plugin. Retourne le `CameraManager` partagé pour cette instance d'engine,
-en le créant au premier appel et en l'enregistrant via `engine.provide('cameraManager', …)`.
+Lecteur hérité. Retourne le `CameraManager` fourni par `gwen:viewports`.
+Il n'en crée pas et n'appelle pas `engine.provide`.
 
 À utiliser dans `setup(engine)` d'un `definePlugin` — pas dans les systèmes ou acteurs.
+Déclarez `cameraManager` dans `requires.services` ou `requires.optional`.
 
 ```ts
 import { getOrCreateCameraManager } from '@gwenjs/renderer-core'

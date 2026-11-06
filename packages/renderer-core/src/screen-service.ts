@@ -1,9 +1,9 @@
 /**
  * @file ScreenService — per-viewport pixel dimensions and world bounds.
  *
- * `ScreenServiceImpl` is created by `getOrCreateScreenService()` and injected
- * into the engine as `'screenService'`. Game code accesses it through `useScreen()`.
- * Plugin authors access it through `getOrCreateScreenService(engine)`.
+ * `ScreenServiceImpl` is created by `gwen:screen` and injected as `'screenService'`.
+ * Game code accesses it through `useScreen()`.
+ * Plugin authors read it through `getOrCreateScreenService(engine)`.
  *
  * The contract type is {@link ScreenInfoStore} in `@gwenjs/schema`, re-exported
  * here as `ScreenService`.
@@ -39,7 +39,7 @@ interface _MutableInfo {
 
 // ── Implementation ────────────────────────────────────────────────────────────
 
-/** @internal — created by getOrCreateScreenService, not exported directly. */
+/** @internal — created by gwen:screen, not exported directly. */
 export class ScreenServiceImpl implements ScreenService {
   private readonly _log: GwenLogger;
   private readonly _vm: ViewportManager;

@@ -1,10 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
+import { createManagerServices } from "../../src/create-manager-services.js";
 import { ScreenPlugin } from "../../src/screen-plugin.js";
 import { getOrCreateScreenService } from "../../src/get-or-create-screen-service.js";
 import { StaticSizeProvider } from "../../src/screen-size-providers.js";
 import type { GwenEngine, GwenLogger } from "@gwenjs/core";
 
-function makeEngine() {
+function makeRawEngine() {
   const services = new Map<string, unknown>();
   const hooks = new Map<string, ((...args: unknown[]) => void)[]>();
   const childLogger: GwenLogger = {
@@ -48,6 +49,13 @@ function makeEngine() {
     },
   };
   return engine as unknown as GwenEngine & { _fire: (e: string, ...a: unknown[]) => void };
+}
+
+function makeEngine() {
+  const raw = makeRawEngine();
+  const created = createManagerServices(raw);
+  raw.provide("viewportManager", created.viewportManager);
+  return raw;
 }
 
 describe("ScreenPlugin", () => {

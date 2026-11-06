@@ -6,8 +6,12 @@ import { runConformanceTests, runSurfaceConformance } from "../src/testing/index
 import { RendererErrorCodes } from "../src/errors.js";
 import type { RendererService, SurfaceRendererService } from "../src/types.js";
 import { RENDERER_CONTRACT_VERSION } from "../src/types.js";
+import { createManagerServices } from "../src/create-manager-services.js";
 import { getOrCreateScreenService } from "../src/get-or-create-screen-service.js";
 import { getOrCreateViewportManager } from "../src/get-or-create-viewport-manager.js";
+import { ScreenServiceImpl } from "../src/screen-service.js";
+import { ScreenPlugin } from "../src/screen-plugin.js";
+import { createViewportsPlugin } from "../../app/src/viewports-plugin.js";
 import type { GwenEngine, GwenLogger } from "@gwenjs/core";
 
 function makeCompliantService(): RendererService {
@@ -110,8 +114,24 @@ function makeEngine(): GwenEngine {
       services.set(key, value);
     }),
     tryInject: vi.fn((key: string) => services.get(key)),
+    inject: (key: string) => {
+      const value = services.get(key);
+      if (value === undefined) throw new Error(`No plugin provides service "${key}".`);
+      return value;
+    },
     hooks: { hook: vi.fn(), callHook: vi.fn() },
   } as unknown as GwenEngine;
+}
+
+function declareManagers(engine: GwenEngine): void {
+  const created = createManagerServices(engine);
+  engine.provide("viewportManager", created.viewportManager);
+  engine.provide("cameraManager", created.cameraManager);
+  engine.provide("layerManager", created.layerManager);
+  engine.provide(
+    "screenService",
+    new ScreenServiceImpl(engine.logger.child("renderer-core:screen"), created.viewportManager),
+  );
 }
 
 let screenDpr = 2;
@@ -145,6 +165,7 @@ function makeSurface(mutate?: (service: SurfaceRendererService) => void): Surfac
 describe("runSurfaceConformance", () => {
   it("passes a surface renderer and calls renderViews with 0, 1, and 2 views", () => {
     const engine = makeEngine();
+    declareManagers(engine);
     screenDpr = 2;
     const viewports = getOrCreateViewportManager(engine);
     viewports.set("main", { x: 0, y: 0, width: 1, height: 1 });
@@ -167,6 +188,7 @@ describe("runSurfaceConformance", () => {
 
   it("passes a surface that creates its canvas in mount", () => {
     const engine = makeEngine();
+    declareManagers(engine);
     screenDpr = 2;
     getOrCreateViewportManager(engine).set("main", { x: 0, y: 0, width: 1, height: 1 });
     getOrCreateScreenService(engine).setContainerSize(800, 600, screenDpr);
@@ -196,6 +218,8 @@ describe("runSurfaceConformance", () => {
   it("sizes the canvas from the third resize argument only", async () => {
     const engine = await createEngine({ maxEntities: 32 });
     try {
+      await engine.use(createViewportsPlugin());
+      await engine.use(ScreenPlugin());
       getOrCreateViewportManager(engine).set("main", { x: 0, y: 0, width: 1, height: 1 });
       getOrCreateScreenService(engine).setContainerSize(800, 600, 3);
       const service = makeSurface((svc) => {
@@ -223,6 +247,7 @@ describe("runSurfaceConformance", () => {
 
   it("fails when the canvas stays attached after unmount", () => {
     const engine = makeEngine();
+    declareManagers(engine);
     getOrCreateViewportManager(engine).set("main", { x: 0, y: 0, width: 1, height: 1 });
     getOrCreateScreenService(engine).setContainerSize(800, 600, 2);
     const service = makeSurface((svc) => {
@@ -233,6 +258,7 @@ describe("runSurfaceConformance", () => {
 
   it("fails when resize ignores dpr", () => {
     const engine = makeEngine();
+    declareManagers(engine);
     screenDpr = 2;
     getOrCreateViewportManager(engine).set("main", { x: 0, y: 0, width: 1, height: 1 });
     getOrCreateScreenService(engine).setContainerSize(800, 600, 2);
@@ -248,6 +274,7 @@ describe("runSurfaceConformance", () => {
 
   it("fails when renderViews throws for 2 views", () => {
     const engine = makeEngine();
+    declareManagers(engine);
     getOrCreateViewportManager(engine).set("main", { x: 0, y: 0, width: 1, height: 1 });
     getOrCreateScreenService(engine).setContainerSize(800, 600, 2);
     const service = makeSurface((svc) => {
@@ -260,6 +287,7 @@ describe("runSurfaceConformance", () => {
 
   it("fails when kind is not surface", () => {
     const engine = makeEngine();
+    declareManagers(engine);
     const service = makeSurface();
     (service as { kind: "layers" }).kind = "layers";
     expect(() => runSurfaceConformance(service, engine)).toThrow(/surface/);

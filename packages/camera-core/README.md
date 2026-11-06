@@ -182,6 +182,8 @@ import { CameraCorePlugin, Camera } from "@gwenjs/camera-core";
 import { useCameraManager } from "@gwenjs/renderer-core";
 import { defineSystem, onUpdate } from "@gwenjs/core/system";
 
+// gwen:viewports must already be installed.
+// The bounds provider is registered when gwen:screen is installed before it.
 await engine.use(CameraCorePlugin());
 
 // Your system reads CameraManager after CameraSystem runs

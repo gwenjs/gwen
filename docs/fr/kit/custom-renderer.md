@@ -242,9 +242,11 @@ export const MyTechRendererPlugin = definePlugin(
 
     return {
       name: 'renderer:mytech',
+      requires: { services: ['layerManager'] },
       setup(engine) {
         engine.provide('renderer:mytech', service)
 
+        // gwen:viewports fournit layerManager. Cet appel lie la première racine.
         const manager = getOrCreateLayerManager(engine, opts.container ?? document.body)
         if (__GWEN_DEV__ && engine.debug) {
           manager.enableStats()
@@ -359,8 +361,10 @@ export default defineConfig({
 
 ## Intégration avec les caméras et les viewports
 
-`@gwenjs/renderer-core` fournit deux services gérés que les plugins renderer devraient
-intégrer : `ViewportManager` et `CameraManager`.
+Les managers partagés sont des services du framework fournis par `gwen:viewports`
+(`viewportManager`, `cameraManager`, `layerManager`) et `gwen:screen` (`screenService`).
+Déclarez-les dans `requires.services` ou `requires.optional`.
+`getOrCreate*` lit le service déclaré. Il n'en crée pas.
 
 ### `ViewportManager` — régions d'écran nommées
 
