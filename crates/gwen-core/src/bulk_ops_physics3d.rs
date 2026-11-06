@@ -36,16 +36,13 @@ pub fn physics3d_bulk_sync_from_rapier(
     out_gens: &mut [u32],
     out_buf: &mut [u8],
 ) -> Result<(u32, u32), CoreError> {
-    let result = engine.query_read_bulk(
-        &[transform_type_id],
+    crate::physics_common::bulk::sync_from_rapier::<28>(
+        engine,
         transform_type_id,
         out_slots,
         out_gens,
         out_buf,
-    )?;
-    let count = result.first().copied().unwrap_or(0);
-    let bytes = result.get(1).copied().unwrap_or(0);
-    Ok((count, bytes))
+    )
 }
 
 /// Bulk-sync ECS Transform3D components → Rapier3D rigid bodies.
@@ -70,7 +67,7 @@ pub fn physics3d_bulk_sync_to_rapier(
     transform_type_id: u32,
     data: &[u8],
 ) -> Result<(), CoreError> {
-    engine.set_components_bulk(slots, gens, transform_type_id, data)
+    crate::physics_common::bulk::sync_to_rapier::<28>(engine, slots, gens, transform_type_id, data)
 }
 
 /// Bulk-apply 3D impulses `[fx: f32, fy: f32, fz: f32]` (12 bytes per entity).
@@ -94,7 +91,13 @@ pub fn physics3d_bulk_apply_impulse(
     rigidbody_type_id: u32,
     impulse_data: &[u8],
 ) -> Result<(), CoreError> {
-    engine.set_components_bulk(slots, gens, rigidbody_type_id, impulse_data)
+    crate::physics_common::bulk::apply_impulse::<12>(
+        engine,
+        slots,
+        gens,
+        rigidbody_type_id,
+        impulse_data,
+    )
 }
 
 // ---------------------------------------------------------------------------

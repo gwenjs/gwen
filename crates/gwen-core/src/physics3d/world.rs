@@ -37,15 +37,13 @@ use rapier3d::geometry::{ColliderHandle, Group, InteractionGroups};
 use rapier3d::parry::query::ShapeCastOptions;
 use rapier3d::prelude::*;
 
-use crate::physics3d::components::{
-    quality_solver_config_3d, PhysicsQualityPreset3D, QualitySolverConfig3D,
-};
 use crate::physics3d::error::{
     BvhLoadReason, InvalidColliderReason, InvalidCompoundReason, InvalidJointReason,
     InvalidShapeReason, Physics3DError,
 };
 use crate::physics3d::events::{CollisionEventBuffer3D, PhysicsCollisionEvent3D};
 use crate::physics3d::pathfinding::{NavGrid3D, MAX_PATH_NODES_3D};
+use crate::physics_common::quality::{solver_config, QualityPreset, SolverConfig};
 
 /// Maximum number of simultaneously active character controllers.
 pub const MAX_CC_ENTITIES: usize = 32;
@@ -272,7 +270,7 @@ pub struct PhysicsWorld3D {
     /// are coalesced into a single event before writing to the ring buffer.
     coalesce_events: bool,
     /// Current quality preset (cached to allow re-applying after init).
-    quality_preset: PhysicsQualityPreset3D,
+    quality_preset: QualityPreset,
     /// Monotonically increasing counter used to assign stable integer IDs to joints.
     next_joint_id: u32,
     /// Mapping from stable joint ID (u32) to Rapier ImpulseJointHandle.
@@ -701,7 +699,7 @@ impl PhysicsWorld3D {
             collider_handles: FxHashMap::default(),
             sensor_states: FxHashMap::default(),
             coalesce_events: false,
-            quality_preset: PhysicsQualityPreset3D::Medium,
+            quality_preset: QualityPreset::Medium,
             next_joint_id: 0,
             joint_handles: FxHashMap::default(),
             cc_controllers: FxHashMap::default(),
@@ -717,15 +715,15 @@ impl PhysicsWorld3D {
             disabled_slots: Vec::with_capacity(DISABLED_SLOT_CAPACITY),
         };
         // Apply the default quality preset so solver parameters are consistent.
-        world.apply_quality_config(quality_solver_config_3d(PhysicsQualityPreset3D::Medium));
+        world.apply_quality_config(solver_config(QualityPreset::Medium));
         world.integration_params.normalized_max_linear_velocity = DEFAULT_MAX_LINEAR_VELOCITY;
         world
     }
 
     // ── Quality preset ────────────────────────────────────────────────────────
 
-    /// Apply a [`QualitySolverConfig3D`] directly to the integration parameters.
-    fn apply_quality_config(&mut self, cfg: QualitySolverConfig3D) {
+    /// Apply a [`SolverConfig`] directly to the integration parameters.
+    fn apply_quality_config(&mut self, cfg: SolverConfig) {
         self.integration_params.num_solver_iterations =
             NonZeroUsize::new(cfg.num_solver_iterations)
                 .unwrap_or(NonZeroUsize::MIN)
@@ -748,9 +746,9 @@ impl PhysicsWorld3D {
     /// * `preset` — `0` = Low, `1` = Medium, `2` = High, `3` = Esport.
     ///   Any unrecognised value maps to `Medium`.
     pub fn set_quality(&mut self, preset: u8) {
-        let q = PhysicsQualityPreset3D::from_u8(preset);
+        let q = QualityPreset::from_u8(preset);
         self.quality_preset = q;
-        self.apply_quality_config(quality_solver_config_3d(q));
+        self.apply_quality_config(solver_config(q));
     }
 
     // ── Event coalescing ──────────────────────────────────────────────────────

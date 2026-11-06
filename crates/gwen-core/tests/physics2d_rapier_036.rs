@@ -16,7 +16,7 @@
 //! The dynamic ball on the ground is the witness that the step still simulated.
 
 use gwen_core::physics2d::{
-    BodyOptions, BodyType, ColliderOptions, Physics2DError, PhysicsQualityPreset, PhysicsWorld,
+    BodyOptions, BodyType, ColliderOptions, Physics2DError, PhysicsWorld, QualityPreset,
 };
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
@@ -240,7 +240,7 @@ fn fast_box_against_a_thin_wall(world: &mut PhysicsWorld) -> Result<(), Physics2
 #[test]
 fn low_preset_does_not_tunnel_a_fast_box() -> Result<(), Physics2DError> {
     let mut world = PhysicsWorld::new(0.0, 0.0);
-    world.set_quality_preset(PhysicsQualityPreset::Low);
+    world.set_quality_preset(QualityPreset::Low);
     fast_box_against_a_thin_wall(&mut world)?;
     for _ in 0..24 {
         world.step(1.0 / 120.0)?;

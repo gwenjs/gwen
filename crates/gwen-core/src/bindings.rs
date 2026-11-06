@@ -18,7 +18,7 @@ use wasm_bindgen::prelude::*;
 #[cfg(feature = "physics2d")]
 use crate::physics2d::{
     pathfinding::{PathNode, MAX_PATH_NODES},
-    BodyOptions, BodyType, ColliderOptions, Physics2DError, PhysicsQualityPreset, PhysicsWorld,
+    BodyOptions, BodyType, ColliderOptions, Physics2DError, PhysicsWorld, QualityPreset,
 };
 
 #[cfg(feature = "physics3d")]
@@ -1305,7 +1305,7 @@ impl Engine {
     #[cfg(feature = "physics2d")]
     pub fn physics_set_quality(&mut self, preset: u8) -> Result<(), Physics2DError> {
         if let Some(ref mut world) = self.physics_world {
-            world.set_quality_preset(PhysicsQualityPreset::from_u8(preset));
+            world.set_quality_preset(QualityPreset::from_u8(preset));
             Ok(())
         } else {
             Err(Physics2DError::WorldNotInitialized)

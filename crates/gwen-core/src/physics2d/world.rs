@@ -9,6 +9,8 @@ use crate::physics2d::error::Physics2DError;
 use crate::physics2d::events::{
     CollisionEventBuffer, PhysicsCollisionEvent as StaticCollisionEvent,
 };
+use crate::physics_common::quality::solver_config;
+pub use crate::physics_common::quality::QualityPreset;
 use rapier2d::prelude::*;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::sync::{Mutex, PoisonError};
@@ -35,58 +37,6 @@ const REASON_OUT_OF_BOUNDS: u32 = 1;
 const REASON_VELOCITY: u32 = 2;
 /// Room for 16 `[slot, reason]` pairs. `step` does not grow this buffer when nothing is disabled.
 const DISABLED_SLOT_CAPACITY: usize = 32;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
-pub enum PhysicsQualityPreset {
-    Low = 0,
-    Medium = 1,
-    High = 2,
-    Esport = 3,
-}
-
-impl PhysicsQualityPreset {
-    pub fn from_u8(v: u8) -> Self {
-        match v {
-            0 => PhysicsQualityPreset::Low,
-            2 => PhysicsQualityPreset::High,
-            3 => PhysicsQualityPreset::Esport,
-            _ => PhysicsQualityPreset::Medium,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-struct QualitySolverConfig {
-    num_solver_iterations: usize,
-    num_internal_stabilization_iterations: usize,
-    max_ccd_substeps: usize,
-}
-
-fn quality_solver_config(preset: PhysicsQualityPreset) -> QualitySolverConfig {
-    match preset {
-        PhysicsQualityPreset::Low => QualitySolverConfig {
-            num_solver_iterations: 2,
-            num_internal_stabilization_iterations: 1,
-            max_ccd_substeps: 1,
-        },
-        PhysicsQualityPreset::Medium => QualitySolverConfig {
-            num_solver_iterations: 4,
-            num_internal_stabilization_iterations: 2,
-            max_ccd_substeps: 1,
-        },
-        PhysicsQualityPreset::High => QualitySolverConfig {
-            num_solver_iterations: 8,
-            num_internal_stabilization_iterations: 3,
-            max_ccd_substeps: 2,
-        },
-        PhysicsQualityPreset::Esport => QualitySolverConfig {
-            num_solver_iterations: 10,
-            num_internal_stabilization_iterations: 4,
-            max_ccd_substeps: 4,
-        },
-    }
-}
 
 #[inline]
 fn pack_collider_user_data(entity_index: u32, collider_id: u32) -> u128 {
@@ -192,7 +142,7 @@ pub struct PhysicsWorld {
     handle_by_raw: FxHashMap<u32, RigidBodyHandle>,
     /// Maps tilemap chunk IDs to their pseudo-entity indices for unload/lookup.
     tilemap_chunk_to_entity: FxHashMap<u32, u32>,
-    quality_preset: PhysicsQualityPreset,
+    quality_preset: QualityPreset,
     global_ccd_enabled: bool,
     pub one_way_colliders: FxHashSet<ColliderHandle>,
     collision_events: CollisionEventBuffer,
@@ -242,7 +192,7 @@ impl PhysicsWorld {
             body_to_entity: FxHashMap::default(),
             handle_by_raw: FxHashMap::default(),
             tilemap_chunk_to_entity: FxHashMap::default(),
-            quality_preset: PhysicsQualityPreset::Medium,
+            quality_preset: QualityPreset::Medium,
             global_ccd_enabled: false,
             one_way_colliders: FxHashSet::default(),
             collision_events: CollisionEventBuffer::new(),
@@ -250,15 +200,15 @@ impl PhysicsWorld {
             max_linear_velocity: DEFAULT_MAX_LINEAR_VELOCITY,
             disabled_slots: Vec::with_capacity(DISABLED_SLOT_CAPACITY),
         };
-        world.set_quality_preset(PhysicsQualityPreset::Medium);
+        world.set_quality_preset(QualityPreset::Medium);
         world.integration_params.normalized_max_linear_velocity = DEFAULT_MAX_LINEAR_VELOCITY;
         world
     }
 
     /// Sets the quality preset for the simulation.
-    pub fn set_quality_preset(&mut self, preset: PhysicsQualityPreset) {
+    pub fn set_quality_preset(&mut self, preset: QualityPreset) {
         self.quality_preset = preset;
-        let cfg = quality_solver_config(preset);
+        let cfg = solver_config(preset);
         self.integration_params.num_solver_iterations = cfg.num_solver_iterations;
         self.integration_params
             .num_internal_stabilization_iterations = cfg.num_internal_stabilization_iterations;
@@ -1760,7 +1710,7 @@ mod fixed_rotation {
     #[test]
     fn ccd_off_with_zero_substeps_tunnels() -> Result<(), Physics2DError> {
         let mut world = PhysicsWorld::new(0.0, 0.0);
-        world.set_quality_preset(PhysicsQualityPreset::Low);
+        world.set_quality_preset(QualityPreset::Low);
         world.integration_params.max_ccd_substeps = 0;
         let wall = world.add_rigid_body(2, 0.0, 0.0, BodyType::Fixed, BodyOptions::default())?;
         world.add_box_collider(wall, 0.05, 2.0, ColliderOptions::default())?;

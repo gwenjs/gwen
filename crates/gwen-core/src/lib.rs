@@ -38,6 +38,9 @@ pub mod fingerprint;
 pub mod transform;
 pub mod transform_math;
 
+#[cfg(any(feature = "physics2d", feature = "physics3d"))]
+pub mod physics_common;
+
 #[cfg(feature = "physics2d")]
 pub mod bulk_ops_physics2d;
 

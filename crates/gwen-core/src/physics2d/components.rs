@@ -2,29 +2,9 @@
 //!
 //! Lightweight structs used to configure rigid bodies and colliders.
 
-/// How a rigid body interacts with the simulation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
-pub enum BodyType {
-    /// Immovable: never affected by forces or gravity (walls, floors).
-    Fixed = 0,
-    /// Fully simulated: affected by gravity, forces, and collisions.
-    Dynamic = 1,
-    /// Manually driven: velocity is set by user code, ignores forces.
-    Kinematic = 2,
-}
-
-impl BodyType {
-    /// Convert from the raw u8 passed through the WASM boundary.
-    /// Falls back to `Fixed` for unknown values.
-    pub fn from_u8(v: u8) -> Self {
-        match v {
-            1 => BodyType::Dynamic,
-            2 => BodyType::Kinematic,
-            _ => BodyType::Fixed,
-        }
-    }
-}
+pub use crate::physics_common::body::BodyType;
+pub use crate::physics_common::groups::CollisionGroups;
+pub use crate::physics_common::material::PhysicsMaterial;
 
 /// Supported collider shapes.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -33,28 +13,6 @@ pub enum ColliderShape {
     Box { hw: f32, hh: f32 },
     /// Circle / sphere.  `radius` = radius.
     Ball { radius: f32 },
-}
-
-/// Surface material for a collider.
-#[derive(Debug, Clone, Copy)]
-pub struct PhysicsMaterial {
-    /// Bounciness in [0, 1].  0 = no bounce, 1 = perfect elastic.
-    pub restitution: f32,
-    /// Friction coefficient ≥ 0.  0 = frictionless.
-    pub friction: f32,
-}
-
-impl PhysicsMaterial {
-    pub const DEFAULT: Self = PhysicsMaterial {
-        restitution: 0.0,
-        friction: 0.5,
-    };
-}
-
-impl Default for PhysicsMaterial {
-    fn default() -> Self {
-        PhysicsMaterial::DEFAULT
-    }
 }
 
 /// Extended options for rigid body creation.
@@ -124,30 +82,4 @@ impl Default for ColliderOptions {
             is_one_way: false,
         }
     }
-}
-
-/// Collision filtering for a collider.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CollisionGroups {
-    /// Bitmask of layers this collider *belongs to* (which groups it is in).
-    pub membership: u32,
-    /// Bitmask of layers this collider *can collide with* (which groups it sees).
-    pub filter: u32,
-}
-
-impl Default for CollisionGroups {
-    fn default() -> Self {
-        CollisionGroups {
-            membership: u32::MAX,
-            filter: u32::MAX,
-        }
-    }
-}
-
-impl CollisionGroups {
-    /// `CollisionGroups` that collide with everything (default).
-    pub const ALL: Self = CollisionGroups {
-        membership: u32::MAX,
-        filter: u32::MAX,
-    };
 }

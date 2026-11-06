@@ -3,24 +3,13 @@
 //! Each `PhysicsWorld` owns one buffer. Read it through
 //! `Engine::physics_get_collision_events_ptr`.
 
+use crate::physics_common::events::CollisionEvent;
+
 /// Maximum number of collision events stored per world per step.
 pub const MAX_COLLISION_EVENTS: usize = 1024;
 
-/// A collision event produced during the physics step.
-#[repr(C)]
-#[derive(Debug, Clone, Copy, Default)]
-pub struct PhysicsCollisionEvent {
-    /// First entity involved in the collision.
-    pub entity_a: u32,
-    /// Second entity involved in the collision.
-    pub entity_b: u32,
-    /// Stable ID of the first collider (u32::MAX if absent).
-    pub collider_a_id: u32,
-    /// Stable ID of the second collider (u32::MAX if absent).
-    pub collider_b_id: u32,
-    /// Flags (e.g., bit 0: 1 = started, 0 = stopped).
-    pub flags: u8,
-}
+/// 2D collision event. `u32` ids, 20 bytes.
+pub type PhysicsCollisionEvent = CollisionEvent<u32>;
 
 /// Collision events for one physics world.
 pub struct CollisionEventBuffer {
