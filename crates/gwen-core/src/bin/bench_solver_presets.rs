@@ -1,6 +1,6 @@
 use gwen_core::physics2d::components::{BodyOptions, BodyType, ColliderOptions};
 use gwen_core::physics2d::error::Physics2DError;
-use gwen_core::physics2d::world::{PhysicsQualityPreset, PhysicsWorld};
+use gwen_core::physics2d::world::{PhysicsWorld, QualityPreset};
 use std::time::Instant;
 
 const DT: f32 = 1.0 / 60.0;
@@ -16,7 +16,7 @@ const TUNNEL_STEPS: usize = 24;
 
 #[derive(Clone, Copy)]
 struct PresetRun {
-    preset: PhysicsQualityPreset,
+    preset: QualityPreset,
     name: &'static str,
     global_ccd_enabled: bool,
 }
@@ -36,22 +36,22 @@ struct PresetBenchResult {
 fn preset_runs() -> [PresetRun; 4] {
     [
         PresetRun {
-            preset: PhysicsQualityPreset::Low,
+            preset: QualityPreset::Low,
             name: "low",
             global_ccd_enabled: false,
         },
         PresetRun {
-            preset: PhysicsQualityPreset::Medium,
+            preset: QualityPreset::Medium,
             name: "medium",
             global_ccd_enabled: false,
         },
         PresetRun {
-            preset: PhysicsQualityPreset::High,
+            preset: QualityPreset::High,
             name: "high",
             global_ccd_enabled: true,
         },
         PresetRun {
-            preset: PhysicsQualityPreset::Esport,
+            preset: QualityPreset::Esport,
             name: "esport",
             global_ccd_enabled: true,
         },

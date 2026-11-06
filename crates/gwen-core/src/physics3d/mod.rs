@@ -21,8 +21,7 @@ pub mod pathfinding;
 pub mod world;
 
 pub use components::{
-    BodyOptions3D, BodyType3D, ColliderOptions3D, CollisionGroups3D, PhysicsMaterial3D,
-    PhysicsQualityPreset3D,
+    BodyOptions3D, BodyType, ColliderOptions3D, CollisionGroups, PhysicsMaterial, QualityPreset,
 };
 pub use error::{
     BvhLoadReason, InvalidColliderReason, InvalidCompoundReason, InvalidJointReason,
