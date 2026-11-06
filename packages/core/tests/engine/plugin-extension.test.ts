@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createEngine } from "@gwenjs/core/node";
 import type { GwenEngine } from "@gwenjs/core";
 import type { GwenExtensionApi, GwenPlugin } from "@gwenjs/schema";
+import { definePlugin, isExtensionApiCompatible } from "@gwenjs/kit/plugin";
 
 const engines: GwenEngine[] = [];
 
@@ -384,5 +385,49 @@ describe("extension API at engine.use", () => {
     ).resolves.toBeUndefined();
     expect(setups.n).toBe(1);
     expect(engine.getStats().plugins).toEqual(["base", "ext"]);
+  });
+
+  it("kit and core agree on every row of the compatibility table", async () => {
+    expect(typeof isExtensionApiCompatible).toBe("function");
+    const rows: ReadonlyArray<{
+      readonly required: GwenExtensionApi;
+      readonly actual: GwenExtensionApi | undefined;
+    }> = [
+      { required: api(1, 0), actual: api(1, 0) },
+      { required: api(1, 0), actual: api(1, 2) },
+      { required: api(1, 2), actual: api(1, 0) },
+      { required: api(2, 0), actual: api(1, 0) },
+      { required: api(1, 0), actual: api(2, 0) },
+      { required: api(1, 0), actual: undefined },
+      { required: api(1, 2), actual: api(1, 2) },
+    ];
+    for (const row of rows) {
+      const engine = await open();
+      const setups = { n: 0 };
+      const base =
+        row.actual === undefined
+          ? definePlugin({ provides: [] }, () => ({ name: "base", setup() {} }))()
+          : definePlugin({ provides: [], extensionApi: row.actual }, () => ({
+              name: "base",
+              setup() {},
+            }))();
+      await engine.use(base);
+      const extension = definePlugin({ provides: [] }, () => ({
+        name: "ext",
+        requires: { plugins: [{ name: "base", extensionApi: row.required }] },
+        setup() {
+          setups.n += 1;
+        },
+      }))();
+      const compatible = isExtensionApiCompatible(row.required, base.extensionApi);
+      const error = await rejected(engine.use(extension));
+      if (compatible) {
+        expect(error).toBeUndefined();
+        expect(setups.n).toBe(1);
+      } else {
+        expect(field(error, "code")).toBe("CORE:PLUGIN_EXTENSION_API_MISMATCH");
+        expect(setups.n).toBe(0);
+      }
+    }
   });
 });
