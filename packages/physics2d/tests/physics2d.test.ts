@@ -1628,16 +1628,34 @@ describe("LayerRegistry — layer resolution", () => {
     ); // hint lists known layers
   });
 
-  it("throws on layer bit index out of range", () => {
-    expect(() => Physics2DPlugin({ layers: { bad: 32 } })).toThrow(/invalid bit index/);
-    expect(() => Physics2DPlugin({ layers: { bad: -1 } })).toThrow(/invalid bit index/);
+  it("invalid layer bits are options issues and the factory does not throw", () => {
+    let over: string | undefined;
+    try {
+      over = Physics2DPlugin({ layers: { bad: 32 } }).validateOptions()[0]?.path;
+    } catch {
+      over = undefined;
+    }
+    expect(over).toBe("layers.bad");
+
+    let under: string | undefined;
+    try {
+      under = Physics2DPlugin({ layers: { bad: -1 } }).validateOptions()[0]?.path;
+    } catch {
+      under = undefined;
+    }
+    expect(under).toBe("layers.bad");
   });
 
-  it("throws when more than 32 layers are declared", () => {
+  it("more than 32 layers are an options issue at path layers and the factory does not throw", () => {
     const tooMany: Record<string, number> = {};
-    for (let i = 0; i < 33; i++) tooMany[`l${i}`] = i % 32; // reuse bits to avoid range error
-    // The registry checks count, not unique bits
-    expect(() => Physics2DPlugin({ layers: tooMany })).toThrow(/Too many layers/);
+    for (let i = 0; i < 33; i++) tooMany[`l${i}`] = i % 32;
+    let path: string | undefined;
+    try {
+      path = Physics2DPlugin({ layers: tooMany }).validateOptions()[0]?.path;
+    } catch {
+      path = undefined;
+    }
+    expect(path).toBe("layers");
   });
 
   it("colliders[] with membershipLayers resolves correctly via prefab instantiation", async () => {

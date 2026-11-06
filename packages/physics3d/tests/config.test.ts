@@ -17,11 +17,10 @@ describe("normalizePhysics3DConfig", () => {
     expect(cfg).toEqual(DEFAULT_PHYSICS3D_CONFIG);
   });
 
-  it("overrides gravity components independently", () => {
-    const cfg = normalizePhysics3DConfig({ gravity: { y: -3, z: 2 } });
-    expect(cfg.gravity.x).toBe(0);
-    expect(cfg.gravity.y).toBe(-3);
-    expect(cfg.gravity.z).toBe(2);
+  it("stores a full gravity object whole", () => {
+    const gravity = { x: 1, y: -3, z: 2 };
+    const cfg = normalizePhysics3DConfig({ gravity });
+    expect(cfg.gravity).toBe(gravity);
   });
 
   it("overrides maxEntities", () => {

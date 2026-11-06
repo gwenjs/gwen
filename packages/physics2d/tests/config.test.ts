@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { GwenError } from "@gwenjs/schema";
 import * as config from "../src/config";
 
 describe("checkPhysics2DConfig", () => {
@@ -29,19 +28,16 @@ describe("checkPhysics2DConfig", () => {
     expect(both.map((issue) => issue.path)).toEqual(["layers.over", "layers.under"]);
   });
 
-  it("normalizeConfig throws INVALID_LAYERS from the same rule, and defaults come from the constant", () => {
+  it("normalizeConfig keeps invalid layers, and more than 32 layers is path layers", () => {
     expect(config.PHYSICS2D_DEFAULTS).toBeDefined();
     const defaults = config.PHYSICS2D_DEFAULTS;
-    let caught: unknown;
+    let layers: Record<string, number> | undefined;
     try {
-      config.normalizeConfig({ layers: { bad: 32 } });
-    } catch (error) {
-      caught = error;
+      layers = config.normalizeConfig({ layers: { bad: 32 } }).layers;
+    } catch {
+      layers = undefined;
     }
-    expect(caught).toBeInstanceOf(GwenError);
-    if (!(caught instanceof GwenError)) return;
-    expect(caught.code).toBe("PHYSICS2D:INVALID_LAYERS");
-    expect(caught.message).toContain('Layer "bad" has invalid bit index 32.');
+    expect(layers).toEqual({ bad: 32 });
 
     const normalized = config.normalizeConfig({});
     expect(normalized.gravity).toBe(-9.81);
@@ -60,9 +56,13 @@ describe("checkPhysics2DConfig", () => {
       floor: 0,
       top: 31,
     });
+
+    const tooMany: Record<string, number> = {};
+    for (let i = 0; i < 33; i += 1) tooMany[`l${i}`] = i % 32;
+    expect(config.checkPhysics2DConfig({ layers: tooMany })[0]?.path).toBe("layers");
   });
 
-  it("normalizeConfig rejects NaN and Infinity layer bits", () => {
+  it("normalizeConfig keeps NaN and Infinity layer bits", () => {
     const cases = [
       ["nan", Number.NaN, "NaN"],
       ["inf", Number.POSITIVE_INFINITY, "Infinity"],
@@ -71,16 +71,13 @@ describe("checkPhysics2DConfig", () => {
       const issues = config.checkPhysics2DConfig({ layers: { [name]: bit } });
       expect(issues).toHaveLength(1);
       expect(issues[0]?.received).toBe(received);
-      let caught: unknown;
+      let layers: Record<string, number> | undefined;
       try {
-        config.normalizeConfig({ layers: { [name]: bit } });
-      } catch (error) {
-        caught = error;
+        layers = config.normalizeConfig({ layers: { [name]: bit } }).layers;
+      } catch {
+        layers = undefined;
       }
-      expect(caught).toBeInstanceOf(GwenError);
-      if (!(caught instanceof GwenError)) return;
-      expect(caught.code).toBe("PHYSICS2D:INVALID_LAYERS");
-      expect(caught.message).toContain(`Layer "${name}" has invalid bit index ${received}.`);
+      expect(layers).toEqual({ [name]: bit });
     }
   });
 });
