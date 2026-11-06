@@ -42,7 +42,6 @@ onStart(async () => {
 ## Reserved codes
 
 - `CORE:INTROSPECTION_PAGE_INVALID` {#core-introspection-page-invalid}
-- `CORE:PLUGIN_EXTENSION_API_MISMATCH` {#core-plugin-extension-api-mismatch}
 - `APP:PLUGIN_REQUIREMENT_MISSING` {#app-plugin-requirement-missing}
 - `APP:PLUGIN_REQUIREMENT_ORDER` {#app-plugin-requirement-order}
 - `APP:SERVICE_PROVIDER_MISSING` {#app-service-provider-missing}
@@ -139,8 +138,9 @@ Cause. The call is outside `defineActor()`, `plugin setup()`, or `withCleanup()`
 - `CORE:INVALID_CONFIG` {#core-invalid-config}
 - `CORE:PLUGIN_NOT_FOUND` {#core-plugin-not-found}
 - `CORE:PLUGIN_DEPENDENCY_MISSING` {#core-plugin-dependency-missing} `engine.use` rejected because a required plugin or service is not installed.
-- `CORE:PLUGIN_INVALID_SHAPE` {#core-plugin-invalid-shape} `engine.use` rejected a plugin that declares a lifecycle key the engine never calls.
+- `CORE:PLUGIN_INVALID_SHAPE` {#core-plugin-invalid-shape} `engine.use` rejected a plugin that declares a lifecycle key the engine never calls, an invalid `extensionApi` (`major` an integer >= 1, `minor` an integer >= 0), or an invalid `requires.plugins` entry (no string name, invalid `extensionApi`, or the same name twice). `keys` names the field.
 - `CORE:PLUGIN_IN_USE` {#core-plugin-in-use} `engine.unuse` rejected because an installed plugin still requires this plugin or one of its services.
+- `CORE:PLUGIN_EXTENSION_API_MISMATCH` {#core-plugin-extension-api-mismatch} `engine.use` rejected an extension because an installed base has a different extension API major, a lower minor, or none. `mismatches` lists each base. `setup` was not called and nothing reached `engine.errors`.
 - `CORE:PLUGIN_OPTIONS_INVALID` {#core-plugin-options-invalid} `engine.use` rejected a plugin whose `validateOptions()` returned issues. `setup` was not called and nothing reached `engine.errors`. The message lists one line per issue.
 - `CORE:PLUGIN_PROVIDE_DUPLICATE` {#core-plugin-provide-duplicate} `engine.use` rejected a plugin that declares a key in `provides` that an installed plugin, a plugin still installing, or the engine already holds. `owner` is that plugin's name, or `<engine>`.
 - `CORE:PLUGIN_PROVIDE_UNDECLARED` {#core-plugin-provide-undeclared} `provide` on the setup engine received a key the plugin did not declare in `provides`. It throws from the setup engine, so `setup` fails through the normal path.

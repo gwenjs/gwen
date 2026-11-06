@@ -11,6 +11,7 @@ import {
   type ForbiddenPluginKey,
   type GwenConfigIssue,
   type GwenErrorOptions,
+  type GwenExtensionApi,
   type GwenPluginRequirement,
 } from "@gwenjs/schema";
 import { GwenContextErrorCodes } from "@gwenjs/kit";
@@ -104,29 +105,82 @@ export class GwenPluginDependencyError extends GwenError {
   }
 }
 
+/** A lifecycle key, or one of the two fields whose shape `engine.use` checks. */
+type PluginShapeKey = ForbiddenPluginKey | "extensionApi" | "requires";
+
 /**
- * `engine.use` rejected a plugin that declares a lifecycle key.
- * The engine never calls these keys. Register the hook from `setup()`.
+ * `engine.use` rejected a plugin: a lifecycle key, or an invalid `extensionApi` or `requires`.
+ * The engine never calls lifecycle keys. Register the hook from `setup()`.
  */
 export class GwenPluginShapeError extends GwenError {
   override readonly code = CoreErrorCodes.PLUGIN_INVALID_SHAPE;
   readonly plugin: string;
-  readonly keys: readonly ForbiddenPluginKey[];
+  readonly keys: readonly PluginShapeKey[];
 
-  constructor(name: unknown, badKeys: readonly ForbiddenPluginKey[]) {
+  constructor(name: unknown, badKeys: readonly PluginShapeKey[]) {
     const plugin = typeof name === "string" ? name : "<anonymous>";
     const keys = Object.freeze([...badKeys]);
-    const pairs = keys.map((key) => `${GWEN_PLUGIN_LIFECYCLE_HOOKS[key]} for ${key}`).join(" and ");
-    const what = `Plugin "${plugin}" declares ${keys.join(", ")}, which the engine never calls; in setup(), hook ${pairs}.`;
+    const head = keys[0];
+    const fieldShape = head === "extensionApi" || head === "requires";
+    const pairs = keys
+      .filter((key) => key !== "extensionApi" && key !== "requires")
+      .map((key) => `${GWEN_PLUGIN_LIFECYCLE_HOOKS[key]} for ${key}`)
+      .join(" and ");
+    const reason =
+      head === "extensionApi"
+        ? "major must be an integer >= 1 and minor an integer >= 0"
+        : "each plugins entry is a name or { name, extensionApi }, once";
+    const what = fieldShape
+      ? `Plugin "${plugin}" declares an invalid ${head}: ${reason}.`
+      : `Plugin "${plugin}" declares ${keys.join(", ")}, which the engine never calls; in setup(), hook ${pairs}.`;
     super(CoreErrorCodes.PLUGIN_INVALID_SHAPE, what, {
       composable: "engine.use",
       hint: __GWEN_DEV__
-        ? "Move each frame callback into setup() as engine.hooks.hook(<hook>, fn); the hook table is GWEN_PLUGIN_LIFECYCLE_HOOKS."
+        ? fieldShape
+          ? "extensionApi is { major: integer >= 1, minor: integer >= 0 }; each requires.plugins entry is a name or { name, extensionApi }, once."
+          : "Move each frame callback into setup() as engine.hooks.hook(<hook>, fn); the hook table is GWEN_PLUGIN_LIFECYCLE_HOOKS."
         : undefined,
     });
     this.name = "GwenPluginShapeError";
     this.plugin = plugin;
     this.keys = keys;
+  }
+}
+
+/** One base whose installed extension API does not satisfy the extension. */
+export interface GwenExtensionApiMismatch {
+  readonly base: string;
+  readonly required: GwenExtensionApi;
+  readonly actual: GwenExtensionApi | null;
+}
+
+/**
+ * `engine.use` rejected an extension after its bases were installed.
+ * `mismatches` is frozen, holds at least one entry, and lists every incompatible object
+ * entry, in declaration order.
+ */
+export class GwenPluginExtensionApiError extends GwenError {
+  override readonly code = CoreErrorCodes.PLUGIN_EXTENSION_API_MISMATCH;
+  readonly plugin: string;
+  readonly mismatches: readonly GwenExtensionApiMismatch[];
+
+  constructor(init: { plugin: string; mismatches: readonly GwenExtensionApiMismatch[] }) {
+    const plugin = init.plugin;
+    const mismatches = Object.freeze([...init.mismatches]);
+    const clause = (item: GwenExtensionApiMismatch): string => {
+      const provided = item.actual === null ? "none" : `${item.actual.major}.${item.actual.minor}`;
+      return `extension API ${item.required.major}.${item.required.minor} of "${item.base}", which provides ${provided}`;
+    };
+    const what = `Plugin "${plugin}" needs ${mismatches.map(clause).join("; ")}.`;
+    super(CoreErrorCodes.PLUGIN_EXTENSION_API_MISMATCH, what, {
+      composable: "engine.use",
+      hint: __GWEN_DEV__
+        ? "Install a version of the base whose extension API has the same major and an equal or higher minor, or a version of the extension built for the installed base."
+        : undefined,
+    });
+    this.name = "GwenPluginExtensionApiError";
+    this.plugin = plugin;
+    this.mismatches = mismatches;
   }
 }
 
@@ -293,6 +347,8 @@ export const CoreErrorCodes = {
   PLUGIN_INVALID_SHAPE: "CORE:PLUGIN_INVALID_SHAPE",
   /** `engine.use` rejected because a required plugin or service is not installed. */
   PLUGIN_DEPENDENCY_MISSING: "CORE:PLUGIN_DEPENDENCY_MISSING",
+  /** `engine.use` rejected an extension whose required extension API the installed base does not provide. */
+  PLUGIN_EXTENSION_API_MISMATCH: "CORE:PLUGIN_EXTENSION_API_MISMATCH",
   /** `engine.unuse` rejected: an installed plugin still requires this plugin or one of its services. */
   PLUGIN_IN_USE: "CORE:PLUGIN_IN_USE",
   /** `engine.use` rejected a plugin whose `validateOptions()` returned issues. Thrown by `GwenPluginOptionsError`. */

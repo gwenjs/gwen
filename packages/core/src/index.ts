@@ -37,6 +37,7 @@ export { createEngine, setupGwen } from "./engine/engine-factory";
 export {
   GwenPluginNotFoundError,
   GwenPluginDependencyError,
+  GwenPluginExtensionApiError,
   GwenPluginShapeError,
   GwenPluginOptionsError,
   GwenPluginProvideError,
@@ -82,7 +83,10 @@ export type {
   PlacementBridge,
   PluginErrorContext,
 } from "./engine/engine-types";
-export type { GwenPluginNotFoundErrorOptions } from "./engine/engine-errors";
+export type {
+  GwenExtensionApiMismatch,
+  GwenPluginNotFoundErrorOptions,
+} from "./engine/engine-errors";
 export type {
   WasmMemoryRegion,
   WasmMemoryOptions,

@@ -311,7 +311,7 @@ setup(engine) {
 }
 ```
 
-Dans un build de développement avec `debug: true`, une clé propre autre que `name`, `setup`, `teardown`, `onError`, `requires`, `provides` ou `validateOptions`, et qui ne commence pas par `_`, produit un avertissement et est ignorée.
+Dans un build de développement avec `debug: true`, une clé propre autre que `name`, `setup`, `teardown`, `onError`, `requires`, `provides`, `validateOptions` ou `extensionApi`, et qui ne commence pas par `_`, produit un avertissement et est ignorée.
 
 Les mêmes clés échouent à la compilation. `definePlugin` remplace chaque clé hors `name`, `setup`, `teardown`, `onError` et `requires` par un message `PluginKeyError`. Une clé en trop dans l'objet retourné est donc une erreur de type. Déclarez les options dans le premier argument, `definePlugin({ provides: [], options: { defaults } }, (opts) => ...)`. Laissez l'inférence trouver les arguments de type : le type des options vient de `options.defaults`.
 
