@@ -46,17 +46,22 @@ function seedScreen(services: Map<string, unknown>, engine: GwenEngine): ScreenS
 describe("getOrCreateScreenService", () => {
   it("returns the declared ScreenServiceImpl", () => {
     const { engine, services } = makeEngine();
+    expect(() => getOrCreateScreenService(engine)).toThrow(
+      'No plugin provides service "screenService".',
+    );
     const seeded = seedScreen(services, engine);
     const svc = getOrCreateScreenService(engine);
-    expect(svc).toBeInstanceOf(ScreenServiceImpl);
     expect(svc).toBe(seeded);
+    expect(svc).toBeInstanceOf(ScreenServiceImpl);
   });
 
   it("does not provide a screenService of its own", () => {
     const { engine, services } = makeEngine();
-    seedScreen(services, engine);
-    getOrCreateScreenService(engine);
+    expect(() => getOrCreateScreenService(engine)).toThrow(
+      'No plugin provides service "screenService".',
+    );
     expect(engine.provide).not.toHaveBeenCalled();
+    expect(services.has("screenService")).toBe(false);
   });
 
   it("returns the same instance on subsequent calls (singleton)", () => {
