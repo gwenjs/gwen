@@ -249,11 +249,11 @@ describe("official plugin provided keys", () => {
     });
   });
 
-  it("a second plugin declaring cameraManager rejects DUPLICATE with owner camera-core", async () => {
+  it("a second plugin declaring cameraManager rejects DUPLICATE with owner gwen:viewports", async () => {
     expect(typeof GwenPluginProvideError).toBe("function");
     await withEngine("light", async (handle) => {
       await installAll(handle);
-      await rejectsDuplicate(handle, "cameraManager", "camera-core");
+      await rejectsDuplicate(handle, "cameraManager", "gwen:viewports");
     });
   });
 
