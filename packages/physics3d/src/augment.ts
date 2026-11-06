@@ -8,18 +8,22 @@
 
 import type { Physics3DAPI, Physics3DPluginHooks } from "./types";
 
+/**
+ * Physics 3D service slot in the engine's provide/inject registry.
+ * Available after `engine.use(physics3dPlugin())` completes setup.
+ *
+ * @example
+ * ```typescript
+ * const api = engine.inject('physics3d') // typed as Physics3DAPI
+ * ```
+ */
+export interface Physics3DProvides {
+  physics3d: Physics3DAPI;
+}
+
 declare module "@gwenjs/schema" {
-  /**
-   * Physics 3D service slot in the engine's provide/inject registry.
-   * Available after `engine.use(physics3dPlugin())` completes setup.
-   *
-   * @example
-   * ```typescript
-   * const api = engine.inject('physics3d') // typed as Physics3DAPI
-   * ```
-   */
   interface GwenProvides {
-    physics3d: Physics3DAPI;
+    physics3d: Physics3DProvides["physics3d"];
   }
 
   /**
@@ -33,5 +37,3 @@ declare module "@gwenjs/schema" {
    */
   interface GwenRuntimeHooks extends Physics3DPluginHooks {}
 }
-
-export {};

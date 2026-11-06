@@ -75,6 +75,7 @@
       "Physics3DErrorCode",
       "Physics3DPluginHooks",
       "Physics3DPrefabExtension",
+      "Physics3DProvides",
       "Physics3DQualityPreset",
       "Physics3DQuat",
       "Physics3DSensorState",

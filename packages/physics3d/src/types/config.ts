@@ -40,10 +40,10 @@ export const QUALITY_PRESETS: Record<Physics3DQualityPreset, number> = {
  */
 export interface Physics3DConfig {
   /**
-   * Gravity vector in m/s². Partial overrides are accepted.
+   * Gravity vector in m/s².
    * @default { x: 0, y: -9.81, z: 0 }
    */
-  gravity?: Partial<Physics3DVec3>;
+  gravity?: Physics3DVec3;
   /**
    * Maximum number of entity slots. Should match the engine's `maxEntities`.
    * @default 10_000

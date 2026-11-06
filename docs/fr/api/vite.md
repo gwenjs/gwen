@@ -208,7 +208,7 @@ Lorsque vous utilisez le module `@gwenjs/physics3d` dans `gwen.config.ts`, ce pl
 export default defineConfig({
   modules: ['@gwenjs/physics3d'],
   physics3d: {
-    gravity: { y: -9.81 },
+    gravity: { x: 0, y: -9.81, z: 0 },
     vite: {
       bvhPrebake: true,
       debug: false,  // transmis à physics3dVitePlugin
