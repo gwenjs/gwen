@@ -202,6 +202,43 @@ importers:
         specifier: ^4.1.2
         version: 4.1.2(@types/node@25.6.0)(happy-dom@18.0.1)(vite@8.0.5(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@25.6.0)(jiti@2.6.1))
 
+  packages/physics-core:
+    dependencies:
+      '@gwenjs/core':
+        specifier: workspace:^
+        version: link:../core
+      '@gwenjs/kit':
+        specifier: workspace:^
+        version: link:../kit
+      '@gwenjs/math':
+        specifier: workspace:^
+        version: link:../math
+      '@gwenjs/schema':
+        specifier: workspace:^
+        version: link:../schema
+    devDependencies:
+      '@types/node':
+        specifier: ^20.19.37
+        version: 20.19.39
+      '@vitest/coverage-v8':
+        specifier: ^4.1.2
+        version: 4.1.2(vitest@4.1.2(@types/node@20.19.39)(happy-dom@18.0.1)(vite@8.0.5(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@20.19.39)(jiti@2.6.1)))
+      magic-string:
+        specifier: ^0.30.21
+        version: 0.30.21
+      typescript:
+        specifier: ^6.0.2
+        version: 6.0.2
+      vite:
+        specifier: ^8.0.3
+        version: 8.0.5(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@20.19.39)(jiti@2.6.1)
+      vite-plugin-dts:
+        specifier: ^4.5.4
+        version: 4.5.4(@types/node@20.19.39)(rollup@4.60.1)(supports-color@8.1.1)(typescript@6.0.2)(vite@8.0.5(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@20.19.39)(jiti@2.6.1))
+      vitest:
+        specifier: ^4.1.2
+        version: 4.1.2(@types/node@20.19.39)(happy-dom@18.0.1)(vite@8.0.5(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@20.19.39)(jiti@2.6.1))
+
   packages/physics2d:
     dependencies:
       '@gwenjs/core':
