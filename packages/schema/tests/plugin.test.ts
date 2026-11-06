@@ -189,7 +189,7 @@ describe("GwenPlugin (structural)", () => {
     expect(Object.isFrozen(schema.GWEN_PLUGIN_LIFECYCLE_HOOKS)).toBe(true);
   });
 
-  it("GWEN_PLUGIN_KEYS lists the seven plugin keys and is frozen", () => {
+  it("GWEN_PLUGIN_KEYS lists the plugin keys and is frozen", () => {
     expect(schema.GWEN_PLUGIN_KEYS).toEqual([
       "name",
       "setup",
@@ -198,6 +198,7 @@ describe("GwenPlugin (structural)", () => {
       "requires",
       "provides",
       "validateOptions",
+      "extensionApi",
     ]);
     expect(Object.isFrozen(schema.GWEN_PLUGIN_KEYS)).toBe(true);
   });
