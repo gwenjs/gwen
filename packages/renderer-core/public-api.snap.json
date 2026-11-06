@@ -15,6 +15,7 @@
       "StaticSizeProvider",
       "SurfaceInvalidError",
       "UnknownLayerError",
+      "createManagerServices",
       "defineRendererService",
       "getOrCreateCameraManager",
       "getOrCreateLayerManager",

@@ -66,7 +66,7 @@ function makeRenderView(): RenderView {
 }
 
 export class LayerManager {
-  private readonly _root: HTMLElement;
+  private _root: HTMLElement | undefined;
   private readonly _log: GwenLogger;
   private readonly _engine: GwenEngine | undefined;
   private readonly _renderers = new Map<string, RegisteredRenderer>();
@@ -76,7 +76,7 @@ export class LayerManager {
   private _debugEnabled = false;
   private _unhookRender: (() => void) | undefined;
 
-  constructor(root: HTMLElement, logger?: GwenLogger, engine?: GwenEngine) {
+  constructor(root?: HTMLElement, logger?: GwenLogger, engine?: GwenEngine) {
     this._root = root;
     this._log = logger ?? createLogger("renderer-core:layer-manager");
     this._engine = engine;
@@ -85,6 +85,14 @@ export class LayerManager {
         this._renderSurfaceViews();
       });
     }
+  }
+
+  /**
+   * Store `root` when none is stored yet. A later call keeps the first root.
+   */
+  bindRoot(root: HTMLElement): void {
+    if (this._root !== undefined) return;
+    this._root = root;
   }
 
   /**
@@ -98,7 +106,7 @@ export class LayerManager {
 
   /**
    * Reset per-frame global totals and per-renderer stats for the new frame.
-   * Called automatically by {@link getOrCreateLayerManager} at the start of every
+   * Called automatically by `createManagerServices` at the start of every
    * tick via `engine.hooks.hook('engine:tick', ...)`. Plugin authors do not need
    * to call this manually.
    *
@@ -170,7 +178,9 @@ export class LayerManager {
    * Should be called once after all renderers are registered.
    */
   mount(): void {
-    this._root.style.position = "relative";
+    const root = this._root;
+    if (root === undefined) return;
+    root.style.position = "relative";
 
     // Collect all (renderer, layerName, layerDef) tuples sorted by order.
     // A surface canvas does not exist until that renderer's mount().
@@ -183,7 +193,7 @@ export class LayerManager {
 
     // Call mount() on each renderer after DOM is ready
     for (const renderer of this._renderers.values()) {
-      renderer.service.mount(this._root);
+      renderer.service.mount(root);
       if (this._debugEnabled && renderer.service.setStatsCollector) {
         renderer.service.setStatsCollector(renderer.collector);
       }
@@ -220,11 +230,12 @@ export class LayerManager {
     const renderer = this._renderers.get(rendererName);
     if (!renderer) return;
     renderer.service.unmount();
-    // Remove all DOM elements belonging to this renderer
-    const toRemove = Array.from(
-      this._root.querySelectorAll(`[data-gwen-layer^="${rendererName}:"]`),
-    );
-    for (const el of toRemove) el.remove();
+    const root = this._root;
+    if (root !== undefined) {
+      // Remove all DOM elements belonging to this renderer
+      const toRemove = Array.from(root.querySelectorAll(`[data-gwen-layer^="${rendererName}:"]`));
+      for (const el of toRemove) el.remove();
+    }
     this._renderers.delete(rendererName);
   }
 
@@ -285,15 +296,17 @@ export class LayerManager {
     if (layerDef.coordinate !== "world") {
       el.style.pointerEvents = "none";
     }
+    const root = this._root;
+    if (root === undefined) return;
     let before: Element | null = null;
-    for (const child of this._root.children) {
+    for (const child of root.children) {
       const z = hasInlineStyle(child) ? Number.parseInt(child.style.zIndex, 10) : Number.NaN;
       if (Number.isFinite(z) && z > layerDef.order) {
         before = child;
         break;
       }
     }
-    this._root.insertBefore(el, before);
+    root.insertBefore(el, before);
   }
 
   /**

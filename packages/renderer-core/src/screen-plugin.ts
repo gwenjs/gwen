@@ -21,10 +21,10 @@
 
 import type { GwenEngine } from "@gwenjs/core";
 import { definePlugin, type GwenPluginDeclaration } from "@gwenjs/kit/plugin";
-import { getOrCreateScreenService } from "./get-or-create-screen-service.js";
 import { BrowserSizeProvider, StaticSizeProvider } from "./screen-size-providers.js";
 import type { ScreenSizeProvider } from "./screen-size-providers.js";
 import { ScreenErrorCodes } from "./screen-errors.js";
+import { ScreenServiceImpl } from "./screen-service.js";
 
 /** Options accepted by `ScreenPlugin`. */
 export interface ScreenPluginOptions {
@@ -53,9 +53,12 @@ const screenPluginDeclaration: GwenPluginDeclaration<ScreenPluginOptions, "scree
  */
 export const ScreenPlugin = definePlugin(screenPluginDeclaration, (opts) => ({
   name: "gwen:screen",
+  requires: { services: ["viewportManager"] },
   setup(engine: GwenEngine) {
     const log = engine.logger.child("renderer-core:screen");
-    const service = getOrCreateScreenService(engine);
+    const viewports = engine.inject("viewportManager");
+    const service = new ScreenServiceImpl(log, viewports);
+    engine.provide("screenService", service);
 
     // Determine size provider
     let sizeProvider: ScreenSizeProvider;

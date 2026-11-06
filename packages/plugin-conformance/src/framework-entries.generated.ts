@@ -586,6 +586,7 @@ export const FRAMEWORK_ENTRIES: Readonly<Record<string, readonly string[]>> = {
     "ViewportRegion",
     "ViewportScreenInfo",
     "WorldTransform",
+    "createManagerServices",
     "defineRendererService",
     "getOrCreateCameraManager",
     "getOrCreateLayerManager",
