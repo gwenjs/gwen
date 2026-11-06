@@ -26,4 +26,5 @@ export const GWEN_PLUGIN_KEYS = Object.freeze([
   "requires",
   "provides",
   "validateOptions",
+  "extensionApi",
 ] as const);

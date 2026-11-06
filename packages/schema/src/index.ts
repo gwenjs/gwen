@@ -39,6 +39,7 @@ export type {
   PluginErrorContext,
   GwenPlugin,
   GwenEngineServiceKey,
+  GwenExtensionApi,
   GwenPluginServiceKey,
   GwenPluginRequirement,
   GwenPluginRequires,
