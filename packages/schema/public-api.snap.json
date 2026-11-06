@@ -54,6 +54,7 @@
       "GwenErrorPayload",
       "GwenErrorTarget",
       "GwenExtensionApi",
+      "GwenExtensionService",
       "GwenHookHandler",
       "GwenKit",
       "GwenLogEntry",
