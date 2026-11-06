@@ -28,7 +28,7 @@ type InvalidLayerBit = {
   bit: unknown;
 };
 
-function invalidLayerBits(config: Physics2DConfig): InvalidLayerBit[] {
+function invalidLayerBits(config: Readonly<Physics2DConfig>): InvalidLayerBit[] {
   const layers = config.layers;
   if (layers === undefined || layers === null) return [];
   const found: InvalidLayerBit[] = [];
@@ -41,7 +41,7 @@ function invalidLayerBits(config: Physics2DConfig): InvalidLayerBit[] {
   return found;
 }
 
-function layerBitIssues(config: Physics2DConfig): GwenConfigIssue[] {
+function layerBitIssues(config: Readonly<Physics2DConfig>): GwenConfigIssue[] {
   return invalidLayerBits(config).map((layer) => ({
     path: `layers.${layer.name}`,
     expected: `an integer in [0, ${MAX_LAYERS - 1}]`,
@@ -50,9 +50,22 @@ function layerBitIssues(config: Physics2DConfig): GwenConfigIssue[] {
   }));
 }
 
-/** Layer-bit rule. Each path is `layers.<name>`. */
-export function checkPhysics2DConfig(config: Physics2DConfig): GwenConfigIssue[] {
-  return layerBitIssues(config);
+/**
+ * Layer rules. A bad bit uses path `layers.<name>`.
+ * More than {@link MAX_LAYERS} layers uses path `layers`.
+ */
+export function checkPhysics2DConfig(config: Readonly<Physics2DConfig>): GwenConfigIssue[] {
+  const issues = layerBitIssues(config);
+  const layers = config.layers;
+  if (layers !== undefined && layers !== null && Object.keys(layers).length > MAX_LAYERS) {
+    issues.push({
+      path: "layers",
+      expected: `at most ${MAX_LAYERS} layers`,
+      received: formatReceived(Object.keys(layers).length),
+      owner: "@gwenjs/physics2d",
+    });
+  }
+  return issues;
 }
 
 /**
@@ -72,21 +85,11 @@ export type NormalizedPhysics2DConfig = {
 };
 
 /**
- * Validates and normalizes user-provided configuration.
- * @throws {GwenError} If layer configuration is invalid.
+ * Normalizes user-provided configuration.
+ * Layer bits are copied as given. {@link checkPhysics2DConfig} reports bad bits and counts.
  * @throws {GwenConfigError} If `maxLinearVelocity` is not finite or not positive.
  */
 export function normalizeConfig(config: Physics2DConfig): NormalizedPhysics2DConfig {
-  const invalid = invalidLayerBits(config)[0];
-  if (invalid !== undefined) {
-    throw new GwenError(
-      Physics2DErrorCodes.INVALID_LAYERS,
-      `Layer "${invalid.name}" has invalid bit index ${invalid.bit}.`,
-      {
-        hint: __GWEN_DEV__ ? `Use an integer in [0, ${MAX_LAYERS - 1}].` : undefined,
-      },
-    );
-  }
   const layers: Record<string, number> = {};
   if (config.layers) {
     for (const [name, bit] of Object.entries(config.layers)) {
@@ -131,14 +134,6 @@ export class LayerRegistry {
   private readonly bits: Record<string, number>;
 
   constructor(layers: Record<string, number>) {
-    const count = Object.keys(layers).length;
-    if (count > MAX_LAYERS) {
-      throw new GwenError(
-        Physics2DErrorCodes.INVALID_LAYERS,
-        `Too many layers declared: ${count}.`,
-        { hint: __GWEN_DEV__ ? `Declare at most ${MAX_LAYERS} layers.` : undefined },
-      );
-    }
     this.bits = layers;
   }
 

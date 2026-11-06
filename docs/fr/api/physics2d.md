@@ -20,6 +20,8 @@ function Physics2DPlugin(options?: Physics2DPluginOptions): PluginDef
 
 **Description.** Crée le plugin de physique 2D. Enregistrez dans votre config d'app pour activer la simulation physique.
 
+`options.layers` associe chaque nom à un indice de bit dans `[0, 31]`, au plus 32 noms. Un bit hors de cet intervalle, ou plus de 32 couches, fait rejeter `CORE:PLUGIN_OPTIONS_INVALID` par `engine.use(Physics2DPlugin(...))`. Le chemin est `layers.<name>` pour un bit et `layers` pour le nombre. L'appel `Physics2DPlugin(...)` ne lève pas pour les couches.
+
 **Retourne:** `PluginDef` — définition du plugin de physique.
 
 **Exemple:**
@@ -264,6 +266,8 @@ function onSensorExit(sensorId: number, callback: (entityId: bigint) => void): (
 **Description.** Appelé quand une autre entité quitte un collider capteur. Retourne une fonction qui retire le callback.
 
 ## Couches
+
+`Physics2DPlugin({ layers })` prend des indices de bit. Un bit hors de `[0, 31]`, ou plus de 32 couches, fait rejeter `CORE:PLUGIN_OPTIONS_INVALID` par `engine.use(Physics2DPlugin(...))` (chemins `layers.<name>` et `layers`). L'appel de la fabrique ne lève pas pour les couches.
 
 ### defineLayers(definition)
 

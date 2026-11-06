@@ -10,18 +10,22 @@
 
 import type { Physics2DAPI, Physics2DPluginHooks, Physics2DPrefabExtension } from "./types";
 
+/**
+ * Physics 2D service slot in the engine's provide/inject registry.
+ * Available after `engine.use(physics2dPlugin())` completes setup.
+ *
+ * @example
+ * ```typescript
+ * const api = engine.inject('physics2d') // typed as Physics2DAPI
+ * ```
+ */
+export interface Physics2DProvides {
+  physics2d: Physics2DAPI;
+}
+
 declare module "@gwenjs/schema" {
-  /**
-   * Physics 2D service slot in the engine's provide/inject registry.
-   * Available after `engine.use(physics2dPlugin())` completes setup.
-   *
-   * @example
-   * ```typescript
-   * const api = engine.inject('physics2d') // typed as Physics2DAPI
-   * ```
-   */
   interface GwenProvides {
-    physics2d: Physics2DAPI;
+    physics2d: Physics2DProvides["physics2d"];
   }
 
   /**
@@ -44,6 +48,3 @@ declare module "@gwenjs/schema" {
     physics?: Physics2DPrefabExtension;
   }
 }
-
-// Ensure this file is treated as a module (required for declaration merging).
-export {};

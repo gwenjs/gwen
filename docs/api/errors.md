@@ -245,7 +245,7 @@ Cause. The body handle has no owner. Fix. Add the body before the collider.
 
 ### PHYSICS2D:INVALID_LAYERS {#physics2d-invalid-layers}
 
-Cause. A layer bit is invalid or more than 32 layers are set. Fix. Use bits 0 to 31.
+Cause. The code remains in `Physics2DErrorCodes` (`packages/physics2d/src/errors.ts:9`). A bad layer bit or more than 32 layers is no longer thrown as this code. `checkPhysics2DConfig` (`packages/physics2d/src/config.ts:57`) reports those as issues of `CORE:PLUGIN_OPTIONS_INVALID`: path `layers.<name>` for a bit (`packages/physics2d/src/config.ts:46`), path `layers` when the count exceeds 32 (`packages/physics2d/src/config.ts:62`). `engine.use` rejects before `setup`. Fix. Use an integer bit from 0 to 31, and at most 32 layers.
 
 ### PHYSICS2D:UNKNOWN_LAYER {#physics2d-unknown-layer}
 
