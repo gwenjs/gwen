@@ -26,6 +26,7 @@ import {
 } from "../src/errors.js";
 import { createRendererStats } from "../src/stats.js";
 import type { RendererKind } from "../src/types.js";
+import { createViewportsPlugin } from "../../app/src/viewports-plugin.js";
 
 function surfaceService(name: string, order: number, onRender: () => void): SurfaceRendererService {
   let canvas: HTMLCanvasElement | null = null;
@@ -831,6 +832,34 @@ describe("getOrCreateLayerManager layerManager guard", () => {
       expect(engine.tryInject("layerManager")).toBe(host);
     } finally {
       root.remove();
+      await engine.stop();
+    }
+  });
+});
+
+describe("declared layer manager", () => {
+  it("mount() before bind writes nothing, the first root wins", async () => {
+    const engine = await createEngine({ maxEntities: 32 });
+    const root = mountRoot();
+    const second = mountRoot();
+    try {
+      await engine.use(createViewportsPlugin());
+      const manager = engine.tryInject("layerManager");
+      expect(manager).toBeInstanceOf(LayerManager);
+      if (!(manager instanceof LayerManager)) return;
+      manager.mount();
+      expect(root.style.position).toBe("");
+      expect(root.childElementCount).toBe(0);
+      const bound = getOrCreateLayerManager(engine, root);
+      expect(bound).toBe(manager);
+      bound.mount();
+      expect(root.style.position).toBe("relative");
+      getOrCreateLayerManager(engine, second);
+      expect(second.style.position).toBe("");
+      expect(second.childElementCount).toBe(0);
+    } finally {
+      root.remove();
+      second.remove();
       await engine.stop();
     }
   });

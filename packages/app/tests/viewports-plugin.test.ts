@@ -1,111 +1,94 @@
 /**
  * @file viewports-plugin tests
  *
- * Verifies that createViewportsPlugin correctly registers viewports via
- * ViewportManager on engine:init, including the default fallback.
+ * Verifies that createViewportsPlugin registers viewports on engine:init,
+ * including the default fullscreen fallback, on a real engine.
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { createEngine } from "@gwenjs/core/node";
+import type { GwenEngine } from "@gwenjs/core";
 import type { ViewportRegion } from "@gwenjs/renderer-core";
+import { GwenApp } from "../src/app.js";
+import { resolveLoadedConfig } from "../src/config.js";
+import { createViewportsPlugin } from "../src/viewports-plugin.js";
 
-// ─── Mock @gwenjs/renderer-core ───────────────────────────────────────────────
+const engines: GwenEngine[] = [];
 
-const mockSet = vi.fn();
-const mockVm = { set: mockSet };
-const mockGetOrCreate = vi.fn((_engine: unknown) => mockVm);
-
-vi.mock("@gwenjs/renderer-core", () => ({
-  getOrCreateViewportManager: (engine: unknown) => mockGetOrCreate(engine),
-  ScreenPlugin: vi.fn(() => ({ name: "gwen:screen", setup: vi.fn() })),
-}));
-
-// Import after mock registration
-const { createViewportsPlugin } = await import("../src/viewports-plugin.js");
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-type HookHandler = (...args: unknown[]) => void;
-
-function makeEngine() {
-  const handlers: Record<string, HookHandler[]> = {};
-  return {
-    hooks: {
-      hook(event: string, fn: HookHandler) {
-        (handlers[event] ??= []).push(fn);
-      },
-      async callHook(event: string, ...args: unknown[]) {
-        for (const fn of handlers[event] ?? []) fn(...args);
-      },
-    },
-    triggerInit() {
-      return this.hooks.callHook("engine:init");
-    },
-  };
+async function openWith(viewports?: Record<string, ViewportRegion>): Promise<GwenEngine> {
+  const engine = await createEngine();
+  engines.push(engine);
+  await engine.use(createViewportsPlugin(viewports));
+  await engine.hooks.callHook("engine:init");
+  return engine;
 }
 
-// ─── Tests ────────────────────────────────────────────────────────────────────
+afterEach(async () => {
+  for (const engine of engines.splice(0)) await engine.stop();
+});
 
 describe("createViewportsPlugin", () => {
-  beforeEach(() => {
-    mockSet.mockClear();
-    mockGetOrCreate.mockClear();
-  });
-
   it("registers configured viewports on engine:init", async () => {
     const viewports: Record<string, ViewportRegion> = {
       p1: { x: 0, y: 0, width: 0.5, height: 1 },
       p2: { x: 0.5, y: 0, width: 0.5, height: 1 },
     };
-
-    const plugin = createViewportsPlugin(viewports);
-    const engine = makeEngine();
-    plugin.setup(engine as never);
-    await engine.triggerInit();
-
-    expect(mockSet).toHaveBeenCalledTimes(2);
-    expect(mockSet).toHaveBeenCalledWith("p1", viewports.p1);
-    expect(mockSet).toHaveBeenCalledWith("p2", viewports.p2);
+    const engine = await openWith(viewports);
+    const registered = engine.inject("viewportManager");
+    expect(registered.get("p1")?.region).toEqual(viewports.p1);
+    expect(registered.get("p2")?.region).toEqual(viewports.p2);
   });
 
   it("registers default fullscreen 'main' viewport when no config is provided", async () => {
-    const plugin = createViewportsPlugin(undefined);
-    const engine = makeEngine();
-    plugin.setup(engine as never);
-    await engine.triggerInit();
-
-    expect(mockSet).toHaveBeenCalledOnce();
-    expect(mockSet).toHaveBeenCalledWith("main", { x: 0, y: 0, width: 1, height: 1 });
+    const engine = await openWith(undefined);
+    expect(engine.inject("viewportManager").get("main")?.region).toEqual({
+      x: 0,
+      y: 0,
+      width: 1,
+      height: 1,
+    });
   });
 
   it("registers default fullscreen 'main' viewport when empty map is provided", async () => {
-    const plugin = createViewportsPlugin({});
-    const engine = makeEngine();
-    plugin.setup(engine as never);
-    await engine.triggerInit();
-
-    expect(mockSet).toHaveBeenCalledOnce();
-    expect(mockSet).toHaveBeenCalledWith("main", { x: 0, y: 0, width: 1, height: 1 });
+    const engine = await openWith({});
+    expect(engine.inject("viewportManager").get("main")?.region).toEqual({
+      x: 0,
+      y: 0,
+      width: 1,
+      height: 1,
+    });
   });
 
   it("has name 'gwen:viewports'", () => {
+    expect(createViewportsPlugin().name).toBe("gwen:viewports");
+  });
+
+  it("provides viewportManager, cameraManager and layerManager and registers main", async () => {
     const plugin = createViewportsPlugin();
-    expect(plugin.name).toBe("gwen:viewports");
+    const provides: readonly string[] = plugin.provides;
+    expect(provides).toEqual(["viewportManager", "cameraManager", "layerManager"]);
+    const engine = await openWith();
+    expect(engine.inject("viewportManager").get("main")?.region).toEqual({
+      x: 0,
+      y: 0,
+      width: 1,
+      height: 1,
+    });
   });
 });
 
 describe("createViewportsPlugin — idempotence via GwenApp", () => {
   it("setupModules replaces existing gwen:viewports plugin on second call", async () => {
-    const { GwenApp } = await import("../src/app.js");
-    const { resolveLoadedConfig } = await import("../src/config.js");
-
     const app = new GwenApp();
     const config = resolveLoadedConfig({});
 
     await app.setupModules(config);
-    const countAfterFirst = app.plugins.filter((p) => p.name === "gwen:viewports").length;
+    const countAfterFirst = app.plugins.filter((plugin) => plugin.name === "gwen:viewports").length;
 
     await app.setupModules(config);
-    const countAfterSecond = app.plugins.filter((p) => p.name === "gwen:viewports").length;
+    const countAfterSecond = app.plugins.filter(
+      (plugin) => plugin.name === "gwen:viewports",
+    ).length;
 
     expect(countAfterFirst).toBe(1);
     expect(countAfterSecond).toBe(1);
