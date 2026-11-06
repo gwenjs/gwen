@@ -38,6 +38,7 @@ const EXPECTED: ReadonlyArray<readonly [string, string, string]> = [
   ["@gwenjs/core/testing", "core", "./testing"],
   ["@gwenjs/core/node", "core", "./node"],
   ["@gwenjs/math", "math", "."],
+  ["@gwenjs/physics-core", "physics-core", "."],
   ["@gwenjs/renderer-core", "renderer-core", "."],
   ["@gwenjs/renderer-core/module", "renderer-core", "./module"],
   ["@gwenjs/renderer-core/testing", "renderer-core", "./testing"],

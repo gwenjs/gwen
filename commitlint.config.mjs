@@ -14,6 +14,7 @@ const config = {
         'kit',
         'math',
         'physics2d',
+        'physics-core',
         'physics3d',
         'plugin-conformance',
         'renderer-core',
