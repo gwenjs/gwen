@@ -260,17 +260,36 @@ export interface GwenExtensionService {
 }
 
 /**
+ * A plugin that others name in requires.plugins augments this interface;
+ * entry `{}` = name only; entry with `extensionApi` = a base other packages extend.
+ */
+export interface GwenPluginRegistry {}
+
+/** A key of {@link GwenPluginRegistry}. */
+export type GwenPluginName = keyof GwenPluginRegistry & string;
+
+/** Object form: a cross-package requirement on a base plugin's extension surface. */
+export type GwenExtensionRequirement = {
+  [N in GwenPluginName]: GwenPluginRegistry[N] extends {
+    readonly extensionApi: { readonly major: infer M extends number };
+  }
+    ? {
+        readonly name: N;
+        readonly extensionApi: { readonly major: M; readonly minor: number };
+      }
+    : never;
+}[GwenPluginName];
+
+/**
  * Plugins and services that must already be installed, plus optional services.
  * `engine.use()` checks `plugins` and `services` before `setup()`.
  * `optional` is not checked and does not block `unuse()`.
- * A `plugins` entry is a name, or `{ name, extensionApi }` for a base plugin.
+ * A `plugins` entry is a registry name ({@link GwenPluginName}), not a free string,
+ * or `{ name, extensionApi }` for a base plugin.
  * Service names are {@link GwenServiceKey}s.
  */
 export interface GwenPluginRequires {
-  readonly plugins?: readonly (
-    | string
-    | { readonly name: string; readonly extensionApi: GwenExtensionApi }
-  )[];
+  readonly plugins?: readonly (GwenPluginName | GwenExtensionRequirement)[];
   readonly services?: readonly GwenServiceKey[];
   /** Services that may be absent. `use()` does not check them. */
   readonly optional?: readonly GwenServiceKey[];
