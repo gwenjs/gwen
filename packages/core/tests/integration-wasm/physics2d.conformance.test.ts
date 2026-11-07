@@ -25,7 +25,7 @@ runPhysicsConformance({
   variant: "physics2d",
   async install(next: GwenEngine, gravity: number): Promise<void> {
     engine = next;
-    await next.use(Physics2DPlugin({ gravity }));
+    await next.use(Physics2DPlugin({ gravity: { x: 0, y: gravity } }));
     physics = next.inject("physics2d");
   },
   async installKinematicSync(next: GwenEngine): Promise<void> {

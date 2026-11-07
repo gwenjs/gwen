@@ -68,7 +68,7 @@ function strike(engine: RealEngineHandle["engine"], physics: Physics2DAPI, id: E
 }
 
 async function openPhysics(handle: RealEngineHandle): Promise<Physics2DAPI> {
-  await handle.engine.use(Physics2DPlugin({ gravity: 0, maxEntities: 32 }));
+  await handle.engine.use(Physics2DPlugin({ gravity: { x: 0, y: 0 }, maxEntities: 32 }));
   return handle.engine.inject("physics2d");
 }
 

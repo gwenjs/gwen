@@ -118,7 +118,7 @@ describe("official plugin shape", () => {
 
   it("every official plugin installs on a real engine", async () => {
     await withEngine("physics2d", async (handle) => {
-      await handle.engine.use(Physics2DPlugin({ gravity: 0 }));
+      await handle.engine.use(Physics2DPlugin({ gravity: { x: 0, y: 0 } }));
       await handle.engine.use(
         createPhysicsKinematicSyncSystem({ pixelsPerMeter: 1, positionComponent: Position2D }),
       );
@@ -167,7 +167,7 @@ describe("official plugin shape", () => {
   it("a copy with onRender added is rejected with CORE:PLUGIN_INVALID_SHAPE", async () => {
     const handle = await createRealEngine({ variant: "light", maxEntities: 8 });
     try {
-      const plugin = Physics2DPlugin({ gravity: 0 });
+      const plugin = Physics2DPlugin({ gravity: { x: 0, y: 0 } });
       const copy = { ...plugin, onRender() {} };
       let caught: unknown;
       try {
@@ -185,7 +185,7 @@ describe("official plugin shape", () => {
 
   it("no official plugin object has a key outside GWEN_PLUGIN_KEYS", () => {
     const plugins = [
-      Physics2DPlugin({ gravity: 0 }),
+      Physics2DPlugin({ gravity: { x: 0, y: 0 } }),
       createPhysicsKinematicSyncSystem({ positionComponent: Position2D }),
       Physics3DPlugin({ gravity: { x: 0, y: 0, z: 0 } }),
       createPhysics3DKinematicSyncSystem({ positionComponent: Position3D })(),

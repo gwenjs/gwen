@@ -210,13 +210,13 @@ describe("useDynamicBody", () => {
     expect(mockPhysics.applyImpulse).not.toHaveBeenCalled();
   });
 
-  it("passes layer/mask as membershipLayers/filterLayers", async () => {
+  it("passes layer/mask as layer/mask", async () => {
     await mount(() => useDynamicBody({ layer: 2, mask: 1 }));
     expect(mockPhysics.addBoxCollider).toHaveBeenCalledWith(
       expect.anything(),
       expect.anything(),
       expect.anything(),
-      expect.objectContaining({ membershipLayers: 2, filterLayers: 1 }),
+      expect.objectContaining({ layer: 2, mask: 1 }),
     );
   });
 });

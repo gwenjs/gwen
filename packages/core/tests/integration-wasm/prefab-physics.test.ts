@@ -55,7 +55,7 @@ describe("prefab physics extensions", () => {
           },
         });
         const Actor = defineActor(prefab, () => ({}));
-        await engine.use(Physics2DPlugin({ gravity: 0 }));
+        await engine.use(Physics2DPlugin({ gravity: { x: 0, y: 0 } }));
         await engine.use(Actor._plugin);
         const id = engine.run(() => useActor(Actor).spawn());
         expect(reported).toEqual([]);
@@ -86,7 +86,7 @@ describe("prefab physics extensions", () => {
           },
         });
         const Actor = defineActor(prefab, () => ({}));
-        await engine.use(Physics2DPlugin({ gravity: 0 }));
+        await engine.use(Physics2DPlugin({ gravity: { x: 0, y: 0 } }));
         await engine.use(Actor._plugin);
         const anchor = engine.createEntity();
         engine.addComponent(anchor, Marker2D, { x: 0 });

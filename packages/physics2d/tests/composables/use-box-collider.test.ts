@@ -67,13 +67,13 @@ describe("useBoxCollider", () => {
     expect(mockPhysics.addRigidBody).toHaveBeenCalledWith(expect.anything(), "fixed", 0, 0);
   });
 
-  it("passes layer as membershipLayers and mask as filterLayers", () => {
+  it("passes layer as layer and mask as mask", () => {
     useBoxCollider({ w: 10, h: 10, layer: 4, mask: 3 });
     expect(mockPhysics.addBoxCollider).toHaveBeenCalledWith(
       expect.anything(),
       expect.anything(),
       expect.anything(),
-      expect.objectContaining({ membershipLayers: 4, filterLayers: 3 }),
+      expect.objectContaining({ layer: 4, mask: 3 }),
     );
   });
 

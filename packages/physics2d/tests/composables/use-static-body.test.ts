@@ -74,13 +74,13 @@ describe("useStaticBody", () => {
     expect(h.active).toBe(true);
   });
 
-  it("passes layer as membershipLayers and mask as filterLayers", () => {
+  it("passes layer as layer and mask as mask", () => {
     useStaticBody({ layer: 4, mask: 3 });
     expect(mockPhysics.addBoxCollider).toHaveBeenCalledWith(
       expect.anything(),
       expect.anything(),
       expect.anything(),
-      expect.objectContaining({ membershipLayers: 4, filterLayers: 3 }),
+      expect.objectContaining({ layer: 4, mask: 3 }),
     );
   });
 

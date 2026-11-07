@@ -215,7 +215,7 @@ describe("P0 physics loop", () => {
     });
     const { engine, bridge, advance } = handle;
     try {
-      await engine.use(Physics2DPlugin({ gravity: 0 }));
+      await engine.use(Physics2DPlugin({ gravity: { x: 0, y: 0 } }));
       const physics = engine.inject("physics2d");
       let hits = 0;
       engine.hooks.hook("physics:collision", () => {
@@ -285,7 +285,7 @@ describe("P0 physics loop", () => {
     });
     try {
       const { engine, advance } = handle;
-      await engine.use(Physics2DPlugin({ gravity: 0 }));
+      await engine.use(Physics2DPlugin({ gravity: { x: 0, y: 0 } }));
       await engine.use(createKinematicSync2D({ pixelsPerMeter: 1, positionComponent: Position2D }));
       const physics = engine.inject("physics2d");
       const body = engine.createEntity();

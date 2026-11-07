@@ -96,7 +96,7 @@ describe("config layering", () => {
   });
   it("several invalid fields give one error with every issue", async () => {
     const found = await at(
-      'modules: [["@gwenjs/physics2d", { gravity: 1 }]], engine: { variant: "light", targetFPS: 500 }',
+      'modules: [["@gwenjs/physics2d", { gravity: { y: 1 } }]], engine: { variant: "light", targetFPS: 500 }',
     );
     expect(found.issues?.map((item) => item.path).join()).toBe(
       "modules.0,engine.variant,engine.targetFPS",
@@ -181,7 +181,7 @@ describe("config layering", () => {
     expect(issue?.received).toBe(formatReceived(1));
   });
   it("tuple module entry is APP:CONFIG_INVALID", async () => {
-    const found = await at('modules: [["@gwenjs/physics2d", { gravity: 1 }]]');
+    const found = await at('modules: [["@gwenjs/physics2d", { gravity: { y: 1 } }]]');
     const issue = found.issues?.find((item) => item.path === "modules.0");
     expect(found.code).toBe("APP:CONFIG_INVALID");
     expect(issue?.expected).toBe("a module name string");

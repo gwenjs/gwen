@@ -103,7 +103,7 @@ describe.each(["physics2d", "physics3d"] as const)("p54 stale physics handles (%
     const handle = await createRealEngine({ variant, maxEntities: 32 });
     opened = handle;
     if (variant === "physics2d") {
-      await handle.engine.use(Physics2DPlugin({ gravity: 0, gravityX: 0 }));
+      await handle.engine.use(Physics2DPlugin({ gravity: { x: 0, y: 0 } }));
     } else {
       await handle.engine.use(Physics3DPlugin({ gravity: { x: 0, y: 0, z: 0 } }));
     }

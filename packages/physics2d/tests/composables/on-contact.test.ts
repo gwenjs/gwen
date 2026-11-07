@@ -11,10 +11,10 @@ import {
   _clearContactCallbacks,
   clearEngineContacts,
 } from "../../src/composables/on-contact.js";
-import type { ContactEvent } from "../../src/types.js";
+import type { CollisionContact } from "../../src/types.js";
 
 /** Sample contact event for testing. */
-const sampleEvent: ContactEvent = {
+const sampleEvent: CollisionContact = {
   entityA: 1n,
   entityB: 2n,
   started: true,
@@ -35,7 +35,7 @@ describe("onContact / _dispatchContactEvent", () => {
   });
 
   it("dispatches to a callback registered with an explicit entity ID", () => {
-    let received: ContactEvent | null = null;
+    let received: CollisionContact | null = null;
     onContact((e) => {
       received = e;
     }, 1n);
@@ -44,7 +44,7 @@ describe("onContact / _dispatchContactEvent", () => {
   });
 
   it("does not dispatch to a callback registered for a different entity", () => {
-    let received: ContactEvent | null = null;
+    let received: CollisionContact | null = null;
     onContact((e) => {
       received = e;
     }, 99n);
@@ -80,7 +80,7 @@ describe("onContact / _dispatchContactEvent", () => {
 
   it("registers callback using context entity ID set via _setCurrentContactEntityId", () => {
     _setCurrentContactEntityId(77n);
-    let received: ContactEvent | null = null;
+    let received: CollisionContact | null = null;
     onContact((e) => {
       received = e;
     }); // uses context ID
@@ -90,14 +90,14 @@ describe("onContact / _dispatchContactEvent", () => {
 
   it("explicit entityId takes precedence over context entity ID", () => {
     _setCurrentContactEntityId(10n);
-    let received: ContactEvent | null = null;
+    let received: CollisionContact | null = null;
     onContact((e) => {
       received = e;
     }, 20n); // explicit ID = 20
     _dispatchContactEvent(20n, sampleEvent);
     expect(received).toEqual(sampleEvent);
     // Should not receive for entity 10
-    let receivedFromContext: ContactEvent | null = null;
+    let receivedFromContext: CollisionContact | null = null;
     onContact((e) => {
       receivedFromContext = e;
     }); // registers for 10

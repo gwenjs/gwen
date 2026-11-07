@@ -53,8 +53,8 @@ describe("p59 two engines", () => {
     try {
       const { engine: a, advance: advanceA } = handleA;
       const { engine: b, advance: advanceB } = handleB;
-      await a.use(Physics2DPlugin({ gravity: 0 }));
-      await b.use(Physics2DPlugin({ gravity: 0 }));
+      await a.use(Physics2DPlugin({ gravity: { x: 0, y: 0 } }));
+      await b.use(Physics2DPlugin({ gravity: { x: 0, y: 0 } }));
       const physicsA = a.inject("physics2d");
       const physicsB = b.inject("physics2d");
 

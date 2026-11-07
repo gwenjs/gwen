@@ -30,7 +30,7 @@ async function stoppedMemory(): Promise<WeakRef<WebAssembly.Memory>> {
       wasmInstance: "isolated",
       maxEntities: 32,
     });
-    await engine.use(Physics2DPlugin({ gravity: -10, maxEntities: 32 }));
+    await engine.use(Physics2DPlugin({ gravity: { y: -10 }, maxEntities: 32 }));
     const bridge = engine.inject("wasm:bridge");
     const memory = bridge.getLinearMemory();
     if (!(memory instanceof WebAssembly.Memory)) throw new Error("no linear memory");
@@ -74,7 +74,7 @@ async function stoppedHeld(): Promise<{
       wasmInstance: "isolated",
       maxEntities: 32,
     });
-    await engine.use(Physics2DPlugin({ gravity: -10, maxEntities: 32 }));
+    await engine.use(Physics2DPlugin({ gravity: { y: -10 }, maxEntities: 32 }));
     const bridge = engine.inject("wasm:bridge");
     const memory = bridge.getLinearMemory();
     if (!(memory instanceof WebAssembly.Memory)) throw new Error("no linear memory");
@@ -112,7 +112,7 @@ describe("isolated wasm instance gc", () => {
       maxEntities: 32,
     });
     try {
-      await engineB.use(Physics2DPlugin({ gravity: -10, maxEntities: 32 }));
+      await engineB.use(Physics2DPlugin({ gravity: { y: -10 }, maxEntities: 32 }));
       await engineB.startExternal();
       const refA = await stoppedMemory();
       const before = engineB.getStats().frameCount;
@@ -134,7 +134,7 @@ describe("isolated wasm instance gc", () => {
       maxEntities: 32,
     });
     try {
-      await engineB.use(Physics2DPlugin({ gravity: -10, maxEntities: 32 }));
+      await engineB.use(Physics2DPlugin({ gravity: { y: -10 }, maxEntities: 32 }));
       await engineB.startExternal();
       const held = await stoppedHeld();
       const before = engineB.getStats().frameCount;

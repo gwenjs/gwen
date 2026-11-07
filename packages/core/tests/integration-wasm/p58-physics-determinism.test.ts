@@ -29,7 +29,7 @@ describe("P-58-0 physics determinism", () => {
     const handle = await createRealEngine({ variant: "physics2d", maxEntities: 64 });
     const { engine, advance } = handle;
     try {
-      await engine.use(Physics2DPlugin({ gravity: -9.81 }));
+      await engine.use(Physics2DPlugin({ gravity: { y: -9.81 } }));
       let collisions = 0;
       let started = 0;
       let sensors = 0;
