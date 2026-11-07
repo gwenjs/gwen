@@ -147,7 +147,7 @@ const plugin = Gravity({ value: -20 })
 
 A base sets `extensionApi: { major, minor }` on the first argument of `definePlugin`. That is the version of its extension surface, not the package version. `definePlugin` copies it onto the plugin as a frozen enumerable property. Leave it out of the factory return.
 
-An extension names that base with `{ name, extensionApi }` inside `requires.plugins`. `isExtensionApiCompatible(required, actual)` is the check `engine.use` runs: `actual` is defined, the majors are equal, and `actual.minor` is greater than or equal to `required.minor`.
+An extension names that base with `{ name, extensionApi }` inside `requires.plugins`. An object entry needs a registry entry with `extensionApi`, equal major. `isExtensionApiCompatible(required, actual)` is the check `engine.use` runs: `actual` is defined, the majors are equal, and `actual.minor` is greater than or equal to `required.minor`.
 
 The base creates one registry per engine inside `setup` and calls callback items only through `invokeEach`. `register(owner, item)` returns an idempotent disposer. The extension passes that disposer to `onCleanup`. A throwing item emits one error naming its owner, that registration is disposed, and the next items still run.
 
@@ -159,6 +159,9 @@ import type { GwenExtensionService } from '@gwenjs/schema'
 declare module '@gwenjs/schema' {
   interface GwenProvides {
     'widgets:extension': GwenExtensionService
+  }
+  interface GwenPluginRegistry {
+    widgets: { readonly extensionApi: { readonly major: 1; readonly minor: 0 } }
   }
 }
 
@@ -364,6 +367,10 @@ The same keys fail at compile time. `definePlugin` replaces every key outside `n
 A plugin names what must already be installed. `engine.use()` checks `requires` before `setup()`. GWEN does not reorder or install those requirements for you.
 
 ```ts
+declare module '@gwenjs/schema' {
+  interface GwenPluginRegistry { input: {} }
+}
+
 export const GamePlugin = definePlugin(() => ({
   name: 'game',
   requires: {
@@ -734,7 +741,7 @@ Factory function to create a plugin:
 ```ts
 const MyPlugin = definePlugin(declaration, (opts) => ({
   name: string
-  requires?: { plugins?: string[]; services?: GwenServiceKey[]; optional?: GwenServiceKey[] }
+  requires?: { plugins?: (GwenPluginName | GwenExtensionRequirement)[]; services?: GwenServiceKey[]; optional?: GwenServiceKey[] }
   setup(engine: GwenEngineBase): void | Promise<void>
   teardown?(): void | Promise<void>
   onError?(error: unknown, context: PluginErrorContext): void

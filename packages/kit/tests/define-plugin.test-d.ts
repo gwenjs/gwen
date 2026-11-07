@@ -17,6 +17,9 @@ declare module "@gwenjs/schema" {
     "wasm:bridge": { n: number };
     memory: { n: number };
   }
+  interface GwenPluginRegistry {
+    other: {};
+  }
 }
 
 describe("definePlugin", () => {
@@ -102,7 +105,7 @@ describe("definePlugin", () => {
     }))();
     expectTypeOf(keyed.teardown).toBeFunction();
     expectTypeOf(keyed.onError).toBeFunction();
-    expectTypeOf(keyed.requires).toEqualTypeOf<{ plugins: string[] }>();
+    expectTypeOf(keyed.requires).toEqualTypeOf<{ plugins: "other"[] }>();
 
     const noOptions = definePlugin(() => ({ name: "Bare", setup() {} }));
     expectTypeOf(noOptions).toBeCallableWith();

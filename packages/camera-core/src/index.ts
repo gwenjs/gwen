@@ -71,6 +71,9 @@ export type { XRViewData, XRCameraHandle } from "./xr-camera-handle";
 import type { EntityId } from "@gwenjs/schema";
 
 declare module "@gwenjs/schema" {
+  interface GwenPluginRegistry {
+    "camera-core": {};
+  }
   interface GwenRuntimeHooks {
     /**
      * Fired the first time a camera becomes active on a viewport.

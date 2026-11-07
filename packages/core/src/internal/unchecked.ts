@@ -1,3 +1,5 @@
+import type { GwenPlugin, GwenPluginName } from "@gwenjs/schema";
+
 /**
  * Reads `array[index]` where the caller's loop bound already proves the index is in range.
  *
@@ -38,4 +40,18 @@ export function popUnchecked<T>(array: T[]): T {
  */
 export function getUnchecked<K, V>(map: ReadonlyMap<K, V>, key: K): V {
   return map.get(key) as V; // boundary: caller proved the key is present
+}
+
+/**
+ * The actor plugin name a pool requires.
+ *
+ * That name is chosen at runtime, so it is not a key of `GwenPluginRegistry`.
+ * The pool's requirement is still that plugin.
+ *
+ * @param plugin - Actor plugin the pool follows.
+ * @returns That plugin's `name`.
+ * @internal
+ */
+export function ownedPluginName(plugin: GwenPlugin): GwenPluginName {
+  return plugin.name as GwenPluginName; // boundary: the pool requires this actor plugin's runtime name
 }

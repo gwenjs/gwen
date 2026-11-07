@@ -31,13 +31,14 @@ await engine.start()
 
 ### Optional Dependencies
 
-Name what must be installed in `requires`, and read optional services with `optionalService` or `tryInject`. On the engine `setup()` receives, both are typed through `GwenProvides`, which the plugin that provides the service augments. `tryInject` returns `GwenProvides[K] | undefined`:
+Name what must be installed in `requires`, and read optional services with `optionalService` or `tryInject`. A name in `plugins` is a `GwenPluginName`: the plugin that others name augments `GwenPluginRegistry`. On the engine `setup()` receives, both are typed through `GwenProvides`, which the plugin that provides the service augments. `tryInject` returns `GwenProvides[K] | undefined`:
 
 ```ts
 import { definePlugin, optionalService } from '@gwenjs/kit/plugin'
 
 declare module '@gwenjs/schema' {
   interface GwenProvides { audio: { play(track: string): void } }
+  interface GwenPluginRegistry { input: {} }
 }
 
 export const GamePlugin = definePlugin(() => ({
@@ -62,6 +63,10 @@ A plugin cannot install another plugin from `setup()`: `GwenEngineBase`, the typ
 
 ```ts
 import { definePlugin, optionalService } from '@gwenjs/kit/plugin'
+
+declare module '@gwenjs/schema' {
+  interface GwenPluginRegistry { physics: {}; collision: {} }
+}
 
 export const PhysicsSystemPlugin = definePlugin(() => ({
   name: 'physics-system',
@@ -166,6 +171,10 @@ export const Physics2DPlugin = definePlugin(
 
 ```ts
 import { definePlugin, optionalService } from '@gwenjs/kit/plugin'
+
+declare module '@gwenjs/schema' {
+  interface GwenPluginRegistry { input: {}; physics2d: {} }
+}
 
 export const GamePlugin = definePlugin(() => ({
   name: 'game',
@@ -280,6 +289,10 @@ For complex plugin compositions, use `defineGwenModule()` to package everything:
 import { defineGwenModule } from '@gwenjs/kit/module'
 import { definePlugin } from '@gwenjs/kit/plugin'
 
+declare module '@gwenjs/schema' {
+  interface GwenPluginRegistry { input: {}; physics2d: {} }
+}
+
 export const GamePlugin = definePlugin(() => ({
   name: 'game',
   requires: { plugins: ['input', 'physics2d'] },
@@ -309,6 +322,10 @@ export default defineGwenModule({
 A plugin that needs another plugin names it in `requires`. When the dependency is not installed, `engine.use()` rejects with `GwenPluginDependencyError` (`CORE:PLUGIN_DEPENDENCY_MISSING`) and the plugin's `setup()` never runs:
 
 ```ts
+declare module '@gwenjs/schema' {
+  interface GwenPluginRegistry { physics2d: {} }
+}
+
 export const CriticalGamePlugin = definePlugin(() => ({
   name: 'critical-game',
   requires: { plugins: ['physics2d'] },
@@ -350,6 +367,7 @@ declare module '@gwenjs/schema' {
   interface GwenProvides {
     audio: { play(track: string): void }
   }
+  interface GwenPluginRegistry { input: {} }
 }
 
 requires: { plugins: ['input'], services: ['logger'], optional: ['audio'] },
@@ -399,6 +417,7 @@ declare module '@gwenjs/schema' {
   interface GwenProvides {
     audio: { play(track: string): void }
   }
+  interface GwenPluginRegistry { input: {} }
 }
 
 // Define plugin with required and optional dependencies
