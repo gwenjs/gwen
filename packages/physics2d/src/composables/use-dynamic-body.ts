@@ -40,8 +40,8 @@ export function useDynamicBody(options: DynamicBodyOptions = {}): DynamicBodyHan
   };
 
   const colliderOpts: ColliderOptions = {
-    ...(options.layer !== undefined ? { membershipLayers: options.layer } : {}),
-    ...(options.mask !== undefined ? { filterLayers: options.mask } : {}),
+    ...(options.layer !== undefined ? { layer: options.layer } : {}),
+    ...(options.mask !== undefined ? { mask: options.mask } : {}),
   };
 
   let _bodyHandle: number;

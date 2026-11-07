@@ -4,7 +4,7 @@
 
 import { defineHooks } from "@gwenjs/core";
 import type { InferHooks, EntityId } from "@gwenjs/schema";
-import type { CollisionContact, SensorState, CollisionEventsBatch } from "./events";
+import type { CollisionEventsBatch } from "./events";
 
 /**
  * `physics2d:body-disabled` payload.
@@ -20,9 +20,7 @@ const physics2dBodyDisabledHooks = defineHooks({
 });
 
 export interface Physics2DPluginHooks extends InferHooks<typeof physics2dBodyDisabledHooks> {
-  "physics:collision": (contacts: ReadonlyArray<CollisionContact>) => void;
   "physics:collision:batch": (batch: Readonly<CollisionEventsBatch>) => void;
-  "physics:sensor:changed": (entityId: EntityId, sensorId: number, state: SensorState) => void;
 }
 
 export interface PhysicsMaterialPreset {

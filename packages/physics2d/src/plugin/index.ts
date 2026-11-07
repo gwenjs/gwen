@@ -16,6 +16,13 @@ import {
 import type { GwenEngine, IGwenLogger, MemoryView, WasmBridge } from "@gwenjs/core";
 import type { WasmEnginePhysics2D } from "@gwenjs/core/internal";
 import { entityIndex, GwenError, type EntityId } from "@gwenjs/schema";
+import {
+  LAYER_ALL,
+  LAYER_ERROR_CODES,
+  LayerRegistry,
+  readCollisionEvents as readPackedCollisionEvents,
+  type LayerSelector,
+} from "@gwenjs/physics-core";
 import { uncheckedAt } from "../internal/unchecked.js";
 
 import type {
@@ -28,9 +35,9 @@ import type {
 } from "../types";
 
 import {
-  BODY_TYPE,
+  BODY_KIND_CODE,
   PHYSICS2D_BRIDGE_SCHEMA_VERSION,
-  PHYSICS_QUALITY_PRESET_CODE,
+  QUALITY_PRESET_CODE,
   PHYSICS2D_WASM_EVENT_STRIDE,
 } from "../types";
 
@@ -38,7 +45,6 @@ import {
   PHYSICS2D_DEFAULTS,
   checkPhysics2DConfig,
   normalizeConfig,
-  LayerRegistry,
   resolveGlobalCcdEnabled,
   PIXELS_PER_METER,
 } from "../config";
@@ -61,7 +67,6 @@ import {
   _dispatchSensorExit,
   clearEngineSensors,
 } from "../composables/on-sensor";
-import type { ContactEvent } from "../types";
 
 /**
  * The physics2d export table of a core bridge.
@@ -94,26 +99,39 @@ export type {
   InternalCollisionEventsBatch,
   CollisionContact,
   ColliderOptions,
-  RigidBodyType,
+  BodyKind,
   Physics2DPrefabExtension,
   Physics2DPluginHooks,
   PhysicsColliderDef,
-  PhysicsQualityPreset,
+  QualityPreset,
   PhysicsColliderShape,
   SensorState,
   TilemapPhysicsChunkMap,
 } from "../types";
 
-export {
-  PHYSICS2D_BRIDGE_SCHEMA_VERSION,
-  PHYSICS_QUALITY_PRESET_CODE,
-  PHYSICS2D_WASM_EVENT_STRIDE,
-};
+export { PHYSICS2D_BRIDGE_SCHEMA_VERSION, QUALITY_PRESET_CODE, PHYSICS2D_WASM_EVENT_STRIDE };
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const EVENT_STRIDE = PHYSICS2D_WASM_EVENT_STRIDE;
 const MAX_EVENTS = 512;
+
+function layerError(code: string, what: string): never {
+  throw new GwenError(
+    code === LAYER_ERROR_CODES.LAYER_UNKNOWN
+      ? Physics2DErrorCodes.UNKNOWN_LAYER
+      : Physics2DErrorCodes.INVALID_LAYERS,
+    what,
+    {
+      composable: "Physics2DPlugin",
+      ...(code === LAYER_ERROR_CODES.LAYER_UNKNOWN
+        ? {
+            hint: __GWEN_DEV__ ? "Add it to Physics2DConfig.layers or fix the typo." : undefined,
+          }
+        : {}),
+    },
+  );
+}
 
 function disabledBodyReason(code: number): "non-finite" | "out-of-bounds" | "velocity" | undefined {
   if (code === 0) return "non-finite";
@@ -147,7 +165,23 @@ const physics2dDeclaration = {
  */
 export const Physics2DPlugin = definePlugin(physics2dDeclaration, (config) => {
   const cfg = normalizeConfig(config);
-  const layerRegistry = new LayerRegistry(cfg.layers);
+  let layerRegistry: LayerRegistry | undefined;
+
+  /** Opened in `setup`, after `validateOptions`. The factory does not construct it. */
+  function layersNow(): LayerRegistry {
+    const existing = layerRegistry;
+    if (existing !== undefined) return existing;
+    throw new GwenError(
+      Physics2DErrorCodes.INVALID_LAYERS,
+      "Physics2DPlugin.setup has not opened the layer registry.",
+      { composable: "Physics2DPlugin" },
+    );
+  }
+
+  function maskOf(sel: LayerSelector | undefined, role: string): number {
+    if (sel === undefined) return LAYER_ALL;
+    return layersNow().resolve(sel, role);
+  }
 
   // p59-state-start
   interface P2State {
@@ -408,26 +442,16 @@ export const Physics2DPlugin = definePlugin(physics2dDeclaration, (config) => {
 
       st.pooledCollisionEvents.length = visibleCount;
       for (let i = 0; i < visibleCount; i++) {
-        const offset = i * EVENT_STRIDE;
-
         let ev = st.pooledCollisionEvents[i];
         if (!ev) {
           ev = { slotA: 0, slotB: 0, started: false } satisfies InternalCollisionEvent;
           st.pooledCollisionEvents[i] = ev;
         }
-
-        ev.slotA = eventsView.getUint32(offset, true);
-        ev.slotB = eventsView.getUint32(offset + 4, true);
-        const flags = eventsView.getUint8(offset + 16);
-        ev.started = (flags & 1) === 1;
-
-        const aId = eventsView.getUint32(offset + 8, true);
-        const bId = eventsView.getUint32(offset + 12, true);
-        if (aId === 0xffffffff) delete ev.aColliderId;
-        else ev.aColliderId = aId;
-        if (bId === 0xffffffff) delete ev.bColliderId;
-        else ev.bColliderId = bId;
       }
+      readPackedCollisionEvents(eventsView, visibleCount, st.pooledCollisionEvents, {
+        stride: EVENT_STRIDE,
+        idWidth: 4,
+      });
     } else {
       st.pooledCollisionEvents.length = visibleCount;
     }
@@ -471,7 +495,7 @@ export const Physics2DPlugin = definePlugin(physics2dDeclaration, (config) => {
             s,
             x,
             y,
-            BODY_TYPE[type],
+            BODY_KIND_CODE[type],
             opts.mass ?? 1.0,
             opts.gravityScale ?? 1.0,
             opts.linearDamping ?? 0.0,
@@ -497,6 +521,8 @@ export const Physics2DPlugin = definePlugin(physics2dDeclaration, (config) => {
       addBoxCollider: (handle, hw, hh, opts = {}) => {
         const pb = live();
         requireHandle(handle, "addBoxCollider");
+        const layer = maskOf(opts.layer, "layer");
+        const mask = maskOf(opts.mask, "mask");
         callPhysicsExport("physics_add_box_collider", () =>
           pb.physics_add_box_collider(
             handle,
@@ -506,12 +532,8 @@ export const Physics2DPlugin = definePlugin(physics2dDeclaration, (config) => {
             opts.friction ?? 0.5,
             opts.isSensor ? 1 : 0,
             opts.density ?? 1.0,
-            typeof opts.membershipLayers === "number"
-              ? opts.membershipLayers
-              : layerRegistry.resolve(opts.membershipLayers, "membership"),
-            typeof opts.filterLayers === "number"
-              ? opts.filterLayers
-              : layerRegistry.resolve(opts.filterLayers, "filter"),
+            layer,
+            mask,
             opts.colliderId,
             opts.offsetX,
             opts.offsetY,
@@ -522,6 +544,8 @@ export const Physics2DPlugin = definePlugin(physics2dDeclaration, (config) => {
       addBallCollider: (handle, radius, opts = {}) => {
         const pb = live();
         requireHandle(handle, "addBallCollider");
+        const layer = maskOf(opts.layer, "layer");
+        const mask = maskOf(opts.mask, "mask");
         callPhysicsExport("physics_add_ball_collider", () =>
           pb.physics_add_ball_collider(
             handle,
@@ -530,12 +554,8 @@ export const Physics2DPlugin = definePlugin(physics2dDeclaration, (config) => {
             opts.friction ?? 0.5,
             opts.isSensor ? 1 : 0,
             opts.density ?? 1.0,
-            typeof opts.membershipLayers === "number"
-              ? opts.membershipLayers
-              : layerRegistry.resolve(opts.membershipLayers, "membership"),
-            typeof opts.filterLayers === "number"
-              ? opts.filterLayers
-              : layerRegistry.resolve(opts.filterLayers, "filter"),
+            layer,
+            mask,
             opts.colliderId,
             opts.offsetX,
             opts.offsetY,
@@ -659,14 +679,8 @@ export const Physics2DPlugin = definePlugin(physics2dDeclaration, (config) => {
        */
       queryRadius: (x, y, radius, opts) => {
         const pb = live();
-        const membership =
-          typeof opts?.membershipLayers === "number"
-            ? opts.membershipLayers
-            : layerRegistry.resolve(opts?.membershipLayers, "membership");
-        const filter =
-          typeof opts?.filterLayers === "number"
-            ? opts.filterLayers
-            : layerRegistry.resolve(opts?.filterLayers, "filter");
+        const membership = maskOf(opts?.layer, "layer");
+        const filter = maskOf(opts?.mask, "mask");
         return Array.from(
           callPhysicsExport(
             "physics_query_radius",
@@ -688,14 +702,8 @@ export const Physics2DPlugin = definePlugin(physics2dDeclaration, (config) => {
        */
       queryRect: (x, y, hw, hh, opts) => {
         const pb = live();
-        const membership =
-          typeof opts?.membershipLayers === "number"
-            ? opts.membershipLayers
-            : layerRegistry.resolve(opts?.membershipLayers, "membership");
-        const filter =
-          typeof opts?.filterLayers === "number"
-            ? opts.filterLayers
-            : layerRegistry.resolve(opts?.filterLayers, "filter");
+        const membership = maskOf(opts?.layer, "layer");
+        const filter = maskOf(opts?.mask, "mask");
         return Array.from(
           callPhysicsExport(
             "physics_query_rect",
@@ -715,14 +723,8 @@ export const Physics2DPlugin = definePlugin(physics2dDeclaration, (config) => {
        */
       pointQuery: (x, y, opts) => {
         const pb = live();
-        const membership =
-          typeof opts?.membershipLayers === "number"
-            ? opts.membershipLayers
-            : layerRegistry.resolve(opts?.membershipLayers, "membership");
-        const filter =
-          typeof opts?.filterLayers === "number"
-            ? opts.filterLayers
-            : layerRegistry.resolve(opts?.filterLayers, "filter");
+        const membership = maskOf(opts?.layer, "layer");
+        const filter = maskOf(opts?.mask, "mask");
         return Array.from(
           callPhysicsExport(
             "physics_point_query",
@@ -777,7 +779,7 @@ export const Physics2DPlugin = definePlugin(physics2dDeclaration, (config) => {
         st.ownerByHandle.set(bodyHandle, createEntityId(pseudoEntityIndex, 0));
         if (!opts.debugNaive) {
           for (const [colliderIndex, collider] of chunk.colliders.entries())
-            addPrefabCollider(this, bodyHandle, collider, layerRegistry, colliderIndex, 0.5);
+            addPrefabCollider(this, bodyHandle, collider, layersNow(), colliderIndex, 0.5);
         }
         // Teardown cleared the map: a held service must not leave an entry that a later setup
         // would read as a chunk it already loaded.
@@ -809,6 +811,7 @@ export const Physics2DPlugin = definePlugin(physics2dDeclaration, (config) => {
     // ── Lifecycle ──────────────────────────────────────────────────────
 
     setup(engine: GwenEngine): void {
+      layerRegistry = new LayerRegistry(cfg.layers, layerError);
       st.log = engine.logger?.child("@gwenjs/physics2d") ?? st.log;
       st.bridge = getWasmBridge();
 
@@ -824,7 +827,7 @@ export const Physics2DPlugin = definePlugin(physics2dDeclaration, (config) => {
       const coreSlot = { bridge: st.bridge };
       physicsCoreByEngine.set(current, coreSlot);
       const pb = physics2dExports(st.bridge);
-      pb.physics_init(cfg.gravityX, cfg.gravity, cfg.maxEntities);
+      pb.physics_init(cfg.gravity.x, cfg.gravity.y, cfg.maxEntities);
       const accepted = pb.physics_set_max_linear_velocity(cfg.maxLinearVelocity);
       if (accepted === 0) {
         st.log.warn("maxLinearVelocity was refused; the previous cap stays", {
@@ -832,7 +835,7 @@ export const Physics2DPlugin = definePlugin(physics2dDeclaration, (config) => {
         });
       }
       callPhysicsExport("physics_set_quality", () =>
-        pb.physics_set_quality(PHYSICS_QUALITY_PRESET_CODE[cfg.qualityPreset]),
+        pb.physics_set_quality(QUALITY_PRESET_CODE[cfg.qualityPreset]),
       );
       pb.physics_set_event_coalescing(cfg.coalesceEvents ? 1 : 0);
       pb.physics_set_global_ccd_enabled(resolveGlobalCcdEnabled(cfg) ? 1 : 0);
@@ -871,7 +874,7 @@ export const Physics2DPlugin = definePlugin(physics2dDeclaration, (config) => {
             const sensors = new Set<number>();
             for (const [idx, collider] of ext.colliders.entries()) {
               const colliderId = collider.colliderId ?? idx;
-              addPrefabCollider(api, handle, collider, layerRegistry, colliderId, 0);
+              addPrefabCollider(api, handle, collider, layersNow(), colliderId, 0);
               if (collider.isSensor) sensors.add(colliderId);
             }
             if (sensors.size > 0) st.activeSensors.set(slot, sensors);
@@ -981,7 +984,7 @@ export const Physics2DPlugin = definePlugin(physics2dDeclaration, (config) => {
           for (const contact of contacts) {
             const slotA = entityIndex(contact.entityA);
             const slotB = entityIndex(contact.entityB);
-            const event: ContactEvent = {
+            const event: CollisionContact = {
               entityA: contact.entityA,
               entityB: contact.entityB,
               started: contact.started,

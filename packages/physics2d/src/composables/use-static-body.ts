@@ -35,8 +35,8 @@ export function useStaticBody(options: StaticBodyOptions = {}): StaticBodyHandle
   // Stored creation options so enable() can re-register the body after disable().
   const colliderOpts: ColliderOptions = {
     ...(options.isSensor !== undefined ? { isSensor: options.isSensor } : {}),
-    ...(options.layer !== undefined ? { membershipLayers: options.layer } : {}),
-    ...(options.mask !== undefined ? { filterLayers: options.mask } : {}),
+    ...(options.layer !== undefined ? { layer: options.layer } : {}),
+    ...(options.mask !== undefined ? { mask: options.mask } : {}),
   };
 
   let _bodyHandle: number;

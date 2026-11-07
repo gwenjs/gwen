@@ -1,22 +1,19 @@
-import type { Physics2DConfig, PhysicsQualityPreset } from "./types";
+import type { Physics2DConfig, QualityPreset } from "./types";
 import { GwenConfigError } from "@gwenjs/core";
-import { GwenError, formatReceived, type GwenConfigIssue } from "@gwenjs/schema";
-import { Physics2DErrorCodes } from "./errors";
+import { formatReceived, type GwenConfigIssue } from "@gwenjs/schema";
+import { LAYER_ALL, MAX_LAYERS } from "@gwenjs/physics-core";
+
+export { LAYER_ALL, MAX_LAYERS };
 
 /** Pixel to meter ratio used for internal conversions. */
 export const PIXELS_PER_METER = 50;
-/** Maximum number of collision layers (limited by u32 bitmask). */
-export const MAX_LAYERS = 32;
-/** Default layer mask (all bits set). */
-export const LAYER_ALL = 0xffffffff;
 
 /**
  * Defaults shared by `normalizeConfig` and the physics2d module.
  * `maxLinearVelocity` and `coalesceEvents` stay plugin-only.
  */
 export const PHYSICS2D_DEFAULTS = Object.freeze({
-  gravity: -9.81,
-  gravityX: 0,
+  gravity: Object.freeze({ x: 0, y: -9.81 }),
   maxEntities: 10_000,
   qualityPreset: "medium",
   eventMode: "pull",
@@ -50,12 +47,35 @@ function layerBitIssues(config: Readonly<Physics2DConfig>): GwenConfigIssue[] {
   }));
 }
 
+function componentIssue(
+  path: "gravity.x" | "gravity.y",
+  value: number | undefined,
+): GwenConfigIssue[] {
+  if (value === undefined || Number.isFinite(value)) return [];
+  return [
+    {
+      path,
+      expected: "a finite number",
+      received: formatReceived(value),
+      owner: "@gwenjs/physics2d",
+    },
+  ];
+}
+
+function gravityIssues(config: Readonly<Physics2DConfig>): GwenConfigIssue[] {
+  return [
+    ...componentIssue("gravity.y", config.gravity?.y),
+    ...componentIssue("gravity.x", config.gravity?.x),
+  ];
+}
+
 /**
  * Layer rules. A bad bit uses path `layers.<name>`.
  * More than {@link MAX_LAYERS} layers uses path `layers`.
+ * A non-finite `gravity.x` or `gravity.y` uses that path.
  */
 export function checkPhysics2DConfig(config: Readonly<Physics2DConfig>): GwenConfigIssue[] {
-  const issues = layerBitIssues(config);
+  const issues = [...gravityIssues(config), ...layerBitIssues(config)];
   const layers = config.layers;
   if (layers !== undefined && layers !== null && Object.keys(layers).length > MAX_LAYERS) {
     issues.push({
@@ -72,11 +92,10 @@ export function checkPhysics2DConfig(config: Readonly<Physics2DConfig>): GwenCon
  * Normalized internal configuration for the Physics2D plugin.
  */
 export type NormalizedPhysics2DConfig = {
-  gravity: number;
-  gravityX: number;
+  gravity: { x: number; y: number };
   maxLinearVelocity: number;
   maxEntities: number;
-  qualityPreset: PhysicsQualityPreset;
+  qualityPreset: QualityPreset;
   eventMode: "pull" | "hybrid";
   debug: boolean;
   coalesceEvents: boolean;
@@ -104,9 +123,12 @@ export function normalizeConfig(config: Physics2DConfig): NormalizedPhysics2DCon
       hint: "Must be finite and greater than 0. The default is 400.",
     });
   }
+  const gravity = {
+    x: config.gravity?.x ?? PHYSICS2D_DEFAULTS.gravity.x,
+    y: config.gravity?.y ?? PHYSICS2D_DEFAULTS.gravity.y,
+  };
   return {
-    gravity: config.gravity ?? PHYSICS2D_DEFAULTS.gravity,
-    gravityX: config.gravityX ?? PHYSICS2D_DEFAULTS.gravityX,
+    gravity,
     maxLinearVelocity: config.maxLinearVelocity ?? 400,
     maxEntities: config.maxEntities ?? PHYSICS2D_DEFAULTS.maxEntities,
     qualityPreset: config.qualityPreset ?? PHYSICS2D_DEFAULTS.qualityPreset,
@@ -124,44 +146,4 @@ export function normalizeConfig(config: Physics2DConfig): NormalizedPhysics2DCon
 export function resolveGlobalCcdEnabled(cfg: NormalizedPhysics2DConfig): boolean {
   if (cfg.ccdEnabled !== undefined) return cfg.ccdEnabled;
   return cfg.qualityPreset === "high" || cfg.qualityPreset === "esport";
-}
-
-/**
- * Resolves named layers to a u32 bitmask.
- * Created once per plugin instance at init time.
- */
-export class LayerRegistry {
-  private readonly bits: Record<string, number>;
-
-  constructor(layers: Record<string, number>) {
-    this.bits = layers;
-  }
-
-  /**
-   * Resolve a `membershipLayers` or `filterLayers` value to a raw u32 bitmask.
-   * - `undefined` → all layers (0xFFFFFFFF)
-   * - `number` → used as-is (raw bitmask)
-   * - `string[]` → each name resolved; throws on unknown name
-   */
-  resolve(value: string[] | number | undefined, role: "membership" | "filter"): number {
-    if (value === undefined) return LAYER_ALL;
-    if (typeof value === "number") return value >>> 0;
-
-    let mask = 0;
-    for (const name of value) {
-      const bit = this.bits[name];
-      if (bit === undefined) {
-        const known = Object.keys(this.bits).join(", ");
-        throw new GwenError(
-          Physics2DErrorCodes.UNKNOWN_LAYER,
-          `Unknown layer "${name}" in ${role}. Declared layers: [${known}].`,
-          {
-            hint: __GWEN_DEV__ ? "Add it to Physics2DConfig.layers or fix the typo." : undefined,
-          },
-        );
-      }
-      mask |= 1 << bit;
-    }
-    return mask >>> 0;
-  }
 }

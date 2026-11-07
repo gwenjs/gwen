@@ -8,7 +8,8 @@ import type {
   PhysicsMaterialPreset,
   PhysicsMaterialPresetName,
 } from "./materials";
-import type { RigidBodyType, PhysicsGroundedRole } from "./bodies";
+import type { LayerSelector } from "@gwenjs/physics-core";
+import type { BodyKind, PhysicsGroundedRole } from "./bodies";
 import type { CollisionContact } from "./events";
 import type { Physics2DAPI } from "./api";
 
@@ -86,12 +87,12 @@ export interface PhysicsColliderDef extends PhysicsMaterialPreset {
   offsetY?: number;
   isSensor?: boolean;
   groundedRole?: PhysicsGroundedRole;
-  membershipLayers?: string[] | number;
-  filterLayers?: string[] | number;
+  layer?: LayerSelector;
+  mask?: LayerSelector;
 }
 
 export interface Physics2DPrefabExtension {
-  bodyType?: RigidBodyType;
+  bodyType?: BodyKind;
   material?: PhysicsMaterialPresetName | PhysicsMaterialPreset;
   ccdEnabled?: boolean;
   additionalSolverIterations?: number;

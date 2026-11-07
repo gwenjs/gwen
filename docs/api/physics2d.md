@@ -127,8 +127,8 @@ function useBoxCollider(options: BoxColliderOptions): void
 | options.w | `number` | Box width in world units |
 | options.h | `number` | Box height in world units |
 | options.isSensor | `boolean` | If true, generates overlap events with no physical response |
-| options.layer | `number` | Collision membership layer bitmask |
-| options.mask | `number` | Collision filter mask bitmask |
+| options.layer | `LayerSelector` | Collision membership layer: a name from `options.layers`, a bitmask, or a list of either |
+| options.mask | `LayerSelector` | Collision filter: a name from `options.layers`, a bitmask, or a list of either |
 | options.offsetX | `number` | Local X offset from actor origin |
 | options.offsetY | `number` | Local Y offset from actor origin |
 | options.oneWay | `boolean` | If true, bodies can only collide from above (one-way platform) |
@@ -154,8 +154,8 @@ function useSphereCollider(options: SphereColliderOptions): void
 |---|---|---|
 | options.radius | `number` | Circle radius in world units |
 | options.isSensor | `boolean` | If true, generates overlap events with no physical response |
-| options.layer | `number` | Collision membership layer bitmask |
-| options.mask | `number` | Collision filter mask bitmask |
+| options.layer | `LayerSelector` | Collision membership layer: a name from `options.layers`, a bitmask, or a list of either |
+| options.mask | `LayerSelector` | Collision filter: a name from `options.layers`, a bitmask, or a list of either |
 
 **Returns:** `void`
 
@@ -174,8 +174,8 @@ function useCapsuleCollider(options: CapsuleColliderOptions): void
 | options.radius | `number` | Capsule radius in world units |
 | options.height | `number` | Total capsule height in world units |
 | options.isSensor | `boolean` | If true, generates overlap events with no physical response |
-| options.layer | `number` | Collision membership layer bitmask |
-| options.mask | `number` | Collision filter mask bitmask |
+| options.layer | `LayerSelector` | Collision membership layer: a name from `options.layers`, a bitmask, or a list of either |
+| options.mask | `LayerSelector` | Collision filter: a name from `options.layers`, a bitmask, or a list of either |
 
 **Returns:** `void`
 
@@ -201,7 +201,7 @@ The default cap of 400 m/s slows a faster dynamic body. A step delta above 1 s i
 
 **Signature:**
 ```ts
-function onContact(handler: (event: ContactEvent) => void): void
+function onContact(handler: (event: CollisionContact) => void): void
 ```
 
 **Description.** Registers a handler for collision events (when two colliders collide).
@@ -226,11 +226,11 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
 })
 ```
 
-### ContactEvent
+### CollisionContact
 
 **Signature:**
 ```ts
-interface ContactEvent {
+interface CollisionContact {
   entityA: bigint;
   entityB: bigint;
   started: boolean;
@@ -360,12 +360,12 @@ const physics = usePhysics2D();
 
 // All enemies within 5 metres of the player
 const nearby = physics.queryRadius(player.x, player.y, 5, {
-  filterLayers: ['enemy'],
+  mask: ['enemy'],
 })
 
 // Everything overlapping a 4×2 trigger zone
 const inZone = physics.queryRect(doorX, doorY, 2, 1, {
-  filterLayers: ['player', 'item'],
+  mask: ['player', 'item'],
 })
 
 // What is at the cursor position?
@@ -417,7 +417,7 @@ Physics2DPlugin must be installed first, else `engine.use` rejects `CORE:PLUGIN_
 
 **Example:**
 ```ts
-await engine.use(Physics2DPlugin({ gravity: 0 }))
+await engine.use(Physics2DPlugin({ gravity: { x: 0, y: 0 } }))
 await engine.use(createPhysicsKinematicSyncSystem({ pixelsPerMeter: 50, positionComponent: Position }))
 ```
 
@@ -518,7 +518,7 @@ function physics2dVitePlugin(options?: Physics2DVitePluginOptions): VitePlugin
 > export default defineConfig({
 >   modules: ['@gwenjs/physics2d'],
 >   physics2d: {
->     gravity: -9.81,
+>     gravity: { y: -9.81 },
 >     maxLinearVelocity: 400, // metres per second; also Rapier's per-substep cap
 >     vite: { debug: true },  // Vite plugin options (build-time only)
 >   },
@@ -606,10 +606,10 @@ Optional layer filter accepted by `queryRadius`, `queryRect`, and `pointQuery`.
 
 ```ts
 interface QueryFilterOpts {
-  /** Layers the querying shape belongs to. Number (bitmask) or string[] of named layers. */
-  membershipLayers?: string[] | number;
-  /** Layers the query can hit. Number (bitmask) or string[] of named layers. */
-  filterLayers?: string[] | number;
+  /** Layers the querying shape belongs to. Name, bitmask, or a list of either. */
+  layer?: string | number | readonly (string | number)[];
+  /** Layers the query can hit. Name, bitmask, or a list of either. */
+  mask?: string | number | readonly (string | number)[];
 }
 ```
 

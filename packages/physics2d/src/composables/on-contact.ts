@@ -5,10 +5,10 @@ import { useEngine, createEngineLocal } from "@gwenjs/core";
 import { GwenContextError, GwenContextErrorCodes } from "@gwenjs/kit";
 import type { GwenEngine } from "@gwenjs/core";
 import { _getActorContext } from "@gwenjs/core/internal";
-import type { ContactEvent } from "../types";
+import type { CollisionContact } from "../types";
 
 interface ContactRegistry {
-  byEntity: Map<string, ((e: ContactEvent) => void)[]>;
+  byEntity: Map<string, ((e: CollisionContact) => void)[]>;
   setupEntityId: bigint | null;
 }
 
@@ -20,7 +20,7 @@ const contacts = createEngineLocal<ContactRegistry>(() => ({
 /**
  * @internal Called by the physics2d plugin per-frame to dispatch contact events.
  */
-export function _dispatchContactEvent(entityId: bigint, event: ContactEvent): void {
+export function _dispatchContactEvent(entityId: bigint, event: CollisionContact): void {
   const cbs = contacts.peek(useEngine("Physics2DPlugin"))?.byEntity.get(String(entityId));
   if (!cbs) return;
   for (const cb of cbs) cb(event);
@@ -36,7 +36,7 @@ export function _dispatchContactEvent(entityId: bigint, event: ContactEvent): vo
  * @throws {GwenContextError} `CORE:OUTSIDE_ENGINE_CONTEXT` when no engine is current.
  * @throws {GwenContextError} `CORE:OUTSIDE_ACTOR_CONTEXT` when neither an actor nor `entityId` is set.
  */
-export function onContact(callback: (contact: ContactEvent) => void, entityId?: bigint): void {
+export function onContact(callback: (contact: CollisionContact) => void, entityId?: bigint): void {
   const engine = useEngine("onContact");
   const registry = contacts.get(engine);
   const id = entityId ?? _getActorContext()?.entityId ?? registry.setupEntityId;

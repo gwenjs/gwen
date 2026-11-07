@@ -5,7 +5,8 @@ import type {
   Physics2DAPI,
 } from "../types";
 import { PHYSICS_MATERIAL_PRESETS } from "../types";
-import { LayerRegistry, PIXELS_PER_METER } from "../config";
+import type { LayerRegistry } from "@gwenjs/physics-core";
+import { LAYER_ALL, PIXELS_PER_METER } from "../config";
 import { GwenError } from "@gwenjs/schema";
 import { Physics2DErrorCodes } from "../errors";
 
@@ -47,8 +48,8 @@ export function addPrefabCollider(
     friction: material.friction,
     isSensor: collider.isSensor ?? false,
     density: material.density,
-    membershipLayers: registry.resolve(collider.membershipLayers, "membership"),
-    filterLayers: registry.resolve(collider.filterLayers, "filter"),
+    layer: collider.layer === undefined ? LAYER_ALL : registry.resolve(collider.layer, "layer"),
+    mask: collider.mask === undefined ? LAYER_ALL : registry.resolve(collider.mask, "mask"),
     ...(colliderId !== undefined ? { colliderId } : {}),
   };
 

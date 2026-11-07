@@ -2,29 +2,15 @@
  * @file useSphereCollider() — circle collider for 2D (sphere for structural 3D compat).
  */
 import { _getActorEntityId } from "@gwenjs/core/internal";
+import type { SphereColliderOptions } from "@gwenjs/physics-core";
 import type { CircleColliderHandle } from "../types";
 import { usePhysics2D } from "../composables";
-
-export interface SphereColliderOptions {
-  /** Circle radius in world units. */
-  radius: number;
-  /** Local X offset of the collider from the entity origin. @default 0 */
-  offsetX?: number;
-  /** Local Y offset of the collider from the entity origin. @default 0 */
-  offsetY?: number;
-  /** If true, generates overlap events but no physical response. @default false */
-  isSensor?: boolean;
-  /** Collision membership layer bitmask. @default undefined */
-  layer?: number;
-  /** Collision filter mask bitmask. @default undefined */
-  mask?: number;
-}
 
 /**
  * Attaches a circle (sphere) collider to the current actor entity.
  * The name `useSphereCollider` is kept for 2D/3D structural compatibility.
  *
- * @param options - Radius and collider options.
+ * @param options - Radius and collider options. `material` is accepted by the shared type and not applied by physics2d yet.
  * @returns A {@link CircleColliderHandle} with the collider ID.
  * @throws {GwenPluginNotFoundError} If `@gwenjs/physics2d` is not registered.
  * @throws {GwenContextError} `CORE:OUTSIDE_ACTOR_CONTEXT` if called outside a `defineActor()` factory.
@@ -37,7 +23,7 @@ export interface SphereColliderOptions {
  *
  * @since 1.0.0
  */
-export function useSphereCollider(options: SphereColliderOptions): CircleColliderHandle {
+export function useSphereCollider(options: SphereColliderOptions<"2d">): CircleColliderHandle {
   const physics = usePhysics2D();
   const entityId = _getActorEntityId("useSphereCollider");
 
@@ -50,8 +36,8 @@ export function useSphereCollider(options: SphereColliderOptions): CircleCollide
 
   physics.addBallCollider(bodyHandle, options.radius, {
     ...(options.isSensor !== undefined ? { isSensor: options.isSensor } : {}),
-    ...(options.layer !== undefined ? { membershipLayers: options.layer } : {}),
-    ...(options.mask !== undefined ? { filterLayers: options.mask } : {}),
+    ...(options.layer !== undefined ? { layer: options.layer } : {}),
+    ...(options.mask !== undefined ? { mask: options.mask } : {}),
   });
 
   return { colliderId: bodyHandle, isSensor: options.isSensor ?? false };

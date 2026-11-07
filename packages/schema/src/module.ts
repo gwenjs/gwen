@@ -22,7 +22,7 @@ import type { GwenConfigIssue } from "./engine-config.js";
  * ```typescript
  * declare module "@gwenjs/schema" {
  *   interface GwenModuleOptions {
- *     physics2d?: { gravity: number }
+ *     physics2d?: { gravity?: { x?: number; y?: number } }
  *   }
  * }
  * ```
