@@ -6,7 +6,7 @@ import { defineComponent, Types } from "@gwenjs/core";
 import { createEngine } from "@gwenjs/core/node";
 import { defineActor, definePrefab } from "@gwenjs/core/actor";
 import { onContact, _dispatchContactEvent } from "../../src/composables/on-contact.js";
-import type { ContactEvent } from "../../src/types.js";
+import type { CollisionContact } from "../../src/types.js";
 
 const Position = defineComponent({
   name: "OnContactActorPos",
@@ -30,7 +30,7 @@ describe("onContact inside defineActor", () => {
     try {
       await engine.use(Actor._plugin);
       const id = engine.run(() => Actor._plugin.spawn());
-      const event: ContactEvent = {
+      const event: CollisionContact = {
         entityA: id,
         entityB: id + 1n,
         started: true,

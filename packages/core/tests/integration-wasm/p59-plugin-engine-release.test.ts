@@ -33,7 +33,7 @@ async function collectGarbage(): Promise<void> {
 
 describe("physics plugins release a disposed engine", () => {
   it("does not keep a disposed 2d engine alive", async () => {
-    const plugin = Physics2DPlugin({ gravity: 0 });
+    const plugin = Physics2DPlugin({ gravity: { x: 0, y: 0 } });
     const ref = await (async () => {
       const handle = await createRealEngine({ variant: "physics2d", maxEntities: 8 });
       try {

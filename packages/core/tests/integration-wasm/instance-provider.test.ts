@@ -475,7 +475,7 @@ describe("shared wasm instance", () => {
 });
 
 async function buildScene(engine: GwenEngine): Promise<ReturnType<GwenEngine["createEntity"]>[]> {
-  await engine.use(Physics2DPlugin({ gravity: -10, maxEntities: 32 }));
+  await engine.use(Physics2DPlugin({ gravity: { y: -10 }, maxEntities: 32 }));
   const api = engine.inject("physics2d");
   const floor = engine.createEntity();
   api.addBoxCollider(api.addRigidBody(floor, "fixed", 0, 0), 5, 0.25);
@@ -808,7 +808,7 @@ describe("isolated wasm instance", () => {
     try {
       const [engineA, engineB] = await openTwo(engines, "physics2d", "isolated", 60);
       const idsA = await buildScene(engineA);
-      await engineB.use(Physics2DPlugin({ gravity: -10, maxEntities: 32 }));
+      await engineB.use(Physics2DPlugin({ gravity: { y: -10 }, maxEntities: 32 }));
       const apiB = engineB.inject("physics2d");
       const idB = engineB.createEntity();
       apiB.addBoxCollider(apiB.addRigidBody(idB, "dynamic", 2, 6), 0.3, 0.3);

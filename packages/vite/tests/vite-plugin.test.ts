@@ -514,7 +514,7 @@ describe("extractModuleNamesFromConfig", () => {
 
   it("extracts name from tuple [name, options] entries", () => {
     const p = writeConfig(`export default defineConfig({
-      modules: ['@gwenjs/input', ['@gwenjs/physics2d', { gravity: 9.8 }]],
+      modules: ['@gwenjs/input', ['@gwenjs/physics2d', { gravity: { y: 9.8 } }]],
     })`);
     const names = extractModuleNamesFromConfig(p);
     expect(names).toContain("@gwenjs/input");

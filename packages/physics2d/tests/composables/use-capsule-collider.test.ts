@@ -73,7 +73,7 @@ describe("useCapsuleCollider", () => {
       expect.anything(),
       expect.anything(),
       expect.anything(),
-      expect.objectContaining({ membershipLayers: 2, filterLayers: 4 }),
+      expect.objectContaining({ layer: 2, mask: 4 }),
     );
   });
 });

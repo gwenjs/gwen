@@ -436,7 +436,7 @@ describe("bridge dispose", () => {
     const { engine } = await owned("physics2d");
     try {
       assertGc();
-      await engine.use(Physics2DPlugin({ gravity: 0, gravityX: 0 }));
+      await engine.use(Physics2DPlugin({ gravity: { x: 0, y: 0 } }));
       const physics = engine.inject("physics2d");
       const id = engine.createEntity();
       await engine.stop();
@@ -451,7 +451,7 @@ describe("bridge dispose", () => {
     const { engine } = await owned("physics2d");
     try {
       assertGc();
-      await engine.use(Physics2DPlugin({ gravity: 0, gravityX: 0 }));
+      await engine.use(Physics2DPlugin({ gravity: { x: 0, y: 0 } }));
       const physics = engine.inject("physics2d");
       const id = engine.createEntity();
       physics.addRigidBody(id, "dynamic", 3, 4);
@@ -521,7 +521,7 @@ describe("bridge dispose", () => {
   });
 
   it("stopping one engine leaves another engine's physics2d service working", async () => {
-    const plugin = Physics2DPlugin({ gravity: 0, gravityX: 0 });
+    const plugin = Physics2DPlugin({ gravity: { x: 0, y: 0 } });
     const a = await owned("physics2d");
     const b = await owned("physics2d");
     try {
@@ -553,7 +553,7 @@ describe("bridge dispose", () => {
     const { engine, bridge } = await owned("physics2d");
     try {
       assertGc();
-      await engine.use(Physics2DPlugin({ gravity: 0, gravityX: 0 }));
+      await engine.use(Physics2DPlugin({ gravity: { x: 0, y: 0 } }));
       const physics = engine.inject("physics2d");
       const id = engine.createEntity();
       physics.addRigidBody(id, "dynamic", 1, 2);

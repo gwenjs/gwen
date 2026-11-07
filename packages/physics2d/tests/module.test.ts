@@ -100,7 +100,7 @@ describe("@gwenjs/physics2d module", () => {
     const loaded = await import("@gwenjs/physics2d/module");
     const resolved = resolveLoadedConfig({
       modules: ["@gwenjs/physics2d"],
-      physics2d: { gravity: -9.81 },
+      physics2d: { gravity: { y: -9.81 } },
     });
     const app = new GwenApp();
     const declaration = await app
@@ -115,7 +115,7 @@ describe("@gwenjs/physics2d module", () => {
     expect(declaration).toMatchObject({
       src: "@gwenjs/physics2d",
       export: "Physics2DPlugin",
-      options: { gravity: -9.81 },
+      options: { gravity: { y: -9.81 } },
     });
     expect(JSON.parse(JSON.stringify(declaration))).toEqual(declaration);
   });

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { Physics2DPlugin } from "../src/index";
 import * as config from "../src/config";
 
 describe("checkPhysics2DConfig", () => {
@@ -40,10 +41,8 @@ describe("checkPhysics2DConfig", () => {
     expect(layers).toEqual({ bad: 32 });
 
     const normalized = config.normalizeConfig({});
-    expect(normalized.gravity).toBe(-9.81);
-    expect(normalized.gravity).toBe(defaults.gravity);
-    expect(normalized.gravityX).toBe(0);
-    expect(normalized.gravityX).toBe(defaults.gravityX);
+    expect(normalized.gravity).toEqual({ x: 0, y: -9.81 });
+    expect(normalized.gravity).toEqual(defaults.gravity);
     expect(normalized.maxEntities).toBe(10_000);
     expect(normalized.maxEntities).toBe(defaults.maxEntities);
     expect(normalized.qualityPreset).toBe("medium");
@@ -79,5 +78,42 @@ describe("checkPhysics2DConfig", () => {
       }
       expect(layers).toEqual({ [name]: bit });
     }
+  });
+
+  it("normalizeConfig gravity is a Vec2 and the horizontal key is absent", () => {
+    expect(config.normalizeConfig({}).gravity).toEqual({ x: 0, y: -9.81 });
+    expect(config.normalizeConfig({ gravity: { y: -1 } }).gravity).toEqual({ x: 0, y: -1 });
+    expect("gravityX" in config.normalizeConfig({})).toBe(false);
+    expect("gravityX" in config.PHYSICS2D_DEFAULTS).toBe(false);
+  });
+
+  it("reports a non-finite gravity.y", () => {
+    const issues = Physics2DPlugin({ gravity: { y: Number.NaN } }).validateOptions();
+    expect(issues[0]?.path).toBe("gravity.y");
+  });
+
+  it("reports Infinity gravity and a non-finite gravity.x", () => {
+    expect(
+      Physics2DPlugin({ gravity: { y: Number.POSITIVE_INFINITY } }).validateOptions()[0]?.path,
+    ).toBe("gravity.y");
+    expect(
+      Physics2DPlugin({ gravity: { y: Number.NEGATIVE_INFINITY } }).validateOptions()[0]?.path,
+    ).toBe("gravity.y");
+    expect(Physics2DPlugin({ gravity: { y: 0 } }).validateOptions()).toEqual([]);
+    expect(Physics2DPlugin({ gravity: { x: Number.NaN } }).validateOptions()[0]?.path).toBe(
+      "gravity.x",
+    );
+    expect(
+      Physics2DPlugin({ gravity: { x: Number.POSITIVE_INFINITY } }).validateOptions()[0]?.path,
+    ).toBe("gravity.x");
+    expect(
+      Physics2DPlugin({ gravity: { x: Number.NEGATIVE_INFINITY } }).validateOptions()[0]?.path,
+    ).toBe("gravity.x");
+  });
+
+  it("freezes the default gravity object", () => {
+    expect(Object.isFrozen(config.PHYSICS2D_DEFAULTS)).toBe(true);
+    expect(config.PHYSICS2D_DEFAULTS.gravity).toEqual({ x: 0, y: -9.81 });
+    expect(Object.isFrozen(config.PHYSICS2D_DEFAULTS.gravity)).toBe(true);
   });
 });

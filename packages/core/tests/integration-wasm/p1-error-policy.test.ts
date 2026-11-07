@@ -104,7 +104,7 @@ describe("P1 error policy (real WASM)", () => {
 
   it("keeps a physics2d body falling while a sibling system throws", async () => {
     const handle = await useReal("physics2d", 64, async ({ engine, advance }) => {
-      await engine.use(Physics2DPlugin({ gravity: -10 }));
+      await engine.use(Physics2DPlugin({ gravity: { y: -10 } }));
       let ticks = 0;
       await engine.use(
         defineSystem("Keeper", () => {
@@ -152,7 +152,7 @@ describe("P1 error policy (real WASM)", () => {
     });
     const { engine, advance } = handle;
     try {
-      await engine.use(Physics2DPlugin({ gravity: 0 }));
+      await engine.use(Physics2DPlugin({ gravity: { x: 0, y: 0 } }));
       const events: EngineErrorPayload[] = [];
       engine.hooks.hook("engine:error", (payload) => {
         events.push(payload);

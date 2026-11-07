@@ -97,7 +97,7 @@ describe("a rejected physics listener does not stop the physics plugin", () => {
     const handle = await createRealEngine({ variant: "physics2d", maxEntities: 64 });
     try {
       const { engine, advance } = handle;
-      await engine.use(Physics2DPlugin({ gravity: -10 }));
+      await engine.use(Physics2DPlugin({ gravity: { y: -10 } }));
       process.on("unhandledRejection", onUnhandled);
       const events: GwenErrorPayload[] = [];
       engine.errors.on((event) => {
@@ -157,7 +157,7 @@ describe("a rejected physics2d hook is published without a target", () => {
     const handle = await createRealEngine({ variant: "physics2d", maxEntities: 64 });
     try {
       const { engine, advance } = handle;
-      await engine.use(Physics2DPlugin({ gravity: 0 }));
+      await engine.use(Physics2DPlugin({ gravity: { x: 0, y: 0 } }));
       const events: EngineErrorPayload[] = [];
       engine.hooks.hook("engine:error", (payload) => {
         events.push(payload);
@@ -196,7 +196,7 @@ describe("a rejected physics2d hook is published without a target", () => {
     const handle = await createRealEngine({ variant: "physics2d", maxEntities: 64 });
     try {
       const { engine, advance } = handle;
-      await engine.use(Physics2DPlugin({ gravity: 0, eventMode: "hybrid" }));
+      await engine.use(Physics2DPlugin({ gravity: { x: 0, y: 0 }, eventMode: "hybrid" }));
       const events: EngineErrorPayload[] = [];
       engine.hooks.hook("engine:error", (payload) => {
         events.push(payload);

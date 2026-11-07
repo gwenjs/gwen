@@ -27,7 +27,7 @@ async function startPhysics(
 ): Promise<Physics2DAPI> {
   await handle.engine.use(
     Physics2DPlugin({
-      gravity,
+      gravity: { x: 0, y: gravity },
       maxEntities: 32,
       ...(maxLinearVelocity === undefined ? {} : { maxLinearVelocity }),
     }),

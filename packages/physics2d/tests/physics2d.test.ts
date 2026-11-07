@@ -7,7 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { Mock } from "vitest";
-import { PIXELS_PER_METER } from "../src/config";
+import { PIXELS_PER_METER, checkPhysics2DConfig } from "../src/config";
 
 // ─── Helpers & mocks ─────────────────────────────────────────────────────────
 
@@ -123,7 +123,7 @@ function slotId(slot: number) {
   return createEntityId(slot, 0);
 }
 import {
-  BODY_TYPE,
+  BODY_KIND_CODE,
   PHYSICS2D_BRIDGE_SCHEMA_VERSION,
   readCollisionEventsFromBuffer,
 } from "../src/types";
@@ -230,7 +230,7 @@ describe("Physics2DPlugin", () => {
   // ── setup ─────────────────────────────────────────────────────────────────
 
   it("setup initializes physics via wasm.physics_init", async () => {
-    const plugin = Physics2DPlugin({ gravity: -20, gravityX: 1, maxEntities: 500 });
+    const plugin = Physics2DPlugin({ gravity: { x: 1, y: -20 }, maxEntities: 500 });
     await initPlugin(plugin, mockBridge, mockEngine);
     expect(mockWasmPlugin.physics_init).toHaveBeenCalledWith(1, -20, 500);
   });
@@ -403,7 +403,7 @@ describe("Physics2DPlugin", () => {
       5,
       1.0,
       2.0,
-      BODY_TYPE.dynamic,
+      BODY_KIND_CODE.dynamic,
       1.0,
       1.0,
       0.0,
@@ -426,7 +426,7 @@ describe("Physics2DPlugin", () => {
       3,
       0,
       0,
-      BODY_TYPE.fixed,
+      BODY_KIND_CODE.fixed,
       1.0,
       1.0,
       0.0,
@@ -449,7 +449,7 @@ describe("Physics2DPlugin", () => {
       7,
       5,
       5,
-      BODY_TYPE.kinematic,
+      BODY_KIND_CODE.kinematic,
       1.0,
       1.0,
       0.0,
@@ -839,12 +839,12 @@ describe("readCollisionEventsFromBuffer", () => {
   });
 });
 
-// ─── BODY_TYPE constant ───────────────────────────────────────────────────────
+// ─── BODY_KIND_CODE constant ───────────────────────────────────────────────────────
 
-describe("BODY_TYPE", () => {
-  it("fixed = 0", () => expect(BODY_TYPE.fixed).toBe(0));
-  it("dynamic = 1", () => expect(BODY_TYPE.dynamic).toBe(1));
-  it("kinematic = 2", () => expect(BODY_TYPE.kinematic).toBe(2));
+describe("BODY_KIND_CODE", () => {
+  it("fixed = 0", () => expect(BODY_KIND_CODE.fixed).toBe(0));
+  it("dynamic = 1", () => expect(BODY_KIND_CODE.dynamic).toBe(1));
+  it("kinematic = 2", () => expect(BODY_KIND_CODE.kinematic).toBe(2));
 });
 
 // ─── prefab:instantiate extensions ───────────────────────────────────────────
@@ -955,7 +955,7 @@ describe("Physics2DPlugin — prefab:instantiate hook", () => {
       1,
       0,
       0,
-      BODY_TYPE.kinematic,
+      BODY_KIND_CODE.kinematic,
       1.0,
       1.0,
       0.0,
@@ -1045,7 +1045,7 @@ describe("Physics2DPlugin — prefab:instantiate hook", () => {
       1,
       0,
       0,
-      BODY_TYPE.dynamic,
+      BODY_KIND_CODE.dynamic,
       5.0,
       0.5,
       0.0,
@@ -1070,7 +1070,7 @@ describe("Physics2DPlugin — prefab:instantiate hook", () => {
       1,
       0,
       0,
-      BODY_TYPE.dynamic,
+      BODY_KIND_CODE.dynamic,
       1.0,
       1.0,
       0.0,
@@ -1095,7 +1095,7 @@ describe("Physics2DPlugin — prefab:instantiate hook", () => {
       1,
       0,
       0,
-      BODY_TYPE.dynamic,
+      BODY_KIND_CODE.dynamic,
       1.0,
       1.0,
       0.0,
@@ -1121,7 +1121,7 @@ describe("Physics2DPlugin — prefab:instantiate hook", () => {
       1,
       0,
       0,
-      BODY_TYPE.dynamic,
+      BODY_KIND_CODE.dynamic,
       1.0,
       1.0,
       0.3,
@@ -1146,7 +1146,7 @@ describe("Physics2DPlugin — prefab:instantiate hook", () => {
       1,
       0,
       0,
-      BODY_TYPE.dynamic,
+      BODY_KIND_CODE.dynamic,
       1.0,
       1.0,
       0.0,
@@ -1279,7 +1279,7 @@ describe("Physics2DPlugin — prefab:instantiate hook", () => {
       1,
       0,
       0,
-      BODY_TYPE.dynamic,
+      BODY_KIND_CODE.dynamic,
       1.0,
       1.0,
       0.0,
@@ -1563,8 +1563,8 @@ describe("LayerRegistry — layer resolution", () => {
     };
     ownColliderHandle(engine, mockWasmPlugin, 0);
     physics.addBallCollider(0, 0.5, {
-      membershipLayers: ["player"], // bit 1 → 0b10 = 2
-      filterLayers: ["enemy", "ground"], // bit 2 + bit 3 → 0b1100 = 12
+      layer: ["player"], // bit 1 → 0b10 = 2
+      mask: ["enemy", "ground"], // bit 2 + bit 3 → 0b1100 = 12
     });
     expect(mockWasmPlugin.physics_add_ball_collider).toHaveBeenCalledWith(
       0,
@@ -1590,8 +1590,8 @@ describe("LayerRegistry — layer resolution", () => {
     };
     ownColliderHandle(engine, mockWasmPlugin, 0);
     physics.addBoxCollider(0, 1.0, 1.0, {
-      membershipLayers: 0b0101,
-      filterLayers: 0b1010,
+      layer: 0b0101,
+      mask: 0b1010,
     });
     expect(mockWasmPlugin.physics_add_box_collider).toHaveBeenCalledWith(
       0,
@@ -1620,26 +1620,60 @@ describe("LayerRegistry — layer resolution", () => {
       addBallCollider: (...a: unknown[]) => void;
     };
     ownColliderHandle(engine, mockWasmPlugin, 0);
-    expect(() => physics.addBallCollider(0, 0.5, { membershipLayers: ["unknown_layer"] })).toThrow(
+    expect(() => physics.addBallCollider(0, 0.5, { layer: ["unknown_layer"] })).toThrow(
       /Unknown layer "unknown_layer"/,
     );
-    expect(() => physics.addBallCollider(0, 0.5, { membershipLayers: ["unknown_layer"] })).toThrow(
-      /player/,
-    ); // hint lists known layers
+    expect(() => physics.addBallCollider(0, 0.5, { layer: ["unknown_layer"] })).toThrow(/player/); // hint lists known layers
+  });
+
+  it("setup throws PHYSICS2D:INVALID_LAYERS for 33 layers and for bit 32", async () => {
+    const tooMany: Record<string, number> = {};
+    for (let i = 0; i < 33; i += 1) tooMany[`l${i}`] = i % 32;
+    const over = Physics2DPlugin({ layers: tooMany });
+    expect(over.validateOptions()[0]?.path).toBe("layers");
+    let overError: unknown;
+    try {
+      await initPlugin(over, mockBridge, makeMockEngine(mockWasmPlugin));
+    } catch (error) {
+      overError = error;
+    } finally {
+      engineContext.unset();
+    }
+    expect(overError).toMatchObject({ code: "PHYSICS2D:INVALID_LAYERS" });
+    expect(overError instanceof Error ? overError.message : "").toContain(
+      "A layer registry accepts at most 32 layers, received 33.",
+    );
+
+    const badBit = Physics2DPlugin({ layers: { bad: 32 } });
+    expect(badBit.validateOptions()[0]?.path).toBe("layers.bad");
+    let bitError: unknown;
+    try {
+      await initPlugin(badBit, mockBridge, makeMockEngine(mockWasmPlugin));
+    } catch (error) {
+      bitError = error;
+    } finally {
+      engineContext.unset();
+    }
+    expect(bitError).toMatchObject({ code: "PHYSICS2D:INVALID_LAYERS" });
+    expect(bitError instanceof Error ? bitError.message : "").toContain("outside 0..31");
   });
 
   it("invalid layer bits are options issues and the factory does not throw", () => {
     let over: string | undefined;
+    let overPlugin: ReturnType<typeof Physics2DPlugin> | undefined;
     try {
-      over = Physics2DPlugin({ layers: { bad: 32 } }).validateOptions()[0]?.path;
+      overPlugin = Physics2DPlugin({ layers: { bad: 32 } });
+      over = overPlugin.validateOptions()[0]?.path;
     } catch {
       over = undefined;
     }
     expect(over).toBe("layers.bad");
 
     let under: string | undefined;
+    let underPlugin: ReturnType<typeof Physics2DPlugin> | undefined;
     try {
-      under = Physics2DPlugin({ layers: { bad: -1 } }).validateOptions()[0]?.path;
+      underPlugin = Physics2DPlugin({ layers: { bad: -1 } });
+      under = underPlugin.validateOptions()[0]?.path;
     } catch {
       under = undefined;
     }
@@ -1649,6 +1683,7 @@ describe("LayerRegistry — layer resolution", () => {
   it("more than 32 layers are an options issue at path layers and the factory does not throw", () => {
     const tooMany: Record<string, number> = {};
     for (let i = 0; i < 33; i++) tooMany[`l${i}`] = i % 32;
+    expect(checkPhysics2DConfig({ layers: tooMany })[0]?.path).toBe("layers");
     let path: string | undefined;
     try {
       path = Physics2DPlugin({ layers: tooMany }).validateOptions()[0]?.path;
@@ -1658,7 +1693,7 @@ describe("LayerRegistry — layer resolution", () => {
     expect(path).toBe("layers");
   });
 
-  it("colliders[] with membershipLayers resolves correctly via prefab instantiation", async () => {
+  it("colliders[] with layer resolves correctly via prefab instantiation", async () => {
     const plugin = Physics2DPlugin({
       layers: { player: 1, ground: 3 },
     });
@@ -1671,8 +1706,8 @@ describe("LayerRegistry — layer resolution", () => {
           {
             shape: "ball",
             radius: 8,
-            membershipLayers: ["player"], // bit 1 → 2
-            filterLayers: ["ground"], // bit 3 → 8
+            layer: ["player"], // bit 1 → 2
+            mask: ["ground"], // bit 3 → 8
           },
         ],
       },
@@ -1872,7 +1907,7 @@ describe("Physics2DPlugin — shape queries, linear damping & oneWay", () => {
     const plugin = Physics2DPlugin();
     await initPlugin(plugin, mockBridge, mockEngine);
     const physics = mockEngine._provided["physics2d"] as import("../src").Physics2DAPI;
-    physics.queryRadius(0, 0, 1.0, { membershipLayers: 0b0011, filterLayers: 0b0101 });
+    physics.queryRadius(0, 0, 1.0, { layer: 0b0011, mask: 0b0101 });
     expect((mockWasmPlugin as any).physics_query_radius).toHaveBeenCalledWith(
       0,
       0,
@@ -1925,7 +1960,7 @@ describe("Physics2DPlugin — shape queries, linear damping & oneWay", () => {
     const plugin = Physics2DPlugin({ layers: { ground: 0, player: 1 } });
     await initPlugin(plugin, mockBridge, mockEngine);
     const physics = mockEngine._provided["physics2d"] as import("../src").Physics2DAPI;
-    physics.queryRect(0, 0, 1.0, 1.0, { membershipLayers: ["ground"], filterLayers: ["player"] });
+    physics.queryRect(0, 0, 1.0, 1.0, { layer: ["ground"], mask: ["player"] });
     expect((mockWasmPlugin as any).physics_query_rect).toHaveBeenCalledWith(
       0,
       0,
@@ -1966,7 +2001,7 @@ describe("Physics2DPlugin — shape queries, linear damping & oneWay", () => {
     const plugin = Physics2DPlugin({ layers: { ground: 0, player: 1 } });
     await initPlugin(plugin, mockBridge, mockEngine);
     const physics = mockEngine._provided["physics2d"] as import("../src").Physics2DAPI;
-    physics.pointQuery(0, 0, { membershipLayers: ["ground"], filterLayers: ["player"] });
+    physics.pointQuery(0, 0, { layer: ["ground"], mask: ["player"] });
     expect((mockWasmPlugin as any).physics_point_query).toHaveBeenCalledWith(0, 0, 0b01, 0b10);
   });
 

@@ -37,7 +37,7 @@ describe("detectCoreVariant", () => {
   });
 
   it("returns physics2d when @gwenjs/physics2d is a tuple [name, opts]", () => {
-    expect(detectCoreVariant({ modules: [["@gwenjs/physics2d", { gravity: 9.8 }]] })).toBe(
+    expect(detectCoreVariant({ modules: [["@gwenjs/physics2d", { gravity: { y: 9.8 } }]] })).toBe(
       "physics2d",
     );
   });

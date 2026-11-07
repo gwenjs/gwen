@@ -61,7 +61,7 @@ describe("useSphereCollider", () => {
     expect(mockPhysics.addBallCollider).toHaveBeenCalledWith(
       expect.anything(),
       expect.anything(),
-      expect.objectContaining({ membershipLayers: 1, filterLayers: 6 }),
+      expect.objectContaining({ layer: 1, mask: 6 }),
     );
   });
 

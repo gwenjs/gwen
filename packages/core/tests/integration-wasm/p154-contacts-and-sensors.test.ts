@@ -57,7 +57,7 @@ describe("physics2d contact payload", () => {
     const handle = await createRealEngine({ variant: "physics2d", maxEntities: 32 });
     try {
       const { engine, advance } = handle;
-      await engine.use(Physics2DPlugin({ gravity: 0 }));
+      await engine.use(Physics2DPlugin({ gravity: { x: 0, y: 0 } }));
       const physics = engine.inject("physics2d");
       const seen: { started?: boolean }[] = [];
       const left = engine.createEntity();
@@ -84,7 +84,7 @@ describe("sensor callbacks survive the other entity", () => {
     const handle = await createRealEngine({ variant: "physics2d", maxEntities: 32 });
     try {
       const { engine } = handle;
-      await engine.use(Physics2DPlugin({ gravity: 0 }));
+      await engine.use(Physics2DPlugin({ gravity: { x: 0, y: 0 } }));
       const hits = new Map<EntityId, number>();
       const Actor = defineActor(Prefab, () => {
         const id = useEntityId();
@@ -155,7 +155,7 @@ describe("sensor callbacks survive the other entity", () => {
     const handle = await createRealEngine({ variant: "physics2d", maxEntities: 32 });
     try {
       const { engine } = handle;
-      await engine.use(Physics2DPlugin({ gravity: 0 }));
+      await engine.use(Physics2DPlugin({ gravity: { x: 0, y: 0 } }));
       const hits = new Map<EntityId, number>();
       const Actor = defineActor(Prefab, () => {
         const id = useEntityId();

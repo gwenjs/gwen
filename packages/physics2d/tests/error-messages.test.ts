@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { GwenContextError, type GwenEngine } from "@gwenjs/core";
 import { createEngine } from "@gwenjs/core/node";
 import { GwenError } from "@gwenjs/schema";
-import { LayerRegistry } from "../src/config";
+import { LAYER_ERROR_CODES, LayerRegistry } from "@gwenjs/physics-core";
 import { usePhysics2D } from "../src/composables";
 import * as contact from "../src/composables/on-contact";
 import * as sensor from "../src/composables/on-sensor";
@@ -50,6 +50,16 @@ function head(error: GwenError): string {
   return error.message.split("\n")[0] ?? "";
 }
 
+/** Direct registry call. No composable, so the message stays `[GWEN]`. */
+function layerOnError(code: string, what: string): never {
+  throw new GwenError(
+    code === LAYER_ERROR_CODES.LAYER_UNKNOWN
+      ? errors.Physics2DErrorCodes.UNKNOWN_LAYER
+      : errors.Physics2DErrorCodes.INVALID_LAYERS,
+    what,
+  );
+}
+
 function seeCode(error: GwenError, operation: string, code: string): void {
   expect(head(error)).toContain(operation);
   expect(head(error)).not.toContain("PHYSICS2D:");
@@ -69,8 +79,8 @@ describe("physics2d error messages", () => {
       addPrefabCollider(
         bare(),
         1,
-        { id: "membership", shape: "ball", radius: 8, membershipLayers: ["unknown_layer"] },
-        new LayerRegistry({ player: 0, ground: 1 }),
+        { id: "membership", shape: "ball", radius: 8, layer: ["unknown_layer"] },
+        new LayerRegistry({ player: 0, ground: 1 }, layerOnError),
       ),
     );
     expect(error.code).toBe(errors.Physics2DErrorCodes.UNKNOWN_LAYER);
@@ -100,7 +110,7 @@ describe("physics2d error messages", () => {
   });
 
   it("an invalid collider throws PHYSICS2D:INVALID_COLLIDER with no composable", () => {
-    const registry = new LayerRegistry({});
+    const registry = new LayerRegistry({}, layerOnError);
     for (const add of [addPrefabCollider, pluginAdd]) {
       const error = gwen(() => add(bare(), 1, { id: "ball-1", shape: "ball" }, registry));
       expect(error.code).toBe(errors.Physics2DErrorCodes.INVALID_COLLIDER);

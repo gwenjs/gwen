@@ -145,7 +145,7 @@ async function runWorld(variant: CoreVariant, inputs: readonly number[]): Promis
   try {
     let physics: ((id: EntityId) => readonly number[]) | null = null;
     if (variant === "physics2d") {
-      await engine.use(Physics2DPlugin({ gravity: -10, maxEntities: MAX_ENTITIES }));
+      await engine.use(Physics2DPlugin({ gravity: { y: -10 }, maxEntities: MAX_ENTITIES }));
       const api = engine.inject("physics2d");
       physics = (id) => {
         const position = api.getPosition(id);
