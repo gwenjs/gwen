@@ -247,6 +247,9 @@ importers:
       '@gwenjs/kit':
         specifier: workspace:^
         version: link:../kit
+      '@gwenjs/physics-core':
+        specifier: workspace:^
+        version: link:../physics-core
       '@gwenjs/schema':
         specifier: workspace:^
         version: link:../schema

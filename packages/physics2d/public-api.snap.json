@@ -1,10 +1,12 @@
 {
   ".": {
     "values": [
+      "BODY_KIND_CODE",
       "Physics2DErrorCodes",
       "Physics2DPlugin",
       "Physics2DStaleBodyHandleError",
       "Physics2DStaleEntityError",
+      "QUALITY_PRESET_CODE",
       "SENSOR_ID_FOOT",
       "buildTilemapPhysicsChunks",
       "createPhysicsKinematicSyncSystem",
@@ -28,6 +30,7 @@
       "useStaticBody"
     ],
     "types": [
+      "BodyKind",
       "BoxColliderHandle",
       "BoxColliderOptions",
       "CapsuleColliderHandle",
@@ -37,7 +40,6 @@
       "CollisionContact",
       "CollisionEvent",
       "CollisionEventsBatch",
-      "ContactEvent",
       "DynamicBodyHandle",
       "DynamicBodyOptions",
       "InternalCollisionEventsBatch",
@@ -53,9 +55,8 @@
       "PhysicsColliderDef",
       "PhysicsColliderShape",
       "PhysicsKinematicSyncSystemOptions",
-      "PhysicsQualityPreset",
       "PlatformerGroundedSystemOptions",
-      "RigidBodyType",
+      "QualityPreset",
       "SensorState",
       "ShapeOptions",
       "SphereColliderOptions",
@@ -131,11 +132,11 @@
   },
   "./debug": {
     "values": [
-      "BODY_TYPE",
+      "BODY_KIND_CODE",
       "PHYSICS2D_BRIDGE_SCHEMA_VERSION",
       "PHYSICS2D_EVENTS_RING_FORMAT_VERSION",
       "PHYSICS_MATERIAL_PRESETS",
-      "PHYSICS_QUALITY_PRESET_CODE",
+      "QUALITY_PRESET_CODE",
       "readCollisionEventsFromBuffer"
     ],
     "types": ["CollisionEvent"]

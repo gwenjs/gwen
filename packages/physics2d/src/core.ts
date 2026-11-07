@@ -15,12 +15,12 @@ export type {
   CollisionEventsBatch,
   CollisionContact,
   ColliderOptions,
-  RigidBodyType,
+  BodyKind,
   Physics2DPrefabExtension,
   Physics2DPluginHooks,
   PhysicsColliderDef,
   PhysicsEventMode,
-  PhysicsQualityPreset,
+  QualityPreset,
   PhysicsColliderShape,
   SensorState,
   BuildTilemapPhysicsChunksInput,
@@ -34,4 +34,4 @@ export type {
   TilemapChunkOrchestrator,
 } from "./types";
 
-export { PHYSICS2D_BRIDGE_SCHEMA_VERSION, PHYSICS_QUALITY_PRESET_CODE } from "./types";
+export { BODY_KIND_CODE, PHYSICS2D_BRIDGE_SCHEMA_VERSION, QUALITY_PRESET_CODE } from "./types";

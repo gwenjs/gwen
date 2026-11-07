@@ -18,7 +18,7 @@ All options are passed as the second element of the module tuple in `gwen.config
 export default defineConfig({
   modules: ['@gwenjs/physics2d'],
   physics2d: {
-    gravity: -9.81,
+    gravity: { y: -9.81 },
     qualityPreset: 'medium',
   },
 })
@@ -26,9 +26,8 @@ export default defineConfig({
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `gravity` | `number` | `-9.81` | Vertical gravity (Y axis, m/s²) |
+| `gravity` | `{ x?: number; y?: number }` | `{ x: 0, y: -9.81 }` | Gravity in m/s². A missing axis is 0 on X and -9.81 on Y |
 | `maxLinearVelocity` | `number` | `400` | Linear speed cap (m/s). Also Rapier's per-substep cap. A faster dynamic body is scaled and stays enabled |
-| `gravityX` | `number` | `0` | Horizontal gravity (X axis, m/s²) |
 | `maxEntities` | `number` | `10_000` | Max physics entities |
 | `qualityPreset` | `'low' \| 'medium' \| 'high' \| 'esport'` | `'medium'` | Physics quality preset |
 | `eventMode` | `'pull' \| 'hybrid'` | `'pull'` | Collision event read mode |
@@ -402,7 +401,7 @@ onUpdate(() => {
 
 | Function | Callback Signature | Purpose |
 |---|---|---|
-| `onContact(callback, entityId?)` | `(contact: ContactEvent) => void` | Fires on this engine when this entity collides. Inside an actor the entity is implied. Outside an actor, pass `entityId`. |
+| `onContact(callback, entityId?)` | `(contact: CollisionContact) => void` | Fires on this engine when this entity collides. Inside an actor the entity is implied. Outside an actor, pass `entityId`. |
 | `onSensorEnter(sensorId, callback)` | `(entityId: bigint) => void` | Fires when an entity enters a sensor collider. |
 | `onSensorExit(sensorId, callback)` | `(entityId: bigint) => void` | Fires when an entity leaves a sensor collider. |
 
@@ -422,7 +421,7 @@ onUpdate(() => {
 
 ### Types
 
-- `ContactEvent` — `{ entityA: bigint, entityB: bigint, started: boolean }`
+- `CollisionContact` — `{ entityA: bigint, entityB: bigint, started: boolean }`
 - `BoxColliderHandle` — `{ colliderId: number, isSensor: boolean }`
 - `CapsuleColliderHandle` — `{ colliderId: number, isSensor: boolean }`
 - `SphereColliderHandle` — `{ colliderId: number, isSensor: boolean }`

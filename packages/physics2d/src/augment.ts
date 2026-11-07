@@ -30,6 +30,7 @@ declare module "@gwenjs/schema" {
 
   /**
    * Physics 2D runtime hooks augmenting the engine hook bus.
+   * `physics:collision` and `physics:sensor:changed` come from `@gwenjs/physics-core`.
    *
    * @example
    * ```typescript

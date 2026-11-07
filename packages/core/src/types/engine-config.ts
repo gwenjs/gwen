@@ -15,7 +15,7 @@ import type { GwenPlugin } from "../engine/engine-types";
  *   maxEntities: 10_000,
  *   targetFPS: 60,
  *   plugins: [
- *     physics2D({ gravity: -9.81 }),
+ *     physics2D({ gravity: { y: -9.81 } }),
  *     new InputPlugin(),
  *     new AudioPlugin(),
  *   ],
@@ -68,7 +68,7 @@ export interface EngineConfig {
    * @example
    * ```ts
    * plugins: [
-   *   physics2D({ gravity: -9.81 }), // WASM — has `wasm` sub-object
+   *   physics2D({ gravity: { y: -9.81 } }), // WASM — has `wasm` sub-object
    *   new InputPlugin(),              // TS-only
    *   new AudioPlugin(),
    * ]

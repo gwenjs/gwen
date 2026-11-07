@@ -55,7 +55,7 @@ export interface GwenLoggerConfig {
  * // In @gwenjs/physics2d:
  * declare module '@gwenjs/schema' {
  *   interface GwenModuleOptions {
- *     physics2d: { gravity: number }
+ *     physics2d: { gravity?: { x?: number; y?: number } }
  *   }
  * }
  * ```
@@ -71,7 +71,7 @@ export type { GwenModuleOptions } from "@gwenjs/schema";
  * @example
  * ```typescript
  * modules: ['@gwenjs/physics2d'],
- * physics2d: { gravity: { x: 0, y: -9.81, z: 0 } }
+ * physics2d: { gravity: { x: 0, y: -9.81 } }
  * ```
  */
 export type GwenModuleEntry = string;
@@ -193,7 +193,7 @@ export type ResolvedGwenConfig = GwenUserConfig & {
  * import { defineConfig } from '@gwenjs/app'
  * export default defineConfig({
  *   modules: ['@gwenjs/physics2d'],
- *   physics2d: { gravity: { x: 0, y: -9.81, z: 0 } },
+ *   physics2d: { gravity: { x: 0, y: -9.81 } },
  *   engine: { maxEntities: 5_000 },
  * })
  * ```

@@ -2,7 +2,9 @@
  * Collision event types.
  */
 
-import type { EntityId } from "@gwenjs/schema";
+import type { CollisionContact, InternalCollisionEvent, SensorState } from "@gwenjs/physics-core";
+
+export type { CollisionContact, InternalCollisionEvent, SensorState };
 
 export interface CollisionEvent {
   /** Numeric collider id on A side (stable within a prefab declaration). */
@@ -11,12 +13,6 @@ export interface CollisionEvent {
   bColliderId?: number;
   /** `true` = contact started this frame, `false` = contact ended. */
   started: boolean;
-}
-
-/** WASM collision event. Slot indices stay off the public {@link CollisionEvent}. */
-export interface InternalCollisionEvent extends CollisionEvent {
-  slotA: number;
-  slotB: number;
 }
 
 /** Plugin batch. `events` carry the slot indices omitted from {@link CollisionEvent}. */
@@ -42,24 +38,4 @@ export interface CollisionEventsBatch {
    * Treat as read-only and ephemeral.
    */
   events: ReadonlyArray<CollisionEvent>;
-}
-
-export interface CollisionContact {
-  /** Resolved packed EntityId of the first participant. */
-  entityA: EntityId;
-  /** Resolved packed EntityId of the second participant. */
-  entityB: EntityId;
-  /** Collider id on A side when available (multi-colliders path). */
-  aColliderId?: number;
-  /** Collider id on B side when available (multi-colliders path). */
-  bColliderId?: number;
-  /** `true` = contact started this frame, `false` = contact ended. */
-  started: boolean;
-}
-
-export interface SensorState {
-  /** Number of distinct overlapping contacts right now. */
-  contactCount: number;
-  /** `true` when at least one contact is active. */
-  isActive: boolean;
 }

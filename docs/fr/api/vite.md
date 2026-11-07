@@ -158,7 +158,7 @@ Les options de ce plugin peuvent être transmises via la configuration du module
 export default defineConfig({
   modules: ['@gwenjs/physics2d'],
   physics2d: {
-    gravity: -9.81,
+    gravity: { y: -9.81 },
     vite: {
       debug: true,  // transmis à physics2dVitePlugin
     },

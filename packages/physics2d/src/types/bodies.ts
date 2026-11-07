@@ -2,14 +2,10 @@
  * Rigid body and collider configuration types.
  */
 
-export type RigidBodyType = "fixed" | "dynamic" | "kinematic";
+import type { LayerSelector } from "@gwenjs/physics-core";
 
-/** Numeric encoding of `RigidBodyType` passed through the WASM boundary. */
-export const BODY_TYPE: Record<RigidBodyType, number> = {
-  fixed: 0,
-  dynamic: 1,
-  kinematic: 2,
-} as const;
+export type { BodyKind } from "@gwenjs/physics-core";
+export { BODY_KIND_CODE } from "@gwenjs/physics-core";
 
 export interface ColliderOptions {
   /** Bounciness in [0, 1]. 0 = no bounce, 1 = perfectly elastic. @default 0 */
@@ -26,13 +22,13 @@ export interface ColliderOptions {
    * Accepts either a layer name or a raw bitmask `number`.
    * @default 0xFFFFFFFF (all layers)
    */
-  membershipLayers?: string[] | number;
+  layer?: LayerSelector;
   /**
    * Named layers this collider can collide with. Resolved to a bitmask.
-   * Accepts either an array of layer names or a raw bitmask `number`.
+   * Accepts a name, a raw bitmask, or a list of either.
    * @default 0xFFFFFFFF (all layers)
    */
-  filterLayers?: string[] | number;
+  mask?: LayerSelector;
   /**
    * Stable collider id propagated to collision events.
    * `undefined` means absent (legacy mono-collider fallback).
@@ -51,10 +47,10 @@ export type ColliderShape = "box" | "ball";
 export interface StaticBodyOptions {
   /** Collider shape type. @default 'box' */
   shape?: ColliderShape;
-  /** Collision layer bitmask. @default undefined */
-  layer?: number;
-  /** Collision mask bitmask. @default undefined */
-  mask?: number;
+  /** Collision layer. Name, bitmask, or a list of either. @default undefined */
+  layer?: LayerSelector;
+  /** Collision mask. Name, bitmask, or a list of either. @default undefined */
+  mask?: LayerSelector;
   /** Whether this body is a sensor. @default false */
   isSensor?: boolean;
 }
@@ -73,10 +69,10 @@ export interface StaticBodyHandle {
 export interface DynamicBodyOptions {
   /** Collider shape type. @default 'box' */
   shape?: ColliderShape;
-  /** Collision layer bitmask. @default undefined */
-  layer?: number;
-  /** Collision mask bitmask. @default undefined */
-  mask?: number;
+  /** Collision layer. Name, bitmask, or a list of either. @default undefined */
+  layer?: LayerSelector;
+  /** Collision mask. Name, bitmask, or a list of either. @default undefined */
+  mask?: LayerSelector;
   /** Mass of the body. @default 1 */
   mass?: number;
   /** Linear damping factor. @default 0 */
@@ -204,15 +200,6 @@ export interface CapsuleColliderHandle {
   readonly colliderId: number;
   /** Whether this collider is a sensor. */
   readonly isSensor: boolean;
-}
-
-export interface ContactEvent {
-  /** Entity ID of the first body. */
-  entityA: bigint;
-  /** Entity ID of the second body. */
-  entityB: bigint;
-  /** `true` when the contact started this frame. The WASM event has no point or normal. */
-  started: boolean;
 }
 
 export interface Physics2DLayerDefinition {

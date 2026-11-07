@@ -7,7 +7,7 @@
  * ```ts
  * export default defineConfig({
  *   modules: ['@gwenjs/physics2d'],
- *   physics2d: { gravity: -9.81 },
+ *   physics2d: { gravity: { y: -9.81 } },
  * })
  * ```
  */

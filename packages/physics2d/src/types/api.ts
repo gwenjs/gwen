@@ -4,7 +4,8 @@
 
 import type { EntityId } from "@gwenjs/schema";
 import type { CollisionEvent, CollisionEventsBatch, SensorState } from "./events";
-import type { RigidBodyType, ColliderOptions } from "./bodies";
+import type { LayerSelector } from "@gwenjs/physics-core";
+import type { BodyKind, ColliderOptions } from "./bodies";
 import type { TilemapPhysicsChunk, ResolvedCollisionContact } from "./tilemap";
 import { PHYSICS2D_EVENTS_RING_FORMAT_VERSION } from "./tilemap";
 
@@ -50,15 +51,15 @@ export function readCollisionEventsFromBuffer(bufOrView: ArrayBuffer | DataView)
 }
 
 export interface QueryFilterOpts {
-  membershipLayers?: string[] | number;
-  filterLayers?: string[] | number;
+  layer?: LayerSelector;
+  mask?: LayerSelector;
 }
 
 export interface Physics2DAPI {
   isDebugEnabled?(): boolean;
   addRigidBody(
     entityId: EntityId,
-    type: RigidBodyType,
+    type: BodyKind,
     x: number,
     y: number,
     opts?: {
@@ -140,7 +141,7 @@ export interface Physics2DAPI {
  */
 export interface Physics2DWasmModule {
   Physics2DPlugin: new (
-    gravityX: number,
+    horizontalGravity: number,
     gravityY: number,
     transformBuf: Uint8Array,
     eventsBuf: Uint8Array,

@@ -6,25 +6,9 @@
  * derived from `radius` (width) and `height/2` (half-height).
  */
 import { _getActorEntityId } from "@gwenjs/core/internal";
+import type { CapsuleColliderOptions } from "@gwenjs/physics-core";
 import type { CapsuleColliderHandle } from "../types";
 import { usePhysics2D } from "../composables";
-
-export interface CapsuleColliderOptions {
-  /** Capsule radius (used as box half-width). */
-  radius: number;
-  /** Total capsule height (box half-height = height / 2). */
-  height: number;
-  /** Local X offset of the collider from the entity origin. @default 0 */
-  offsetX?: number;
-  /** Local Y offset of the collider from the entity origin. @default 0 */
-  offsetY?: number;
-  /** If true, generates overlap events but no physical response. @default false */
-  isSensor?: boolean;
-  /** Collision membership layer bitmask. @default undefined */
-  layer?: number;
-  /** Collision filter mask bitmask. @default undefined */
-  mask?: number;
-}
 
 /**
  * Attaches a capsule collider to the current actor entity.
@@ -32,7 +16,7 @@ export interface CapsuleColliderOptions {
  * Since `Physics2DAPI` does not expose a capsule primitive, this composable
  * uses a box collider as an approximation (`hw = radius`, `hh = height / 2`).
  *
- * @param options - Capsule dimensions and collider options.
+ * @param options - Capsule dimensions and collider options. `material` is accepted by the shared type and not applied by physics2d yet.
  * @returns A {@link CapsuleColliderHandle} with the collider ID.
  * @throws {GwenPluginNotFoundError} If `@gwenjs/physics2d` is not registered.
  * @throws {GwenContextError} `CORE:OUTSIDE_ACTOR_CONTEXT` if called outside a `defineActor()` factory.
@@ -44,7 +28,7 @@ export interface CapsuleColliderOptions {
  *
  * @since 1.0.0
  */
-export function useCapsuleCollider(options: CapsuleColliderOptions): CapsuleColliderHandle {
+export function useCapsuleCollider(options: CapsuleColliderOptions<"2d">): CapsuleColliderHandle {
   const physics = usePhysics2D();
   const entityId = _getActorEntityId("useCapsuleCollider");
 
@@ -58,8 +42,8 @@ export function useCapsuleCollider(options: CapsuleColliderOptions): CapsuleColl
   // Approximate capsule with a box collider (Physics2DAPI has no capsule primitive)
   physics.addBoxCollider(bodyHandle, options.radius, options.height / 2, {
     ...(options.isSensor !== undefined ? { isSensor: options.isSensor } : {}),
-    ...(options.layer !== undefined ? { membershipLayers: options.layer } : {}),
-    ...(options.mask !== undefined ? { filterLayers: options.mask } : {}),
+    ...(options.layer !== undefined ? { layer: options.layer } : {}),
+    ...(options.mask !== undefined ? { mask: options.mask } : {}),
   });
 
   return { colliderId: bodyHandle, isSensor: options.isSensor ?? false };

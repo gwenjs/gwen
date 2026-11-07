@@ -47,7 +47,6 @@ export type {
   BoxColliderHandle,
   CircleColliderHandle,
   CapsuleColliderHandle,
-  ContactEvent,
   Physics2DLayerDefinition,
 } from "./types";
 
@@ -69,14 +68,16 @@ export type {
   InternalCollisionEventsBatch,
   CollisionContact,
   ColliderOptions,
-  RigidBodyType,
+  BodyKind,
   Physics2DPrefabExtension,
   Physics2DPluginHooks,
   PhysicsColliderDef,
-  PhysicsQualityPreset,
+  QualityPreset,
   PhysicsColliderShape,
   SensorState,
   TilemapPhysicsChunkMap,
 } from "./types";
+
+export { BODY_KIND_CODE, QUALITY_PRESET_CODE } from "./types";
 
 export { default } from "./module";

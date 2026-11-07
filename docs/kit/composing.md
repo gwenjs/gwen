@@ -132,11 +132,11 @@ declare module '@gwenjs/schema' {
 }
 
 export const Physics2DPlugin = definePlugin(
-  { provides: ['physics2d'], options: { defaults: { gravity: 9.81 } } },
+  { provides: ['physics2d'], options: { defaults: { gravity: { x: 0, y: 9.81 } } } },
   (opts) => ({
     name: 'physics2d',
     setup(engine) {
-      const gravity = opts.gravity ?? 9.81
+      const gravity = opts.gravity.y
       const bodies = new Map()
 
       engine.provide('physics2d', {
@@ -204,7 +204,7 @@ import { GamePlugin } from './plugins/game'
 
 const engine = await setupGwen()
 await engine.use(InputPlugin())
-await engine.use(Physics2DPlugin({ gravity: 15 }))
+await engine.use(Physics2DPlugin({ gravity: { y: 15 } }))
 await engine.use(GamePlugin()) // Rejects with CORE:PLUGIN_DEPENDENCY_MISSING if either is absent
 await engine.start()
 ```
@@ -259,7 +259,7 @@ await engine.use(InputPlugin())
 await engine.use(AudioPlugin())
 
 // Simulation
-await engine.use(Physics2DPlugin({ gravity: 9.81 }))
+await engine.use(Physics2DPlugin({ gravity: { y: 9.81 } }))
 
 // Game
 await engine.use(GamePlugin())

@@ -19,8 +19,7 @@ import { Physics2DPlugin } from "@gwenjs/physics2d";
 export default defineConfig({
   plugins: [
     Physics2DPlugin({
-      gravity: -9.81,
-      gravityX: 0,
+      gravity: { x: 0, y: -9.81 },
       maxEntities: 10000,
       qualityPreset: "medium",
       eventMode: "pull",
@@ -119,9 +118,9 @@ export const BulletPrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 
 
 ### `.`
 
-Values: `Physics2DErrorCodes`, `Physics2DPlugin`, `Physics2DStaleBodyHandleError`, `Physics2DStaleEntityError`, `SENSOR_ID_FOOT`, `buildTilemapPhysicsChunks`, `createPhysicsKinematicSyncSystem`, `createPlatformerGroundedSystem`, `default`, `defineLayers`, `onContact`, `onSensorEnter`, `onSensorExit`, `patchTilemapPhysicsChunk`, `physics2dVitePlugin`, `useBoxCollider`, `useCapsuleCollider`, `useCollider`, `useDynamicBody`, `useKinematicBody`, `usePhysics2D`, `useRigidBody`, `useShape`, `useSphereCollider`, `useStaticBody`
+Values: `BODY_KIND_CODE`, `Physics2DErrorCodes`, `Physics2DPlugin`, `Physics2DStaleBodyHandleError`, `Physics2DStaleEntityError`, `QUALITY_PRESET_CODE`, `SENSOR_ID_FOOT`, `buildTilemapPhysicsChunks`, `createPhysicsKinematicSyncSystem`, `createPlatformerGroundedSystem`, `default`, `defineLayers`, `onContact`, `onSensorEnter`, `onSensorExit`, `patchTilemapPhysicsChunk`, `physics2dVitePlugin`, `useBoxCollider`, `useCapsuleCollider`, `useCollider`, `useDynamicBody`, `useKinematicBody`, `usePhysics2D`, `useRigidBody`, `useShape`, `useSphereCollider`, `useStaticBody`
 
-Types: `BoxColliderHandle`, `BoxColliderOptions`, `CapsuleColliderHandle`, `CapsuleColliderOptions`, `CircleColliderHandle`, `ColliderOptions`, `CollisionContact`, `CollisionEvent`, `CollisionEventsBatch`, `ContactEvent`, `DynamicBodyHandle`, `DynamicBodyOptions`, `InternalCollisionEventsBatch`, `KinematicBodyHandle`, `KinematicBodyOptions`, `Physics2DAPI`, `Physics2DConfig`, `Physics2DErrorCode`, `Physics2DLayerDefinition`, `Physics2DPluginHooks`, `Physics2DPrefabExtension`, `Physics2DProvides`, `PhysicsColliderDef`, `PhysicsColliderShape`, `PhysicsKinematicSyncSystemOptions`, `PhysicsQualityPreset`, `PlatformerGroundedSystemOptions`, `RigidBodyType`, `SensorState`, `ShapeOptions`, `SphereColliderOptions`, `StaticBodyHandle`, `StaticBodyOptions`, `TilemapPhysicsChunkMap`
+Types: `BodyKind`, `BoxColliderHandle`, `BoxColliderOptions`, `CapsuleColliderHandle`, `CapsuleColliderOptions`, `CircleColliderHandle`, `ColliderOptions`, `CollisionContact`, `CollisionEvent`, `CollisionEventsBatch`, `DynamicBodyHandle`, `DynamicBodyOptions`, `InternalCollisionEventsBatch`, `KinematicBodyHandle`, `KinematicBodyOptions`, `Physics2DAPI`, `Physics2DConfig`, `Physics2DErrorCode`, `Physics2DLayerDefinition`, `Physics2DPluginHooks`, `Physics2DPrefabExtension`, `Physics2DProvides`, `PhysicsColliderDef`, `PhysicsColliderShape`, `PhysicsKinematicSyncSystemOptions`, `PlatformerGroundedSystemOptions`, `QualityPreset`, `SensorState`, `ShapeOptions`, `SphereColliderOptions`, `StaticBodyHandle`, `StaticBodyOptions`, `TilemapPhysicsChunkMap`
 
 `Physics2DErrorCodes` — Error codes emitted by the Physics2D plugin.
 
@@ -183,7 +182,7 @@ Types: `BuildTilemapPhysicsChunksInput`, `PatchTilemapPhysicsChunkInput`, `Physi
 
 ### `./debug`
 
-Values: `BODY_TYPE`, `PHYSICS2D_BRIDGE_SCHEMA_VERSION`, `PHYSICS2D_EVENTS_RING_FORMAT_VERSION`, `PHYSICS_MATERIAL_PRESETS`, `PHYSICS_QUALITY_PRESET_CODE`, `readCollisionEventsFromBuffer`
+Values: `BODY_KIND_CODE`, `PHYSICS2D_BRIDGE_SCHEMA_VERSION`, `PHYSICS2D_EVENTS_RING_FORMAT_VERSION`, `PHYSICS_MATERIAL_PRESETS`, `QUALITY_PRESET_CODE`, `readCollisionEventsFromBuffer`
 
 Types: `CollisionEvent`
 

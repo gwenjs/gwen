@@ -17,7 +17,7 @@ async function installPhysics(
 ): Promise<readonly string[]> {
   const plugin = Physics2DPlugin({
     maxEntities: FRAME_LOOP_MAX_ENTITIES,
-    gravity: -9.81,
+    gravity: { y: -9.81 },
   });
   await handle.engine.use(plugin);
   const physics = handle.engine.inject("physics2d");

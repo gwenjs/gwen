@@ -127,8 +127,8 @@ function useBoxCollider(options: BoxColliderOptions): void
 | options.w | `number` | Largeur de la boîte en unités monde |
 | options.h | `number` | Hauteur de la boîte en unités monde |
 | options.isSensor | `boolean` | Si vrai, génère des événements de chevauchement sans réponse physique |
-| options.layer | `number` | Bitmask de couche d'appartenance aux collisions |
-| options.mask | `number` | Bitmask de filtre de collision |
+| options.layer | `LayerSelector` | Couche d'appartenance aux collisions : un nom de `options.layers`, un bitmask, ou une liste des deux |
+| options.mask | `LayerSelector` | Filtre de collision : un nom de `options.layers`, un bitmask, ou une liste des deux |
 | options.offsetX | `number` | Décalage X local par rapport à l'origine de l'acteur |
 | options.offsetY | `number` | Décalage Y local par rapport à l'origine de l'acteur |
 
@@ -153,8 +153,8 @@ function useSphereCollider(options: SphereColliderOptions): void
 |---|---|---|
 | options.radius | `number` | Rayon du cercle en unités monde |
 | options.isSensor | `boolean` | Si vrai, génère des événements de chevauchement sans réponse physique |
-| options.layer | `number` | Bitmask de couche d'appartenance aux collisions |
-| options.mask | `number` | Bitmask de filtre de collision |
+| options.layer | `LayerSelector` | Couche d'appartenance aux collisions : un nom de `options.layers`, un bitmask, ou une liste des deux |
+| options.mask | `LayerSelector` | Filtre de collision : un nom de `options.layers`, un bitmask, ou une liste des deux |
 
 **Retourne:** `void`
 
@@ -173,8 +173,8 @@ function useCapsuleCollider(options: CapsuleColliderOptions): void
 | options.radius | `number` | Rayon de la capsule en unités monde |
 | options.height | `number` | Hauteur totale de la capsule en unités monde |
 | options.isSensor | `boolean` | Si vrai, génère des événements de chevauchement sans réponse physique |
-| options.layer | `number` | Bitmask de couche d'appartenance aux collisions |
-| options.mask | `number` | Bitmask de filtre de collision |
+| options.layer | `LayerSelector` | Couche d'appartenance aux collisions : un nom de `options.layers`, un bitmask, ou une liste des deux |
+| options.mask | `LayerSelector` | Filtre de collision : un nom de `options.layers`, un bitmask, ou une liste des deux |
 
 **Retourne:** `void`
 
@@ -200,7 +200,7 @@ Le plafond par défaut de 400 m/s ralentit un corps dynamique plus rapide. Un de
 
 **Signature:**
 ```ts
-function onContact(handler: (event: ContactEvent) => void): void
+function onContact(handler: (event: CollisionContact) => void): void
 ```
 
 **Description.** Enregistre un gestionnaire pour les événements de collision (quand deux colliders entrent en collision).
@@ -225,11 +225,11 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
 })
 ```
 
-### ContactEvent
+### CollisionContact
 
 **Signature:**
 ```ts
-interface ContactEvent {
+interface CollisionContact {
   entityA: bigint;
   entityB: bigint;
   started: boolean;
@@ -366,7 +366,7 @@ Physics2DPlugin doit être installé en premier, sinon `engine.use` rejette `COR
 
 **Exemple:**
 ```ts
-await engine.use(Physics2DPlugin({ gravity: 0 }))
+await engine.use(Physics2DPlugin({ gravity: { x: 0, y: 0 } }))
 await engine.use(createPhysicsKinematicSyncSystem({ pixelsPerMeter: 50, positionComponent: Position }))
 ```
 
@@ -467,7 +467,7 @@ function physics2dVitePlugin(options?: Physics2DVitePluginOptions): VitePlugin
 > export default defineConfig({
 >   modules: ['@gwenjs/physics2d'],
 >   physics2d: {
->     gravity: -9.81,
+>     gravity: { y: -9.81 },
 >     maxLinearVelocity: 400, // mètres par seconde ; aussi le plafond Rapier après chaque sous-pas
 >     vite: { debug: true },  // Options du plugin Vite (build uniquement)
 >   },
@@ -548,3 +548,19 @@ interface StaticBodyOptions {
   friction?: number;
 }
 ```
+
+### QueryFilterOpts
+
+Filtre de couches optionnel accepté par `queryRadius`, `queryRect` et `pointQuery`.
+
+```ts
+interface QueryFilterOpts {
+  /** Couches auxquelles la forme de requête appartient. Nom, bitmask, ou une liste des deux. */
+  layer?: string | number | readonly (string | number)[];
+  /** Couches que la requête peut toucher. Nom, bitmask, ou une liste des deux. */
+  mask?: string | number | readonly (string | number)[];
+}
+```
+
+Quand ils sont omis, les deux champs valent `0xFFFFFFFF` (toutes les couches).
+
