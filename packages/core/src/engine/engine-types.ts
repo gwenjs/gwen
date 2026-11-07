@@ -407,6 +407,14 @@ declare module "@gwenjs/schema" {
     /** Linear-memory views. Same object as `engine.memory`. */
     memory: EngineMemory;
   }
+
+  /**
+   * Framework plugins other plugins may name.
+   */
+  interface GwenPluginRegistry {
+    "gwen:tween": {};
+    "gwen:scene": {};
+  }
 }
 
 /**

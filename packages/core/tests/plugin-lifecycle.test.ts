@@ -24,6 +24,7 @@ import {
 } from "../src/index";
 import * as core from "../src/index";
 import { createEngine as openEngine } from "../src/node";
+import "./support/plugin-registry";
 
 const engines: GwenEngine[] = [];
 

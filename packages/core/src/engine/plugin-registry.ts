@@ -97,6 +97,17 @@ function requirementName(entry: unknown): string | undefined {
   return entry.name;
 }
 
+/** Runtime shape of one `requires.plugins` entry. Wider than the compile-time registry. */
+type PluginRequirementEntry =
+  | string
+  | { readonly name: string; readonly extensionApi: GwenExtensionApi };
+
+// The compile-time registry is augmented by plugins; the registry itself must not depend on which packages are loaded.
+function requiredPlugins(plugin: GwenPlugin): readonly PluginRequirementEntry[] {
+  const entries: readonly PluginRequirementEntry[] = plugin.requires?.plugins ?? [];
+  return entries;
+}
+
 /**
  * Plugin list, scoped hook capture, and use/unuse.
  * @internal
@@ -237,7 +248,7 @@ export class PluginRegistry {
 
   private _missingRequirements(plugin: GwenPlugin): GwenPluginRequirement[] {
     const requires = plugin.requires;
-    const plugins = requires?.plugins ?? [];
+    const plugins = requiredPlugins(plugin);
     const services = requires?.services ?? [];
     const missing: GwenPluginRequirement[] = [];
     for (const entry of plugins) {
@@ -253,7 +264,7 @@ export class PluginRegistry {
   }
 
   private _extensionApiMismatches(plugin: GwenPlugin): GwenExtensionApiMismatch[] {
-    const plugins = plugin.requires?.plugins ?? [];
+    const plugins = requiredPlugins(plugin);
     const mismatches: GwenExtensionApiMismatch[] = [];
     for (const entry of plugins) {
       if (typeof entry === "string") continue;
@@ -459,7 +470,7 @@ export class PluginRegistry {
     const dependents: string[] = [];
     for (const plugin of this._plugins) {
       const requires = plugin.requires;
-      const needsPlugin = (requires?.plugins ?? []).some((entry) => {
+      const needsPlugin = requiredPlugins(plugin).some((entry) => {
         const requiredName = typeof entry === "string" ? entry : entry.name;
         return requiredName === name;
       });

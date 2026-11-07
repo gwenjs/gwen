@@ -6,6 +6,7 @@ import { createEngine } from "@gwenjs/core/node";
 import type { GwenEngine } from "@gwenjs/core";
 import type { GwenExtensionApi, GwenPlugin } from "@gwenjs/schema";
 import { definePlugin, isExtensionApiCompatible } from "@gwenjs/kit/plugin";
+import "../support/plugin-registry";
 
 const engines: GwenEngine[] = [];
 
@@ -56,7 +57,7 @@ function countPlugin(
 
 function extensionOf(
   name: string,
-  base: string,
+  base: "base",
   major: number,
   minor: number,
   setups: { n: number },

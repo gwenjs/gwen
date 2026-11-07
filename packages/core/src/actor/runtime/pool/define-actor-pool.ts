@@ -16,7 +16,7 @@ import { PoolExhaustedError } from "./errors";
 import type { ActorPool, ActorPoolDefinition, PoolHooks, PoolOptions, PoolStats } from "./types";
 import { useHook } from "../../../hooks/use-hook";
 import { actorTablesFor } from "../define-actor";
-import { uncheckedAt } from "../../../internal/unchecked.js";
+import { ownedPluginName, uncheckedAt } from "../../../internal/unchecked.js";
 import { ActorErrorCodes, GwenActorError } from "../../../engine/engine-errors";
 import { reportRejectedHook } from "../../../hooks/report-rejected-hook.js";
 import { emitActorDisable, emitActorEnable } from "../../../engine/hook-dispatch.js";
@@ -584,7 +584,7 @@ export function defineActorPool<Props, PublicAPI>(
 
   const plugin: GwenPlugin = {
     name: hookSource,
-    requires: { plugins: [actor._plugin.name] },
+    requires: { plugins: [ownedPluginName(actor._plugin)] },
     teardown(): void {
       _engine = null;
       availableCount = 0;
