@@ -117,9 +117,14 @@ function adapterFailureMessage(): string {
 
 it("the plugin object has only name, setup, teardown and the declaration fields", () => {
   expect(typeof api.createPhysicsPlugin).toBe("function");
-  const plugin = api.createPhysicsPlugin("named-plugin", SERVICE_KEY, () => recording("shape").adapter, {
-    defaults: { a: 1 },
-  })();
+  const plugin = api.createPhysicsPlugin(
+    "named-plugin",
+    SERVICE_KEY,
+    () => recording("shape").adapter,
+    {
+      defaults: { a: 1 },
+    },
+  )();
   expect(Object.keys(plugin)).toEqual(["name", "setup", "teardown", "provides", "validateOptions"]);
   expect(plugin.provides).toEqual([SERVICE_KEY]);
   expect(plugin.name).toBe("named-plugin");
@@ -206,9 +211,14 @@ it("stops reaching the adapter after unuse", async () => {
 it("unuse drops the engine's contact and sensor callbacks", async () => {
   expect(typeof api.createPhysicsPlugin).toBe("function");
   const engine = await openEngine();
-  const plugin = api.createPhysicsPlugin("contacts-plugin", SERVICE_KEY, () => recording("contacts").adapter, {
-    defaults: {},
-  })();
+  const plugin = api.createPhysicsPlugin(
+    "contacts-plugin",
+    SERVICE_KEY,
+    () => recording("contacts").adapter,
+    {
+      defaults: {},
+    },
+  )();
   await engine.use(plugin);
   await engine.run(() => {
     api.onContact(() => undefined);
@@ -328,14 +338,24 @@ it("validateOptions returns the declaration issues", () => {
       owner: "physics-test",
     },
   ];
-  const validated = api.createPhysicsPlugin("validate-plugin", SERVICE_KEY, () => recording("validate").adapter, {
-    defaults: { a: 1 },
-    validate: () => issues,
-  })();
+  const validated = api.createPhysicsPlugin(
+    "validate-plugin",
+    SERVICE_KEY,
+    () => recording("validate").adapter,
+    {
+      defaults: { a: 1 },
+      validate: () => issues,
+    },
+  )();
   expect(validated.validateOptions()).toBe(issues);
 
-  const plain = api.createPhysicsPlugin("plain-plugin", SERVICE_KEY, () => recording("plain").adapter, {
-    defaults: { a: 1 },
-  })();
+  const plain = api.createPhysicsPlugin(
+    "plain-plugin",
+    SERVICE_KEY,
+    () => recording("plain").adapter,
+    {
+      defaults: { a: 1 },
+    },
+  )();
   expect(plain.validateOptions()).toEqual([]);
 });

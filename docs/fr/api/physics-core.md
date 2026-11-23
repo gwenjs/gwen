@@ -45,3 +45,7 @@ Un compte de 0 n'écrit rien. Un compte au-delà du pool s'arrête au pool.
 ## Module
 
 `definePhysicsModule` construit un module à partir d'une `PhysicsModuleDefinition`. Son `setup` enregistre la déclaration du plugin avec les options résolues, copie les auto-imports dans l'ordre donné, et ajoute le plugin Vite construit depuis ces options. `defaults` et `validate` restent les objets passés par l'appelant. Un nom vide est rejeté avec le code `KIT:MODULE_INVALID`.
+
+## Plugin
+
+`createPhysicsPlugin` construit un plugin à partir d'un `PhysicsAdapter`. `setup` range `api` sous la clé de service et route `prefab:instantiate`, `entity:destroy`, `engine:before-update` et `engine:update` vers cet adaptateur. `beginFrame`, quand l'adaptateur en a un, tourne à chaque `engine:before-update`. `step` ne tourne que lorsque `dt > 0`. `teardown` vide les callbacks de contact et de capteur de ce moteur, puis appelle `dispose`. Une exception de la fabrique d'adaptateur est l'erreur rejetée par `engine.use`.
