@@ -25,7 +25,9 @@ export const BallActor = defineActor(BallPrefab, () => {
   useSphereCollider({ radius: 0.5 })
 
   onContact((contact) => {
-    console.log('Vitesse d\'impact :', contact.relativeVelocity)
+    if (contact.started) {
+      console.log('Contact', contact.entityA, contact.entityB)
+    }
   })
 
   onUpdate(() => {
@@ -142,12 +144,20 @@ const TerrainActor = defineActor(TerrainPrefab, () => {
 
 ### Options des colliders
 
-**Tous les colliders acceptent :**
+**Boîte, sphère et capsule acceptent :**
 - `offsetX?: number`, `offsetY?: number`, `offsetZ?: number` — Décalage de position locale
 - `isSensor?: boolean` — Événements de chevauchement uniquement, pas de réponse physique
 - `layer?: number | string | Array<number | string>` — Appartenance. Un nombre est un masque brut. Une chaîne est un nom de bit de `Physics3DConfig.layers`. Un tableau est combiné par OU. Appliqué sur le backend WASM seulement.
 - `mask?: number | string | Array<number | string>` — Filtre de collision. Mêmes formes que `layer`.
 - `material?: string` — Nom de preset : `default`, `ice`, `rubber` ou `metal`. Un nom inconnu lève `PHYSICS3D:UNKNOWN_MATERIAL`. Résolu sur le backend WASM seulement.
+
+**Convexe** accepte `isSensor`, `layer`, `mask` et `material` avec le même sens. Il n'a pas de décalage de position.
+
+**Heightfield** accepte `layer`, `mask` et `material` avec le même sens. Il n'a pas de `isSensor` ni de décalage de position.
+
+**Mesh** accepte `offsetX`, `offsetY`, `offsetZ`, `isSensor`, `layer` et `mask` avec le même sens. Il n'a pas de `material`.
+
+**Compound** accepte `layers?: Array<number | string>` (appartenance ; le champ est `layers`, pas `layer`) et `mask?: Array<number | string>`. Il n'a pas de `material`. Chaque forme de `shapes` a son propre décalage et son `isSensor`.
 
 **Collider de boîte :**
 - `w: number` — Largeur (X)
@@ -178,20 +188,19 @@ const TerrainActor = defineActor(TerrainPrefab, () => {
 
 ```ts
 onContact((contact) => {
-  console.log('Entités :', contact.entityA, contact.entityB)
-  console.log('Vitesse :', contact.relativeVelocity)
-  console.log('Point :', contact.contactX, contact.contactY, contact.contactZ)
-  console.log('Normale :', contact.normalX, contact.normalY, contact.normalZ)
+  if (contact.started) {
+    console.log('Entités :', contact.entityA, contact.entityB)
+    console.log('Colliders :', contact.aColliderId, contact.bColliderId)
+  }
 })
 ```
 
 Objet `contact` :
-- `entityA` — ID de la première entité participante
-- `entityB` — ID de la deuxième entité participante
-- `contactX`, `contactY`, `contactZ` — Coordonnées du point de contact en espace monde
-- `normalX`, `normalY`, `normalZ` — Composantes de la normale de contact (vecteur unitaire de B vers A)
-- `relativeVelocity` — Vitesse d'impact relative au point de contact (m/s)
-- `restitution` — Coefficient de restitution effectif au point de contact
+- `entityA` — Identifiant d'entité compacté du premier participant
+- `entityB` — Identifiant d'entité compacté du second participant
+- `aColliderId` — Identifiant de collider du côté A, s'il est présent
+- `bColliderId` — Identifiant de collider du côté B, s'il est présent
+- `started` — `true` quand le contact commence cette frame, `false` quand il se termine
 
 ### Événements des capteurs
 
@@ -465,6 +474,7 @@ body.setVelocity(5, 0, 0)
 body.applyImpulse(0, 10, 0)
 
 // Appliquer une force (N) — newtons, appliquée comme force × dt à chaque frame. L'appeler chaque frame.
+// Une force appliquée dans `onUpdate` est vidée à la frame suivante, après le pas physique de cette frame.
 body.applyForce(0, 20, 0)
 
 // Appliquer un couple (N·m) — force rotationnelle
@@ -530,7 +540,7 @@ const TerrainActor = defineActor(TerrainPrefab, () => {
 - `get velocity(): Vec3` — Vélocité linéaire actuelle.
 - `get angularVelocity(): Vec3` — Vélocité angulaire actuelle.
 - `setVelocity(vx, vy, vz): void` — Définir la vélocité.
-- `applyForce(fx, fy, fz): void` — Newtons, appliquée comme force × dt à chaque frame. L'appeler chaque frame.
+- `applyForce(fx, fy, fz): void` — Newtons, appliquée comme force × dt à chaque frame. L'appeler chaque frame. Une force appliquée dans `onUpdate` est vidée à la frame suivante, après le pas physique de cette frame.
 - `applyImpulse(ix, iy, iz): void` — Appliquer une impulsion instantanée.
 - `applyTorque(tx, ty, tz): void` — Appliquer une force rotationnelle.
 - `enable(): void` — Réactiver si désactivé.

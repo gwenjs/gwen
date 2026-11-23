@@ -13,11 +13,7 @@ export interface MaterialValues {
   density: number;
 }
 
-/**
- * Own keys are the only names that resolve. Inherited keys are misses.
- * `Object.hasOwn` is ES2022. This package's lib is ES2020, so the check uses
- * `Object.prototype.hasOwnProperty.call`.
- */
+/** Own-key map from a material name to its values. */
 export type MaterialTable = Readonly<Record<string, MaterialValues>>;
 
 /** Preset names both dimension packages share. */
@@ -34,6 +30,10 @@ export type SharedMaterialPreset = (typeof SHARED_MATERIAL_PRESETS)[number];
  * Read `name` from `table`.
  * An absent name reads the own `default` row.
  * A name that is not an own key returns `undefined`.
+ *
+ * Own keys are the only names that resolve. Inherited keys are misses.
+ * `Object.hasOwn` is ES2022. This package's lib is ES2020, so the check uses
+ * `Object.prototype.hasOwnProperty.call`.
  *
  * @param name - Preset name. `undefined` means the default row.
  * @param table - Own-key material rows.

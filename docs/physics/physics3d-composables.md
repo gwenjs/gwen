@@ -25,7 +25,9 @@ export const BallActor = defineActor(BallPrefab, () => {
   useSphereCollider({ radius: 0.5 })
 
   onContact((contact) => {
-    console.log('Impact velocity:', contact.relativeVelocity)
+    if (contact.started) {
+      console.log('Contact', contact.entityA, contact.entityB)
+    }
   })
 
   onUpdate(() => {
@@ -142,12 +144,20 @@ const TerrainActor = defineActor(TerrainPrefab, () => {
 
 ### Collider Options
 
-**All colliders accept:**
+**Box, sphere, and capsule accept:**
 - `offsetX?: number`, `offsetY?: number`, `offsetZ?: number` — Local position offset
 - `isSensor?: boolean` — Overlap events only, no physical response
 - `layer?: number | string | Array<number | string>` — Membership. A number is a raw bitmask. A string is a bit name from `Physics3DConfig.layers`. An array is OR-ed. Applied on the WASM backend only.
 - `mask?: number | string | Array<number | string>` — Collision filter. Same shapes as `layer`.
 - `material?: string` — Preset name: `default`, `ice`, `rubber`, or `metal`. An unknown name throws `PHYSICS3D:UNKNOWN_MATERIAL`. Resolved on the WASM backend only.
+
+**Convex** accepts `isSensor`, `layer`, `mask`, and `material` with the same meaning. It has no position offset.
+
+**Heightfield** accepts `layer`, `mask`, and `material` with the same meaning. It has no `isSensor` and no position offset.
+
+**Mesh** accepts `offsetX`, `offsetY`, `offsetZ`, `isSensor`, `layer`, and `mask` with the same meaning. It has no `material`.
+
+**Compound** accepts `layers?: Array<number | string>` (membership; the field is `layers`, not `layer`) and `mask?: Array<number | string>`. It has no `material`. Each shape in `shapes` has its own offset and `isSensor`.
 
 **Box collider:**
 - `w: number` — Width (X)
@@ -178,20 +188,19 @@ const TerrainActor = defineActor(TerrainPrefab, () => {
 
 ```ts
 onContact((contact) => {
-  console.log('Entities:', contact.entityA, contact.entityB)
-  console.log('Speed:', contact.relativeVelocity)
-  console.log('Point:', contact.contactX, contact.contactY, contact.contactZ)
-  console.log('Normal:', contact.normalX, contact.normalY, contact.normalZ)
+  if (contact.started) {
+    console.log('Entities:', contact.entityA, contact.entityB)
+    console.log('Colliders:', contact.aColliderId, contact.bColliderId)
+  }
 })
 ```
 
 `contact` object:
-- `entityA` — Entity ID of the first participant
-- `entityB` — Entity ID of the second participant
-- `contactX`, `contactY`, `contactZ` — World-space contact point coordinates
-- `normalX`, `normalY`, `normalZ` — Contact normal components (unit vector from B to A)
-- `relativeVelocity` — Relative impact speed at the contact point (m/s)
-- `restitution` — Effective restitution coefficient at the contact point
+- `entityA` — Packed entity id of the first participant
+- `entityB` — Packed entity id of the second participant
+- `aColliderId` — Collider id on A when present
+- `bColliderId` — Collider id on B when present
+- `started` — `true` when the contact started this frame, `false` when it ended
 
 ### Sensor Events
 
@@ -465,6 +474,7 @@ body.setVelocity(5, 0, 0)
 body.applyImpulse(0, 10, 0)
 
 // Apply force (N) — newtons, applied as force × dt each frame. Call it every frame.
+// A force applied in `onUpdate` is flushed on the next frame, after that frame's physics step.
 body.applyForce(0, 20, 0)
 
 // Apply torque (N·m) — rotational force
@@ -530,7 +540,7 @@ const TerrainActor = defineActor(TerrainPrefab, () => {
 - `get velocity(): Vec3` — Current linear velocity.
 - `get angularVelocity(): Vec3` — Current angular velocity.
 - `setVelocity(vx, vy, vz): void` — Set velocity.
-- `applyForce(fx, fy, fz): void` — Newtons, applied as force × dt each frame. Call it every frame.
+- `applyForce(fx, fy, fz): void` — Newtons, applied as force × dt each frame. Call it every frame. A force applied in `onUpdate` is flushed on the next frame, after that frame's physics step.
 - `applyImpulse(ix, iy, iz): void` — Apply instantaneous impulse.
 - `applyTorque(tx, ty, tz): void` — Apply rotational force.
 - `enable(): void` — Re-enable if disabled.
