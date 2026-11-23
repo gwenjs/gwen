@@ -463,8 +463,11 @@ it("a rejected physics:collision handler is reported, not thrown", async () => {
   box.owners.set(1, entityA);
   box.owners.set(2, entityB);
   const events: GwenErrorPayload[] = [];
-  engine.errors.on((event) => {
-    events.push(event);
+  const reported = new Promise<void>((resolve) => {
+    engine.errors.on((event) => {
+      events.push(event);
+      if (event.code === "CORE:PLUGIN_RUNTIME_ERROR") resolve();
+    });
   });
   engine.hooks.hook("physics:collision", () => Promise.reject(new Error("collision hook failed")));
   box.frames.push(frame16([[1, 2, 7, 8, true]]));
@@ -474,8 +477,7 @@ it("a rejected physics:collision handler is reported, not thrown", async () => {
   } catch {
     threw = true;
   }
-  // The bus receives the rejection on a later microtask than `engine:update`.
-  for (let index = 0; index < 6; index += 1) await Promise.resolve();
+  await reported;
   expect(threw).toBe(false);
   const hit = events.find((event) => event.code === "CORE:PLUGIN_RUNTIME_ERROR");
   expect(hit?.code).toBe("CORE:PLUGIN_RUNTIME_ERROR");
@@ -619,4 +621,59 @@ it("a frame whose slots have no owner does not call physics:collision or onConta
   expect(collisionCalls).toBe(0);
   expect(received.length).toBe(0);
   expect(box.contactBatches.length).toBe(0);
+});
+
+it("a sensor on a slot with no owner never changes state", async () => {
+  const engine = await openEngine();
+  const box = harness(LAYOUT_16);
+  await usePlugin(engine, "unowned-sensor-plugin", box);
+  box.sensors.set(4, 4);
+  const entered: bigint[] = [];
+  await engine.run(() => {
+    api.onSensorEnter(4, (entityId) => {
+      entered.push(entityId);
+    });
+  });
+  const changed: bigint[] = [];
+  engine.hooks.hook("physics:sensor:changed", (entityId) => {
+    changed.push(entityId);
+  });
+  box.frames.push(frame16([[4, 5, 4, 1, true]]));
+  await update(engine);
+  expect(changed).toEqual([]);
+  expect(entered).toEqual([]);
+});
+
+it("a rejected physics:sensor:changed handler is reported, not thrown", async () => {
+  const engine = await openEngine();
+  const box = harness(LAYOUT_16);
+  await usePlugin(engine, "reject-sensor-plugin", box);
+  const entityA = engine.createEntity();
+  const entityB = engine.createEntity();
+  box.owners.set(1, entityA);
+  box.owners.set(2, entityB);
+  box.sensors.set(1, 4);
+  const events: GwenErrorPayload[] = [];
+  const reported = new Promise<void>((resolve) => {
+    engine.errors.on((event) => {
+      events.push(event);
+      if (event.code === "CORE:PLUGIN_RUNTIME_ERROR") resolve();
+    });
+  });
+  engine.hooks.hook("physics:sensor:changed", () =>
+    Promise.reject(new Error("sensor hook failed")),
+  );
+  box.frames.push(frame16([[1, 2, 4, 1, true]]));
+  let threw = false;
+  try {
+    await update(engine);
+  } catch {
+    threw = true;
+  }
+  await reported;
+  expect(threw).toBe(false);
+  const hit = events.find((event) => event.code === "CORE:PLUGIN_RUNTIME_ERROR");
+  expect(hit?.code).toBe("CORE:PLUGIN_RUNTIME_ERROR");
+  expect(hit?.message).toBe("sensor hook failed");
+  expect(hit?.source).toBe("reject-sensor-plugin");
 });

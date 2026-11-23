@@ -359,3 +359,15 @@ it("validateOptions returns the declaration issues", () => {
   )();
   expect(plain.validateOptions()).toEqual([]);
 });
+
+it("stopping the engine with the plugin installed disposes the adapter once", async () => {
+  expect(typeof api.createPhysicsPlugin).toBe("function");
+  const engine = await openEngine();
+  const record = recording("stopped");
+  const plugin = api.createPhysicsPlugin("stop-plugin", SERVICE_KEY, () => record.adapter, {
+    defaults: {},
+  })();
+  await engine.use(plugin);
+  await engine.stop();
+  expect(record.disposes).toEqual([0]);
+});
