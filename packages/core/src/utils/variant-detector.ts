@@ -2,7 +2,7 @@
  * Core variant detector for GWEN.
  *
  * Determines which core WASM variant (light, physics2d, physics3d) to use
- * based on the plugins declared in the project configuration.
+ * from the modules declared in the project configuration.
  */
 
 import type { CoreVariant } from "../engine/wasm-bridge";
@@ -19,22 +19,24 @@ interface VariantConfig {
  * Determine the core WASM variant from the project configuration.
  *
  * Rules (in order of priority):
- * 1. If 'Physics3D' plugin or '@gwenjs/physics3d' module is present → 'physics3d'
- * 2. If 'Physics2D' plugin or '@gwenjs/physics2d' module is present → 'physics2d'
+ * 1. If '@gwenjs/physics3d' module is present → 'physics3d'
+ * 2. If '@gwenjs/physics2d' module is present → 'physics2d'
  * 3. Default → 'light'
+ *
+ * `plugins` is ignored. Plugin display names never matched the real package names
+ * (`@gwenjs/physics2d`, `@gwenjs/physics3d`).
  *
  * @param config - The loaded gwen.config object
  * @returns The detected CoreVariant
  */
 export function detectCoreVariant(config: VariantConfig): CoreVariant {
   const moduleNames = resolveModuleNames(config.modules);
-  const pluginNames = Array.isArray(config.plugins) ? config.plugins.map((p) => p.name) : [];
 
-  if (pluginNames.includes("Physics3D") || moduleNames.includes("@gwenjs/physics3d")) {
+  if (moduleNames.includes("@gwenjs/physics3d")) {
     return "physics3d";
   }
 
-  if (pluginNames.includes("Physics2D") || moduleNames.includes("@gwenjs/physics2d")) {
+  if (moduleNames.includes("@gwenjs/physics2d")) {
     return "physics2d";
   }
 
