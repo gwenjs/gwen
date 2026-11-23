@@ -393,3 +393,90 @@ describe("peers check", () => {
     ]);
   });
 });
+
+describe("peers check: unused peers", () => {
+  const PEER_UNUSED = "CONFORMANCE:PEER_UNUSED";
+  const KIT = "@gwenjs/kit";
+  const RENDERER = "@gwenjs/renderer-core";
+
+  function unusedMessage(name: string): string {
+    return `peer ${JSON.stringify(name)} is declared but src never uses it`;
+  }
+
+  function unusedHint(name: string): string {
+    return `Remove ${JSON.stringify(name)} from peerDependencies, or import it from src.`;
+  }
+
+  it("reports a declared peer that is never imported", async () => {
+    // line 4: peerDependencies "@gwenjs/kit". src/a.ts imports core only.
+    // src/kit.test.ts, src/__tests__/k.ts and tests/b.test.ts import kit.
+    const fixture = await open(
+      { peerDependencies: { [CORE]: rangeOf(CORE), [KIT]: rangeOf(KIT) } },
+      {
+        "src/a.ts": `import ${JSON.stringify(CORE)};\n`,
+        "src/kit.test.ts": `import ${JSON.stringify(KIT)};\n`,
+        "src/__tests__/k.ts": `import ${JSON.stringify(KIT)};\n`,
+        "tests/b.test.ts": `import ${JSON.stringify(KIT)};\n`,
+      },
+    );
+    const bare = await open({ peerDependencies: { "left-pad": "*" } });
+
+    const report = await run(fixture.root);
+    const bareReport = await run(bare.root);
+    expect(peersOf(report).map(shaped)).toEqual([
+      peerFinding(PEER_UNUSED, unusedMessage(KIT), unusedHint(KIT), 4),
+    ]);
+    expect(bareReport.checks).toContain("peers");
+    expect(peersOf(bareReport)).toEqual([]);
+  });
+
+  it("counts a declare module of the package as a use", async () => {
+    // line 5: peerDependencies "@gwenjs/renderer-core". schema and kit are declared, not imported.
+    // tests/types.d.ts declares renderer-core and must not count.
+    const fixture = await open(
+      {
+        peerDependencies: {
+          "@gwenjs/schema": rangeOf("@gwenjs/schema"),
+          [KIT]: rangeOf(KIT),
+          [RENDERER]: rangeOf(RENDERER),
+        },
+      },
+      {
+        "src/augment.d.ts":
+          'export {};\ndeclare module "@gwenjs/schema" { interface GwenProvides { x: number } }\n',
+        "src/kit.ts": 'export {};\ndeclare module "@gwenjs/kit" {}\n',
+        "tests/types.d.ts": 'declare module "@gwenjs/renderer-core" {}\n',
+      },
+    );
+
+    const report = await run(fixture.root);
+    expect(peersOf(report).map(shaped)).toEqual([
+      peerFinding(PEER_UNUSED, unusedMessage(RENDERER), unusedHint(RENDERER), 5),
+    ]);
+  });
+
+  it("counts a subpath and a type-only import as a use", async () => {
+    // line 5: peerDependencies "@gwenjs/renderer-core". core and kit are type-only subpath uses.
+    const fixture = await open(
+      {
+        peerDependencies: {
+          [CORE]: rangeOf(CORE),
+          [KIT]: rangeOf(KIT),
+          [RENDERER]: rangeOf(RENDERER),
+        },
+      },
+      {
+        "src/a.ts": [
+          `import type { X } from ${JSON.stringify(`${CORE}/system`)};`,
+          `export type { Y } from ${JSON.stringify(`${KIT}/plugin`)};`,
+          "",
+        ].join("\n"),
+      },
+    );
+
+    const report = await run(fixture.root);
+    expect(peersOf(report).map(shaped)).toEqual([
+      peerFinding(PEER_UNUSED, unusedMessage(RENDERER), unusedHint(RENDERER), 5),
+    ]);
+  });
+});
