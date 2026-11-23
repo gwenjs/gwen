@@ -1,13 +1,19 @@
 /**
  * @file useDynamicBody() — registers a fully simulated 3D physics body for the current actor.
  */
+import { onBeforeUpdate } from "@gwenjs/core/system";
+import { _getActorEntityId } from "@gwenjs/core/internal";
 import type { Vec3 } from "@gwenjs/math";
 import type { DynamicBodyOptions3D, DynamicBodyHandle3D, Physics3DBodyOptions } from "../types";
 import { usePhysics3D } from "../composables";
-import { _getActorEntityId } from "@gwenjs/core/internal";
 
 /** Zero vector returned when body is inactive. Reused to avoid allocation. */
 const ZERO_VEC3: Vec3 = Object.freeze({ x: 0, y: 0, z: 0 });
+
+/** Fresh sums for one body. Two actors must not share this object. */
+function newForceAccum(): { x: number; y: number; z: number } {
+  return { x: 0, y: 0, z: 0 };
+}
 
 /**
  * Registers the current actor's entity as a fully simulated 3D physics body.
@@ -57,6 +63,21 @@ export function useDynamicBody(options: DynamicBodyOptions3D = {}): DynamicBodyH
 
   let _handle = physics.createBody(entityId, creationOptions);
   let _active = true;
+  const acc = newForceAccum();
+  const impulse = { x: 0, y: 0, z: 0 };
+
+  onBeforeUpdate((dt: number) => {
+    const usable = _active && Number.isFinite(dt) && dt > 0;
+    if (usable && (acc.x !== 0 || acc.y !== 0 || acc.z !== 0)) {
+      impulse.x = acc.x * dt;
+      impulse.y = acc.y * dt;
+      impulse.z = acc.z * dt;
+      physics.applyImpulse(entityId, impulse);
+    }
+    acc.x = 0;
+    acc.y = 0;
+    acc.z = 0;
+  });
 
   return {
     get bodyId() {
@@ -79,10 +100,10 @@ export function useDynamicBody(options: DynamicBodyOptions3D = {}): DynamicBodyH
     },
 
     /**
-     * Apply a continuous linear force to the body in N.
+     * Apply a continuous linear force to the body in newtons.
      *
-     * Internally mapped to {@link Physics3DAPI.applyImpulse} since the Rapier3D
-     * WASM bridge processes forces as per-step impulses. No-op when body is inactive.
+     * Accumulated and applied as one impulse each frame, scaled by dt.
+     * Call it every frame to sustain the force. No-op when the body is inactive.
      *
      * @param fx - Force X component in N.
      * @param fy - Force Y component in N.
@@ -90,7 +111,9 @@ export function useDynamicBody(options: DynamicBodyOptions3D = {}): DynamicBodyH
      */
     applyForce(fx: number, fy: number, fz: number): void {
       if (!_active) return;
-      physics.applyImpulse(entityId, { x: fx, y: fy, z: fz });
+      acc.x += fx;
+      acc.y += fy;
+      acc.z += fz;
     },
 
     /**

@@ -20,7 +20,7 @@ import "./augment";
  * export const gravitySystem = defineSystem(() => {
  *   const physics = usePhysics3D()
  *   onUpdate((dt) => {
- *     physics.applyForce(entityId, 0, -9.81 * dt, 0)
+ *     physics.applyImpulse(entityId, { x: 0, y: -9.81 * dt, z: 0 })
  *   })
  * })
  * ```
