@@ -13,6 +13,8 @@ import { gwenSystemPlugin } from "./system.js";
 import { gwenAsyncContextPlugin } from "./async-context.js";
 import { gwenQueryHoistPlugin } from "./query-hoist.js";
 import { gwenDevStripPlugin } from "./dev-strip.js";
+import { BUILT_IN_UNITS } from "../pipeline/registry.js";
+import { createTransformPipeline } from "../pipeline/transform-pipeline.js";
 import type { GwenViteOptions } from "../types.js";
 import type { PluginOption } from "vite";
 
@@ -100,6 +102,7 @@ function resolveOptimizerOptions(
 export function gwenVitePlugin(options: GwenViteOptions = {}): PluginOption {
   return [
     gwenWasmPlugin(options),
+    createTransformPipeline({ units: BUILT_IN_UNITS }),
     gwenAutoImportsPlugin(options),
     gwenVirtualPlugin(options),
     gwenActorPlugin(options),

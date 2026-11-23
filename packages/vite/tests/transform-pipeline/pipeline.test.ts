@@ -1,10 +1,12 @@
 /**
  * Red tests for one parse per module and an ordered edit registry.
- * Column of a parse error is 1-based, counted from `labels[0].start`
+ * The message column is 1-based, counted from `labels[0].start`
  * (`packages/vite/node_modules/oxc-parser/src-js/index.d.ts:24-27`).
+ * `loc.column` is that value minus 1: Vite reads `err.loc.column` as 0-based.
  */
 
 import { describe, expect, it } from "vitest";
+import { ViteErrorCodes } from "../../src/error-codes.js";
 import { createTransformPipeline } from "../../src/pipeline/transform-pipeline.js";
 import type { GwenSourceTransform, TransformEdit } from "../../src/pipeline/types.js";
 import { applyTransform, mapCheck, preparePipeline, runPipeline, testInsert } from "./helpers.js";
@@ -132,7 +134,8 @@ describe("gwen:transform-pipeline", () => {
   });
 
   it("overlapping edits from two units raise VITE:TRANSFORM_EDIT_CONFLICT naming both units", async () => {
-    const source = "0123456789abcdefghijklmnop";
+    // The pipeline parses before it applies edits, so this source has to be a module.
+    const source = "export const value = 1234567890;\n";
     const overlap: GwenSourceTransform[] = [
       {
         name: "gwen:a",
@@ -169,7 +172,7 @@ describe("gwen:transform-pipeline", () => {
   });
 
   it("a syntax error raises VITE:TRANSFORM_PARSE_FAILED with file, line and column", async () => {
-    // Probe: labels[0].start 32 → line 3, column 7 (1-based line and column).
+    // Probe: labels[0].start 32 → line 3, message column 7 (1-based). loc.column is 6.
     const source = "const a = 1;\nconst b = 2;\nconst =\n";
     await expect(runPipeline(source, { id: "/src/x.ts" })).rejects.toSatisfy((error: unknown) => {
       const message = readString(error, "message");
@@ -181,7 +184,7 @@ describe("gwen:transform-pipeline", () => {
         loc !== undefined &&
         loc.file === "/src/x.ts" &&
         loc.line === 3 &&
-        loc.column === 7
+        loc.column === 6
       );
     });
   });
@@ -197,6 +200,7 @@ describe("gwen:transform-pipeline", () => {
     };
     const ids = [
       "\0virtual:x",
+      "\0virtual:x.ts",
       "/node_modules/a/b.js",
       "/src/a.d.ts",
       "/src/a.css",
@@ -235,5 +239,137 @@ export const marked = tag();
         message.includes("register() was called after configResolved.")
       );
     });
+  });
+
+  it("ctx.raise reaches the host error with code, file, line and column", async () => {
+    // `const a = 1;\nconst ` is 19 chars. Offset 19 is `b` on line 2, message column 7.
+    // loc.column is 6 (Vite reads the loc object as 0-based).
+    const source = "const a = 1;\nconst b = 2;\nconst c = 3;\n";
+    const node = { start: 19, end: 20 };
+    const hinted: GwenSourceTransform = {
+      name: "gwen:raise",
+      run(_program, ctx) {
+        return ctx.raise(ViteErrorCodes.TRANSFORM_UNSUPPORTED, node, "what text", "a hint");
+      },
+    };
+    const plain: GwenSourceTransform = {
+      name: "gwen:raise",
+      run(_program, ctx) {
+        return ctx.raise(ViteErrorCodes.TRANSFORM_UNSUPPORTED, node, "what text");
+      },
+    };
+    const matchesHost = (error: unknown, fix: string | undefined): boolean => {
+      const message = readString(error, "message");
+      const loc = readLoc(error);
+      if (message === undefined || loc === undefined) return false;
+      const fixLine = message.split("\n").some((line) => line.startsWith("Fix:"));
+      return (
+        readString(error, "code") === ViteErrorCodes.TRANSFORM_UNSUPPORTED &&
+        message.startsWith("[gwen()] ") &&
+        message.includes("what text") &&
+        (fix === undefined ? fixLine === false : message.includes(fix)) &&
+        loc.file === "/src/x.ts" &&
+        loc.line === 2 &&
+        loc.column === 6
+      );
+    };
+
+    const previous = process.env["NODE_ENV"];
+    process.env["NODE_ENV"] = "development";
+    try {
+      await expect(runPipeline(source, { id: "/src/x.ts", units: [hinted] })).rejects.toSatisfy(
+        (error: unknown) => matchesHost(error, "Fix: a hint"),
+      );
+    } finally {
+      if (previous === undefined) delete process.env["NODE_ENV"];
+      else process.env["NODE_ENV"] = previous;
+    }
+
+    await expect(runPipeline(source, { id: "/src/x.ts", units: [plain] })).rejects.toSatisfy(
+      (error: unknown) => matchesHost(error, undefined),
+    );
+  });
+
+  it("a query on the id does not change the parse dialect", async () => {
+    const worker = "const a: number = 1;\nexport const marked = tag();\n";
+    const jsx = "export const view = <div />;\nexport const marked = tag();\n";
+    await expect(
+      runPipeline(worker, {
+        id: "/src/w.ts?worker_file&type=module",
+        units: [testInsert],
+      }),
+    ).resolves.toEqual(expect.objectContaining({ code: expect.stringContaining("/*X*/") }));
+    await expect(runPipeline(jsx, { id: "/src/a.tsx?x", units: [testInsert] })).resolves.toEqual(
+      expect.objectContaining({ code: expect.stringContaining("/*X*/") }),
+    );
+  });
+
+  it("NODE_ENV production removes the Fix line for parse errors and ctx.raise", async () => {
+    const broken = "const a = 1;\nconst b = 2;\nconst =\n";
+    const valid = "const a = 1;\nconst b = 2;\nconst c = 3;\n";
+    const node = { start: 19, end: 20 };
+    const hinted: GwenSourceTransform = {
+      name: "gwen:raise",
+      run(_program, ctx) {
+        return ctx.raise(ViteErrorCodes.TRANSFORM_UNSUPPORTED, node, "what", "a hint");
+      },
+    };
+    const hasFix = (error: unknown): boolean => {
+      const message = readString(error, "message");
+      if (message === undefined) return false;
+      return message.split("\n").some((line) => line.startsWith("Fix:"));
+    };
+    const withNodeEnv = async (nodeEnv: string, run: () => Promise<void>): Promise<void> => {
+      const previous = process.env["NODE_ENV"];
+      process.env["NODE_ENV"] = nodeEnv;
+      try {
+        await run();
+      } finally {
+        if (previous === undefined) delete process.env["NODE_ENV"];
+        else process.env["NODE_ENV"] = previous;
+      }
+    };
+
+    await withNodeEnv("production", async () => {
+      await expect(runPipeline(broken, { id: "/src/x.ts" })).rejects.toSatisfy(
+        (error: unknown) => hasFix(error) === false,
+      );
+      await expect(runPipeline(valid, { id: "/src/x.ts", units: [hinted] })).rejects.toSatisfy(
+        (error: unknown) => hasFix(error) === false,
+      );
+    });
+    await withNodeEnv("development", async () => {
+      await expect(runPipeline(broken, { id: "/src/x.ts" })).rejects.toSatisfy((error: unknown) => {
+        const message = readString(error, "message");
+        return message !== undefined && message.includes("Fix: Fix the syntax error");
+      });
+      await expect(runPipeline(valid, { id: "/src/x.ts", units: [hinted] })).rejects.toSatisfy(
+        (error: unknown) => {
+          const message = readString(error, "message");
+          return message !== undefined && message.includes("Fix: a hint");
+        },
+      );
+    });
+  });
+
+  it("registered units run after built-ins and api.names follows the frozen order", async () => {
+    const order: string[] = [];
+    const unit = (label: "a" | "b"): GwenSourceTransform => ({
+      name: `gwen:${label}`,
+      run() {
+        order.push(label);
+        return [];
+      },
+    });
+    const plugin = createTransformPipeline({ units: [unit("a")] });
+    plugin.api.register(unit("b"));
+    expect(plugin.api.names).toEqual(["gwen:a", "gwen:b"]);
+    await preparePipeline(plugin);
+    expect(plugin.api.names).toEqual(["gwen:a", "gwen:b"]);
+    await applyTransform(plugin, "export const value = 1;\n", "/src/x.ts");
+    expect(order).toEqual(["a", "b"]);
+
+    const other = createTransformPipeline({ units: [unit("a")] });
+    expect(other.api.names).toEqual(["gwen:a"]);
   });
 });
