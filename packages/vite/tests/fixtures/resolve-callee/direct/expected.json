@@ -1,0 +1,4 @@
+[
+  { "callee": "defineSystem", "call": "defineSystem(() => 1)" },
+  { "callee": "defineSystem", "call": "G.defineSystem(() => 1)" }
+]

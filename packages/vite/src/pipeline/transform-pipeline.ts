@@ -8,12 +8,20 @@
 
 import type { CallExpression, Program } from "oxc-parser";
 import type { Plugin } from "vite";
+import type { AutoImport } from "@gwenjs/kit";
 import { GwenError } from "@gwenjs/schema";
 import { ViteErrorCodes } from "../error-codes.js";
 import { applyEdits } from "./apply-edits.js";
 import { devHint } from "./dev-hint.js";
 import { lineColumn, parseModule, pathWithoutQuery } from "./parse.js";
-import type { GwenCallee, GwenSourceTransform, TransformContext, TransformEdit } from "./types.js";
+import type {
+  GwenCallee,
+  GwenCallSite,
+  GwenImportBinding,
+  GwenSourceTransform,
+  TransformContext,
+  TransformEdit,
+} from "./types.js";
 
 /** In-plugin handle. `register` is refused after `configResolved`. */
 export interface GwenTransformPipelineApi {
@@ -167,6 +175,12 @@ function createContext(
       if (node.callee.type !== "Identifier") return null;
       return callees.get(node.callee.name) ?? null;
     },
+    calls(): readonly GwenCallSite[] {
+      return [];
+    },
+    resolveImport(): GwenImportBinding | null {
+      return null;
+    },
     isModuleScopeBinding(name: string, at: number): boolean {
       if (at < 0 || at > code.length) return false;
       return topLevel.has(name);
@@ -185,6 +199,7 @@ function createContext(
 
 export function createTransformPipeline(options: {
   units: GwenSourceTransform[];
+  autoImports?: readonly AutoImport[];
 }): Plugin & { api: GwenTransformPipelineApi } {
   const builtIns = [...options.units];
   const registered: GwenSourceTransform[] = [];

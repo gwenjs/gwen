@@ -7,12 +7,66 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { originalPositionFor, TraceMap } from "@jridgewell/trace-mapping";
+import type { AutoImport } from "@gwenjs/kit";
 import { walk } from "oxc-walker";
 import { expect } from "vitest";
 import type { Plugin, ResolvedConfig } from "vite";
 import { resolveConfig } from "vite";
 import { createTransformPipeline } from "../../src/pipeline/transform-pipeline.js";
-import type { GwenSourceTransform, TransformEdit } from "../../src/pipeline/types.js";
+import type { GwenCallSite, GwenSourceTransform, TransformEdit } from "../../src/pipeline/types.js";
+
+/** One resolved callee and the source text of its call, in source order. */
+export interface CalleeRecord {
+  readonly callee: string;
+  readonly call: string;
+}
+
+/** Both reads of `ctx.calls()` from one module. */
+export interface CallProbeResult {
+  readonly calls: readonly GwenCallSite[];
+  readonly again: readonly GwenCallSite[];
+}
+
+let calleeRecords: readonly CalleeRecord[] = [];
+let callProbeResult: CallProbeResult = { calls: [], again: [] };
+
+/** Records `{ callee, call }` for every call `resolveCallee` accepts. */
+export const probeCallees: GwenSourceTransform = {
+  name: "gwen:probe-callees",
+  run(program, ctx) {
+    const found: CalleeRecord[] = [];
+    walk(program, {
+      enter(node) {
+        if (node.type !== "CallExpression") return;
+        const callee = ctx.resolveCallee(node);
+        if (callee === null) return;
+        found.push({ callee, call: ctx.code.slice(node.start, node.end) });
+      },
+    });
+    calleeRecords = found;
+    return [];
+  },
+};
+
+/** Reads `ctx.calls()` twice so a test can check identity and contents. */
+export const probeCalls: GwenSourceTransform = {
+  name: "gwen:probe-calls",
+  run(program, ctx) {
+    void program;
+    const calls = ctx.calls();
+    const again = ctx.calls();
+    callProbeResult = { calls, again };
+    return [];
+  },
+};
+
+export function readCalleeRecords(): readonly CalleeRecord[] {
+  return calleeRecords;
+}
+
+export function readCallProbe(): CallProbeResult {
+  return callProbeResult;
+}
 
 /** Inserts the X marker before every call whose callee identifier is `tag`. */
 export const testInsert: GwenSourceTransform = {
@@ -39,6 +93,8 @@ interface PipelineHost {
 interface RunOptions {
   id?: string;
   units?: GwenSourceTransform[];
+  autoImports?: readonly AutoImport[];
+  root?: string;
   resolveId?: (
     source: string,
     importer: string | undefined,
@@ -54,6 +110,7 @@ export interface PipelineCode {
 }
 
 let serveConfig: Promise<ResolvedConfig> | undefined;
+const rootedConfigs = new Map<string, Promise<ResolvedConfig>>();
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -117,9 +174,16 @@ function pipelineCode(value: unknown): PipelineCode | null {
   return { code, map };
 }
 
-function cachedServeConfig(): Promise<ResolvedConfig> {
-  serveConfig ??= resolveConfig({ configFile: false, logLevel: "silent" }, "serve");
-  return serveConfig;
+function cachedServeConfig(root?: string): Promise<ResolvedConfig> {
+  if (root === undefined) {
+    serveConfig ??= resolveConfig({ configFile: false, logLevel: "silent" }, "serve");
+    return serveConfig;
+  }
+  const found = rootedConfigs.get(root);
+  if (found !== undefined) return found;
+  const created = resolveConfig({ configFile: false, logLevel: "silent", root }, "serve");
+  rootedConfigs.set(root, created);
+  return created;
 }
 
 function buildStartOptions(): Parameters<BuildStartFn>[0] {
@@ -140,13 +204,15 @@ function buildStartOptions(): Parameters<BuildStartFn>[0] {
 export async function preparePipeline(
   plugin: Plugin,
   resolveId?: RunOptions["resolveId"],
+  root?: string,
 ): Promise<void> {
   const host = createHost(resolveId);
+  const config = await cachedServeConfig(root);
   const configResolved = plugin.configResolved;
   if (typeof configResolved === "function") {
-    await configResolved.call(host as never, await cachedServeConfig());
+    await configResolved.call(host as never, config);
   } else if (configResolved !== undefined && configResolved !== null) {
-    await configResolved.handler.call(host as never, await cachedServeConfig());
+    await configResolved.handler.call(host as never, config);
   }
   const buildStart = plugin.buildStart;
   if (typeof buildStart === "function") {
@@ -177,8 +243,12 @@ export async function runPipeline(
   code: string,
   options: RunOptions = {},
 ): Promise<PipelineCode | null> {
-  const plugin = createTransformPipeline({ units: options.units ?? [] });
-  await preparePipeline(plugin, options.resolveId);
+  const units = options.units ?? [];
+  const plugin =
+    options.autoImports === undefined
+      ? createTransformPipeline({ units })
+      : createTransformPipeline({ units, autoImports: options.autoImports });
+  await preparePipeline(plugin, options.resolveId, options.root);
   return applyTransform(plugin, code, options.id ?? "/src/x.ts", options.resolveId);
 }
 
@@ -195,6 +265,53 @@ export function fixtureCase(dir: string): {
   const parsed: unknown = JSON.parse(readFileSync(errorPath, "utf8"));
   const code = isRecord(parsed) ? parsed["code"] : undefined;
   return { input, output, errorCode: typeof code === "string" ? code : undefined };
+}
+
+function readCalleeExpected(value: unknown): CalleeRecord[] {
+  if (!Array.isArray(value)) throw new Error("expected.json must be an array");
+  const hits: CalleeRecord[] = [];
+  for (const item of value) {
+    if (!isRecord(item)) throw new Error("expected.json entry must be an object");
+    const callee = item["callee"];
+    const call = item["call"];
+    if (typeof callee !== "string" || typeof call !== "string") {
+      throw new Error("expected.json entry must be { callee, call }");
+    }
+    hits.push({ callee, call });
+  }
+  return hits;
+}
+
+function readAutoImportEntry(item: unknown): AutoImport {
+  if (!isRecord(item)) throw new Error("auto-imports.json entry must be an object");
+  const name = item["name"];
+  const from = item["from"];
+  const alias = item["as"];
+  if (typeof name !== "string" || typeof from !== "string") {
+    throw new Error("auto-imports.json entry needs name and from");
+  }
+  if (alias === undefined) return { name, from };
+  if (typeof alias !== "string") throw new Error("auto-imports.json as must be a string");
+  return { name, from, as: alias };
+}
+
+function readAutoImports(dir: string): readonly AutoImport[] {
+  const autoPath = join(dir, "auto-imports.json");
+  if (!existsSync(autoPath)) return [];
+  const parsed: unknown = JSON.parse(readFileSync(autoPath, "utf8"));
+  if (!Array.isArray(parsed)) throw new Error("auto-imports.json must be an array");
+  return parsed.map((item) => readAutoImportEntry(item));
+}
+
+/** Read `input.ts`, `expected.json`, and optional `auto-imports.json`. */
+export function calleeFixture(dir: string): {
+  input: string;
+  expected: readonly CalleeRecord[];
+  autoImports: readonly AutoImport[];
+} {
+  const input = readFileSync(join(dir, "input.ts"), "utf8");
+  const parsed: unknown = JSON.parse(readFileSync(join(dir, "expected.json"), "utf8"));
+  return { input, expected: readCalleeExpected(parsed), autoImports: readAutoImports(dir) };
 }
 
 /**

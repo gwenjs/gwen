@@ -1,10 +1,10 @@
 /**
  * Internal types for the one-pass source transform pipeline.
- * Public schema types are a later PR. Only oxc `Program`, `CallExpression`
- * and `Comment` are imported here.
+ * Public schema types are a later PR. Only oxc `Program`, `CallExpression`,
+ * `Comment` and `Node` are imported here.
  */
 
-import type { CallExpression, Comment, Program } from "oxc-parser";
+import type { CallExpression, Comment, Node, Program } from "oxc-parser";
 import { ViteErrorCodes } from "../error-codes.js";
 
 /** One value of {@link ViteErrorCodes}. */
@@ -40,6 +40,41 @@ export type TransformEdit =
   | { kind: "overwrite"; start: number; end: number; text: string }
   | { kind: "remove"; start: number; end: number };
 
+/** Offsets in the original source. */
+export interface GwenSourceRange {
+  readonly start: number;
+  readonly end: number;
+}
+
+/**
+ * One AST node in the call-site contract.
+ * Vite-internal until the schema types land (P-66-6).
+ * An oxc node has no string index signature, so `resolveImport` takes `Node`.
+ */
+export interface GwenAstNode extends GwenSourceRange {
+  readonly type: string;
+  readonly [field: string]: unknown;
+}
+
+/** Barrel followed to its origin. A default import uses `imported` `"default"`. */
+export interface GwenImportBinding {
+  readonly source: string;
+  readonly imported: string;
+}
+
+/** One argument of a call. Anything except a string or number literal is `other`. */
+export type GwenAstArgument =
+  | ({ readonly kind: "string"; readonly value: string } & GwenSourceRange)
+  | ({ readonly kind: "number"; readonly value: number } & GwenSourceRange)
+  | ({ readonly kind: "other"; readonly node: GwenAstNode } & GwenSourceRange);
+
+/** One call in source order. `binding` is null when the callee is unresolved. */
+export interface GwenCallSite extends GwenSourceRange {
+  readonly binding: GwenImportBinding | null;
+  readonly arguments: readonly GwenAstArgument[];
+  readonly node: GwenAstNode;
+}
+
 /**
  * Per-module context shared by every unit.
  * `hint` is `string | undefined` so a prod ternary typechecks
@@ -50,6 +85,8 @@ export interface TransformContext {
   readonly code: string;
   readonly comments: readonly Comment[];
   resolveCallee(node: CallExpression): GwenCallee | null;
+  calls(): readonly GwenCallSite[];
+  resolveImport(node: Node): GwenImportBinding | null;
   isModuleScopeBinding(name: string, at: number): boolean;
   emitFile?(asset: { type: "asset"; name: string; source: Uint8Array }): string;
   raise(
