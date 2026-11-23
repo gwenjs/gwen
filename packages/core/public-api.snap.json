@@ -18,6 +18,7 @@
       "GwenPluginOptionsError",
       "GwenPluginProvideError",
       "GwenPluginShapeError",
+      "GwenScenePreloadError",
       "GwenSceneRouterError",
       "GwenWasmAbiError",
       "GwenWasmError",

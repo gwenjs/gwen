@@ -8,6 +8,7 @@ import {
   GwenContextError,
   GwenEngineStateError,
   GwenPluginNotFoundError,
+  GwenScenePreloadError,
   GwenWasmAbiError,
   GwenWasmError,
   GwenWasmPanicError,
@@ -66,6 +67,10 @@ const rows: ReadonlyArray<{ readonly name: string; make: () => object }> = [
   {
     name: "GwenContextError",
     make: () => new GwenContextError("CORE:OUTSIDE_ACTOR_CONTEXT", "useTransform"),
+  },
+  {
+    name: "GwenScenePreloadError",
+    make: () => new GwenScenePreloadError({ scene: "level", from: null, cause: new Error("x") }),
   },
   {
     name: "PoolExhaustedError",
