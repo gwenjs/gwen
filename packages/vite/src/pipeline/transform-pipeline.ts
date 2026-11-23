@@ -1,12 +1,11 @@
 /**
  * One AST pass per module. Units share that program and never re-parse.
- * `resolveCallee` matches a direct named import of a canonical callee only.
- * Alias, namespace, barrel, and auto-import are P-66-1b.
- * `isModuleScopeBinding` is true only for a top-level binding. Nested
- * shadowing is also P-66-1b (a ScopeTracker walk), not this stub.
+ * Callees resolve through the import binding, the scope index and auto-imports.
+ * `autoImports` is read when a module is transformed.
+ * Barrel results arrive later through `followed`; this pass leaves that map empty.
  */
 
-import type { CallExpression, Program } from "oxc-parser";
+import type { Program } from "oxc-parser";
 import type { Plugin } from "vite";
 import type { AutoImport } from "@gwenjs/kit";
 import { GwenError } from "@gwenjs/schema";
@@ -14,9 +13,8 @@ import { ViteErrorCodes } from "../error-codes.js";
 import { applyEdits } from "./apply-edits.js";
 import { devHint } from "./dev-hint.js";
 import { lineColumn, parseModule, pathWithoutQuery } from "./parse.js";
+import { createModuleResolver } from "./resolve-callee.js";
 import type {
-  GwenCallee,
-  GwenCallSite,
   GwenImportBinding,
   GwenSourceTransform,
   TransformContext,
@@ -29,102 +27,12 @@ export interface GwenTransformPipelineApi {
   readonly names: readonly string[];
 }
 
-const CANONICAL_CALLEES: readonly GwenCallee[] = [
-  "defineSystem",
-  "onUpdate",
-  "useQuery",
-  "useComponent",
-  "defineScene",
-  "onEnter",
-  "onExit",
-  "onPreload",
-  "onTransitionExit",
-  "defineSceneRouter",
-  "defineActor",
-  "definePrefab",
-  "useActor",
-  "defineLayout",
-  "withAsyncContext",
-  "defineLayers",
-  "useMeshCollider",
-];
-
 const SOURCE_FILE = /\.(ts|tsx|js|jsx|mts|cts)$/;
 
 interface SourceLoc {
   readonly file: string;
   readonly line: number;
   readonly column: number;
-}
-
-function canonicalName(name: string): GwenCallee | null {
-  for (const item of CANONICAL_CALLEES) {
-    if (item === name) return item;
-  }
-  return null;
-}
-
-function importedName(imported: { type: string; name?: string; value?: string }): string {
-  if (imported.type === "Identifier" && imported.name !== undefined) return imported.name;
-  if (imported.value !== undefined) return imported.value;
-  return "";
-}
-
-/** Local name → canonical callee, for direct named value imports only. */
-function directCallees(program: Program): Map<string, GwenCallee> {
-  const found = new Map<string, GwenCallee>();
-  for (const statement of program.body) {
-    if (statement.type !== "ImportDeclaration") continue;
-    if (statement.importKind === "type") continue;
-    for (const spec of statement.specifiers) {
-      if (spec.type !== "ImportSpecifier") continue;
-      if (spec.importKind === "type") continue;
-      const canonical = canonicalName(importedName(spec.imported));
-      if (canonical === null) continue;
-      found.set(spec.local.name, canonical);
-    }
-  }
-  return found;
-}
-
-function addIdentifier(name: string | null, names: Set<string>): void {
-  if (name === null || name.length === 0) return;
-  names.add(name);
-}
-
-function collectTopLevel(program: Program): Set<string> {
-  const names = new Set<string>();
-  for (const statement of program.body) {
-    if (statement.type === "ImportDeclaration") {
-      if (statement.importKind === "type") continue;
-      for (const spec of statement.specifiers) {
-        if (spec.type === "ImportSpecifier" && spec.importKind === "type") continue;
-        names.add(spec.local.name);
-      }
-      continue;
-    }
-    if (statement.type === "FunctionDeclaration" || statement.type === "ClassDeclaration") {
-      addIdentifier(statement.id === null ? null : statement.id.name, names);
-      continue;
-    }
-    if (statement.type === "VariableDeclaration") {
-      for (const decl of statement.declarations) {
-        if (decl.id.type === "Identifier") names.add(decl.id.name);
-      }
-      continue;
-    }
-    if (statement.type === "ExportNamedDeclaration" && statement.declaration !== null) {
-      const declaration = statement.declaration;
-      if (declaration.type === "FunctionDeclaration" || declaration.type === "ClassDeclaration") {
-        addIdentifier(declaration.id === null ? null : declaration.id.name, names);
-      } else if (declaration.type === "VariableDeclaration") {
-        for (const decl of declaration.declarations) {
-          if (decl.id.type === "Identifier") names.add(decl.id.name);
-        }
-      }
-    }
-  }
-  return names;
 }
 
 function acceptsModule(id: string): boolean {
@@ -164,27 +72,18 @@ function createContext(
   code: string,
   program: Program,
   comments: TransformContext["comments"],
+  autoImports: readonly AutoImport[],
 ): TransformContext {
-  const callees = directCallees(program);
-  const topLevel = collectTopLevel(program);
+  const followed = new Map<string, GwenImportBinding>();
+  const resolver = createModuleResolver({ program, code, id, autoImports, followed });
   return {
     id,
     code,
     comments,
-    resolveCallee(node: CallExpression): GwenCallee | null {
-      if (node.callee.type !== "Identifier") return null;
-      return callees.get(node.callee.name) ?? null;
-    },
-    calls(): readonly GwenCallSite[] {
-      return [];
-    },
-    resolveImport(): GwenImportBinding | null {
-      return null;
-    },
-    isModuleScopeBinding(name: string, at: number): boolean {
-      if (at < 0 || at > code.length) return false;
-      return topLevel.has(name);
-    },
+    resolveCallee: resolver.resolveCallee,
+    calls: resolver.calls,
+    resolveImport: resolver.resolveImport,
+    isModuleScopeBinding: resolver.isModuleScopeBinding,
     raise(errorCode, node, what, hint): never {
       const place = lineColumn(code, node.start);
       const hintText = hint === undefined ? undefined : devHint(hint);
@@ -201,6 +100,7 @@ export function createTransformPipeline(options: {
   units: GwenSourceTransform[];
   autoImports?: readonly AutoImport[];
 }): Plugin & { api: GwenTransformPipelineApi } {
+  const autoImports = options.autoImports ?? [];
   const builtIns = [...options.units];
   const registered: GwenSourceTransform[] = [];
   let ordered: readonly GwenSourceTransform[] = builtIns;
@@ -245,7 +145,7 @@ export function createTransformPipeline(options: {
       if (!acceptsModule(id)) return null;
       try {
         const parsed = parseModule(id, code);
-        const context = createContext(id, code, parsed.program, parsed.comments);
+        const context = createContext(id, code, parsed.program, parsed.comments, autoImports);
         const tagged: Array<TransformEdit & { unit: string }> = [];
         for (const unit of currentUnits()) {
           const produced = await unit.run(parsed.program, context);

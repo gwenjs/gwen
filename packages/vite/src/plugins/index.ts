@@ -102,7 +102,7 @@ function resolveOptimizerOptions(
 export function gwenVitePlugin(options: GwenViteOptions = {}): PluginOption {
   return [
     gwenWasmPlugin(options),
-    createTransformPipeline({ units: BUILT_IN_UNITS }),
+    createTransformPipeline({ units: BUILT_IN_UNITS, autoImports: options.autoImports ?? [] }),
     gwenAutoImportsPlugin(options),
     gwenVirtualPlugin(options),
     gwenActorPlugin(options),
