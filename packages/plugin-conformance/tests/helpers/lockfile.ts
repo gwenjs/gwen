@@ -102,6 +102,11 @@ export async function packageSubdir(repo: string): Promise<string> {
   return root;
 }
 
+/** `git init -q -b main` in `root`, through {@link gitEnv}. */
+export function initGitRepo(root: string): void {
+  git(root, ["init", "-q", "-b", "main"]);
+}
+
 /** Write `pnpm-lock.yaml` and commit it on `main`. */
 export async function commitLockfile(root: string, text: string): Promise<void> {
   await writeLockfile(root, text);
