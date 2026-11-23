@@ -16,7 +16,8 @@ import {
   aabbOverlap,
 } from "../src/plugin/physics3d-utils";
 
-import type { Physics3DVec3, Physics3DBodyState, Physics3DColliderOptions } from "../src/types";
+import type { Vec3 } from "@gwenjs/math";
+import type { Physics3DBodyState, Physics3DColliderOptions } from "../src/types";
 
 // ─── vec3() ────────────────────────────────────────────────────────────────
 
@@ -383,7 +384,7 @@ describe("resolveColliderMaterial", () => {
 
 describe("computeColliderAABB", () => {
   it("computes AABB for a box collider at origin", () => {
-    const pos: Physics3DVec3 = { x: 0, y: 0, z: 0 };
+    const pos: Vec3 = { x: 0, y: 0, z: 0 };
     const col: Physics3DColliderOptions = {
       shape: { type: "box", halfX: 1, halfY: 2, halfZ: 3 },
     };
@@ -400,7 +401,7 @@ describe("computeColliderAABB", () => {
   });
 
   it("computes AABB for a box collider with offset position", () => {
-    const pos: Physics3DVec3 = { x: 5, y: 10, z: -3 };
+    const pos: Vec3 = { x: 5, y: 10, z: -3 };
     const col: Physics3DColliderOptions = {
       shape: { type: "box", halfX: 1, halfY: 1, halfZ: 1 },
     };
@@ -417,7 +418,7 @@ describe("computeColliderAABB", () => {
   });
 
   it("computes AABB for a box collider with collider offset", () => {
-    const pos: Physics3DVec3 = { x: 0, y: 0, z: 0 };
+    const pos: Vec3 = { x: 0, y: 0, z: 0 };
     const col: Physics3DColliderOptions = {
       shape: { type: "box", halfX: 1, halfY: 1, halfZ: 1 },
       offsetX: 2,
@@ -437,7 +438,7 @@ describe("computeColliderAABB", () => {
   });
 
   it("computes AABB for a sphere collider at origin", () => {
-    const pos: Physics3DVec3 = { x: 0, y: 0, z: 0 };
+    const pos: Vec3 = { x: 0, y: 0, z: 0 };
     const col: Physics3DColliderOptions = {
       shape: { type: "sphere", radius: 2 },
     };
@@ -454,7 +455,7 @@ describe("computeColliderAABB", () => {
   });
 
   it("computes AABB for a sphere collider with position offset", () => {
-    const pos: Physics3DVec3 = { x: 10, y: 5, z: -8 };
+    const pos: Vec3 = { x: 10, y: 5, z: -8 };
     const col: Physics3DColliderOptions = {
       shape: { type: "sphere", radius: 3 },
     };
@@ -471,7 +472,7 @@ describe("computeColliderAABB", () => {
   });
 
   it("computes AABB for a capsule collider (radius + halfHeight in Y)", () => {
-    const pos: Physics3DVec3 = { x: 0, y: 0, z: 0 };
+    const pos: Vec3 = { x: 0, y: 0, z: 0 };
     const col: Physics3DColliderOptions = {
       shape: { type: "capsule", radius: 1, halfHeight: 3 },
     };
@@ -488,7 +489,7 @@ describe("computeColliderAABB", () => {
   });
 
   it("computes AABB for a capsule with position offset", () => {
-    const pos: Physics3DVec3 = { x: 5, y: 5, z: 5 };
+    const pos: Vec3 = { x: 5, y: 5, z: 5 };
     const col: Physics3DColliderOptions = {
       shape: { type: "capsule", radius: 2, halfHeight: 1 },
     };
@@ -505,7 +506,7 @@ describe("computeColliderAABB", () => {
   });
 
   it("computes tight AABB from mesh vertices (replaces old unit-AABB placeholder)", () => {
-    const pos: Physics3DVec3 = { x: 0, y: 0, z: 0 };
+    const pos: Vec3 = { x: 0, y: 0, z: 0 };
     const col: Physics3DColliderOptions = {
       shape: {
         type: "mesh",
@@ -528,7 +529,7 @@ describe("computeColliderAABB", () => {
   });
 
   it("computes tight AABB from convex vertices (replaces old unit-AABB placeholder)", () => {
-    const pos: Physics3DVec3 = { x: 10, y: 20, z: 30 };
+    const pos: Vec3 = { x: 10, y: 20, z: 30 };
     const col: Physics3DColliderOptions = {
       // Single degenerate vertex in local space — AABB collapses to zero at body position
       shape: { type: "convex", vertices: new Float32Array([0, 0, 0]) },

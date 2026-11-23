@@ -2,7 +2,7 @@ import type { GwenEngine } from "@gwenjs/core";
 import { entityIndex, GwenError, type EntityId } from "@gwenjs/schema";
 
 import { Physics3DErrorCodes } from "../errors/codes";
-import type { Physics3DBodyHandle, Physics3DEntityId } from "../types";
+import type { Physics3DBodyHandle } from "../types";
 import type { PluginContext } from "./plugin-context";
 
 /** Thrown when a Physics3D call targets an entity that is not alive. */
@@ -50,7 +50,7 @@ export function ownerEntityId(ctx: PluginContext, slot: number): EntityId | unde
 
 export function ownedSlot(
   ctx: PluginContext,
-  id: Physics3DEntityId,
+  id: EntityId,
 ): { eid: EntityId; slot: number; handle: Physics3DBodyHandle } | null {
   const slot = entitySlot(id);
   const handle = ctx.bodyByEntity.get(slot);
@@ -64,7 +64,7 @@ export function ownedSlot(
  */
 export function guardOwned(
   ctx: PluginContext,
-  id: Physics3DEntityId,
+  id: EntityId,
   operation: string,
 ): { eid: EntityId; slot: number; handle: Physics3DBodyHandle } | null {
   const slot = entitySlot(id);
@@ -77,7 +77,7 @@ export function guardOwned(
 /** Throws when `id` is dead. Does not require a body. */
 export function guardAlive(
   ctx: PluginContext,
-  id: Physics3DEntityId,
+  id: EntityId,
   operation: string,
 ): { eid: EntityId; slot: number } {
   if (isDeadEntity(ctx._engine, id)) throw new Physics3DStaleEntityError(id, operation);

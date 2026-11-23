@@ -1,10 +1,8 @@
+import type { Quat, Vec3 } from "@gwenjs/math";
 import type { EntityId } from "@gwenjs/schema";
 
-import type { Physics3DVec3, Physics3DQuat, Physics3DQualityPreset } from "./config";
+import type { Physics3DQualityPreset } from "./config";
 import type { Physics3DColliderOptions, Physics3DMaterialPreset } from "./colliders";
-
-/** Packed engine entity id. A plain number or string is not an entity id. */
-export type Physics3DEntityId = EntityId;
 
 /**
  * How a 3D rigid body participates in the simulation.
@@ -50,13 +48,13 @@ export interface Physics3DBodyOptions {
    */
   ccdEnabled?: boolean;
   /** Initial world-space position in metres. */
-  initialPosition?: Partial<Physics3DVec3>;
+  initialPosition?: Partial<Vec3>;
   /** Initial orientation as a unit quaternion. */
-  initialRotation?: Partial<Physics3DQuat>;
+  initialRotation?: Partial<Quat>;
   /** Initial linear velocity in m/s. */
-  initialLinearVelocity?: Partial<Physics3DVec3>;
+  initialLinearVelocity?: Partial<Vec3>;
   /** Initial angular velocity in rad/s. */
-  initialAngularVelocity?: Partial<Physics3DVec3>;
+  initialAngularVelocity?: Partial<Vec3>;
   /**
    * Colliders to attach immediately after body creation.
    */
@@ -81,7 +79,7 @@ export interface Physics3DBodyHandle {
   /** Monotonically increasing body id (per plugin instance). */
   bodyId: number;
   /** The EntityId this handle was created for. */
-  entityId: Physics3DEntityId;
+  entityId: EntityId;
   /** Current simulation kind. */
   kind: Physics3DBodyKind;
   /** Body mass in kg. */
@@ -99,13 +97,13 @@ export interface Physics3DBodyHandle {
  */
 export interface Physics3DBodyState {
   /** World-space position in metres. */
-  position: Physics3DVec3;
+  position: Vec3;
   /** Orientation as a unit quaternion. */
-  rotation: Physics3DQuat;
+  rotation: Quat;
   /** Linear velocity in m/s. */
-  linearVelocity: Physics3DVec3;
+  linearVelocity: Vec3;
   /** Angular velocity in rad/s. */
-  angularVelocity: Physics3DVec3;
+  angularVelocity: Vec3;
 }
 
 /**
@@ -115,15 +113,15 @@ export interface Physics3DBodyState {
  */
 export interface Physics3DBodySnapshot {
   /** Packed EntityId of the entity. */
-  entityId: Physics3DEntityId;
+  entityId: EntityId;
   /** World-space position, or `null` if the body is not registered. */
-  position: Physics3DVec3 | null;
+  position: Vec3 | null;
   /** Orientation, or `null` if the body is not registered. */
-  rotation: Physics3DQuat | null;
+  rotation: Quat | null;
   /** Linear velocity in m/s, or `null` if the body is not registered. */
-  linearVelocity: Physics3DVec3 | null;
+  linearVelocity: Vec3 | null;
   /** Angular velocity in rad/s, or `null` if the body is not registered. */
-  angularVelocity: Physics3DVec3 | null;
+  angularVelocity: Vec3 | null;
 }
 
 // ─── RFC-06 DX Composable types ─────────────────────────────────────────────
@@ -199,13 +197,13 @@ export interface DynamicBodyOptions3D {
   /** Built-in material preset. @default 'default' */
   materialPreset?: Physics3DMaterialPreset;
   /** Initial world-space position in metres. */
-  initialPosition?: Partial<Physics3DVec3>;
+  initialPosition?: Partial<Vec3>;
   /** Initial orientation as a unit quaternion. */
-  initialRotation?: Partial<Physics3DQuat>;
+  initialRotation?: Partial<Quat>;
   /** Initial linear velocity in m/s. */
-  initialLinearVelocity?: Partial<Physics3DVec3>;
+  initialLinearVelocity?: Partial<Vec3>;
   /** Initial angular velocity in rad/s. */
-  initialAngularVelocity?: Partial<Physics3DVec3>;
+  initialAngularVelocity?: Partial<Vec3>;
   /**
    * If true, body cannot rotate around any axis.
    * @default false
@@ -252,9 +250,9 @@ export interface DynamicBodyHandle3D extends StaticBodyHandle3D {
   /** Set the linear velocity directly in m/s. */
   setVelocity(vx: number, vy: number, vz: number): void;
   /** Current linear velocity in m/s. Returns zero vector when body is inactive. */
-  readonly velocity: Physics3DVec3;
+  readonly velocity: Vec3;
   /** Current angular velocity in rad/s. Returns zero vector when body is inactive. */
-  readonly angularVelocity: Physics3DVec3;
+  readonly angularVelocity: Vec3;
 }
 
 /**
@@ -266,9 +264,9 @@ export interface DynamicBodyHandle3D extends StaticBodyHandle3D {
  */
 export interface KinematicBodyOptions3D {
   /** Initial world-space position in metres. */
-  initialPosition?: Physics3DVec3;
+  initialPosition?: Vec3;
   /** Initial orientation as a unit quaternion. Default: identity. */
-  initialRotation?: Physics3DQuat;
+  initialRotation?: Quat;
   /**
    * When `true`, angular velocity calls are ignored and orientation stays fixed.
    * @default false
@@ -315,9 +313,9 @@ export interface KinematicBodyHandle3D {
    */
   setAngularVelocity(wx: number, wy: number, wz: number): void;
   /** Current linear velocity as last set by {@link setVelocity}, in m/s. */
-  readonly velocity: Physics3DVec3;
+  readonly velocity: Vec3;
   /** Current angular velocity as last set by {@link setAngularVelocity}, in rad/s. */
-  readonly angularVelocity: Physics3DVec3;
+  readonly angularVelocity: Vec3;
   /** Re-create the body in the simulation (no-op when already active). */
   enable(): void;
   /** Remove the body from the simulation (no-op when already inactive). */

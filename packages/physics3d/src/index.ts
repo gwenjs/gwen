@@ -29,10 +29,7 @@ export type {
   Physics3DQualityPreset,
   Physics3DPrefabExtension,
   Physics3DPluginHooks,
-  Physics3DVec3,
-  Physics3DQuat,
   Physics3DConfig,
-  Physics3DEntityId,
 } from "./types";
 
 export * from "./helpers/contact";

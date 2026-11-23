@@ -5,8 +5,9 @@
  * no direct WASM dependency.
  */
 
+import type { Quat, Vec3 } from "@gwenjs/math";
 import type { EntityId } from "@gwenjs/schema";
-import type { Physics3DAPI, Physics3DVec3, Physics3DQuat } from "../types";
+import type { Physics3DAPI } from "../types";
 
 /**
  * Move a kinematic body by integrating velocity over delta time.
@@ -34,9 +35,9 @@ import type { Physics3DAPI, Physics3DVec3, Physics3DQuat } from "../types";
 export function moveKinematicByVelocity(
   physics: Physics3DAPI,
   entityId: EntityId,
-  currentPos: Physics3DVec3,
-  currentRot: Physics3DQuat,
-  velocity: Physics3DVec3,
+  currentPos: Vec3,
+  currentRot: Quat,
+  velocity: Vec3,
   deltaTime: number,
 ): void {
   if (!Number.isFinite(deltaTime) || deltaTime <= 0) return;
@@ -74,7 +75,7 @@ export function moveKinematicByVelocity(
 export function applyDirectionalImpulse(
   physics: Physics3DAPI,
   entityId: EntityId,
-  direction: Physics3DVec3,
+  direction: Vec3,
   magnitude: number,
 ): void {
   const len = Math.hypot(direction.x, direction.y, direction.z);

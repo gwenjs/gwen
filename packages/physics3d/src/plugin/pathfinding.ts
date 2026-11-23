@@ -4,7 +4,8 @@
  * Contains the MinHeap data structure and local-mode pathfinding implementation.
  */
 
-import type { Physics3DVec3, PathWaypoint3D } from "../types";
+import type { Vec3 } from "@gwenjs/math";
+import type { PathWaypoint3D } from "../types";
 import type { PluginContext } from "./plugin-context";
 import { uncheckedAt } from "../internal/unchecked";
 
@@ -113,11 +114,7 @@ class MinHeap<T> {
  * Falls back to a two-point path when no grid is available or when A* cannot
  * find a route within the iteration budget.
  */
-export function localFindPath3D(
-  ctx: PluginContext,
-  from: Physics3DVec3,
-  to: Physics3DVec3,
-): PathWaypoint3D[] {
+export function localFindPath3D(ctx: PluginContext, from: Vec3, to: Vec3): PathWaypoint3D[] {
   if (!ctx._localNavGrid) {
     if (__GWEN_DEV__) {
       ctx.log.warn("findPath3D(): no nav grid uploaded — call initNavGrid3D() first");

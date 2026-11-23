@@ -4,12 +4,8 @@
  * Handles both local (TypeScript) and WASM (Rapier3D) backend modes.
  */
 
-import type {
-  Physics3DAPI,
-  Physics3DBodyHandle,
-  Physics3DBodyOptions,
-  Physics3DEntityId,
-} from "../types";
+import type { EntityId } from "@gwenjs/schema";
+import type { Physics3DAPI, Physics3DBodyHandle, Physics3DBodyOptions } from "../types";
 import type { Physics3DColliderOptions } from "../types";
 import type { PluginContext } from "./plugin-context";
 import { Physics3DErrorCodes } from "../errors/codes";
@@ -22,7 +18,7 @@ import { liveWasmBridge } from "../internal/unchecked";
 
 export function createBodyLocal(
   ctx: PluginContext,
-  entityId: Physics3DEntityId,
+  entityId: EntityId,
   options: Physics3DBodyOptions = {},
 ): Physics3DBodyHandle {
   const slot = entitySlot(entityId);
@@ -59,7 +55,7 @@ export function createBodyLocal(
   return handle;
 }
 
-export function removeBodyLocal(ctx: PluginContext, entityId: Physics3DEntityId): boolean {
+export function removeBodyLocal(ctx: PluginContext, entityId: EntityId): boolean {
   const slot = entitySlot(entityId);
   ctx.stateByEntity.delete(slot);
   ctx.localColliders.delete(slot);
@@ -180,7 +176,7 @@ export function advanceLocalState(ctx: PluginContext, deltaSeconds: number): voi
 
 export function createBodyWasm(
   ctx: PluginContext,
-  entityId: Physics3DEntityId,
+  entityId: EntityId,
   options: Physics3DBodyOptions = {},
 ): Physics3DBodyHandle {
   const handle: Physics3DBodyHandle = {
@@ -299,7 +295,7 @@ function releaseCharacterControllerWasm(ctx: PluginContext, slot: number): void 
   ctx.ccRegistrations.delete(slot);
 }
 
-export function removeBodyWasm(ctx: PluginContext, entityId: Physics3DEntityId): boolean {
+export function removeBodyWasm(ctx: PluginContext, entityId: EntityId): boolean {
   const slot = entitySlot(entityId);
   if (!ctx.bodyByEntity.has(slot)) return false;
   // Rust `remove_body` does not free the controller slot. Release it first: a controller
@@ -323,9 +319,9 @@ export function removeBodyWasm(ctx: PluginContext, entityId: Physics3DEntityId):
  */
 export function createBody(
   ctx: PluginContext,
-  entityId: Physics3DEntityId,
+  entityId: EntityId,
   options: Physics3DBodyOptions = {},
-  addColliderFn: (entityId: Physics3DEntityId, opts: Physics3DColliderOptions) => boolean,
+  addColliderFn: (entityId: EntityId, opts: Physics3DColliderOptions) => boolean,
 ): Physics3DBodyHandle {
   const { eid, slot } = guardAlive(ctx, entityId, "createBody");
   // Replace any previous owner on this slot. A live id keeps today's replace behaviour.
@@ -360,14 +356,14 @@ export function createBody(
   return handle;
 }
 
-export function removeBody(ctx: PluginContext, entityId: Physics3DEntityId): boolean {
+export function removeBody(ctx: PluginContext, entityId: EntityId): boolean {
   if (!ownedSlot(ctx, entityId)) return false;
   return ctx.backendMode === "wasm"
     ? removeBodyWasm(ctx, entityId)
     : removeBodyLocal(ctx, entityId);
 }
 
-export function hasBody(ctx: PluginContext, entityId: Physics3DEntityId): boolean {
+export function hasBody(ctx: PluginContext, entityId: EntityId): boolean {
   return ownedSlot(ctx, entityId) !== null;
 }
 

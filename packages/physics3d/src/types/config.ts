@@ -1,18 +1,4 @@
-/** Three-dimensional vector (x, y, z). */
-export interface Physics3DVec3 {
-  x: number;
-  y: number;
-  z: number;
-}
-
-/** Unit quaternion representing a 3D rotation. */
-export interface Physics3DQuat {
-  x: number;
-  y: number;
-  z: number;
-  /** Scalar component. @default 1 */
-  w: number;
-}
+import type { Vec3 } from "@gwenjs/math";
 
 /**
  * Physics quality preset controlling solver iterations and simulation accuracy.
@@ -43,7 +29,7 @@ export interface Physics3DConfig {
    * Gravity vector in m/s².
    * @default { x: 0, y: -9.81, z: 0 }
    */
-  gravity?: Physics3DVec3;
+  gravity?: Vec3;
   /**
    * Maximum number of entity slots. Should match the engine's `maxEntities`.
    * @default 10_000
@@ -106,7 +92,7 @@ export interface Physics3DConfig {
 
 /** Fully resolved Physics3D config (all fields guaranteed). */
 export interface ResolvedPhysics3DConfig {
-  gravity: Physics3DVec3;
+  gravity: Vec3;
   maxEntities: number;
   qualityPreset: Physics3DQualityPreset;
   debug: boolean;

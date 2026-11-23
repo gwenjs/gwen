@@ -7,6 +7,7 @@
  */
 
 import type { GwenEngine, MemoryView } from "@gwenjs/core";
+import type { Vec3 } from "@gwenjs/math";
 import type { IGwenLogger as GwenLogger } from "@gwenjs/schema";
 import type {
   Physics3DBodyHandle,
@@ -14,7 +15,6 @@ import type {
   Physics3DColliderOptions,
   Physics3DSensorState,
   Physics3DPrefabExtension,
-  Physics3DVec3,
   Pathfinding3DOptions,
   RaycastOpts,
   RaycastSlotResult,
@@ -137,7 +137,7 @@ export interface PluginContext {
   _localNavGrid: Pathfinding3DOptions | null;
 
   // ── Shared constants / scratch buffers ─────────────────────────────────────
-  ZERO_VEC3: Physics3DVec3;
+  ZERO_VEC3: Vec3;
   _castU32: Uint32Array;
   _castF32: Float32Array;
   _slotsBuffer: number[];

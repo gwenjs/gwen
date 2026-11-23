@@ -1,17 +1,13 @@
 /**
  * @file useDynamicBody() — registers a fully simulated 3D physics body for the current actor.
  */
-import type {
-  DynamicBodyOptions3D,
-  DynamicBodyHandle3D,
-  Physics3DVec3,
-  Physics3DBodyOptions,
-} from "../types";
+import type { Vec3 } from "@gwenjs/math";
+import type { DynamicBodyOptions3D, DynamicBodyHandle3D, Physics3DBodyOptions } from "../types";
 import { usePhysics3D } from "../composables";
 import { _getActorEntityId } from "@gwenjs/core/internal";
 
 /** Zero vector returned when body is inactive. Reused to avoid allocation. */
-const ZERO_VEC3: Physics3DVec3 = Object.freeze({ x: 0, y: 0, z: 0 });
+const ZERO_VEC3: Vec3 = Object.freeze({ x: 0, y: 0, z: 0 });
 
 /**
  * Registers the current actor's entity as a fully simulated 3D physics body.
@@ -137,7 +133,7 @@ export function useDynamicBody(options: DynamicBodyOptions3D = {}): DynamicBodyH
      * Current linear velocity in m/s.
      * Returns a zero vector when the body is inactive.
      */
-    get velocity(): Physics3DVec3 {
+    get velocity(): Vec3 {
       return physics.getLinearVelocity(entityId) ?? ZERO_VEC3;
     },
 
@@ -145,7 +141,7 @@ export function useDynamicBody(options: DynamicBodyOptions3D = {}): DynamicBodyH
      * Current angular velocity in rad/s.
      * Returns a zero vector when the body is inactive.
      */
-    get angularVelocity(): Physics3DVec3 {
+    get angularVelocity(): Vec3 {
       return physics.getAngularVelocity(entityId) ?? ZERO_VEC3;
     },
   };
