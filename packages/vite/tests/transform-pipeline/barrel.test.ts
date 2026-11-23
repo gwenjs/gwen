@@ -1,11 +1,11 @@
 /**
- * Barrel re-exports are not followed yet.
- * A renamed re-export stays on the barrel specifier, so the recorded callee is empty.
+ * Project barrels followed to the module that defines the name.
+ * Stars, cycles, the depth bound, and the imports that stay unresolved.
  */
 
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Node } from "oxc-parser";
 import { walk } from "oxc-walker";
@@ -33,6 +33,9 @@ const barrelCases = [
   "barrel-depth-8",
   "barrel-depth-9",
   "barrel-local-reexport",
+  "barrel-star-canonical",
+  "barrel-default-reexport",
+  "barrel-type-forms",
 ] as const;
 
 const shownOld = 'export { defineSystem as shown } from "@gwenjs/core/system";\n';
@@ -49,7 +52,6 @@ function originProbe(target: { binding: GwenImportBinding | null }): GwenSourceT
         enter(node: Node) {
           if (seen || node.type !== "CallExpression") return;
           seen = true;
-          if (typeof ctx.resolveImport !== "function") return;
           binding = ctx.resolveImport(node);
         },
       });
@@ -57,6 +59,37 @@ function originProbe(target: { binding: GwenImportBinding | null }): GwenSourceT
       return [];
     },
   };
+}
+
+type ResolveId = (source: string, importer: string | undefined) => string | null;
+
+async function withTemp(prefix: string, run: (root: string) => Promise<void>): Promise<void> {
+  const root = mkdtempSync(join(realpathSync(tmpdir()), prefix));
+  try {
+    await run(root);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
+function resolveBeside(source: string, importer: string | undefined): string | null {
+  if (importer === undefined || !source.startsWith(".")) return null;
+  return join(dirname(importer), source);
+}
+
+async function callees(
+  root: string,
+  code: string,
+  resolveId: ResolveId,
+  aliases?: readonly { readonly find: string; readonly replacement: string }[],
+): Promise<readonly CalleeRecord[]> {
+  const options = { id: join(root, "app.ts"), root, resolveId, units: [probeCallees] };
+  await runPipeline(code, aliases === undefined ? options : { ...options, aliases });
+  return readCalleeRecords();
+}
+
+function defineFrom(spec: string): string {
+  return `import { defineSystem } from "${spec}";\nexport const run = defineSystem(1);\n`;
 }
 
 async function recordsFor(name: string): Promise<readonly CalleeRecord[]> {
@@ -179,4 +212,125 @@ it("a barrel outside the project root is left untouched", async () => {
   } finally {
     rmSync(parent, { recursive: true, force: true });
   }
+});
+
+it("a css or json import leaves the importer callees unchanged", async () => {
+  await withTemp("gwen-barrel-asset-", async (root) => {
+    writeFileSync(join(root, "a.module.css"), ".a{color:red}\n");
+    writeFileSync(join(root, "d.json"), "{}\n");
+    writeFileSync(join(root, "raw.ts"), 'export { defineSystem } from "@gwenjs/core/system";\n');
+    const code = [
+      'import styles from "./a.module.css";',
+      'import data from "./d.json";',
+      'import { defineSystem as fromRaw } from "./raw.ts?raw";',
+      'import { defineSystem } from "@gwenjs/core/system";',
+      'import * as G from "@gwenjs/core/system";',
+      "export const raw = fromRaw(1);",
+      "export const run = defineSystem(styles, data);",
+      "export const Anchor = G.defineSystem(() => 1);",
+      "",
+    ].join("\n");
+    expect(await callees(root, code, resolveBeside)).toEqual([
+      { callee: "defineSystem", call: "defineSystem(styles, data)" },
+      { callee: "defineSystem", call: "G.defineSystem(() => 1)" },
+    ]);
+  });
+});
+
+it("a bare star re-export never reaches resolve", async () => {
+  await withTemp("gwen-barrel-bare-", async (root) => {
+    const seen: string[] = [];
+    writeFileSync(join(root, "barrel.ts"), 'export * from "some-lib";\n');
+    mkdirSync(join(root, "some-lib"));
+    writeFileSync(
+      join(root, "some-lib/index.ts"),
+      'export { defineSystem } from "@gwenjs/core/system";\n',
+    );
+    const records = await callees(root, defineFrom("./barrel"), (source, importer) => {
+      seen.push(source);
+      return source === "some-lib"
+        ? join(root, "some-lib/index.ts")
+        : resolveRelativeId(source, importer);
+    });
+    expect([seen.includes("some-lib"), records]).toEqual([false, []]);
+  });
+});
+
+it("watchChange on a non-barrel id keeps the cached binding", async () => {
+  await withTemp("gwen-barrel-keep-", async (root) => {
+    const barrelId = join(root, "barrel.ts");
+    const importerId = join(root, "one.ts");
+    writeFileSync(barrelId, shownOld);
+    const plugin = await openPipeline({
+      units: [probeCallees],
+      root,
+      resolveId: resolveRelativeId,
+    });
+    await applyTransform(plugin, shownImporter, importerId, resolveRelativeId);
+    const first = readCalleeRecords();
+    writeFileSync(barrelId, shownNew);
+    watchPipeline(plugin, importerId);
+    await applyTransform(plugin, shownImporter, join(root, "two.ts"), resolveRelativeId);
+    expect([first, readCalleeRecords()]).toEqual([
+      [{ callee: "defineSystem", call: "shown(1)" }],
+      [{ callee: "defineSystem", call: "shown(1)" }],
+    ]);
+  });
+});
+
+it("a string alias matches the key or a slash suffix", async () => {
+  await withTemp("gwen-barrel-alias-", async (root) => {
+    const seen: string[] = [];
+    writeFileSync(
+      join(root, "barrel.ts"),
+      'export { defineSystem as sys } from "@gwenjs/core/system";\n',
+    );
+    writeFileSync(join(root, "decoy.ts"), 'export { defineSystem } from "@gwenjs/core/system";\n');
+    const code =
+      'import { sys } from "@app/barrel";\nimport { defineSystem } from "@application/x";\nexport const followed = sys(1);\nexport const bare = defineSystem(1);\n';
+    const records = await callees(
+      root,
+      code,
+      (source, importer) => {
+        seen.push(source);
+        if (source === "@app/barrel") return join(root, "barrel.ts");
+        if (source === "@application/x") return join(root, "decoy.ts");
+        return resolveRelativeId(source, importer);
+      },
+      [{ find: "@app", replacement: "/app" }],
+    );
+    expect([seen.includes("@application/x"), records]).toEqual([
+      false,
+      [{ callee: "defineSystem", call: "sys(1)" }],
+    ]);
+  });
+});
+
+it("a barrel syntax error leaves the importer unresolved", async () => {
+  await withTemp("gwen-barrel-parse-", async (root) => {
+    writeFileSync(join(root, "barrel.ts"), "const =\n");
+    expect(await callees(root, defineFrom("./barrel"), resolveRelativeId)).toEqual([]);
+  });
+});
+
+it("an unreadable barrel file stays unresolved", async () => {
+  await withTemp("gwen-barrel-miss-", async (root) => {
+    const missing = join(root, "gone.ts");
+    const records = await callees(root, defineFrom("./gone"), (source) =>
+      source === "./gone" ? missing : null,
+    );
+    expect(records).toEqual([]);
+  });
+});
+
+it("a barrel inside node_modules stays unresolved", async () => {
+  await withTemp("gwen-barrel-nm-", async (root) => {
+    const file = join(root, "node_modules/x/index.ts");
+    mkdirSync(join(root, "node_modules/x"), { recursive: true });
+    writeFileSync(file, 'export { defineSystem } from "@gwenjs/core/system";\n');
+    const records = await callees(root, defineFrom("./x"), (source) =>
+      source === "./x" ? file : null,
+    );
+    expect(records).toEqual([]);
+  });
 });
