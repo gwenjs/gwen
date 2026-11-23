@@ -188,6 +188,22 @@ describe("gwen:transform-pipeline parity", () => {
       await server.close();
     }
   });
+
+  it("the CLI plugin list names an aliased system", async () => {
+    const server = await createServer({
+      configFile: false,
+      root: fixtureRoot,
+      plugins: [gwen()],
+      server: { middlewareMode: true, hmr: false },
+      logLevel: "silent",
+    });
+    try {
+      const result = await server.transformRequest("/src/systems/score.ts");
+      expect(result?.code).toContain('tag("Score", ');
+    } finally {
+      await server.close();
+    }
+  });
 });
 
 function isRecord(value: unknown): value is Record<string, unknown> {

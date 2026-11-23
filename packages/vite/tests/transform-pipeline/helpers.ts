@@ -287,15 +287,26 @@ export function watchPipeline(plugin: Plugin, id: string): void {
   void hook.handler.call(host as never, id, change);
 }
 
-/** Read `input.ts`, `output.ts`, and optional `error.json` (`{ code }`). */
+/**
+ * Read `input.tsx` when that file is present, otherwise `input.ts`.
+ * Read `output.tsx` when that file is present, otherwise `output.ts`.
+ * An output file is required unless `error.json` is present (`{ code }`).
+ */
 export function fixtureCase(dir: string): {
   input: string;
-  output: string;
+  output: string | undefined;
   errorCode: string | undefined;
 } {
-  const input = readFileSync(join(dir, "input.ts"), "utf8");
-  const output = readFileSync(join(dir, "output.ts"), "utf8");
+  const tsxPath = join(dir, "input.tsx");
+  const inputPath = existsSync(tsxPath) ? tsxPath : join(dir, "input.ts");
+  const input = readFileSync(inputPath, "utf8");
+  const outputTsxPath = join(dir, "output.tsx");
+  const outputPath = existsSync(outputTsxPath) ? outputTsxPath : join(dir, "output.ts");
   const errorPath = join(dir, "error.json");
+  const output = existsSync(outputPath) ? readFileSync(outputPath, "utf8") : undefined;
+  if (output === undefined && !existsSync(errorPath)) {
+    throw new Error(`${dir}: output.tsx or output.ts required unless error.json`);
+  }
   if (!existsSync(errorPath)) return { input, output, errorCode: undefined };
   const parsed: unknown = JSON.parse(readFileSync(errorPath, "utf8"));
   const code = isRecord(parsed) ? parsed["code"] : undefined;
