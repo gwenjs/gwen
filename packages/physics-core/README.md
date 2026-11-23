@@ -26,9 +26,9 @@ function membership(registry: LayerRegistry): number {
 
 ### `.`
 
-Values: `BODY_KIND_CODE`, `LAYER_ALL`, `LAYER_ERROR_CODES`, `LayerRegistry`, `MAX_LAYERS`, `QUALITY_PRESET_CODE`, `SENSOR_ID_FOOT`, `clearEngineContacts`, `createContactRegistry`, `createSensorRegistry`, `defineLayers`, `onContact`, `onSensorEnter`, `onSensorExit`, `readCollisionEvents`
+Values: `BODY_KIND_CODE`, `LAYER_ALL`, `LAYER_ERROR_CODES`, `LayerRegistry`, `MAX_LAYERS`, `QUALITY_PRESET_CODE`, `SENSOR_ID_FOOT`, `SHARED_MATERIAL_PRESETS`, `clearEngineContacts`, `createContactRegistry`, `createSensorRegistry`, `defineLayers`, `onContact`, `onSensorEnter`, `onSensorExit`, `readCollisionEvents`, `resolveMaterial`
 
-Types: `BodyKind`, `BodyOptions`, `BoxColliderOptions`, `CapsuleColliderOptions`, `ColliderFilterOptions`, `CollisionContact`, `CollisionEventLayout`, `ContactRegistry`, `Dim`, `DimRot`, `DimVec`, `InternalCollisionEvent`, `KinematicBodyOptions`, `LayerSelector`, `PhysicsConfigBase`, `QualityPreset`, `SensorRegistry`, `SensorState`, `SphereColliderOptions`
+Types: `BodyKind`, `BodyOptions`, `BoxColliderOptions`, `CapsuleColliderOptions`, `ColliderFilterOptions`, `CollisionContact`, `CollisionEventLayout`, `ContactRegistry`, `Dim`, `DimRot`, `DimVec`, `InternalCollisionEvent`, `KinematicBodyOptions`, `LayerSelector`, `MaterialTable`, `MaterialValues`, `PhysicsConfigBase`, `QualityPreset`, `SensorRegistry`, `SensorState`, `SharedMaterialPreset`, `SphereColliderOptions`
 
 ### `./module`
 

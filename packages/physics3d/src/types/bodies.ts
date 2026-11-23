@@ -137,11 +137,11 @@ export interface Physics3DBodySnapshot {
 export interface StaticBodyOptions3D {
   /** Mark as sensor — generates events but no physical response. @default false */
   isSensor?: boolean;
-  /** Collision layer. A number is a raw bitmask, a string is a name, an array is OR-ed. */
+  /** Collision layer. A number is a raw bitmask, a string is a name, an array is OR-ed. Not applied yet. */
   layer?: LayerSelector;
-  /** Collision mask. Same shapes as `layer`. */
+  /** Collision mask. Same shapes as `layer`. Not applied yet. */
   mask?: LayerSelector;
-  /** Preset name. */
+  /** Preset name. Not applied yet. */
   material?: string;
 }
 
@@ -162,11 +162,11 @@ export interface DynamicBodyOptions3D {
   ccdEnabled?: boolean;
   /** Mark as sensor — generates events but no physical response. @default false */
   isSensor?: boolean;
-  /** Collision layer. A number is a raw bitmask, a string is a name, an array is OR-ed. */
+  /** Collision layer. A number is a raw bitmask, a string is a name, an array is OR-ed. Not applied yet. */
   layer?: LayerSelector;
-  /** Collision mask. Same shapes as `layer`. */
+  /** Collision mask. Same shapes as `layer`. Not applied yet. */
   mask?: LayerSelector;
-  /** Preset name. */
+  /** Preset name. Not applied yet. */
   material?: string;
   /** Initial world-space position in metres. */
   initialPosition?: Partial<Vec3>;
@@ -213,6 +213,7 @@ export interface DynamicBodyHandle3D extends StaticBodyHandle3D {
    * Accumulate a continuous force in newtons.
    * Applied as one impulse each frame, scaled by dt.
    * Call it every frame to sustain the force.
+   * A force applied in `onUpdate` is flushed on the next frame, after that frame's physics step.
    */
   applyForce(fx: number, fy: number, fz: number): void;
   /** Apply an instantaneous linear impulse in N·s. */

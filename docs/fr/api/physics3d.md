@@ -219,7 +219,7 @@ Tous les composables d'événements sont automatiquement nettoyés à la destruc
 #### onContact(handler)
 
 ```ts
-function onContact(handler: (event: CollisionContact) => void): void
+function onContact(handler: (event: CollisionContact) => void): () => void
 ```
 
 Enregistre un gestionnaire appelé lorsque le collider de cet acteur entre ou sort de contact avec un autre.
@@ -230,7 +230,7 @@ import { onContact } from '@gwenjs/physics3d'
 export const EnemyActor = defineActor(EnemyPrefab, () => {
   onContact((event) => {
     if (event.started) {
-      console.log('Hit by entity', event.otherId)
+      console.log('Contact', event.entityA, event.entityB, event.aColliderId, event.bColliderId)
     }
   })
 })

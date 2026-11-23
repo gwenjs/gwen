@@ -219,7 +219,7 @@ All event composables are auto-cleaned up when the actor is destroyed.
 #### onContact(handler)
 
 ```ts
-function onContact(handler: (event: CollisionContact) => void): void
+function onContact(handler: (event: CollisionContact) => void): () => void
 ```
 
 Registers a handler called when this actor's collider makes or breaks contact with another.
@@ -230,7 +230,7 @@ import { onContact } from '@gwenjs/physics3d'
 export const EnemyActor = defineActor(EnemyPrefab, () => {
   onContact((event) => {
     if (event.started) {
-      console.log('Hit by entity', event.otherId)
+      console.log('Contact', event.entityA, event.entityB, event.aColliderId, event.bColliderId)
     }
   })
 })

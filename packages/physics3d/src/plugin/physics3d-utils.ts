@@ -107,13 +107,13 @@ export function resolveColliderMaterial(
 } {
   const preset = resolveMaterial(options.material, PHYSICS3D_MATERIAL_PRESETS);
   if (preset === undefined) {
-    const known = Object.keys(PHYSICS3D_MATERIAL_PRESETS).join(", ");
+    const known = Object.keys(PHYSICS3D_MATERIAL_PRESETS);
     throw new GwenError(
       Physics3DErrorCodes.UNKNOWN_MATERIAL,
-      `Unknown material "${options.material ?? ""}". Known materials: [${known}].`,
+      `Unknown material "${options.material ?? ""}". Known materials: [${known.join(", ")}].`,
       {
         composable: "Physics3DPlugin",
-        hint: __GWEN_DEV__ ? "Use default, ice, rubber, or metal." : undefined,
+        hint: __GWEN_DEV__ ? `Use ${known.join(", ")}.` : undefined,
       },
     );
   }

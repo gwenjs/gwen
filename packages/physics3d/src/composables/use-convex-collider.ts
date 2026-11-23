@@ -32,7 +32,10 @@ export interface ConvexColliderOptions {
   layer?: LayerSelector;
   /** Collision mask. Same shapes as `layer`. */
   mask?: LayerSelector;
-  /** Preset name. */
+  /**
+   * Material preset name. Built-in names are `default`, `ice`, `rubber`, and `metal`.
+   * An unknown name throws `PHYSICS3D:UNKNOWN_MATERIAL`. Resolved on the WASM backend only.
+   */
   material?: string;
 }
 
