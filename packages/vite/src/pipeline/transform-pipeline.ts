@@ -2,16 +2,18 @@
  * One AST pass per module. Units share that program and never re-parse.
  * Callees resolve through the import binding, the scope index and auto-imports.
  * `autoImports` is read when a module is transformed.
- * Barrel results arrive later through `followed`; this pass leaves that map empty.
+ * Project barrels are followed before units run. The cache lives on this plugin.
  */
 
 import type { Program } from "oxc-parser";
-import type { Plugin } from "vite";
+import type { Alias, Plugin } from "vite";
 import type { AutoImport } from "@gwenjs/kit";
 import { GwenError } from "@gwenjs/schema";
 import { ViteErrorCodes } from "../error-codes.js";
 import { applyEdits } from "./apply-edits.js";
+import { followBarrels, type Barrels } from "./barrel.js";
 import { devHint } from "./dev-hint.js";
+import { buildImportTable } from "./import-table.js";
 import { lineColumn, parseModule, pathWithoutQuery } from "./parse.js";
 import { createModuleResolver } from "./resolve-callee.js";
 import type {
@@ -73,8 +75,8 @@ function createContext(
   program: Program,
   comments: TransformContext["comments"],
   autoImports: readonly AutoImport[],
+  followed: ReadonlyMap<string, GwenImportBinding>,
 ): TransformContext {
-  const followed = new Map<string, GwenImportBinding>();
   const resolver = createModuleResolver({ program, code, id, autoImports, followed });
   return {
     id,
@@ -105,6 +107,9 @@ export function createTransformPipeline(options: {
   const registered: GwenSourceTransform[] = [];
   let ordered: readonly GwenSourceTransform[] = builtIns;
   let frozen = false;
+  let projectRoot = "";
+  let projectAliases: readonly Alias[] = [];
+  const barrelCache = new Map<string, Barrels>();
 
   function orderUnits(
     builtIns: readonly GwenSourceTransform[],
@@ -137,15 +142,31 @@ export function createTransformPipeline(options: {
   const plugin: Plugin & { api: GwenTransformPipelineApi } = {
     name: "gwen:transform-pipeline",
     enforce: "pre",
-    configResolved() {
+    configResolved(config) {
       ordered = orderUnits(builtIns, registered);
       frozen = true;
+      projectRoot = config.root;
+      projectAliases = config.resolve.alias;
     },
     async transform(code, id) {
       if (!acceptsModule(id)) return null;
       try {
         const parsed = parseModule(id, code);
-        const context = createContext(id, code, parsed.program, parsed.comments, autoImports);
+        const followed = await followBarrels(buildImportTable(parsed.program), {
+          importer: id,
+          root: projectRoot,
+          aliases: projectAliases,
+          cache: barrelCache,
+          resolve: (specifier, importer) => this.resolve(specifier, importer),
+        });
+        const context = createContext(
+          id,
+          code,
+          parsed.program,
+          parsed.comments,
+          autoImports,
+          followed,
+        );
         const tagged: Array<TransformEdit & { unit: string }> = [];
         for (const unit of currentUnits()) {
           const produced = await unit.run(parsed.program, context);
@@ -164,7 +185,10 @@ export function createTransformPipeline(options: {
         this.error({ message: caught.message, id, loc, cause: caught });
       }
     },
-    watchChange(): void {},
+    watchChange(id): void {
+      if (!barrelCache.has(id)) return;
+      barrelCache.clear();
+    },
     api,
   };
 
