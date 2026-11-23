@@ -537,6 +537,10 @@ Cause. `attw --pack --profile esm-only` signale un problème sur l'archive que `
 
 Cause. Un bloc `declare module` nomme un paquet du framework autre que `@gwenjs/schema` (par exemple `@gwenjs/core` ou `@gwenjs/kit`), ou un bloc `declare module "@gwenjs/schema"` ajoute à `GwenProvides` une clé que le framework déclare déjà (le message nomme la clé et le paquet qui la déclare). Le nom du paquet lui-même et ses sous-chemins ne sont pas signalés. Chaque fichier script de `src`, chaque fichier de déclaration (`.d.ts`, `.d.mts`, `.d.cts`) sous `src` ou sous un dossier `tests`, `test` ou `__tests__`, et chaque fichier de test est lu, avec l'API TypeScript : un `declare module` dans un commentaire n'est pas lu. `dist` n'est pas lu. La liste des clés est générée depuis les sources du framework, comme `FRAMEWORK_ENTRIES`. Fix. Augmentez plutôt `@gwenjs/schema` (`GwenProvides`, `GwenRuntimeHooks`), et choisissez une clé de service qui vous est propre, par exemple `"<plugin>:<service>"`.
 
+### CONFORMANCE:DEV_PIN {#conformance-dev-pin}
+
+Cause. Un paquet du framework (une clé de `FRAMEWORK_RANGES`) est listé dans `devDependencies` avec un spécificateur qui n'est pas une version exacte. Une version exacte est `majeur.mineur.correctif`, avec une pré-version et un build facultatifs, par exemple `1.0.0-integration.20261123120000.gabc1234`. Une plage (`^`, `~`, `*`, `latest`, `>=`, `1.x`), un spécificateur `workspace:`, un spécificateur `file:` ou un alias `npm:` n'est pas exact. Une dépendance de développement absente n'est pas un constat. Un constat par paquet, sur la ligne de la clé dans `package.json`. La vérification s'exécute pour les deux profils. Fix. Épinglez le paquet dans `devDependencies` sur la version exacte contre laquelle les tests s'exécutent.
+
 ### CONFORMANCE:EXPORTS_INVALID {#conformance-exports-invalid}
 
 Cause. Une cible `exports` qui est une chaîne doit commencer par `./` et être un fichier du paquet. Une cible qui n'est ni une chaîne, ni un tableau, ni un objet, ni `null` est refusée. `null` est ignoré. `exports` absent, qui n'est pas un objet, ou vide est refusé, ainsi qu'un mélange de clés de sous-chemin et de clés de condition. Dans un objet de conditions, `types` doit être la première clé. `./internal`, `./internal/…` et une clé qui commence par `./internal*` sont refusés. Le profil `plugin` exige aussi `.` et `./module`. Un motif (`*`) n'est pas vérifié sur le disque. Fix. Faites commencer chaque cible chaîne par `./` vers un fichier du paquet, gardez `exports` comme un objet non vide d'une seule forme, mettez `types` en premier, retirez les sous-chemins internes, et ajoutez `.` et `./module` pour un plugin.
@@ -596,6 +600,10 @@ Cause. Quand `lockfileBase` est donné, un paquet tiers de `pnpm-lock.yaml` (un 
 ### CONFORMANCE:MANIFEST {#conformance-manifest}
 
 Cause. Le profil `plugin` ne met pas `gwen.type` à `"plugin"`, `license` est vide ou absent, aucun fichier LICENSE n'est à la racine, ou `package.json` manque, est illisible, ou n'est pas du JSON valide. Fix. Réglez `gwen.type` et un `license` non vide, ajoutez `LICENSE`, `LICENSE.md` ou `LICENSE.txt`, et écrivez du JSON valide.
+
+### CONFORMANCE:PEER_RANGE {#conformance-peer-range}
+
+Cause. Un paquet du framework (une clé de `FRAMEWORK_RANGES`) est listé dans `dependencies` ou `optionalDependencies` (quel que soit le spécificateur), ou son spécificateur dans `peerDependencies` n'est pas exactement la plage de `FRAMEWORK_RANGES` (égalité stricte des chaînes, sans analyse semver). Le groupe lié utilise `CORE_RANGE`. `@gwenjs/math` peut rester dans `dependencies` ou `optionalDependencies` avec n'importe quel spécificateur ; son pair doit quand même être sa propre plage, pas `CORE_RANGE`. Une section qui n'est pas un objet est ignorée. Un spécificateur qui n'est pas une chaîne est affiché avec `JSON.stringify`. Un paquet hors de `FRAMEWORK_RANGES` est ignoré. Un constat par clé, sur la ligne de la clé dans `package.json`. La vérification s'exécute pour les deux profils, y compris quand `exports` a un constat. Fix. Déclarez le paquet dans `peerDependencies` sur sa plage `FRAMEWORK_RANGES`, et épinglez-le exactement dans `devDependencies`. Retirez-le de `dependencies`, sauf `@gwenjs/math`.
 
 ### CONFORMANCE:PRIVATE_EXPORT {#conformance-private-export}
 

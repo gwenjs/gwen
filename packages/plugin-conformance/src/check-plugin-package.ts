@@ -6,6 +6,7 @@ import { checkHooks } from "./check-hooks.js";
 import { checkImports } from "./check-imports.js";
 import { checkLockfile } from "./check-lockfile.js";
 import { checkManifest } from "./check-manifest.js";
+import { checkPeers } from "./check-peers.js";
 import { checkPublint } from "./check-publint.js";
 import { checkReadme } from "./check-readme.js";
 import { checkTestMocks } from "./check-test-mocks.js";
@@ -43,10 +44,10 @@ function invalidProfileReport(profile: string): ConformanceReport {
 
 /**
  * Run the implemented checks for the package at `opts.root`.
- * `package.json` is read once. The `imports`, `augment`, `hooks`, `test-mocks` and `manifest`
- * checks always run. The snapshot, publint, attw and readme checks run only when `exports` has no
- * finding. With `write`, the snapshot is rewritten from the build before it is compared. When
- * `package.json` is missing or not JSON, only the manifest check is reported.
+ * `package.json` is read once. The `imports`, `augment`, `hooks`, `test-mocks`, `peers` and
+ * `manifest` checks always run. The snapshot, publint, attw and readme checks run only when
+ * `exports` has no finding. With `write`, the snapshot is rewritten from the build before it is
+ * compared. When `package.json` is missing or not JSON, only the manifest check is reported.
  * The `lockfile` check runs only when `lockfileBase` is given.
  * An unknown `profile` (from a JS caller) is one `INVALID_SPEC` finding, not a throw. A `src` file
  * that cannot be read (any error but a missing file) rejects with that error: a silent pass would
@@ -72,6 +73,7 @@ export async function checkPluginPackage(
     augmentFindings,
     hooksFindings,
     testMocksFindings,
+    peersFindings,
     manifestFindings,
   ] = await Promise.all([
     checkExports(context),
@@ -79,6 +81,7 @@ export async function checkPluginPackage(
     checkAugment(context),
     checkHooks(context),
     checkTestMocks(context),
+    checkPeers(context),
     checkManifest(context),
   ]);
   const byId: FindingsById = {
@@ -87,6 +90,7 @@ export async function checkPluginPackage(
     augment: augmentFindings,
     hooks: hooksFindings,
     "test-mocks": testMocksFindings,
+    peers: peersFindings,
     manifest: manifestFindings,
   };
   if (opts.lockfileBase !== undefined) {
