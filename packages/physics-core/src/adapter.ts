@@ -86,9 +86,10 @@ export interface PhysicsAdapter<D extends Dim, Api> {
 
   /**
    * Contacts of one frame, after the sensor transitions, `physics:collision` and `onContact`.
-   * The plugin does not call this when `eventView` is missing or its count is 0.
+   * The plugin does not call this when `eventView` is missing, its count is 0,
+   * or the resolved contact list is empty.
    *
-   * @param contacts - Resolved contacts. Empty when every event lacked an owner.
+   * @param contacts - Resolved contacts. Never empty when this method runs.
    */
   onContacts?(contacts: ReadonlyArray<CollisionContact>): void;
 }

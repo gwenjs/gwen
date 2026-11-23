@@ -2,7 +2,6 @@
  * Shared physics plugin. A dimension package supplies the adapter.
  */
 
-import { useEngine } from "@gwenjs/core";
 import type { GwenEngine } from "@gwenjs/core";
 import { reportRejectedHook } from "@gwenjs/core/internal";
 import { definePlugin } from "@gwenjs/kit/plugin";
@@ -23,9 +22,15 @@ import type { CollisionContact, Dim } from "./types.js";
  * on that same engine. `beginFrame`, when the adapter has one, runs on every
  * `engine:before-update`. `step` runs only when `dt > 0`.
  * `engine:update` reads `eventView`. No view, or a count of 0, emits nothing.
- * Otherwise the order is sensor transitions, `physics:collision`, `onContact`,
- * then `onContacts`. A rejected `physics:collision` handler is reported.
- * `teardown` clears that engine's contact and sensor callbacks, then calls `dispose`.
+ * Otherwise sensor transitions run first. Inside one transition the registry
+ * callbacks (`onSensorEnter` / `onSensorExit`) run, then `physics:sensor:changed`.
+ * When the resolved contact list is empty, the plugin calls neither
+ * `physics:collision`, nor `onContact`, nor `onContacts`. Sensor transitions of
+ * that frame still run. Otherwise the order continues with `physics:collision`,
+ * `onContact`, then `onContacts`.
+ * A rejected `physics:collision` or `physics:sensor:changed` handler is reported.
+ * `entity:destroy` forgets that entity's sensor counts and does not fire an exit.
+ * `teardown` clears the setup engine's contact and sensor callbacks, then calls `dispose`.
  * A throw from `makeAdapter` is the error `engine.use` rejects with.
  *
  * @typeParam D - Physics dimension.
@@ -66,9 +71,13 @@ export function createPhysicsPlugin<
 
   return definePlugin({ provides: [serviceKey], options }, (config) => {
     let adapter: PhysicsAdapter<D, Api> | undefined;
+    let releaseContacts: () => void = () => {};
     return {
       name,
       setup(engine: GwenEngine) {
+        releaseContacts = () => {
+          clearEngineContacts(engine);
+        };
         const tracker = createSensorTracker();
         const created = makeAdapter(engine, config, { sensors: tracker.sensors });
         const pool: InternalCollisionEvent[] = [];
@@ -77,6 +86,7 @@ export function createPhysicsPlugin<
           created.onPrefab?.(entityId, extensions);
         });
         engine.hooks.hook("entity:destroy", (entityId) => {
+          tracker.forget(entityId);
           created.onEntityDestroy(entityId);
         });
         engine.hooks.hook("engine:before-update", (dt) => {
@@ -113,6 +123,7 @@ export function createPhysicsPlugin<
             if (event.bColliderId !== undefined) contact.bColliderId = event.bColliderId;
             contacts.push(contact);
           }
+          if (contacts.length === 0) return;
           reportRejectedHook(
             engine,
             name,
@@ -134,19 +145,19 @@ export function createPhysicsPlugin<
           if (entityId === undefined) return;
           const applied = tracker.apply(entityId, sensorId, started);
           if (!applied.changed) return;
+          const sensorRegistry = createSensorRegistry().peek(engine);
+          if (applied.state.isActive) sensorRegistry?.emit(sensorId, entityId, "enter");
+          else sensorRegistry?.emit(sensorId, entityId, "exit");
           reportRejectedHook(
             engine,
             name,
             "physics:sensor:changed",
             engine.hooks.callHook("physics:sensor:changed", entityId, sensorId, applied.state),
           );
-          const sensorRegistry = createSensorRegistry().peek(engine);
-          if (applied.state.isActive) sensorRegistry?.emit(sensorId, entityId, "enter");
-          else sensorRegistry?.emit(sensorId, entityId, "exit");
         }
       },
       teardown() {
-        clearEngineContacts(useEngine(name));
+        releaseContacts();
         adapter?.dispose();
       },
     };
