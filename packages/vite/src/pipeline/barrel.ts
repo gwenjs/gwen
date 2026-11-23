@@ -5,6 +5,8 @@
  * retransform its importers until those importers change.
  * A star bound to a namespace, and a namespace read through a barrel, stay unresolved.
  * A `#gwen` re-export stays `{ source: "#gwen", imported: "sys" }`. It is not mapped through the auto-import list.
+ * A name the barrel exports itself (`export const x`) is not recorded, so a star may still claim it.
+ * A `watchChange` that fires while the barrel is being read can leave the old content cached until the next change.
  */
 
 import { readFile } from "node:fs/promises";
