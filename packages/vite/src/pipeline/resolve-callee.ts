@@ -1,6 +1,6 @@
 /**
  * Resolve callees for one module from its import table, scope index and auto-imports.
- * A `var` in a nested block of the same function is outside ScopeTracker 0.7 and stays unresolved.
+ * A `var` in a nested block of the same function is missed by ScopeTracker 0.7: the call still resolves to the import (known limit).
  */
 
 import type { AutoImport } from "@gwenjs/kit";
@@ -21,7 +21,6 @@ import type { ScopeTrackerNode } from "oxc-walker";
 export interface ModuleResolverInput {
   readonly program: Program;
   readonly code: string;
-  readonly id: string;
   readonly autoImports: readonly AutoImport[];
   /** Origin binding per local import name. The barrel pass fills it before units run. */
   readonly followed: ReadonlyMap<string, GwenImportBinding>;
@@ -43,16 +42,10 @@ function astNode(node: Node): GwenAstNode {
   return { type: node.type, start: node.start, end: node.end };
 }
 
-function isOptional(node: { optional: boolean }): boolean {
-  return node.optional;
-}
-
 /** Property name of a member. Computed members are rejected by the caller. */
 function propertyName(node: MemberExpression): string | null {
-  const property = node.property;
-  if (property.type === "Identifier") return property.name;
-  if (property.type === "Literal" && typeof property.value === "string") return property.value;
-  return null;
+  if (node.property.type !== "Identifier") return null;
+  return node.property.name;
 }
 
 function declaredName(declaration: ScopeTrackerNode): string | null {
@@ -114,7 +107,7 @@ export function createModuleResolver(input: ModuleResolverInput): ModuleResolver
   }
 
   function resolveMember(node: MemberExpression): GwenImportBinding | null {
-    if (isOptional(node) || node.computed) return null;
+    if (node.optional || node.computed) return null;
     const imported = propertyName(node);
     if (imported === null) return null;
     if (node.object.type !== "Identifier") return null;
@@ -137,7 +130,7 @@ export function createModuleResolver(input: ModuleResolverInput): ModuleResolver
   }
 
   function resolveCall(node: CallExpression): GwenImportBinding | null {
-    if (isOptional(node)) return null;
+    if (node.optional) return null;
     return resolveImport(node.callee);
   }
 
@@ -184,7 +177,7 @@ export function createModuleResolver(input: ModuleResolverInput): ModuleResolver
   }
 
   function isModuleScopeBinding(name: string, at: number): boolean {
-    if (at < 0 || at > code.length) return false;
+    if (at < 0 || at >= code.length) return false;
     const declaration = scope.declarationAt(at);
     if (declaration === undefined) return scope.isRootName(name);
     if (declaration === null) return false;

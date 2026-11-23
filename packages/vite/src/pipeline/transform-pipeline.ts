@@ -14,7 +14,7 @@ import { applyEdits } from "./apply-edits.js";
 import { followBarrels, type Barrels } from "./barrel.js";
 import { devHint } from "./dev-hint.js";
 import { buildImportTable } from "./import-table.js";
-import { lineColumn, parseModule, pathWithoutQuery } from "./parse.js";
+import { isScriptModule, lineColumn, parseModule } from "./parse.js";
 import { createModuleResolver } from "./resolve-callee.js";
 import type {
   GwenImportBinding,
@@ -29,8 +29,6 @@ export interface GwenTransformPipelineApi {
   readonly names: readonly string[];
 }
 
-const SOURCE_FILE = /\.(ts|tsx|js|jsx|mts|cts)$/;
-
 interface SourceLoc {
   readonly file: string;
   readonly line: number;
@@ -40,9 +38,7 @@ interface SourceLoc {
 function acceptsModule(id: string): boolean {
   if (id.startsWith("\0")) return false;
   if (id.includes("/node_modules/")) return false;
-  const path = pathWithoutQuery(id);
-  if (path.endsWith(".d.ts")) return false;
-  return SOURCE_FILE.test(path);
+  return isScriptModule(id);
 }
 
 function isSourceLoc(value: unknown): value is SourceLoc {
@@ -77,7 +73,7 @@ function createContext(
   autoImports: readonly AutoImport[],
   followed: ReadonlyMap<string, GwenImportBinding>,
 ): TransformContext {
-  const resolver = createModuleResolver({ program, code, id, autoImports, followed });
+  const resolver = createModuleResolver({ program, code, autoImports, followed });
   return {
     id,
     code,
@@ -152,13 +148,17 @@ export function createTransformPipeline(options: {
       if (!acceptsModule(id)) return null;
       try {
         const parsed = parseModule(id, code);
-        const followed = await followBarrels(buildImportTable(parsed.program), {
-          importer: id,
-          root: projectRoot,
-          aliases: projectAliases,
-          cache: barrelCache,
-          resolve: (specifier, importer) => this.resolve(specifier, importer),
-        });
+        const units = currentUnits();
+        const followed =
+          units.length === 0
+            ? new Map<string, GwenImportBinding>()
+            : await followBarrels(buildImportTable(parsed.program), {
+                importer: id,
+                root: projectRoot,
+                aliases: projectAliases,
+                cache: barrelCache,
+                resolve: (specifier, importer) => this.resolve(specifier, importer),
+              });
         const context = createContext(
           id,
           code,
@@ -168,7 +168,7 @@ export function createTransformPipeline(options: {
           followed,
         );
         const tagged: Array<TransformEdit & { unit: string }> = [];
-        for (const unit of currentUnits()) {
+        for (const unit of units) {
           const produced = await unit.run(parsed.program, context);
           for (const edit of produced) tagged.push(tagEdit(edit, unit.name));
         }

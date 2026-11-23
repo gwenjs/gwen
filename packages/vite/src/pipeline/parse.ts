@@ -10,11 +10,20 @@ import { devHint } from "./dev-hint.js";
 
 const PARSE_HINT = "Fix the syntax error; the GWEN build never skips a module it cannot parse.";
 
+const SOURCE_FILE = /\.(ts|tsx|js|jsx|mts|cts)$/;
+
 /** Path used for the dialect. A query is not part of the extension. */
 export function pathWithoutQuery(id: string): string {
   const queryAt = id.indexOf("?");
   if (queryAt < 0) return id;
   return id.slice(0, queryAt);
+}
+
+/** A script the pipeline can parse. A declaration file is not one. A query is not part of the extension. */
+export function isScriptModule(id: string): boolean {
+  const path = pathWithoutQuery(id);
+  if (path.endsWith(".d.ts")) return false;
+  return SOURCE_FILE.test(path);
 }
 
 /** 1-based line and 1-based column. A line break is `\n` only. */
