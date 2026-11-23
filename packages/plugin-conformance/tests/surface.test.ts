@@ -211,6 +211,7 @@ describe("checkPluginPackage", () => {
         "augment",
         "hooks",
         "test-mocks",
+        "peers",
         "manifest",
       ]);
       expect(report.findings).toEqual([]);
@@ -762,6 +763,7 @@ describe("snapshot checks of checkPluginPackage", () => {
       "augment",
       "hooks",
       "test-mocks",
+      "peers",
       "manifest",
     ]);
     expect(messagesOf(report)).toEqual(['export "./dist/index.js" of subpath "." is missing']);
@@ -1519,6 +1521,7 @@ describe("readme check of checkPluginPackage", () => {
       "augment",
       "hooks",
       "test-mocks",
+      "peers",
       "manifest",
     ]);
     expect(messagesOf(report)).toEqual(['export "./dist/index.js" of subpath "." is missing']);
@@ -1726,6 +1729,7 @@ describe("artifact checks of checkPluginPackage", () => {
       "augment",
       "hooks",
       "test-mocks",
+      "peers",
       "manifest",
     ]);
     expect(messagesOf(report)).toEqual(['export "./dist/index.js" of subpath "." is missing']);
