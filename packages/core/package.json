@@ -11,6 +11,9 @@
     "THIRD-PARTY-NOTICES"
   ],
   "type": "module",
+  "sideEffects": [
+    "./wasm/**"
+  ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
