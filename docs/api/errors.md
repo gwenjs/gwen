@@ -537,6 +537,10 @@ Cause. `attw --pack --profile esm-only` reports a problem on the tarball that `n
 
 Cause. A `declare module` block names a framework package other than `@gwenjs/schema` (for example `@gwenjs/core` or `@gwenjs/kit`), or a `declare module "@gwenjs/schema"` block adds a `GwenProvides` key that the framework already declares (the message names the key and the package that declares it). The package's own name and its subpaths are not reported. Every script file of `src`, every declaration file (`.d.ts`, `.d.mts`, `.d.cts`) under `src` or under a `tests`, `test` or `__tests__` directory, and every test file is read, through the TypeScript API: a `declare module` in a comment is not read. `dist` is not read. The key list is generated from the framework sources, like `FRAMEWORK_ENTRIES`. Fix. Augment `@gwenjs/schema` (`GwenProvides`, `GwenRuntimeHooks`) instead, and pick a service key of your own, for example `"<plugin>:<service>"`.
 
+### CONFORMANCE:DEV_PIN {#conformance-dev-pin}
+
+Cause. A framework package (a key of `FRAMEWORK_RANGES`) is listed in `devDependencies` with a spec that is not an exact version. An exact version is `major.minor.patch`, with an optional prerelease and build, such as `1.0.0-integration.20261123120000.gabc1234`. A range (`^`, `~`, `*`, `latest`, `>=`, `1.x`), a `workspace:` spec, a `file:` spec, or an `npm:` alias is not exact. A missing devDependency is not a finding. One finding per package, on the `package.json` line of the key. The check runs for both profiles. Fix. Pin the package in `devDependencies` to the exact version the tests run against.
+
 ### CONFORMANCE:EXPORTS_INVALID {#conformance-exports-invalid}
 
 Cause. A string `exports` target must start with `./` and be a file inside the package. A target that is not a string, an array, an object, or `null` is rejected. `null` is skipped. `exports` missing, not an object, or empty is rejected, and so is a mix of subpath keys and condition keys. In a condition object, `types` must be first. `./internal`, `./internal/…`, and a key that starts with `./internal*` are rejected. Profile `plugin` also requires `.` and `./module`. A subpath pattern (`*`) is not existence-checked. Fix. Point each string target at a `./` file inside the package, keep `exports` a non-empty object of one shape, put `types` first, remove internal subpaths, and add `.` and `./module` for a plugin.
@@ -596,6 +600,10 @@ Cause. With `lockfileBase` set, a third-party package in `pnpm-lock.yaml` (a nam
 ### CONFORMANCE:MANIFEST {#conformance-manifest}
 
 Cause. Profile `plugin` does not set `gwen.type` to `"plugin"`, `license` is empty or missing, no LICENSE file is at the root, or `package.json` is missing, unreadable, or not valid JSON. Fix. Set `gwen.type` and a non-empty `license`, add `LICENSE`, `LICENSE.md`, or `LICENSE.txt`, and write valid JSON.
+
+### CONFORMANCE:PEER_RANGE {#conformance-peer-range}
+
+Cause. A framework package (a key of `FRAMEWORK_RANGES`) is listed in `dependencies` or `optionalDependencies` (any spec), or its `peerDependencies` spec is not exactly the range in `FRAMEWORK_RANGES` (strict string equality, no semver parsing). The linked group uses `CORE_RANGE`. `@gwenjs/math` may sit in `dependencies` or `optionalDependencies` at any spec; its peer must still be its own range, not `CORE_RANGE`. A section that is not an object is skipped. A spec that is not a string is shown with `JSON.stringify`. A package outside `FRAMEWORK_RANGES` is ignored. One finding per key, on the `package.json` line of the key. The check runs for both profiles, including when `exports` has a finding. Fix. Declare the package in `peerDependencies` on its `FRAMEWORK_RANGES` range, and pin it exactly in `devDependencies`. Move it out of `dependencies`, except `@gwenjs/math`.
 
 ### CONFORMANCE:PRIVATE_EXPORT {#conformance-private-export}
 
