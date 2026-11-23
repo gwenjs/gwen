@@ -531,3 +531,92 @@ it("makeAdapter receives a sensor tracker that reflects the dispatched transitio
   await update(engine);
   expect(sensors?.read(entityA, 4)).toEqual({ contactCount: 0, isActive: false });
 });
+
+it("an entity destroyed mid-overlap loses its sensor state", async () => {
+  const engine = await openEngine();
+  const box = harness(LAYOUT_16);
+  let tracker: SensorRead | undefined;
+  await usePlugin(engine, "destroy-sensor-plugin", box, (sensors) => {
+    tracker = sensors;
+  });
+  const sensors = tracker;
+  const entityA = engine.createEntity();
+  const entityB = engine.createEntity();
+  box.owners.set(1, entityA);
+  box.owners.set(2, entityB);
+  box.sensors.set(1, 4);
+  const exited: bigint[] = [];
+  await engine.run(() => {
+    api.onSensorExit(4, (entityId) => {
+      exited.push(entityId);
+    });
+  });
+  const changed: bigint[] = [];
+  engine.hooks.hook("physics:sensor:changed", (entityId) => {
+    changed.push(entityId);
+  });
+  box.frames.push(frame16([[1, 2, 4, 1, true]]));
+  await update(engine);
+  expect(sensors?.read(entityA, 4)).toEqual({ contactCount: 1, isActive: true });
+  const changedBeforeDestroy = changed.length;
+  await engine.hooks.callHook("entity:destroy", entityA);
+  expect(sensors?.read(entityA, 4)).toEqual({ contactCount: 0, isActive: false });
+  expect(changed.length).toBe(changedBeforeDestroy);
+  expect(exited).toEqual([]);
+});
+
+it("a sensor transition fires the registry callbacks before the physics:sensor:changed hook", async () => {
+  const engine = await openEngine();
+  const box = harness(LAYOUT_16);
+  await usePlugin(engine, "sensor-order-plugin", box);
+  const entityA = engine.createEntity();
+  const entityB = engine.createEntity();
+  box.owners.set(1, entityA);
+  box.owners.set(2, entityB);
+  box.sensors.set(1, 4);
+  const order: string[] = [];
+  await engine.run(() => {
+    api.onSensorEnter(4, () => {
+      order.push("enter");
+    });
+    api.onSensorExit(4, () => {
+      order.push("exit");
+    });
+  });
+  engine.hooks.hook("physics:sensor:changed", (_entityId, _sensorId, state) => {
+    order.push(state.isActive ? "hook-enter" : "hook-exit");
+  });
+  box.frames.push(frame16([[1, 2, 4, 1, true]]));
+  await update(engine);
+  expect(order).toEqual(["enter", "hook-enter"]);
+  box.frames.push(frame16([[1, 2, 4, 1, false]]));
+  await update(engine);
+  expect(order).toEqual(["enter", "hook-enter", "exit", "hook-exit"]);
+});
+
+it("a frame whose slots have no owner does not call physics:collision or onContacts", async () => {
+  const engine = await openEngine();
+  const box = harness(LAYOUT_16);
+  await usePlugin(engine, "unowned-frame-plugin", box);
+  const entityA = engine.createEntity();
+  box.owners.set(1, entityA);
+  box.sensors.set(1, 4);
+  const entered: bigint[] = [];
+  await engine.run(() => {
+    api.onSensorEnter(4, (entityId) => {
+      entered.push(entityId);
+    });
+  });
+  let collisionCalls = 0;
+  engine.hooks.hook("physics:collision", () => {
+    collisionCalls += 1;
+  });
+  const received: CollisionContact[] = [];
+  await listenContacts(engine, received);
+  box.frames.push(frame16([[1, 2, 4, 9, true]]));
+  await update(engine);
+  expect(entered).toEqual([entityA]);
+  expect(collisionCalls).toBe(0);
+  expect(received.length).toBe(0);
+  expect(box.contactBatches.length).toBe(0);
+});
