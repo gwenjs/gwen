@@ -1,11 +1,8 @@
 /**
  * @file useSphereCollider() — attaches a sphere-shaped collider to the current entity.
  */
-import type {
-  SphereColliderHandle3D,
-  Physics3DColliderOptions,
-  Physics3DMaterialPreset,
-} from "../types";
+import type { LayerSelector } from "@gwenjs/physics-core";
+import type { SphereColliderHandle3D, Physics3DColliderOptions } from "../types";
 import { usePhysics3D } from "../composables";
 import { _getActorEntityId } from "@gwenjs/core/internal";
 import { nextColliderId } from "./collider-id";
@@ -24,12 +21,12 @@ export interface SphereColliderOptions3D {
   offsetZ?: number;
   /** Mark as sensor — generates events but no physical response. @default false */
   isSensor?: boolean;
-  /** Numeric collision layer bitmask (membership). */
-  layer?: number;
-  /** Numeric collision filter bitmask (which layers to collide with). */
-  mask?: number;
-  /** Built-in material preset controlling friction and restitution. @default 'default' */
-  material?: Physics3DMaterialPreset;
+  /** Collision layer. A number is a raw bitmask, a string is a name, an array is OR-ed. */
+  layer?: LayerSelector;
+  /** Collision mask. Same shapes as `layer`. */
+  mask?: LayerSelector;
+  /** Preset name. */
+  material?: string;
 }
 
 /**
@@ -67,8 +64,10 @@ export function useSphereCollider(options: SphereColliderOptions3D): SphereColli
     ...(options.offsetY !== undefined ? { offsetY: options.offsetY } : {}),
     ...(options.offsetZ !== undefined ? { offsetZ: options.offsetZ } : {}),
     ...(options.isSensor !== undefined ? { isSensor: options.isSensor } : {}),
-    ...(options.material !== undefined ? { material: options.material } : {}),
+    ...(options.layer !== undefined ? { layer: options.layer } : {}),
+    ...(options.mask !== undefined ? { mask: options.mask } : {}),
   };
+  if (options.material !== undefined) Object.assign(collider, { material: options.material });
   physics.addCollider(entityId, collider);
 
   return {

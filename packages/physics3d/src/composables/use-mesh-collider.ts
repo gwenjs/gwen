@@ -107,6 +107,8 @@ export function useMeshCollider(
     },
     colliderId,
     ...(opts.isSensor !== undefined ? { isSensor: opts.isSensor } : {}),
+    ...(opts.layer !== undefined ? { layer: opts.layer } : {}),
+    ...(opts.mask !== undefined ? { mask: opts.mask } : {}),
     ...(opts.offsetX !== undefined ? { offsetX: opts.offsetX } : {}),
     ...(opts.offsetY !== undefined ? { offsetY: opts.offsetY } : {}),
     ...(opts.offsetZ !== undefined ? { offsetZ: opts.offsetZ } : {}),
@@ -157,9 +159,11 @@ export function useMeshCollider(
       _status = "loading";
       const rebuildOpts: Pick<
         Physics3DColliderOptions,
-        "isSensor" | "friction" | "restitution" | "layers" | "mask"
+        "isSensor" | "friction" | "restitution" | "layer" | "mask"
       > = {};
       if (currentOptions.isSensor !== undefined) rebuildOpts.isSensor = currentOptions.isSensor;
+      if (currentOptions.layer !== undefined) rebuildOpts.layer = currentOptions.layer;
+      if (currentOptions.mask !== undefined) rebuildOpts.mask = currentOptions.mask;
       let ok: boolean;
       try {
         ok = physics.rebuildMeshCollider(entityId, colliderId, vertices, indices, rebuildOpts);

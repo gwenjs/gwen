@@ -1,9 +1,9 @@
 import type { Quat, Vec3 } from "@gwenjs/math";
 import type { EntityId } from "@gwenjs/schema";
 
-import type { BodyKind } from "@gwenjs/physics-core";
+import type { BodyKind, LayerSelector } from "@gwenjs/physics-core";
 
-import type { Physics3DColliderOptions, Physics3DMaterialPreset } from "./colliders";
+import type { Physics3DColliderOptions } from "./colliders";
 import type { QualityPreset } from "./config";
 
 export type { BodyKind };
@@ -137,12 +137,12 @@ export interface Physics3DBodySnapshot {
 export interface StaticBodyOptions3D {
   /** Mark as sensor — generates events but no physical response. @default false */
   isSensor?: boolean;
-  /** Numeric collision layer bitmask (membership). */
-  layer?: number;
-  /** Numeric collision filter bitmask (which layers to collide with). */
-  mask?: number;
-  /** Built-in material preset. @default 'default' */
-  material?: Physics3DMaterialPreset;
+  /** Collision layer. A number is a raw bitmask, a string is a name, an array is OR-ed. */
+  layer?: LayerSelector;
+  /** Collision mask. Same shapes as `layer`. */
+  mask?: LayerSelector;
+  /** Preset name. */
+  material?: string;
 }
 
 /**
@@ -162,12 +162,12 @@ export interface DynamicBodyOptions3D {
   ccdEnabled?: boolean;
   /** Mark as sensor — generates events but no physical response. @default false */
   isSensor?: boolean;
-  /** Numeric collision layer bitmask (membership). */
-  layer?: number;
-  /** Numeric collision filter bitmask (which layers to collide with). */
-  mask?: number;
-  /** Built-in material preset. @default 'default' */
-  material?: Physics3DMaterialPreset;
+  /** Collision layer. A number is a raw bitmask, a string is a name, an array is OR-ed. */
+  layer?: LayerSelector;
+  /** Collision mask. Same shapes as `layer`. */
+  mask?: LayerSelector;
+  /** Preset name. */
+  material?: string;
   /** Initial world-space position in metres. */
   initialPosition?: Partial<Vec3>;
   /** Initial orientation as a unit quaternion. */

@@ -4,7 +4,7 @@
 
 import type { Vec3 } from "@gwenjs/math";
 import { GwenConfigError } from "@gwenjs/core";
-import { LAYER_ERROR_CODES, LayerRegistry } from "@gwenjs/physics-core";
+import { LAYER_ERROR_CODES, LayerRegistry, type LayerSelector } from "@gwenjs/physics-core";
 import { GwenError } from "@gwenjs/schema";
 import { Physics3DErrorCodes } from "./errors/codes";
 import type { Physics3DConfig, QualityPreset, ResolvedPhysics3DConfig } from "./types";
@@ -102,20 +102,24 @@ export function buildLayerRegistry(layers: Record<string, number>): LayerRegistr
 }
 
 /**
- * Resolve layer names to a combined bitmask.
+ * Resolve a layer selector to a combined bitmask.
  *
- * Returns `0xFFFFFFFF` when `names` is empty or `undefined`, before the registry
- * is asked. An empty list would otherwise resolve to 0.
+ * Returns `0xFFFFFFFF` when `selector` is `undefined` or an empty array, before
+ * the registry is asked. An empty list would otherwise resolve to 0. A scalar
+ * string has a `.length`, so the empty check uses `Array.isArray`.
  *
- * @param names    - Layer names or raw masks to resolve.
+ * @param selector - Name, raw bitmask, or a list of either.
  * @param registry - Layer registry built by {@link buildLayerRegistry}.
+ * @param role     - Option name used in the unknown-layer message. @default "layer"
  * @returns Combined bitmask.
  * @throws {GwenError} `PHYSICS3D:UNKNOWN_LAYER` when a name is not declared.
  */
 export function resolveLayerBits(
-  names: (string | number)[] | undefined,
+  selector: LayerSelector | undefined,
   registry: LayerRegistry,
+  role = "layer",
 ): number {
-  if (!names || names.length === 0) return 0xffffffff;
-  return registry.resolve(names, "layers");
+  if (selector === undefined) return 0xffffffff;
+  if (Array.isArray(selector) && selector.length === 0) return 0xffffffff;
+  return registry.resolve(selector, role);
 }

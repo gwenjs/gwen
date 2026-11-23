@@ -2,11 +2,8 @@
  * @file useHeightfieldCollider() — attaches a grid-based heightfield collider
  * to the current entity for efficient terrain collision.
  */
-import type {
-  HeightfieldColliderHandle3D,
-  Physics3DColliderOptions,
-  Physics3DMaterialPreset,
-} from "../types";
+import type { LayerSelector } from "@gwenjs/physics-core";
+import type { HeightfieldColliderHandle3D, Physics3DColliderOptions } from "../types";
 import { usePhysics3D } from "../composables";
 import { _getActorEntityId } from "@gwenjs/core/internal";
 import { nextColliderId } from "./collider-id";
@@ -34,12 +31,12 @@ export interface HeightfieldColliderOptions {
   friction?: number;
   /** Bounciness [0, 1]. @default 0 */
   restitution?: number;
-  /** Numeric collision layer bitmask (membership). */
-  layer?: number;
-  /** Numeric collision filter bitmask (which layers to collide with). */
-  mask?: number;
-  /** Built-in material preset controlling friction and restitution. @default 'default' */
-  material?: Physics3DMaterialPreset;
+  /** Collision layer. A number is a raw bitmask, a string is a name, an array is OR-ed. */
+  layer?: LayerSelector;
+  /** Collision mask. Same shapes as `layer`. */
+  mask?: LayerSelector;
+  /** Preset name. */
+  material?: string;
 }
 
 /**
@@ -108,10 +105,10 @@ export function useHeightfieldCollider(
       colliderId,
       ...(options.friction !== undefined ? { friction: options.friction } : {}),
       ...(options.restitution !== undefined ? { restitution: options.restitution } : {}),
-      ...(options.layer !== undefined ? { layers: [options.layer] } : {}),
-      ...(options.mask !== undefined ? { mask: [options.mask] } : {}),
-      ...(options.material !== undefined ? { material: options.material } : {}),
+      ...(options.layer !== undefined ? { layer: options.layer } : {}),
+      ...(options.mask !== undefined ? { mask: options.mask } : {}),
     };
+    if (options.material !== undefined) Object.assign(collider, { material: options.material });
     return collider;
   };
 

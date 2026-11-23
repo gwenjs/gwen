@@ -145,8 +145,8 @@ const TerrainActor = defineActor(TerrainPrefab, () => {
 **All colliders accept:**
 - `offsetX?: number`, `offsetY?: number`, `offsetZ?: number` — Local position offset
 - `isSensor?: boolean` — Overlap events only, no physical response
-- `layer?: number` — Membership layer bitmask
-- `mask?: number` — Collision filter mask
+- `layer?: number | string | Array<number | string>` — Membership. A number is a raw bitmask. A string is a bit name from `Physics3DConfig.layers`. An array is OR-ed. Applied on the WASM backend only.
+- `mask?: number | string | Array<number | string>` — Collision filter. Same shapes as `layer`.
 
 **Box collider:**
 - `w: number` — Width (X)
@@ -316,6 +316,10 @@ Joint types:
 A joint with a NaN or infinite anchor, axis, spring, motor value or limit throws `PHYSICS3D:INVALID_JOINT`. See [Errors](/api/physics3d#errors).
 
 ## Collision Layers
+
+A collider `layer` or `mask` is a number, a string, or an array. A number is a raw bitmask. A string is a bit name from `Physics3DConfig.layers` (the value there is a bit index, and the mask is `1 << index`). An array is OR-ed. An omitted filter, or an empty array, is every bit. The filter is applied on the WASM backend only.
+
+`defineLayers` returns the masks you pass in (bitmasks such as `1 << 0`), ready to use as a numeric `layer` or `mask`.
 
 Use layers to control which objects collide:
 

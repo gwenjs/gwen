@@ -64,7 +64,7 @@ export function shapeSpecToColliderOptions(
     ...(shape.isSensor !== undefined ? { isSensor: shape.isSensor } : {}),
     ...(shape.friction !== undefined ? { friction: shape.friction } : {}),
     ...(shape.restitution !== undefined ? { restitution: shape.restitution } : {}),
-    ...(layers !== undefined ? { layers } : {}),
+    ...(layers !== undefined ? { layer: layers } : {}),
     ...(mask !== undefined ? { mask } : {}),
   };
 }
@@ -126,8 +126,8 @@ function addColliderWasm(
   const idx = slot;
   const { friction, restitution, density } = resolveColliderMaterial(finalOptions);
   const isSensor = finalOptions.isSensor ?? false;
-  const membership = resolveLayerBits(finalOptions.layers, ctx.layerRegistry);
-  const filter = resolveLayerBits(finalOptions.mask, ctx.layerRegistry);
+  const membership = resolveLayerBits(finalOptions.layer, ctx.layerRegistry);
+  const filter = resolveLayerBits(finalOptions.mask, ctx.layerRegistry, "mask");
   const ox = finalOptions.offsetX ?? 0;
   const oy = finalOptions.offsetY ?? 0;
   const oz = finalOptions.offsetZ ?? 0;
@@ -473,8 +473,8 @@ export function createRebuildMeshCollider(ctx: PluginContext): Physics3DAPI["reb
     if (ctx.backendMode === "wasm") {
       const { friction, restitution } = resolveColliderMaterial({ ...options });
       const isSensor = options?.isSensor ?? false;
-      const membership = resolveLayerBits(options?.layers, ctx.layerRegistry);
-      const filter = resolveLayerBits(options?.mask, ctx.layerRegistry);
+      const membership = resolveLayerBits(options?.layer, ctx.layerRegistry);
+      const filter = resolveLayerBits(options?.mask, ctx.layerRegistry, "mask");
 
       // Rust first: a rejected rebuild leaves the registry geometry as it was.
       const rebuilt = callPhysics3DExport(
@@ -532,8 +532,8 @@ export function createBulkSpawnStaticBoxes(
     const n = options.positions.length / 3;
     const friction = options.friction ?? 0.5;
     const restitution = options.restitution ?? 0.0;
-    const membership = resolveLayerBits(options.layers, ctx.layerRegistry);
-    const filter = resolveLayerBits(options.mask, ctx.layerRegistry);
+    const membership = resolveLayerBits(options.layers, ctx.layerRegistry, "layers");
+    const filter = resolveLayerBits(options.mask, ctx.layerRegistry, "mask");
 
     const entityIds: EntityId[] = [];
     const entityIndices = new Uint32Array(n);
@@ -613,7 +613,7 @@ export function createBulkSpawnStaticBoxes(
         shape: { type: "box", halfX: hx, halfY: hy, halfZ: hz },
         friction,
         restitution,
-        ...(options.layers !== undefined ? { layers: options.layers } : {}),
+        ...(options.layers !== undefined ? { layer: options.layers } : {}),
         ...(options.mask !== undefined ? { mask: options.mask } : {}),
       };
       createBodyLocal(ctx, localId, {
@@ -640,8 +640,8 @@ export function createAddCompoundCollider(ctx: PluginContext): Physics3DAPI["add
     const colliderIds = shapes.map(() => nextColliderId());
 
     if (ctx.backendMode === "wasm" && ctx.wasmBridge?.physics3d_add_compound_collider) {
-      const layerBits = resolveLayerBits(layers, ctx.layerRegistry);
-      const maskBits = resolveLayerBits(mask, ctx.layerRegistry);
+      const layerBits = resolveLayerBits(layers, ctx.layerRegistry, "layers");
+      const maskBits = resolveLayerBits(mask, ctx.layerRegistry, "mask");
       const buf = encodeCompoundShapes(shapes, colliderIds);
       // Rust inserts every part or throws (INVALID_COMPOUND, COLLIDER_ALREADY_EXISTS, ...).
       const count = callPhysics3DExport(ctx, "physics3d_add_compound_collider", () =>

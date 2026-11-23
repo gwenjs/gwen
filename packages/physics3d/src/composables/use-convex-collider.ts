@@ -7,11 +7,8 @@
  * cheaper than a trimesh collider and suitable for dynamic bodies when primitive
  * shapes (box, sphere, capsule) do not approximate the geometry closely enough.
  */
-import type {
-  ConvexColliderHandle3D,
-  Physics3DColliderOptions,
-  Physics3DMaterialPreset,
-} from "../types";
+import type { LayerSelector } from "@gwenjs/physics-core";
+import type { ConvexColliderHandle3D, Physics3DColliderOptions } from "../types";
 import { usePhysics3D } from "../composables";
 import { _getActorEntityId } from "@gwenjs/core/internal";
 import { nextColliderId } from "./collider-id";
@@ -31,12 +28,12 @@ export interface ConvexColliderOptions {
   vertices: Float32Array;
   /** Mark as sensor — generates events but no physical response. @default false */
   isSensor?: boolean;
-  /** Numeric collision layer bitmask (membership). */
-  layer?: number;
-  /** Numeric collision filter bitmask (which layers to collide with). */
-  mask?: number;
-  /** Built-in material preset controlling friction and restitution. @default 'default' */
-  material?: Physics3DMaterialPreset;
+  /** Collision layer. A number is a raw bitmask, a string is a name, an array is OR-ed. */
+  layer?: LayerSelector;
+  /** Collision mask. Same shapes as `layer`. */
+  mask?: LayerSelector;
+  /** Preset name. */
+  material?: string;
 }
 
 /**
@@ -73,8 +70,10 @@ export function useConvexCollider(options: ConvexColliderOptions): ConvexCollide
     },
     colliderId,
     ...(options.isSensor !== undefined ? { isSensor: options.isSensor } : {}),
-    ...(options.material !== undefined ? { material: options.material } : {}),
+    ...(options.layer !== undefined ? { layer: options.layer } : {}),
+    ...(options.mask !== undefined ? { mask: options.mask } : {}),
   };
+  if (options.material !== undefined) Object.assign(collider, { material: options.material });
   physics.addCollider(entityId, collider);
 
   return {

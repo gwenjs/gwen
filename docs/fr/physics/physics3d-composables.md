@@ -145,8 +145,8 @@ const TerrainActor = defineActor(TerrainPrefab, () => {
 **Tous les colliders acceptent :**
 - `offsetX?: number`, `offsetY?: number`, `offsetZ?: number` — Décalage de position locale
 - `isSensor?: boolean` — Événements de chevauchement uniquement, pas de réponse physique
-- `layer?: number` — Masque de couche d'appartenance
-- `mask?: number` — Masque de filtre de collision
+- `layer?: number | string | Array<number | string>` — Appartenance. Un nombre est un masque brut. Une chaîne est un nom de bit de `Physics3DConfig.layers`. Un tableau est combiné par OU. Appliqué sur le backend WASM seulement.
+- `mask?: number | string | Array<number | string>` — Filtre de collision. Mêmes formes que `layer`.
 
 **Collider de boîte :**
 - `w: number` — Largeur (X)
@@ -316,6 +316,10 @@ Types d'articulations :
 Une articulation dont un ancrage, un axe, un ressort, une valeur de moteur ou une limite est NaN ou infini lève `PHYSICS3D:INVALID_JOINT`. Voir [Erreurs](/fr/api/physics3d#erreurs).
 
 ## Couches de collision
+
+Un `layer` ou un `mask` de collider est un nombre, une chaîne ou un tableau. Un nombre est un masque brut. Une chaîne est un nom de bit de `Physics3DConfig.layers` (la valeur y est un index de bit, et le masque vaut `1 << index`). Un tableau est combiné par OU. Un filtre omis, ou un tableau vide, couvre tous les bits. Le filtre est appliqué sur le backend WASM seulement.
+
+`defineLayers` renvoie les masques que vous passez (des masques de bits tels que `1 << 0`), prêts à servir de `layer` ou de `mask` numérique.
 
 Utilisez les couches pour contrôler quels objets entrent en collision :
 
