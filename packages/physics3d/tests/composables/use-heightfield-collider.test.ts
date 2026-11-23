@@ -135,8 +135,8 @@ describe("useHeightfieldCollider", () => {
       expect.objectContaining({
         friction: 0.8,
         restitution: 0.1,
-        layers: [0b0001],
-        mask: [0b1110],
+        layer: 0b0001,
+        mask: 0b1110,
       }),
     );
   });

@@ -80,6 +80,45 @@ describe("useMeshCollider", () => {
     );
   });
 
+  it("passes layer and mask to addCollider", () => {
+    useMeshCollider({ vertices, indices, layer: 2, mask: 1 });
+    expect(mockPhysics3D.addCollider).toHaveBeenCalledWith(
+      1n,
+      expect.objectContaining({ layer: 2, mask: 1 }),
+    );
+    mockPhysics3D.addCollider.mockClear();
+    useMeshCollider({ vertices, indices });
+    const passed = mockPhysics3D.addCollider.mock.calls[0][1];
+    expect(passed).not.toHaveProperty("layer");
+    expect(passed).not.toHaveProperty("mask");
+  });
+
+  it("accepts a layer name, an array and layer 0", () => {
+    useMeshCollider({ vertices, indices, layer: "player", mask: ["a", 4] });
+    expect(mockPhysics3D.addCollider).toHaveBeenCalledWith(
+      1n,
+      expect.objectContaining({ layer: "player", mask: ["a", 4] }),
+    );
+    mockPhysics3D.addCollider.mockClear();
+    useMeshCollider({ vertices, indices, layer: 0, mask: [] });
+    expect(mockPhysics3D.addCollider).toHaveBeenCalledWith(
+      1n,
+      expect.objectContaining({ layer: 0, mask: [] }),
+    );
+  });
+
+  it("rebuild keeps the layer and mask", async () => {
+    const handle = useMeshCollider({ vertices, indices, layer: 2, mask: 1 });
+    await handle.rebuild(vertices, indices);
+    expect(mockPhysics3D.rebuildMeshCollider).toHaveBeenCalledWith(
+      1n,
+      handle.colliderId,
+      vertices,
+      indices,
+      expect.objectContaining({ layer: 2, mask: 1 }),
+    );
+  });
+
   // ─── handle shape ─────────────────────────────────────────────────────────
   it("handle.colliderId is a number", () => {
     const handle = useMeshCollider({ vertices, indices });

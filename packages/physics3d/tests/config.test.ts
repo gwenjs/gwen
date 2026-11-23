@@ -212,6 +212,8 @@ describe("resolveLayerBits", () => {
 
   it("returns 0xFFFFFFFF for empty array", () => {
     expect(resolveLayerBits([], registry)).toBe(0xffffffff);
+    expect(resolveLayerBits(0, registry, "layer")).toBe(0);
+    expect(resolveLayerBits("player", registry, "layer")).toBe(2);
   });
 
   it("resolves a single layer name", () => {
@@ -224,13 +226,13 @@ describe("resolveLayerBits", () => {
 
   it("throws on unknown layer names with a helpful message", () => {
     expect(() => resolveLayerBits(["unknown"], registry)).toThrow(
-      '[Physics3DPlugin()] Unknown layer "unknown" in layers. Declared layers: [default, player, enemy, ground].',
+      '[Physics3DPlugin()] Unknown layer "unknown" in layer. Declared layers: [default, player, enemy, ground].',
     );
   });
 
   it("throws on first unknown in a mixed valid/invalid list", () => {
     expect(() => resolveLayerBits(["player", "typo"], registry)).toThrow(
-      '[Physics3DPlugin()] Unknown layer "typo" in layers.',
+      '[Physics3DPlugin()] Unknown layer "typo" in layer.',
     );
   });
 

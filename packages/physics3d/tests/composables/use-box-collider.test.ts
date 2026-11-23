@@ -91,4 +91,31 @@ describe("useBoxCollider", () => {
       expect.objectContaining({ offsetX: 0.5, offsetY: 1.0, offsetZ: -0.5 }),
     );
   });
+
+  it("passes layer and mask to addCollider", () => {
+    useBoxCollider({ w: 1, h: 1, layer: 2, mask: 1 });
+    expect(mockPhysics3D.addCollider).toHaveBeenCalledWith(
+      1n,
+      expect.objectContaining({ layer: 2, mask: 1 }),
+    );
+    mockPhysics3D.addCollider.mockClear();
+    useBoxCollider({ w: 1, h: 1 });
+    const passed = mockPhysics3D.addCollider.mock.calls[0][1];
+    expect(passed).not.toHaveProperty("layer");
+    expect(passed).not.toHaveProperty("mask");
+  });
+
+  it("accepts a layer name, an array and layer 0", () => {
+    useBoxCollider({ w: 1, h: 1, layer: "player", mask: ["a", 4] });
+    expect(mockPhysics3D.addCollider).toHaveBeenCalledWith(
+      1n,
+      expect.objectContaining({ layer: "player", mask: ["a", 4] }),
+    );
+    mockPhysics3D.addCollider.mockClear();
+    useBoxCollider({ w: 1, h: 1, layer: 0, mask: [] });
+    expect(mockPhysics3D.addCollider).toHaveBeenCalledWith(
+      1n,
+      expect.objectContaining({ layer: 0, mask: [] }),
+    );
+  });
 });
