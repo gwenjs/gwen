@@ -8,4 +8,8 @@ describe("AppErrorCodes", () => {
     expect(app.AppErrorCodes.MODULE_INVALID).toBe(kit.KitErrorCodes.MODULE_INVALID);
     expect(app.AppErrorCodes.MODULE_INVALID).toBe("KIT:MODULE_INVALID");
   });
+
+  it("the module-entry code is in the APP namespace", () => {
+    expect(Reflect.get(app.AppErrorCodes, "MODULE_ENTRY_MISSING")).toBe("APP:MODULE_ENTRY_MISSING");
+  });
 });

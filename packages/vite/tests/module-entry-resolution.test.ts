@@ -179,4 +179,76 @@ describe("gwen() config hook — module entry resolution", () => {
     });
     await expect(seen).resolves.toEqual(["index-entry"]);
   });
+
+  it("rejects with the module-entry code and the package name when the package has no ./module export", async () => {
+    const name = "mod-no-subpath";
+    const pending = loadConfig([name], (root) => {
+      installModule(
+        root,
+        name,
+        { exports: { ".": "./index.js" } },
+        { "index.js": moduleSource("dot-entry") },
+      );
+    });
+    await expect(pending).rejects.toMatchObject({ code: "APP:MODULE_ENTRY_MISSING" });
+    await expect(pending).rejects.toThrow(name);
+    await expect(pending).rejects.toThrow("./module");
+  });
+
+  it('loads a package from its ./module entry, not from "."', async () => {
+    const seen = loadConfig(["mod-split"], (root) => {
+      installModule(
+        root,
+        "mod-split",
+        { exports: { ".": "./boom.mjs", "./module": "./ok.mjs" } },
+        {
+          "boom.mjs": `throw new Error("dot-entry");\n`,
+          "ok.mjs": moduleSource("from-module"),
+        },
+      );
+    });
+    await expect(seen).resolves.toEqual(["from-module"]);
+  });
+
+  it("picks the import condition of ./module before default", async () => {
+    const seen = loadConfig(["mod-import-first"], (root) => {
+      installModule(
+        root,
+        "mod-import-first",
+        { exports: { "./module": { import: "./esm.mjs", default: "./dflt.mjs" } } },
+        {
+          "esm.mjs": moduleSource("import-condition"),
+          "dflt.mjs": moduleSource("default-condition"),
+        },
+      );
+    });
+    await expect(seen).resolves.toEqual(["import-condition"]);
+  });
+
+  it("accepts ./module given as a plain string", async () => {
+    const seen = loadConfig(["mod-plain"], (root) => {
+      installModule(
+        root,
+        "mod-plain",
+        { exports: { "./module": "./m.mjs" } },
+        { "m.mjs": moduleSource("plain-string") },
+      );
+    });
+    await expect(seen).resolves.toEqual(["plain-string"]);
+  });
+
+  it("rejects with the module-entry code when ./module has only types and require conditions", async () => {
+    const name = "mod-require-only";
+    const pending = loadConfig([name], (root) => {
+      installModule(
+        root,
+        name,
+        { exports: { "./module": { types: "./mod.d.ts", require: "./mod.cjs" } } },
+        { "mod.cjs": "module.exports = {};\n", "mod.d.ts": "export {};\n" },
+      );
+    });
+    await expect(pending).rejects.toMatchObject({ code: "APP:MODULE_ENTRY_MISSING" });
+    await expect(pending).rejects.toThrow(name);
+    await expect(pending).rejects.toThrow("./module");
+  });
 });
