@@ -236,6 +236,10 @@ describe("resolveLayerBits", () => {
     );
   });
 
+  it("names the mask role when the unknown name is in mask", () => {
+    expect(() => resolveLayerBits(["x"], registry, "mask")).toThrow('Unknown layer "x" in mask.');
+  });
+
   it("produces unsigned 32-bit value", () => {
     const layers: Record<string, number> = {};
     const names: string[] = [];
