@@ -35,6 +35,8 @@ describe("physics3d materials", () => {
     if (!(caught instanceof GwenError)) return;
     expect(caught.code).toBe("PHYSICS3D:UNKNOWN_MATERIAL");
     expect(caught.composable).toBe("Physics3DPlugin");
+    const known = Object.keys(PHYSICS3D_MATERIAL_PRESETS).join(", ");
+    expect(caught.hint).toBe(__GWEN_DEV__ ? `Use ${known}.` : undefined);
   });
 
   it("resolveColliderMaterial rejects an inherited name", () => {

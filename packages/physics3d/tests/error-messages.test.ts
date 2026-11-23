@@ -120,6 +120,35 @@ describe("physics3d error messages", () => {
     );
   });
 
+  it('an unknown name in mask throws Unknown layer "x" in mask.', async () => {
+    const engine = await open();
+    const id = engine.createEntity();
+    engine.inject("physics3d").createBody(id, { kind: "fixed" });
+    const error = gwen(() =>
+      engine.inject("physics3d").addCollider(id, {
+        shape: { type: "box", halfX: 1, halfY: 1, halfZ: 1 },
+        mask: "x",
+      }),
+    );
+    expect(head(error)).toContain('Unknown layer "x" in mask.');
+
+    const layersEngine = await open();
+    try {
+      const layersError = gwen(() =>
+        layersEngine.inject("physics3d").bulkSpawnStaticBoxes({
+          positions: new Float32Array([0, 0, 0]),
+          halfExtents: new Float32Array([0.5, 0.5, 0.5]),
+          layers: ["x"],
+        }),
+      );
+      expect(head(layersError)).toContain('Unknown layer "x" in layers.');
+    } finally {
+      const index = engines.lastIndexOf(layersEngine);
+      if (index >= 0) engines.splice(index, 1);
+      await layersEngine.stop();
+    }
+  });
+
   it("a stale entity error has no code in its text", async () => {
     const engine = await open();
     const physics = engine.inject("physics3d");
