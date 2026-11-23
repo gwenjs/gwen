@@ -134,4 +134,9 @@ describe("API surface (RFC-V2-013)", () => {
     expect(variant).not.toContain("sharedMemory");
     expect(variant).not.toContain("detectSharedMemoryRequired");
   });
+
+  it("exposes GwenScenePreloadError on the root and CORE:SCENE_PRELOAD_FAILED in CoreErrorCodes", () => {
+    expect(typeof core.GwenScenePreloadError).toBe("function");
+    expect(core.CoreErrorCodes.SCENE_PRELOAD_FAILED).toBe("CORE:SCENE_PRELOAD_FAILED");
+  });
 });
