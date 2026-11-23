@@ -4,15 +4,17 @@
  * root (a monorepo sibling) is left untouched. Editing a barrel does not
  * retransform its importers until those importers change.
  * A star bound to a namespace, and a namespace read through a barrel, stay unresolved.
+ * A `#gwen` re-export stays `{ source: "#gwen", imported: "sys" }`. It is not mapped through the auto-import list.
  */
 
 import { readFile } from "node:fs/promises";
-import { sep } from "node:path";
 import type { ExportNamedDeclaration, ModuleExportName, Program } from "oxc-parser";
+import { GwenError } from "@gwenjs/schema";
 import type { Alias } from "vite";
-import { CANONICAL, isVirtualSource } from "./canonical.js";
+import { ViteErrorCodes } from "../error-codes.js";
+import { calleeFor, CANONICAL, isVirtualSource } from "./canonical.js";
 import { buildImportTable, type ImportBinding } from "./import-table.js";
-import { parseModule, pathWithoutQuery } from "./parse.js";
+import { isScriptModule, parseModule, pathWithoutQuery } from "./parse.js";
 import type { GwenImportBinding } from "./types.js";
 
 /** One re-export. `imported` is the name in `source`. */
@@ -41,11 +43,6 @@ export interface BarrelDeps {
  */
 const BARREL_DEPTH = 8;
 
-/** A cycle leaves the import unbound. The depth bound still stops the walk. */
-function cycleBinding(): GwenImportBinding | null {
-  return null;
-}
-
 function exportName(name: ModuleExportName): string {
   if (name.type === "Identifier") return name.name;
   return name.value;
@@ -66,7 +63,7 @@ function isProjectSpecifier(specifier: string, aliases: readonly Alias[]): boole
     const find = alias.find;
     if (typeof find !== "string") continue;
     if (find.length === 0) continue;
-    if (specifier === find || specifier.startsWith(find)) return true;
+    if (specifier === find || specifier.startsWith(`${find}/`)) return true;
   }
   return false;
 }
@@ -78,9 +75,9 @@ function isTerminalSource(source: string, aliases: readonly Alias[]): boolean {
 
 function isInsideRoot(file: string, root: string): boolean {
   if (root.length === 0) return false;
-  const base = root.endsWith(sep) ? root.slice(0, -sep.length) : root;
+  const base = root.endsWith("/") ? root.slice(0, -1) : root;
   if (base.length === 0) return false;
-  return file.startsWith(`${base}${sep}`);
+  return file.startsWith(`${base}/`);
 }
 
 function putNamed(named: Map<string, ImportRef>, key: string, ref: ImportRef): void {
@@ -152,9 +149,22 @@ async function loadBarrels(id: string, cache: Map<string, Barrels>): Promise<Bar
   if (cached !== undefined) return cached;
   const code = await readSource(id);
   if (code === null) return null;
-  const barrels = extractBarrels(parseModule(id, code).program);
+  const program = parseBarrel(id, code);
+  if (program === null) return null;
+  const barrels = extractBarrels(program);
   cache.set(id, barrels);
   return barrels;
+}
+
+function parseBarrel(id: string, code: string): Program | null {
+  try {
+    return parseModule(id, code).program;
+  } catch (caught) {
+    if (caught instanceof GwenError && caught.code === ViteErrorCodes.TRANSFORM_PARSE_FAILED) {
+      return null;
+    }
+    throw caught;
+  }
 }
 
 async function resolveFile(
@@ -167,6 +177,8 @@ async function resolveFile(
   const id = resolved.id;
   if (id.includes("\0")) return null;
   if (id.includes("/node_modules/")) return null;
+  if (id.includes("?")) return null;
+  if (!isScriptModule(id)) return null;
   if (!isInsideRoot(pathWithoutQuery(id), deps.root)) return null;
   return id;
 }
@@ -182,7 +194,7 @@ async function resolveExport(
   if (depth > BARREL_DEPTH) return null;
   const id = await resolveFile(specifier, importer, deps);
   if (id === null) return null;
-  if (seen.has(id)) return cycleBinding();
+  if (seen.has(id)) return null;
   const barrels = await loadBarrels(id, deps.cache);
   if (barrels === null) return null;
   const next = new Set(seen);
@@ -213,8 +225,12 @@ async function walkBarrel(
 ): Promise<GwenImportBinding | null> {
   const named = barrels.named.get(exported);
   if (named !== undefined) return followRef(named, id, deps, depth, seen);
-  const ordered = barrels.stars;
-  for (const star of ordered) {
+  for (const star of barrels.stars) {
+    if (isCanonicalSource(star)) {
+      if (calleeFor(star, exported) !== null) return { source: star, imported: exported };
+      continue;
+    }
+    if (!isProjectSpecifier(star, deps.aliases)) continue;
     const found = await resolveExport(star, id, exported, deps, depth + 1, seen);
     if (found !== null) return found;
   }

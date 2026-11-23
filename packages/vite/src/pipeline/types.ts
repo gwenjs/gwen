@@ -48,7 +48,7 @@ export interface GwenSourceRange {
 
 /**
  * One AST node in the call-site contract.
- * Vite-internal until the schema types land (P-66-6).
+ * vite-internal projection: type, start and end only; the full-node contract is decided with the schema types in P-66-6.
  * An oxc node has no string index signature, so `resolveImport` takes `Node`.
  */
 export interface GwenAstNode extends GwenSourceRange {
@@ -56,7 +56,7 @@ export interface GwenAstNode extends GwenSourceRange {
   readonly [field: string]: unknown;
 }
 
-/** Barrel followed to its origin. A default import uses `imported` `"default"`. */
+/** Origin of an import binding: source and imported name; a default import uses `default`. */
 export interface GwenImportBinding {
   readonly source: string;
   readonly imported: string;
@@ -68,7 +68,10 @@ export type GwenAstArgument =
   | ({ readonly kind: "number"; readonly value: number } & GwenSourceRange)
   | ({ readonly kind: "other"; readonly node: GwenAstNode } & GwenSourceRange);
 
-/** One call in source order. `binding` is null when the callee is unresolved. */
+/**
+ * One call in source order. `binding` is null when the callee is unresolved.
+ * vite-internal projection: type, start and end only; the full-node contract is decided with the schema types in P-66-6.
+ */
 export interface GwenCallSite extends GwenSourceRange {
   readonly binding: GwenImportBinding | null;
   readonly arguments: readonly GwenAstArgument[];

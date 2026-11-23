@@ -69,7 +69,10 @@ function build(program: Program): ScopeData {
     scopeTracker: tracker,
     enter(node, parent) {
       if (node.type !== "Identifier") return;
-      if (isBindingIdentifier(node, parent)) return;
+      if (isBindingIdentifier(node, parent)) {
+        declarations.set(node.start, tracker.getDeclaration(node.name));
+        return;
+      }
       declarations.set(node.start, tracker.getDeclaration(node.name));
     },
   });
