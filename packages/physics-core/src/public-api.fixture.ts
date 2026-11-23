@@ -19,6 +19,7 @@ export type PublicApiTypes = [
   Root.MaterialTable,
   Root.MaterialValues,
   Root.PhysicsAdapter<"2d", { readonly ready: true }>,
+  Root.PhysicsSensorTracker,
   Root.PhysicsConfigBase<"2d">,
   Root.QualityPreset,
   Root.SensorRegistry,

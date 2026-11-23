@@ -34,6 +34,8 @@ export interface PhysicsAdapter<D extends Dim, Api> {
 
   /**
    * Packed events from the last `step`.
+   * The plugin decodes this on `engine:update`.
+   * `undefined`, or a count of 0, emits nothing.
    *
    * @returns The buffer and its event count, or `undefined` when this frame has no buffer.
    */
@@ -83,9 +85,10 @@ export interface PhysicsAdapter<D extends Dim, Api> {
   beginFrame?(dt: number): void;
 
   /**
-   * Contacts of one frame. The plugin passes the array it decoded.
+   * Contacts of one frame, after the sensor transitions, `physics:collision` and `onContact`.
+   * The plugin does not call this when `eventView` is missing or its count is 0.
    *
-   * @param contacts - Contacts from this frame. Empty when the frame had none.
+   * @param contacts - Resolved contacts. Empty when every event lacked an owner.
    */
   onContacts?(contacts: ReadonlyArray<CollisionContact>): void;
 }

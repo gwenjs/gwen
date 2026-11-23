@@ -39,6 +39,7 @@
       "MaterialValues",
       "PhysicsAdapter",
       "PhysicsConfigBase",
+      "PhysicsSensorTracker",
       "QualityPreset",
       "SensorRegistry",
       "SensorState",
