@@ -30,7 +30,7 @@ describe("useBoxCollider", () => {
 
   it("calls addBoxCollider with half-extents (w/2, h/2)", () => {
     useBoxCollider({ w: 40, h: 20 });
-    expect(mockPhysics.addBoxCollider).toHaveBeenCalledWith(99, 20, 10, expect.anything());
+    expect(mockPhysics.addBoxCollider).toHaveBeenCalledWith(42n, 20, 10, expect.anything());
   });
 
   it("returns colliderId equal to the bodyHandle", () => {

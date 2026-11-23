@@ -177,8 +177,8 @@ async function runWorld(variant: CoreVariant, inputs: readonly number[]): Promis
       wasm.add_entity_transform(entityIndex(id), column * 0.5, row * 0.5, 0, 1, 1);
       if (variant === "physics2d") {
         const api = engine.inject("physics2d");
-        const handle = api.addRigidBody(id, "dynamic", column * 0.5, row * 0.5 + 1);
-        api.addBoxCollider(handle, 0.3, 0.3);
+        api.addRigidBody(id, "dynamic", column * 0.5, row * 0.5 + 1);
+        api.addBoxCollider(id, 0.3, 0.3);
       } else if (variant === "physics3d") {
         engine.inject("physics3d").createBody(id, {
           kind: "dynamic",

@@ -41,8 +41,8 @@ describe("physics2d panic-free", () => {
     try {
       const physics = await startPhysics(handle);
       const id = handle.engine.createEntity();
-      const body = physics.addRigidBody(id, "dynamic", 0, 1, { gravityScale: 0 });
-      physics.addBoxCollider(body, 0.5, 0.5);
+      physics.addRigidBody(id, "dynamic", 0, 1, { gravityScale: 0 });
+      physics.addBoxCollider(id, 0.5, 0.5);
       let caught: unknown;
       try {
         physics.pointQuery(Number.NaN, 0);
@@ -71,18 +71,18 @@ describe("physics2d panic-free", () => {
       const physics = await startPhysics(handle);
       const { engine } = handle;
       const ground = engine.createEntity();
-      const groundBody = physics.addRigidBody(ground, "fixed", 0, 0);
-      physics.addBoxCollider(groundBody, 20, 0.5, { restitution: 0, friction: 0 });
+      physics.addRigidBody(ground, "fixed", 0, 0);
+      physics.addBoxCollider(ground, 20, 0.5, { restitution: 0, friction: 0 });
       const offender = engine.createEntity();
       // Restitution 1e9 no longer leaves ±1e7: Rapier 0.36.1 caps speed at 400 m/s.
       // The next f32 past 1e7 is disabled on the first step (out-of-bounds).
-      const offenderBody = physics.addRigidBody(offender, "dynamic", PAST_WORLD_EXTENT, 2, {
+      physics.addRigidBody(offender, "dynamic", PAST_WORLD_EXTENT, 2, {
         mass: 1,
       });
-      physics.addBoxCollider(offenderBody, 0.5, 0.5, { restitution: 0, friction: 0 });
+      physics.addBoxCollider(offender, 0.5, 0.5, { restitution: 0, friction: 0 });
       const other = engine.createEntity();
-      const otherBody = physics.addRigidBody(other, "dynamic", 40, 8, { mass: 1 });
-      physics.addBoxCollider(otherBody, 0.5, 0.5, { restitution: 0, friction: 0 });
+      physics.addRigidBody(other, "dynamic", 40, 8, { mass: 1 });
+      physics.addBoxCollider(other, 0.5, 0.5, { restitution: 0, friction: 0 });
       const before = physics.getPosition(other)?.y;
       if (before === undefined) {
         throw new Error("expected the other body");
@@ -124,20 +124,20 @@ describe("physics2d panic-free", () => {
       const physics = await startPhysics(handle);
       const { engine } = handle;
       const ground = engine.createEntity();
-      const groundBody = physics.addRigidBody(ground, "fixed", 0, 0);
-      physics.addBoxCollider(groundBody, 20, 0.5, {
+      physics.addRigidBody(ground, "fixed", 0, 0);
+      physics.addBoxCollider(ground, 20, 0.5, {
         restitution: RESTITUTION_BLOWUP,
         friction: 0,
       });
       const offender = engine.createEntity();
-      const offenderBody = physics.addRigidBody(offender, "dynamic", 0, 2, { mass: 1 });
-      physics.addBoxCollider(offenderBody, 0.5, 0.5, {
+      physics.addRigidBody(offender, "dynamic", 0, 2, { mass: 1 });
+      physics.addBoxCollider(offender, 0.5, 0.5, {
         restitution: RESTITUTION_BLOWUP,
         friction: 0,
       });
       const other = engine.createEntity();
-      const otherBody = physics.addRigidBody(other, "dynamic", 40, 8, { mass: 1 });
-      physics.addBoxCollider(otherBody, 0.5, 0.5, { restitution: 0, friction: 0 });
+      physics.addRigidBody(other, "dynamic", 40, 8, { mass: 1 });
+      physics.addBoxCollider(other, 0.5, 0.5, { restitution: 0, friction: 0 });
       const before = physics.getPosition(other)?.y;
       if (before === undefined) {
         throw new Error("expected the other body");
@@ -200,8 +200,8 @@ describe("physics2d panic-free", () => {
     try {
       const physics = await startPhysics(handle, 0, 50);
       const id = handle.engine.createEntity();
-      const body = physics.addRigidBody(id, "dynamic", 0, 1, { gravityScale: 0, mass: 1 });
-      physics.addBoxCollider(body, 0.5, 0.5);
+      physics.addRigidBody(id, "dynamic", 0, 1, { gravityScale: 0, mass: 1 });
+      physics.addBoxCollider(id, 0.5, 0.5);
       physics.setLinearVelocity(id, 100, 0);
       await handle.advance(1, DT);
       const velocity = physics.getLinearVelocity(id);
@@ -221,8 +221,8 @@ describe("physics2d panic-free", () => {
     try {
       const physics = await startPhysics(handle, 0);
       const id = handle.engine.createEntity();
-      const body = physics.addRigidBody(id, "dynamic", 0, 1, { gravityScale: 0, mass: 1 });
-      physics.addBoxCollider(body, 0.5, 0.5);
+      physics.addRigidBody(id, "dynamic", 0, 1, { gravityScale: 0, mass: 1 });
+      physics.addBoxCollider(id, 0.5, 0.5);
       physics.setLinearVelocity(id, Number.NaN, 0);
       await handle.advance(1, DT);
       expect(seen).toEqual([{ entity: id, reason: "non-finite" }]);
@@ -242,11 +242,11 @@ describe("physics2d panic-free", () => {
       const physics = await startPhysics(handle, -9.81);
       const { engine } = handle;
       const kinematic = engine.createEntity();
-      const kinematicBody = physics.addRigidBody(kinematic, "kinematic", 0, 0);
-      physics.addBoxCollider(kinematicBody, 0.5, 0.5);
+      physics.addRigidBody(kinematic, "kinematic", 0, 0);
+      physics.addBoxCollider(kinematic, 0.5, 0.5);
       const other = engine.createEntity();
-      const otherBody = physics.addRigidBody(other, "dynamic", 4, 8, { mass: 1 });
-      physics.addBoxCollider(otherBody, 0.5, 0.5);
+      physics.addRigidBody(other, "dynamic", 4, 8, { mass: 1 });
+      physics.addBoxCollider(other, 0.5, 0.5);
       const before = physics.getPosition(other)?.y;
       if (before === undefined) {
         throw new Error("expected the other body");
@@ -274,8 +274,8 @@ describe("physics2d panic-free", () => {
     try {
       const physics = await startPhysics(handle, 0);
       const id = handle.engine.createEntity();
-      const body = physics.addRigidBody(id, "dynamic", 1e7, 0, { gravityScale: 0, mass: 1 });
-      physics.addBoxCollider(body, 0.5, 0.5);
+      physics.addRigidBody(id, "dynamic", 1e7, 0, { gravityScale: 0, mass: 1 });
+      physics.addBoxCollider(id, 0.5, 0.5);
       physics.setLinearVelocity(id, 400, 0);
       await handle.advance(1, DT);
       expect(seen).toEqual([{ entity: id, reason: "velocity" }]);

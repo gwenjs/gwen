@@ -30,7 +30,7 @@ describe("useSphereCollider", () => {
 
   it("calls addBallCollider with the correct radius", () => {
     useSphereCollider({ radius: 16 });
-    expect(mockPhysics.addBallCollider).toHaveBeenCalledWith(99, 16, expect.anything());
+    expect(mockPhysics.addBallCollider).toHaveBeenCalledWith(42n, 16, expect.anything());
   });
 
   it("returns colliderId equal to the bodyHandle", () => {

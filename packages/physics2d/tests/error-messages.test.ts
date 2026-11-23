@@ -98,15 +98,14 @@ describe("physics2d error messages", () => {
     seeCode(error, "addRigidBody", "PHYSICS2D:STALE_ENTITY");
   });
 
-  it("a stale body handle error has no code in its text", async () => {
+  it("a live entity with no body throws PHYSICS2D:BODY_NOT_FOUND", async () => {
     const { engine, api } = await started();
     const id = engine.createEntity();
-    const handle = api.addRigidBody(id, "dynamic", 0, 0);
+    api.addRigidBody(id, "dynamic", 0, 0);
     api.removeBody(id);
-    const error = gwen(() => api.addBoxCollider(handle, 0.5, 0.5));
-    expect(error).toBeInstanceOf(errors.Physics2DStaleBodyHandleError);
-    expect(error.code).toBe(errors.Physics2DErrorCodes.STALE_BODY_HANDLE);
-    seeCode(error, "addBoxCollider", "PHYSICS2D:STALE_BODY_HANDLE");
+    const error = gwen(() => api.addBoxCollider(id, 0.5, 0.5));
+    expect(error.code).toBe(errors.Physics2DErrorCodes.BODY_NOT_FOUND);
+    seeCode(error, "addBoxCollider", "PHYSICS2D:BODY_NOT_FOUND");
   });
 
   it("an invalid collider throws PHYSICS2D:INVALID_COLLIDER with no composable", () => {
@@ -137,7 +136,7 @@ describe("physics2d error messages", () => {
     ["Physics2DPlugin", () => sensor._clearSensorCallbacks(1)],
     [
       "Physics2DPlugin",
-      () => contact._dispatchContactEvent(1n, { entityA: 1n, entityB: 2n, started: true }),
+      () => contact._dispatchContactEvent({ entityA: 1n, entityB: 2n, started: true }),
     ],
     ["onContact", () => contact.onContact(() => undefined)],
     ["Physics2DPlugin", () => contact._clearContactCallbacks(1n)],

@@ -163,10 +163,10 @@ describe("P1 error policy (real WASM)", () => {
       const physics = engine.inject("physics2d");
       const left = engine.createEntity();
       const right = engine.createEntity();
-      const leftHandle = physics.addRigidBody(left, "dynamic", 0, 0);
-      const rightHandle = physics.addRigidBody(right, "dynamic", 0.2, 0);
-      physics.addBoxCollider(leftHandle, 0.5, 0.5);
-      physics.addBoxCollider(rightHandle, 0.5, 0.5);
+      physics.addRigidBody(left, "dynamic", 0, 0);
+      physics.addRigidBody(right, "dynamic", 0.2, 0);
+      physics.addBoxCollider(left, 0.5, 0.5);
+      physics.addBoxCollider(right, 0.5, 0.5);
 
       await advance(5, 1 / 60);
       await new Promise<void>((resolve) => {

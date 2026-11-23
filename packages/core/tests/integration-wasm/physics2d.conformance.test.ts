@@ -35,8 +35,8 @@ runPhysicsConformance({
   },
   createDynamicBody(id: EntityId, at: Vec, collider: boolean): void {
     const api = requirePhysics();
-    const handle = api.addRigidBody(id, "dynamic", at.x, at.y);
-    if (collider) api.addBoxCollider(handle, 0.5, 0.5);
+    api.addRigidBody(id, "dynamic", at.x, at.y);
+    if (collider) api.addBoxCollider(id, 0.5, 0.5);
   },
   createKinematicBody(id: EntityId, at: Vec): void {
     const api = requirePhysics();

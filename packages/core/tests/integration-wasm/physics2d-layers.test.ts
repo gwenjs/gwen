@@ -38,11 +38,13 @@ async function startedContacts(includeOther: boolean): Promise<number> {
     const right = engine.createEntity();
     const leftMask = includeOther ? ["solid", "ghost"] : ["solid"];
     const rightMask = includeOther ? ["solid", "ghost"] : ["ghost"];
-    physics.addBoxCollider(physics.addRigidBody(left, "dynamic", 0, 0), 0.5, 0.5, {
+    physics.addRigidBody(left, "dynamic", 0, 0);
+    physics.addBoxCollider(left, 0.5, 0.5, {
       layer: "solid",
       mask: leftMask,
     });
-    physics.addBoxCollider(physics.addRigidBody(right, "dynamic", 0.2, 0), 0.5, 0.5, {
+    physics.addRigidBody(right, "dynamic", 0.2, 0);
+    physics.addBoxCollider(right, 0.5, 0.5, {
       layer: "ghost",
       mask: rightMask,
     });
@@ -71,10 +73,10 @@ describe("physics2d layers on a real engine", () => {
       );
       const physics = engine.inject("physics2d");
       const id = engine.createEntity();
-      const body = physics.addRigidBody(id, "dynamic", 0, 0);
+      physics.addRigidBody(id, "dynamic", 0, 0);
       let caught: unknown;
       try {
-        physics.addBoxCollider(body, 0.5, 0.5, { layer: "missing" });
+        physics.addBoxCollider(id, 0.5, 0.5, { layer: "missing" });
       } catch (error) {
         caught = error;
       }

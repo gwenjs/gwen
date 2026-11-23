@@ -67,12 +67,53 @@ describe("physics2d contact payload", () => {
           seen.push(event);
         }, left);
       });
-      physics.addBoxCollider(physics.addRigidBody(left, "dynamic", 0, 0), 0.5, 0.5);
-      physics.addBoxCollider(physics.addRigidBody(right, "dynamic", 0.2, 0), 0.5, 0.5);
+      physics.addRigidBody(left, "dynamic", 0, 0);
+      physics.addBoxCollider(left, 0.5, 0.5);
+      physics.addRigidBody(right, "dynamic", 0.2, 0);
+      physics.addBoxCollider(right, 0.5, 0.5);
       await advance(5, 1 / 60);
       expect(seen.map((event) => event.started)).toContain(true);
       expect(seen.every((event) => event.started === true || event.started === false)).toBe(true);
       expect(Object.hasOwn(seen[0] ?? {}, "contactX")).toBe(false);
+    } finally {
+      await handle.dispose();
+    }
+  });
+
+  it("contacts and sensors still arrive with key physics2d", async () => {
+    const handle = await createRealEngine({ variant: "physics2d", maxEntities: 32 });
+    try {
+      const { engine, advance } = handle;
+      await engine.use(Physics2DPlugin({ gravity: { x: 0, y: 0 } }));
+      const contacts: boolean[] = [];
+      const sensors: EntityId[] = [];
+      const sensor = engine.createEntity();
+      const visitor = engine.createEntity();
+      engine.run(() => {
+        onContact((event) => {
+          contacts.push(event.started);
+        }, sensor);
+        onSensorEnter2d(0, (id) => {
+          sensors.push(id);
+        });
+      });
+      await engine.hooks.callHook("prefab:instantiate", sensor, {
+        physics2d: {
+          bodyType: "dynamic" as const,
+          gravityScale: 0,
+          colliders: [{ shape: "box" as const, hw: 16, hh: 16, isSensor: true, colliderId: 0 }],
+        },
+      });
+      await engine.hooks.callHook("prefab:instantiate", visitor, {
+        physics2d: {
+          bodyType: "dynamic" as const,
+          gravityScale: 0,
+          colliders: [{ shape: "box" as const, hw: 16, hh: 16 }],
+        },
+      });
+      await advance(5, 1 / 60);
+      expect(contacts).toContain(true);
+      expect(sensors).toContain(sensor);
     } finally {
       await handle.dispose();
     }
@@ -96,7 +137,7 @@ describe("sensor callbacks survive the other entity", () => {
       const idA = engine.run(() => Actor._plugin.spawn());
       const idB = engine.run(() => Actor._plugin.spawn());
       const sensor = {
-        physics: {
+        physics2d: {
           bodyType: "fixed" as const,
           colliders: [{ shape: "box" as const, hw: 0.5, hh: 0.5, isSensor: true, colliderId: 0 }],
         },
@@ -166,7 +207,7 @@ describe("sensor callbacks survive the other entity", () => {
       await engine.use(Actor._plugin);
       const idA = engine.run(() => Actor._plugin.spawn());
       const sensor = {
-        physics: {
+        physics2d: {
           bodyType: "fixed" as const,
           colliders: [{ shape: "box" as const, hw: 0.5, hh: 0.5, isSensor: true, colliderId: 0 }],
         },

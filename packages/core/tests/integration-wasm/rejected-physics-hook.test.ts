@@ -111,8 +111,10 @@ describe("a rejected physics listener does not stop the physics plugin", () => {
       const physics = engine.inject("physics2d");
       const left = engine.createEntity();
       const right = engine.createEntity();
-      physics.addBoxCollider(physics.addRigidBody(left, "dynamic", 0, 100), 0.5, 0.5);
-      physics.addBoxCollider(physics.addRigidBody(right, "dynamic", 0.2, 100), 0.5, 0.5);
+      physics.addRigidBody(left, "dynamic", 0, 100);
+      physics.addBoxCollider(left, 0.5, 0.5);
+      physics.addRigidBody(right, "dynamic", 0.2, 100);
+      physics.addBoxCollider(right, 0.5, 0.5);
       const faller = engine.createEntity();
       physics.addRigidBody(faller, "dynamic", 50, 100);
 
@@ -170,14 +172,15 @@ describe("a rejected physics2d hook is published without a target", () => {
       const physics = engine.inject("physics2d");
       const sensor = engine.createEntity();
       await engine.hooks.callHook("prefab:instantiate", sensor, {
-        physics: {
+        physics2d: {
           bodyType: "dynamic",
           gravityScale: 0,
           colliders: [{ shape: "box", hw: 16, hh: 16, isSensor: true, colliderId: 0 }],
         },
       });
       const visitor = engine.createEntity();
-      physics.addBoxCollider(physics.addRigidBody(visitor, "dynamic", 0, 0), 0.5, 0.5);
+      physics.addRigidBody(visitor, "dynamic", 0, 0);
+      physics.addBoxCollider(visitor, 0.5, 0.5);
 
       await advance(5, 1 / 60);
       await flush();
@@ -209,8 +212,10 @@ describe("a rejected physics2d hook is published without a target", () => {
       const physics = engine.inject("physics2d");
       const left = engine.createEntity();
       const right = engine.createEntity();
-      physics.addBoxCollider(physics.addRigidBody(left, "dynamic", 0, 0), 0.5, 0.5);
-      physics.addBoxCollider(physics.addRigidBody(right, "dynamic", 0.2, 0), 0.5, 0.5);
+      physics.addRigidBody(left, "dynamic", 0, 0);
+      physics.addBoxCollider(left, 0.5, 0.5);
+      physics.addRigidBody(right, "dynamic", 0.2, 0);
+      physics.addBoxCollider(right, 0.5, 0.5);
 
       await advance(5, 1 / 60);
       await flush();

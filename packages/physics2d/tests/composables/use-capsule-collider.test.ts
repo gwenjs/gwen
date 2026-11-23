@@ -49,7 +49,7 @@ describe("useCapsuleCollider", () => {
 
   it("uses radius as half-width and height/2 as half-height", () => {
     useCapsuleCollider({ radius: 10, height: 40 });
-    expect(mockPhysics.addBoxCollider).toHaveBeenCalledWith(99, 10, 20, expect.anything());
+    expect(mockPhysics.addBoxCollider).toHaveBeenCalledWith(42n, 10, 20, expect.anything());
   });
 
   it("passes isSensor to addBoxCollider", () => {

@@ -133,12 +133,12 @@ describe("useStaticBody", () => {
 
   it("passes default half-extents (0.5, 0.5) to box collider", () => {
     useStaticBody();
-    expect(mockPhysics.addBoxCollider).toHaveBeenCalledWith(99, 0.5, 0.5, expect.anything());
+    expect(mockPhysics.addBoxCollider).toHaveBeenCalledWith(42n, 0.5, 0.5, expect.anything());
   });
 
   it("passes default radius (0.5) to ball collider", () => {
     useStaticBody({ shape: "ball" });
-    expect(mockPhysics.addBallCollider).toHaveBeenCalledWith(99, 0.5, expect.anything());
+    expect(mockPhysics.addBallCollider).toHaveBeenCalledWith(42n, 0.5, expect.anything());
   });
 
   it("reads Shape component for box dimensions when present", () => {
@@ -147,7 +147,7 @@ describe("useStaticBody", () => {
     useStaticBody();
 
     expect(mockPhysics.addBoxCollider).toHaveBeenCalledWith(
-      expect.any(Number),
+      42n,
       50, // w/2
       20, // h/2
       expect.anything(),
@@ -160,7 +160,7 @@ describe("useStaticBody", () => {
     useStaticBody({ shape: "ball" });
 
     expect(mockPhysics.addBallCollider).toHaveBeenCalledWith(
-      expect.any(Number),
+      42n,
       25, // radius from Shape
       expect.anything(),
     );
@@ -172,7 +172,7 @@ describe("useStaticBody", () => {
     useStaticBody();
 
     expect(mockPhysics.addBoxCollider).toHaveBeenCalledWith(
-      expect.any(Number),
+      42n,
       0.5, // default hw
       0.5, // default hh
       expect.anything(),

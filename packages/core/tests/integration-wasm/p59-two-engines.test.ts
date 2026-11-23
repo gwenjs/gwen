@@ -89,15 +89,21 @@ describe("p59 two engines", () => {
         for (const contact of contacts) seenB.add(contact.entityA).add(contact.entityB);
       });
 
-      physicsA.addBoxCollider(physicsA.addRigidBody(leftA, "dynamic", 0, 0), 0.5, 0.5);
-      physicsA.addBoxCollider(physicsA.addRigidBody(rightA, "dynamic", 0.2, 0), 0.5, 0.5);
-      physicsB.addBoxCollider(physicsB.addRigidBody(leftB, "dynamic", 0, 0), 0.5, 0.5);
-      physicsB.addBoxCollider(physicsB.addRigidBody(rightB, "dynamic", 50, 0), 0.5, 0.5);
+      physicsA.addRigidBody(leftA, "dynamic", 0, 0);
+      physicsA.addBoxCollider(leftA, 0.5, 0.5);
+      physicsA.addRigidBody(rightA, "dynamic", 0.2, 0);
+      physicsA.addBoxCollider(rightA, 0.5, 0.5);
+      physicsB.addRigidBody(leftB, "dynamic", 0, 0);
+      physicsB.addBoxCollider(leftB, 0.5, 0.5);
+      physicsB.addRigidBody(rightB, "dynamic", 50, 0);
+      physicsB.addBoxCollider(rightB, 0.5, 0.5);
       // B collides too, with entities A never created: a shared buffer would leak them to A.
       const farB = b.createEntity();
       const farRightB = b.createEntity();
-      physicsB.addBoxCollider(physicsB.addRigidBody(farB, "dynamic", 100, 0), 0.5, 0.5);
-      physicsB.addBoxCollider(physicsB.addRigidBody(farRightB, "dynamic", 100.2, 0), 0.5, 0.5);
+      physicsB.addRigidBody(farB, "dynamic", 100, 0);
+      physicsB.addBoxCollider(farB, 0.5, 0.5);
+      physicsB.addRigidBody(farRightB, "dynamic", 100.2, 0);
+      physicsB.addBoxCollider(farRightB, 0.5, 0.5);
 
       await Promise.all([advanceA(5, 1 / 60), advanceB(5, 1 / 60)]);
 
@@ -112,8 +118,10 @@ describe("p59 two engines", () => {
 
       const nearB = b.createEntity();
       const nearRight = b.createEntity();
-      physicsB.addBoxCollider(physicsB.addRigidBody(nearB, "dynamic", 0, 0), 0.5, 0.5);
-      physicsB.addBoxCollider(physicsB.addRigidBody(nearRight, "dynamic", 0.2, 0), 0.5, 0.5);
+      physicsB.addRigidBody(nearB, "dynamic", 0, 0);
+      physicsB.addBoxCollider(nearB, 0.5, 0.5);
+      physicsB.addRigidBody(nearRight, "dynamic", 0.2, 0);
+      physicsB.addBoxCollider(nearRight, 0.5, 0.5);
       b.run(() => {
         onContact2d(() => {
           contactsB += 1;

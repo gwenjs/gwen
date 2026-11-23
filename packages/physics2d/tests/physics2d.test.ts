@@ -285,6 +285,16 @@ describe("Physics2DPlugin", () => {
     expect(mockWasmPlugin.physics_step).toHaveBeenCalledWith(0.016);
   });
 
+  it("no step at dt 0", async () => {
+    const plugin = Physics2DPlugin();
+    await initPlugin(plugin, mockBridge, mockEngine);
+    await mockEngine.hooks._trigger("engine:before-update", 0);
+    await mockEngine.hooks._trigger("engine:before-update", -0.016);
+    expect(mockWasmPlugin.physics_step).not.toHaveBeenCalled();
+    await mockEngine.hooks._trigger("engine:before-update", 0.016);
+    expect(mockWasmPlugin.physics_step).toHaveBeenCalledTimes(1);
+  });
+
   // ── teardown ──────────────────────────────────────────────────────────────
 
   it("teardown is safe to call before setup", () => {
@@ -470,7 +480,7 @@ describe("Physics2DPlugin", () => {
       addBoxCollider: (...a: unknown[]) => unknown;
     };
     ownColliderHandle(mockEngine, mockWasmPlugin, 0);
-    physics.addBoxCollider(0, 1.0, 2.0);
+    physics.addBoxCollider(slotId(1), 1.0, 2.0);
     expect(mockWasmPlugin.physics_add_box_collider).toHaveBeenCalledWith(
       0,
       1.0,
@@ -495,7 +505,7 @@ describe("Physics2DPlugin", () => {
       addBallCollider: (...a: unknown[]) => unknown;
     };
     ownColliderHandle(mockEngine, mockWasmPlugin, 0);
-    physics.addBallCollider(0, 0.5, { restitution: 0.8, friction: 0.1 });
+    physics.addBallCollider(slotId(1), 0.5, { restitution: 0.8, friction: 0.1 });
     expect(mockWasmPlugin.physics_add_ball_collider).toHaveBeenCalledWith(
       0,
       0.5,
@@ -519,7 +529,7 @@ describe("Physics2DPlugin", () => {
     };
     ownColliderHandle(mockEngine, mockWasmPlugin, 15);
 
-    physics.addBoxCollider(15, 0.28, 0.28, {
+    physics.addBoxCollider(slotId(1), 0.28, 0.28, {
       isSensor: true,
       offsetY: 0.34,
       colliderId: 0xf007,
@@ -550,7 +560,7 @@ describe("Physics2DPlugin", () => {
     };
     ownColliderHandle(mockEngine, mockWasmPlugin, 15);
 
-    physics.addBoxCollider(15, 0.28, 0.28, {
+    physics.addBoxCollider(slotId(1), 0.28, 0.28, {
       isSensor: true,
       colliderId: 0xf007,
     });
@@ -894,7 +904,7 @@ describe("Physics2DPlugin — prefab:instantiate hook", () => {
     const { engine } = await boot();
 
     await engine.hooks._trigger("prefab:instantiate", entityId, {
-      physics: { bodyType: "kinematic", colliders: [{ shape: "ball", radius: 14 }] },
+      physics2d: { bodyType: "kinematic", colliders: [{ shape: "ball", radius: 14 }] },
     });
 
     expect(mockWasmPlugin.physics_add_rigid_body).toHaveBeenCalledTimes(1);
@@ -920,7 +930,7 @@ describe("Physics2DPlugin — prefab:instantiate hook", () => {
     const { engine } = await boot();
 
     await engine.hooks._trigger("prefab:instantiate", entityId, {
-      physics: { bodyType: "dynamic", colliders: [{ shape: "box", hw: 20, hh: 10 }] },
+      physics2d: { bodyType: "dynamic", colliders: [{ shape: "box", hw: 20, hh: 10 }] },
     });
 
     expect(mockWasmPlugin.physics_add_rigid_body).toHaveBeenCalledTimes(1);
@@ -947,7 +957,7 @@ describe("Physics2DPlugin — prefab:instantiate hook", () => {
     const { engine } = await boot();
 
     await engine.hooks._trigger("prefab:instantiate", entityId, {
-      physics: { bodyType: "kinematic", colliders: [{ shape: "ball", radius: 5 }] },
+      physics2d: { bodyType: "kinematic", colliders: [{ shape: "ball", radius: 5 }] },
     });
 
     // Position is always 0/0 — no ECS lookup is performed in the new implementation.
@@ -971,7 +981,7 @@ describe("Physics2DPlugin — prefab:instantiate hook", () => {
     const { engine } = await boot();
 
     await engine.hooks._trigger("prefab:instantiate", entityId, {
-      physics: {
+      physics2d: {
         bodyType: "dynamic",
         colliders: [{ shape: "ball", radius: 8, restitution: 0.5, friction: 0.3 }],
       },
@@ -996,7 +1006,7 @@ describe("Physics2DPlugin — prefab:instantiate hook", () => {
     const { engine } = await boot();
 
     await engine.hooks._trigger("prefab:instantiate", entityId, {
-      physics: { bodyType: "kinematic", colliders: [{ shape: "ball", radius: 6 }] },
+      physics2d: { bodyType: "kinematic", colliders: [{ shape: "ball", radius: 6 }] },
     });
 
     expect(mockWasmPlugin.physics_add_ball_collider).toHaveBeenCalledWith(
@@ -1018,7 +1028,7 @@ describe("Physics2DPlugin — prefab:instantiate hook", () => {
     const { engine } = await boot();
 
     await engine.hooks._trigger("prefab:instantiate", entityId, {
-      physics: { bodyType: "kinematic", colliders: [] },
+      physics2d: { bodyType: "kinematic", colliders: [] },
     });
 
     expect(mockWasmPlugin.physics_add_rigid_body).toHaveBeenCalledTimes(1); // body is created
@@ -1034,7 +1044,7 @@ describe("Physics2DPlugin — prefab:instantiate hook", () => {
   it("mass and gravityScale are passed to add_rigid_body", async () => {
     const { engine } = await boot();
     await engine.hooks._trigger("prefab:instantiate", entityId, {
-      physics: {
+      physics2d: {
         bodyType: "dynamic",
         mass: 5.0,
         gravityScale: 0.5,
@@ -1060,7 +1070,7 @@ describe("Physics2DPlugin — prefab:instantiate hook", () => {
   it("ccdEnabled per-body override is passed to add_rigid_body", async () => {
     const { engine } = await boot();
     await engine.hooks._trigger("prefab:instantiate", entityId, {
-      physics: {
+      physics2d: {
         bodyType: "dynamic",
         ccdEnabled: true,
         colliders: [{ shape: "ball", radius: 10 }],
@@ -1085,7 +1095,7 @@ describe("Physics2DPlugin — prefab:instantiate hook", () => {
   it("additionalSolverIterations is passed to add_rigid_body", async () => {
     const { engine } = await boot();
     await engine.hooks._trigger("prefab:instantiate", entityId, {
-      physics: {
+      physics2d: {
         bodyType: "dynamic",
         additionalSolverIterations: 6,
         colliders: [{ shape: "ball", radius: 10 }],
@@ -1110,7 +1120,7 @@ describe("Physics2DPlugin — prefab:instantiate hook", () => {
   it("linearDamping and angularDamping are passed", async () => {
     const { engine } = await boot();
     await engine.hooks._trigger("prefab:instantiate", entityId, {
-      physics: {
+      physics2d: {
         bodyType: "dynamic",
         linearDamping: 0.3,
         angularDamping: 0.1,
@@ -1133,35 +1143,13 @@ describe("Physics2DPlugin — prefab:instantiate hook", () => {
     );
   });
 
-  it("initialVelocity is converted from pixels to metres", async () => {
-    const { engine } = await boot();
-    await engine.hooks._trigger("prefab:instantiate", entityId, {
-      physics: {
-        bodyType: "dynamic",
-        initialVelocity: { vx: 100, vy: -200 },
-        colliders: [{ shape: "ball", radius: 10 }],
-      },
-    });
-    expect(mockWasmPlugin.physics_add_rigid_body).toHaveBeenCalledWith(
-      1,
-      0,
-      0,
-      BODY_KIND_CODE.dynamic,
-      1.0,
-      1.0,
-      0.0,
-      0.0,
-      2.0,
-      -4.0,
-      undefined,
-      undefined,
-    );
-  });
-
   it("isSensor=true is passed to the collider (1)", async () => {
     const { engine } = await boot();
     await engine.hooks._trigger("prefab:instantiate", entityId, {
-      physics: { bodyType: "kinematic", colliders: [{ shape: "ball", radius: 8, isSensor: true }] },
+      physics2d: {
+        bodyType: "kinematic",
+        colliders: [{ shape: "ball", radius: 8, isSensor: true }],
+      },
     });
     expect(mockWasmPlugin.physics_add_ball_collider).toHaveBeenCalledWith(
       42,
@@ -1181,7 +1169,7 @@ describe("Physics2DPlugin — prefab:instantiate hook", () => {
   it("isSensor absent → defaults to 0", async () => {
     const { engine } = await boot();
     await engine.hooks._trigger("prefab:instantiate", entityId, {
-      physics: { bodyType: "kinematic", colliders: [{ shape: "ball", radius: 8 }] },
+      physics2d: { bodyType: "kinematic", colliders: [{ shape: "ball", radius: 8 }] },
     });
     expect(mockWasmPlugin.physics_add_ball_collider).toHaveBeenCalledWith(
       42,
@@ -1201,7 +1189,7 @@ describe("Physics2DPlugin — prefab:instantiate hook", () => {
   it("density is passed to the box collider", async () => {
     const { engine } = await boot();
     await engine.hooks._trigger("prefab:instantiate", entityId, {
-      physics: {
+      physics2d: {
         bodyType: "dynamic",
         colliders: [{ shape: "box", hw: 10, hh: 5, density: 2.5 }],
       },
@@ -1227,7 +1215,7 @@ describe("Physics2DPlugin — prefab:instantiate hook", () => {
     const { engine } = await boot();
 
     await engine.hooks._trigger("prefab:instantiate", entityId, {
-      physics: {
+      physics2d: {
         bodyType: "dynamic",
         colliders: [
           { shape: "box", hw: 20, hh: 10, friction: 0.3 },
@@ -1270,7 +1258,7 @@ describe("Physics2DPlugin — prefab:instantiate hook", () => {
     const { engine } = await boot();
 
     await engine.hooks._trigger("prefab:instantiate", entityId, {
-      physics: {
+      physics2d: {
         colliders: [{ shape: "ball", radius: 6 }],
       },
     });
@@ -1295,7 +1283,7 @@ describe("Physics2DPlugin — prefab:instantiate hook", () => {
     const { engine } = await boot();
 
     await engine.hooks._trigger("prefab:instantiate", entityId, {
-      physics: {
+      physics2d: {
         colliders: [{ shape: "ball", radius: 8, material: "ice" }],
       },
     });
@@ -1319,7 +1307,7 @@ describe("Physics2DPlugin — prefab:instantiate hook", () => {
     const { engine } = await boot();
 
     await engine.hooks._trigger("prefab:instantiate", entityId, {
-      physics: {
+      physics2d: {
         colliders: [
           {
             shape: "box",
@@ -1466,7 +1454,7 @@ describe("Physics2DPlugin — onUpdate policy", () => {
 
     await initPlugin(plugin, mockBridge, engine);
     await engine.hooks._trigger("prefab:instantiate", entityId, {
-      physics: {
+      physics2d: {
         colliders: [
           { shape: "box", hw: 10, hh: 10 },
           { shape: "box", hw: 8, hh: 2, isSensor: true, colliderId: 0xf007 },
@@ -1491,7 +1479,7 @@ describe("Physics2DPlugin — onUpdate policy", () => {
 
     await initPlugin(plugin, mockBridge, engine);
     await engine.hooks._trigger("prefab:instantiate", entityId, {
-      physics: {
+      physics2d: {
         colliders: [{ shape: "ball", radius: 6 }],
         onCollision,
       },
@@ -1534,7 +1522,7 @@ describe("LayerRegistry — layer resolution", () => {
       addBoxCollider: (...a: unknown[]) => void;
     };
     ownColliderHandle(freshEngine, mockWasmPlugin, 0);
-    freshPhysics.addBoxCollider(0, 1.0, 1.0);
+    freshPhysics.addBoxCollider(slotId(1), 1.0, 1.0);
     expect(mockWasmPlugin.physics_add_box_collider).toHaveBeenCalledWith(
       0,
       1.0,
@@ -1562,7 +1550,7 @@ describe("LayerRegistry — layer resolution", () => {
       addBallCollider: (...a: unknown[]) => void;
     };
     ownColliderHandle(engine, mockWasmPlugin, 0);
-    physics.addBallCollider(0, 0.5, {
+    physics.addBallCollider(slotId(1), 0.5, {
       layer: ["player"], // bit 1 → 0b10 = 2
       mask: ["enemy", "ground"], // bit 2 + bit 3 → 0b1100 = 12
     });
@@ -1589,7 +1577,7 @@ describe("LayerRegistry — layer resolution", () => {
       addBoxCollider: (...a: unknown[]) => void;
     };
     ownColliderHandle(engine, mockWasmPlugin, 0);
-    physics.addBoxCollider(0, 1.0, 1.0, {
+    physics.addBoxCollider(slotId(1), 1.0, 1.0, {
       layer: 0b0101,
       mask: 0b1010,
     });
@@ -1620,10 +1608,12 @@ describe("LayerRegistry — layer resolution", () => {
       addBallCollider: (...a: unknown[]) => void;
     };
     ownColliderHandle(engine, mockWasmPlugin, 0);
-    expect(() => physics.addBallCollider(0, 0.5, { layer: ["unknown_layer"] })).toThrow(
+    expect(() => physics.addBallCollider(slotId(1), 0.5, { layer: ["unknown_layer"] })).toThrow(
       /Unknown layer "unknown_layer"/,
     );
-    expect(() => physics.addBallCollider(0, 0.5, { layer: ["unknown_layer"] })).toThrow(/player/); // hint lists known layers
+    expect(() => physics.addBallCollider(slotId(1), 0.5, { layer: ["unknown_layer"] })).toThrow(
+      /player/,
+    ); // hint lists known layers
   });
 
   it("setup throws PHYSICS2D:INVALID_LAYERS for 33 layers and for bit 32", async () => {
@@ -1701,7 +1691,7 @@ describe("LayerRegistry — layer resolution", () => {
     await initPlugin(plugin, mockBridge, engine);
     const entityId = createEntityId(1, 0);
     await engine.hooks._trigger("prefab:instantiate", entityId, {
-      physics: {
+      physics2d: {
         colliders: [
           {
             shape: "ball",
@@ -2012,7 +2002,7 @@ describe("Physics2DPlugin — shape queries, linear damping & oneWay", () => {
     await initPlugin(plugin, mockBridge, mockEngine);
     const physics = mockEngine._provided["physics2d"] as import("../src").Physics2DAPI;
     ownColliderHandle(mockEngine, mockWasmPlugin, 0);
-    physics.addBoxCollider(0, 1.0, 2.0, { oneWay: true });
+    physics.addBoxCollider(slotId(1), 1.0, 2.0, { oneWay: true });
     expect(mockWasmPlugin.physics_add_box_collider).toHaveBeenCalledWith(
       0,
       1.0,
@@ -2035,7 +2025,7 @@ describe("Physics2DPlugin — shape queries, linear damping & oneWay", () => {
     await initPlugin(plugin, mockBridge, mockEngine);
     const physics = mockEngine._provided["physics2d"] as import("../src").Physics2DAPI;
     ownColliderHandle(mockEngine, mockWasmPlugin, 0);
-    physics.addBoxCollider(0, 1.0, 2.0, { oneWay: false });
+    physics.addBoxCollider(slotId(1), 1.0, 2.0, { oneWay: false });
     expect(mockWasmPlugin.physics_add_box_collider).toHaveBeenCalledWith(
       0,
       1.0,

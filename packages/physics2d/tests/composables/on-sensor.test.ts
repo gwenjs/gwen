@@ -2,8 +2,10 @@
  * @file onSensorEnter() / onSensorExit() composable tests.
  */
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { GwenContextError, type GwenEngine } from "@gwenjs/core";
+import { defineComponent, GwenContextError, Types, type GwenEngine } from "@gwenjs/core";
 import { createEngine } from "@gwenjs/core/node";
+import { defineActor, definePrefab, useEntityId } from "@gwenjs/core/actor";
+import { onSensorEnter as coreOnSensorEnter } from "@gwenjs/physics-core";
 import {
   _dispatchSensorEnter,
   _dispatchSensorExit,
@@ -25,6 +27,15 @@ describe("onSensorEnter / _dispatchSensorEnter", () => {
     engine.deactivate();
     await engine.stop();
   });
+  it("a callback registered with physics-core's onSensorEnter receives the 2D plugin's sensor enter", () => {
+    let received: bigint | null = null;
+    coreOnSensorEnter(5, (id) => {
+      received = id;
+    });
+    _dispatchSensorEnter(5, 42n);
+    expect(received).toBe(42n);
+  });
+
   it("fires the callback when the correct sensor ID is dispatched", () => {
     let received: bigint | null = null;
     onSensorEnter(5, (id) => {
@@ -185,6 +196,39 @@ describe("onSensor engine isolation", () => {
     } finally {
       await a.stop();
       await b.stop();
+    }
+  });
+});
+
+const ClearPos = defineComponent({
+  name: "OnSensorClearPos",
+  schema: { x: Types.f32 },
+});
+const ClearPrefab = definePrefab([{ def: ClearPos, defaults: { x: 0 } }]);
+
+describe("sensor dispatch survives a callback that clears its actor", () => {
+  it("a sensor callback that clears its actor does not skip the next physics-core sensor callback", async () => {
+    const engine = await createEngine();
+    const seen: string[] = [];
+    const Actor = defineActor(ClearPrefab, () => {
+      const id = useEntityId();
+      onSensorEnter(4, () => {
+        seen.push("A");
+        _clearSensorCallbacks(id, 4);
+      });
+    });
+    try {
+      await engine.use(Actor._plugin);
+      const id = engine.run(() => Actor._plugin.spawn());
+      engine.run(() => {
+        coreOnSensorEnter(4, () => {
+          seen.push("B");
+        });
+        _dispatchSensorEnter(4, id);
+      });
+      expect(seen).toEqual(["A", "B"]);
+    } finally {
+      await engine.stop();
     }
   });
 });

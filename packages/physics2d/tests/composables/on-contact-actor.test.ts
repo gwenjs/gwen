@@ -36,7 +36,7 @@ describe("onContact inside defineActor", () => {
         started: true,
       };
       engine.run(() => {
-        _dispatchContactEvent(id, event);
+        _dispatchContactEvent(event);
       });
       expect(received).toBe(id);
     } finally {
