@@ -579,7 +579,11 @@ Cause. Un fichier importe un paquet du framework que `package.json` ne déclare 
 
 ### CONFORMANCE:INVALID_SPEC {#conformance-invalid-spec}
 
-Cause. `checkPluginPackage` a reçu un `profile` qui n'est ni `"plugin"` ni `"package"`. Elle renvoie ce seul constat et n'exécute aucune vérification. Fix. Passez `"plugin"` ou `"package"` comme `profile`.
+Cause. `checkPluginPackage` a reçu un `profile` qui n'est ni `"plugin"` ni `"package"`, un `lockfileBase` mauvais ou vide, aucun `pnpm-lock.yaml` sur la référence ou à la racine du paquet, une `lockfileVersion` autre que 9.0, ou un git qui ne peut pas démarrer. Un `profile` invalide renvoie ce seul constat et n'exécute aucune vérification. Chaque cas de lockfile donne un constat de la vérification `lockfile`, et les autres vérifications s'exécutent. Fix. Passez `"plugin"` ou `"package"` comme `profile`. Pour le lockfile, passez une référence qui contient `pnpm-lock.yaml` à la racine du paquet, commitez le lockfile, et utilisez le lockfile v9.
+
+### CONFORMANCE:LOCKFILE_DRIFT {#conformance-lockfile-drift}
+
+Cause. Quand `lockfileBase` est donné, un paquet tiers de `pnpm-lock.yaml` (un nom qui ne commence pas par `@gwenjs/`) a été ajouté, retiré, ou résolu vers un autre ensemble de versions que sur cette référence git. La version est le texte d'une clé `packages:` ou `snapshots:` après le nom et avant le premier `(`. Un constat par nom, sur la première clé du nouveau fichier ; un paquet retiré est signalé sur `<ref>:pnpm-lock.yaml`. Fix. Commitez le `pnpm-lock.yaml` mis à jour et relisez le changement tiers, ou épinglez le paquet. Une installation de pile ne doit déplacer que les paquets `@gwenjs`.
 
 ### CONFORMANCE:MANIFEST {#conformance-manifest}
 

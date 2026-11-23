@@ -28,6 +28,6 @@ export interface CheckPluginPackageOptions {
   readonly profile: "plugin" | "package";
   /** Rewrite `public-api.snap.json` from the build before the snapshot checks compare it. */
   readonly write?: boolean;
-  /** Accepted, not used yet (PC-1c). */
+  /** Git ref of the lockfile to compare with; the `lockfile` check runs only when it is set. */
   readonly lockfileBase?: string;
 }
