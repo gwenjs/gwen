@@ -43,6 +43,15 @@ export interface SensorTracker {
    * @returns Whether the active flag flipped, and the state after the change.
    */
   apply(entityId: EntityId, sensorId: number, started: boolean): SensorChange;
+
+  /**
+   * Drop every overlap of one entity.
+   * A later `read` reports count 0 and inactive.
+   * The dispatch does not emit an exit for this drop.
+   *
+   * @param entityId - Entity that is gone.
+   */
+  forget(entityId: EntityId): void;
 }
 
 /** A new tracker. One plugin instance owns one tracker. */
@@ -78,6 +87,9 @@ export function createSensorTracker(): SensorTracker {
         changed: beforeActive !== afterActive,
         state: { contactCount: next, isActive: afterActive },
       };
+    },
+    forget(entityId) {
+      byEntity.delete(entityId);
     },
   };
 }
