@@ -20,7 +20,7 @@ import type { PluginOption } from "vite";
 export { gwenWasmPlugin } from "./wasm.js";
 export { gwenAutoImportsPlugin, generateAutoImportsModule } from "./auto-imports.js";
 export { gwenVirtualPlugin } from "./virtual-env.js";
-export { gwenActorPlugin, generateActorsModule, transformActorNames } from "./actor.js";
+export { gwenActorPlugin, generateActorsModule } from "./actor.js";
 export {
   gwenLayoutPlugin,
   generateLayoutsModule,
@@ -52,8 +52,9 @@ export { gwenDevStripPlugin, type GwenDevStripReport } from "./dev-strip.js";
  * - `gwen:wasm` — serves / inlines the WASM binary
  * - `gwen:auto-imports` — virtual module for composable re-exports
  * - `gwen:virtual` — injects `virtual:gwen/env` constants
- * - `gwen:actor` — actor auto-discovery and name injection
+ * - `gwen:actor` — actor auto-discovery and the actors virtual module
  * - `gwen:layout` — layout virtual module and name injection
+ * - `gwen:transform-pipeline` — AST units: system and actor names, actor dependency lists
  * - `gwen:scene-router` — scene router virtual module and name injection
  * - `gwen:tween` — easing tree-shake analysis via `virtual:gwen/used-easings`
  * - `gwen:hooks` — generates `hooks.d.ts` from `src/hooks.ts`

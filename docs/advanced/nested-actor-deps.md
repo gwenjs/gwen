@@ -29,7 +29,7 @@ because `useActor()` inside an actor factory runs at **spawn time** (inside
 
 ## Automatic resolution with `@gwenjs/vite`
 
-When `@gwenjs/vite` is configured (via `gwenVitePlugin()`), this is handled
+When `@gwenjs/vite` is configured (via `gwen()` or `gwenVitePlugin()`), this is handled
 automatically at build time. The Vite plugin statically analyzes each
 `defineActor` factory and injects a `_deps` list on the resulting plugin.
 
@@ -77,6 +77,14 @@ const actor = useActor(list[index])
 // ✅ Detected
 const bullet = useActor(BulletActor)
 ```
+
+### A local binding, or a binding declared later, fails the build
+
+`useActor(Y)` fails the build with `VITE:TRANSFORM_UNSUPPORTED` when `Y` is not a module-scope binding, such as a factory parameter or a local, or when `Y` is a `const`, `let`, `var`, or `class` declared after the actor. An import or a function declaration is allowed. Declare `Y` at module scope above the actor, or list it with the `deps` option.
+
+### An explicit `deps` option wins
+
+When the `defineActor` call already passes a `deps` option as an inline object literal `{ deps: [...] }` after the factory, the transform does not scan the factory and does not write another dependency list. The option you wrote is the one that runs. A `deps` value passed through a variable is not seen, and the transform still writes its own list. A dependency list already present in the module is left as it is.
 
 ### Without `@gwenjs/vite`
 

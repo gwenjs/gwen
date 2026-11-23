@@ -29,7 +29,7 @@ installé : `useActor()` dans un factory d'acteur s'exécute au moment du
 
 ## Résolution automatique avec `@gwenjs/vite`
 
-Quand `@gwenjs/vite` est configuré (via `gwenVitePlugin()`), cela est géré
+Quand `@gwenjs/vite` est configuré (via `gwen()` ou `gwenVitePlugin()`), cela est géré
 automatiquement à la compilation. Le plugin Vite analyse statiquement chaque
 factory `defineActor` et injecte une liste `_deps` sur le plugin résultant.
 
@@ -77,6 +77,14 @@ const actor = useActor(list[index])
 // ✅ Détecté
 const bullet = useActor(BulletActor)
 ```
+
+### Une liaison locale, ou une liaison déclarée plus bas, fait échouer le build
+
+`useActor(Y)` fait échouer le build avec `VITE:TRANSFORM_UNSUPPORTED` quand `Y` n'est pas une liaison de portée module (paramètre de factory ou liaison locale), ou quand `Y` est un `const`, un `let`, un `var` ou une `class` déclaré après l'acteur. Un import ou une déclaration de fonction est accepté. Déclarez `Y` à la portée du module, au-dessus de l'acteur, ou listez-le avec l'option `deps`.
+
+### Une option `deps` explicite l'emporte
+
+Quand l'appel `defineActor` passe déjà une option `deps` dans un objet littéral `{ deps: [...] }` écrit après le factory, le transform n'analyse pas le factory et n'écrit pas une autre liste de dépendances. L'option que vous avez écrite est celle qui s'exécute. Une valeur `deps` passée par une variable n'est pas vue, et le transform écrit quand même sa propre liste. Une liste de dépendances déjà présente dans le module est laissée telle quelle.
 
 ### Sans `@gwenjs/vite`
 

@@ -22,8 +22,7 @@ export type AstInjectorFn = (
  * Creates a source-code transformer that walks `VariableDeclarator` nodes,
  * finds calls to `targetFn`, and delegates the mutation to `inject`.
  *
- * Eliminates the boilerplate shared by `transformLayoutNames`
- * and the name-injection part of `transformActorNames`:
+ * Eliminates the boilerplate shared by `transformLayoutNames`:
  * parse → walk → find matching call → apply MagicString mutation.
  *
  * @param targetFn - The function name to match (e.g. `"defineSystem"`).
