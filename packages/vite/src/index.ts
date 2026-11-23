@@ -43,6 +43,8 @@ import {
 import type { LocalPluginsDirOption } from "./plugins/local-plugins.js";
 import { generateEntryModule, generateScenesModule, toRootRelative } from "./entry-gen.js";
 import { resolveMainScene, scanScenes } from "./scanners/index.js";
+import { BUILT_IN_UNITS } from "./pipeline/registry.js";
+import { createTransformPipeline } from "./pipeline/transform-pipeline.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -724,6 +726,7 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
 
   return [
     mainPlugin,
+    createTransformPipeline({ units: BUILT_IN_UNITS }),
     gwenDevStripPlugin(),
     gwenAutoImportsPlugin({ autoImports: _sharedAutoImports }),
     gwenLocalPluginsPlugin(localPluginsScan),

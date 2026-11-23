@@ -227,6 +227,22 @@ Cause. Two scene files declare the same literal name. The message is `Scene name
 
 Cause. `resolveMainScene` (`packages/vite/src/scanners/index.ts:183`) received a `mainScene` that is not a discovered name. The message lists those names (`packages/vite/src/scanners/index.ts:192`). With no `mainScene`, the first discovered scene is used (`packages/vite/src/scanners/index.ts:204`). Fix. Set `mainScene` to a name discovered under `src/scenes/`.
 
+### VITE:TRANSFORM_PARSE_FAILED {#vite-transform-parse-failed}
+
+Cause. `parseModule` could not parse the module. The message starts with the id, the 1-based line, and the 1-based column. `loc.column` is 0-based, which is what Vite reads. Fix. Fix the syntax error; the GWEN build never skips a module it cannot parse.
+
+### VITE:TRANSFORM_EDIT_CONFLICT {#vite-transform-edit-conflict}
+
+Cause. Two units edit overlapping ranges in one module. The message names both units and the ranges. An insert exactly at the start or end of another edit is not an overlap. Two inserts at one offset stay in registry order. Fix. Move one edit so the ranges no longer overlap.
+
+### VITE:TRANSFORM_UNSUPPORTED {#vite-transform-unsupported}
+
+Cause. `register()` was called after `gwen:transform-pipeline`'s `configResolved`. Fix. Call `register()` from a `config` hook, or from `configResolved` of an `enforce: "pre"` plugin listed before `gwen()`.
+
+### VITE:BVH_PREBAKE_FAILED {#vite-bvh-prebake-failed}
+
+Cause. Declared on `ViteErrorCodes` for the later BVH prebake step. This code has no throw site yet. Fix. Read the prebake message when that step throws it.
+
 ## @gwenjs/math
 
 ### MATH:INVALID_HEX_COLOR {#math-invalid-hex-color}

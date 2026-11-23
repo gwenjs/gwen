@@ -227,6 +227,22 @@ Cause. Deux fichiers de scène déclarent le même littéral. Le message est `Sc
 
 Cause. `resolveMainScene` (`packages/vite/src/scanners/index.ts:183`) a reçu un `mainScene` qui n'est pas un nom découvert. Le message liste ces noms (`packages/vite/src/scanners/index.ts:192`). Sans `mainScene`, la première scène découverte est utilisée (`packages/vite/src/scanners/index.ts:204`). Fix. Réglez `mainScene` sur un nom découvert sous `src/scenes/`.
 
+### VITE:TRANSFORM_PARSE_FAILED {#vite-transform-parse-failed}
+
+Cause. `parseModule` n'a pas pu analyser le module. Le message commence par l'id, la ligne et la colonne, toutes deux à base 1. `loc.column` est à base 0, comme Vite la lit. Fix. Corrigez l'erreur de syntaxe ; le build GWEN ne saute jamais un module qu'il ne peut pas analyser.
+
+### VITE:TRANSFORM_EDIT_CONFLICT {#vite-transform-edit-conflict}
+
+Cause. Deux unités éditent des plages qui se chevauchent dans un module. Le message nomme les deux unités et les plages. Une insertion exactement au début ou à la fin d'une autre édition n'est pas un chevauchement. Deux insertions au même offset suivent l'ordre du registre. Fix. Déplacez une édition pour que les plages ne se chevauchent plus.
+
+### VITE:TRANSFORM_UNSUPPORTED {#vite-transform-unsupported}
+
+Cause. `register()` a été appelé après le `configResolved` de `gwen:transform-pipeline`. Fix. Appelez `register()` depuis un hook `config`, ou depuis le `configResolved` d'un plugin `enforce: "pre"` listé avant `gwen()`.
+
+### VITE:BVH_PREBAKE_FAILED {#vite-bvh-prebake-failed}
+
+Cause. Déclaré dans `ViteErrorCodes` pour l'étape ultérieure de précalcul BVH. Ce code n'a pas encore de site de levée. Fix. Lisez le message de précalcul quand cette étape le lèvera.
+
 ## @gwenjs/math
 
 ### MATH:INVALID_HEX_COLOR {#math-invalid-hex-color}
