@@ -23,7 +23,7 @@ export interface ModuleResolverInput {
   readonly code: string;
   readonly id: string;
   readonly autoImports: readonly AutoImport[];
-  /** Barrel results. Empty until the barrel pass fills it. */
+  /** Origin binding per local import name. The barrel pass fills it before units run. */
   readonly followed: ReadonlyMap<string, GwenImportBinding>;
 }
 
