@@ -45,3 +45,7 @@ A count of 0 writes nothing. A count past the pool stops at the pool.
 ## Module
 
 `definePhysicsModule` builds a module from a `PhysicsModuleDefinition`. Its `setup` registers the plugin declaration with the resolved options, copies the auto-imports in the given order, and adds the Vite plugin built from those options. `defaults` and `validate` stay the objects the caller passed. An empty name is rejected with code `KIT:MODULE_INVALID`.
+
+## Plugin
+
+`createPhysicsPlugin` builds a plugin from a `PhysicsAdapter`. `setup` stores `api` under the service key and routes `prefab:instantiate`, `entity:destroy`, `engine:before-update` and `engine:update` to that adapter. `beginFrame`, when the adapter has one, runs on every `engine:before-update`. `step` runs only when `dt > 0`. `teardown` clears that engine's contact and sensor callbacks, then calls `dispose`. A throw from the adapter factory is the error `engine.use` rejects with.
