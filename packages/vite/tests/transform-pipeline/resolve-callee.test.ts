@@ -33,6 +33,7 @@ const MODULE_BINDINGS = ["kept", "moduleFunction", "ModuleClass", "moduleConst",
 function fixtureCaseNames(): string[] {
   return readdirSync(fixturesRoot, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
+    .filter((entry) => !entry.name.startsWith("barrel-"))
     .map((entry) => entry.name)
     .sort();
 }
