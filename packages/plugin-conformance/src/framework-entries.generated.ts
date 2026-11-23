@@ -742,6 +742,8 @@ export const FRAMEWORK_ENTRIES: Readonly<Record<string, readonly string[]>> = {
     "RendererStats",
     "RendererStatsCollector",
     "ReservedHookNamespace",
+    "ScenePreloadEvent",
+    "ScenePreloadProgress",
     "ScreenInfoStore",
     "ServiceChangeEvent",
     "ServiceChangeReason",

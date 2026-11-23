@@ -103,6 +103,8 @@
       "RendererStats",
       "RendererStatsCollector",
       "ReservedHookNamespace",
+      "ScenePreloadEvent",
+      "ScenePreloadProgress",
       "ScreenInfoStore",
       "ServiceChangeEvent",
       "ServiceChangeReason",

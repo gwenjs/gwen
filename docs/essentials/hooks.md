@@ -128,6 +128,8 @@ The namespaces `engine`, `entity`, `scene`, `plugin`, `actor`, `prefab`, and `se
 | `scene:leave` | `name` | Scene deactivated |
 | `scene:transition:leave` | `{ from, to }` | Before leave animation |
 | `scene:transition:enter` | `{ from, to }` | After enter animation |
+| `scene:preload` | `{ from, to, progress }` | While the next scene preloads. Handlers run in parallel |
+| `scene:preload:progress` | `{ from, to, progress }` | `0` first, then the aggregate; `1` only after every handler resolves |
 | `actor:enable` | `entityId` | Pooled actor acquired again |
 | `actor:disable` | `entityId` | Pooled actor released |
 | `engine:error` | `EngineErrorPayload` | Unhandled frame error |
