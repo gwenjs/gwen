@@ -6,7 +6,7 @@ import fs from "node:fs";
 import * as path from "node:path";
 import { walk } from "oxc-walker";
 import { getObjectProperties, getPropertyKeyName, parseSource } from "./oxc/index.js";
-import type { PluginDeclaration } from "@gwenjs/schema";
+import type { GwenEngineConfig, PluginDeclaration } from "@gwenjs/schema";
 import type { SceneInfo } from "./scanners/index.js";
 
 /**
@@ -16,7 +16,7 @@ import type { SceneInfo } from "./scanners/index.js";
  */
 export interface EntryResolvedConfig {
   readonly engine: {
-    readonly variant: string;
+    readonly variant: GwenEngineConfig["variant"];
     readonly loop: string;
   };
 }
@@ -229,6 +229,7 @@ export function generateEntryModule(
   resolved: EntryResolvedConfig,
 ): string {
   const lines: string[] = [];
+  const variant = resolved.engine.variant;
 
   for (const css of cssFiles) {
     lines.push(`import ${JSON.stringify(css)};`);
@@ -238,6 +239,7 @@ export function generateEntryModule(
     'import { createEngine } from "@gwenjs/core";',
     'import { WasmBridgeImpl } from "@gwenjs/core/internal";',
     'import { createViewportsPlugin, createScreenPlugin } from "@gwenjs/app";',
+    `import * as __gwenGlue from ${JSON.stringify(`@gwenjs/core/wasm/${variant}/factory`)};`,
     'import gwenConfig from "/gwen.config.ts";',
     'import { plugins as _localPlugins } from "virtual:gwen/local-plugins";',
   );
@@ -260,7 +262,7 @@ export function generateEntryModule(
     "async function bootstrap() {",
     `  const __gwenResolved = ${inlined};`,
     "  const bridge = new WasmBridgeImpl();",
-    "  await bridge.init(__gwenResolved.engine.variant);",
+    `  await bridge.init(${JSON.stringify(variant)}, { glue: __gwenGlue, maxEntities: __gwenResolved.engine.maxEntities });`,
     "  let engine;",
     "  try {",
     "  engine = await createEngine({ ...__gwenResolved.engine, logger: gwenConfig.logger, _bridge: bridge, _ownsBridge: true });",
