@@ -102,6 +102,24 @@ describe("physics3d error messages", () => {
     );
   });
 
+  it("an unknown material throws PHYSICS3D:UNKNOWN_MATERIAL naming Physics3DPlugin", async () => {
+    const engine = await open();
+    const id = engine.createEntity();
+    engine.inject("physics3d").createBody(id, { kind: "fixed" });
+    const error = gwen(() =>
+      engine.inject("physics3d").addCollider(id, {
+        shape: { type: "box", halfX: 1, halfY: 1, halfZ: 1 },
+        material: "wood",
+      }),
+    );
+    expect(error.code).toBe("PHYSICS3D:UNKNOWN_MATERIAL");
+    expect(error.code).toBe(Physics3DErrorCodes.UNKNOWN_MATERIAL);
+    expect(error.composable).toBe("Physics3DPlugin");
+    expect(head(error)).toBe(
+      '[Physics3DPlugin()] Unknown material "wood". Known materials: [default, ice, rubber, metal].',
+    );
+  });
+
   it("a stale entity error has no code in its text", async () => {
     const engine = await open();
     const physics = engine.inject("physics3d");
