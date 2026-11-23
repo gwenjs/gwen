@@ -216,24 +216,19 @@ it("a barrel outside the project root is left untouched", async () => {
 
 it("a css or json import leaves the importer callees unchanged", async () => {
   await withTemp("gwen-barrel-asset-", async (root) => {
-    writeFileSync(join(root, "a.module.css"), ".a{color:red}\n");
-    writeFileSync(join(root, "d.json"), "{}\n");
+    writeFileSync(join(root, "x.css"), 'export { defineSystem } from "@gwenjs/core/system";\n');
+    writeFileSync(join(root, "d.json"), 'export { defineScene } from "@gwenjs/core/scene";\n');
     writeFileSync(join(root, "raw.ts"), 'export { defineSystem } from "@gwenjs/core/system";\n');
     const code = [
-      'import styles from "./a.module.css";',
-      'import data from "./d.json";',
+      'import { defineSystem } from "./x.css";',
+      'import { defineScene } from "./d.json";',
       'import { defineSystem as fromRaw } from "./raw.ts?raw";',
-      'import { defineSystem } from "@gwenjs/core/system";',
-      'import * as G from "@gwenjs/core/system";',
+      "export const run = defineSystem(1);",
+      "export const scene = defineScene(1);",
       "export const raw = fromRaw(1);",
-      "export const run = defineSystem(styles, data);",
-      "export const Anchor = G.defineSystem(() => 1);",
       "",
     ].join("\n");
-    expect(await callees(root, code, resolveBeside)).toEqual([
-      { callee: "defineSystem", call: "defineSystem(styles, data)" },
-      { callee: "defineSystem", call: "G.defineSystem(() => 1)" },
-    ]);
+    expect(await callees(root, code, resolveBeside)).toEqual([]);
   });
 });
 
