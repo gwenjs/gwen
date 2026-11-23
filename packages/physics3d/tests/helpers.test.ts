@@ -15,7 +15,7 @@ import { moveKinematicByVelocity, applyDirectionalImpulse } from "../src/helpers
 import { getBodySnapshot, getSpeed, isSensorActive } from "../src/helpers/queries";
 
 import type { EntityId } from "@gwenjs/core";
-import type { Physics3DCollisionContact, Physics3DAPI, Physics3DBodySnapshot } from "../src/types";
+import type { CollisionContact, Physics3DAPI, Physics3DBodySnapshot } from "../src/types";
 
 // ─── Typed EntityId stubs ──────────────────────────────────────────��─────────
 
@@ -26,7 +26,7 @@ const e3 = 3n as unknown as EntityId;
 // ─── contact helpers ─────────────────────────────────────────────────────────
 
 describe("selectContactsForEntityId", () => {
-  const contacts: Physics3DCollisionContact[] = [
+  const contacts: CollisionContact[] = [
     { entityA: e1, entityB: e2, started: true },
     { entityA: e2, entityB: e3, started: false },
     { entityA: e3, entityB: e1, started: true },
@@ -55,7 +55,7 @@ describe("selectContactsForEntityId", () => {
 
 describe("dedupeContactsByPair", () => {
   it("removes exact duplicate contacts (same entities, same colliders, same state)", () => {
-    const contacts: Physics3DCollisionContact[] = [
+    const contacts: CollisionContact[] = [
       { entityA: e1, entityB: e2, aColliderId: 0, bColliderId: 1, started: true },
       { entityA: e1, entityB: e2, aColliderId: 0, bColliderId: 1, started: true },
     ];
@@ -63,7 +63,7 @@ describe("dedupeContactsByPair", () => {
   });
 
   it("treats (A, B) and (B, A) as the same pair", () => {
-    const contacts: Physics3DCollisionContact[] = [
+    const contacts: CollisionContact[] = [
       { entityA: e1, entityB: e2, aColliderId: 0, bColliderId: 1, started: true },
       { entityA: e2, entityB: e1, aColliderId: 1, bColliderId: 0, started: true },
     ];
@@ -71,7 +71,7 @@ describe("dedupeContactsByPair", () => {
   });
 
   it("keeps start and end events as distinct", () => {
-    const contacts: Physics3DCollisionContact[] = [
+    const contacts: CollisionContact[] = [
       { entityA: e1, entityB: e2, aColliderId: 0, bColliderId: 0, started: true },
       { entityA: e1, entityB: e2, aColliderId: 0, bColliderId: 0, started: false },
     ];
@@ -79,7 +79,7 @@ describe("dedupeContactsByPair", () => {
   });
 
   it("preserves events without collider ids (one per started state)", () => {
-    const contacts: Physics3DCollisionContact[] = [
+    const contacts: CollisionContact[] = [
       { entityA: e1, entityB: e2, started: true },
       { entityA: e1, entityB: e2, started: true },
     ];
@@ -87,7 +87,7 @@ describe("dedupeContactsByPair", () => {
   });
 
   it("preserves different entity pairs", () => {
-    const contacts: Physics3DCollisionContact[] = [
+    const contacts: CollisionContact[] = [
       { entityA: e1, entityB: e2, aColliderId: 0, bColliderId: 0, started: true },
       { entityA: e1, entityB: e3, aColliderId: 0, bColliderId: 0, started: true },
     ];
@@ -100,7 +100,7 @@ describe("dedupeContactsByPair", () => {
 });
 
 describe("selectResolvedContactsForEntityId", () => {
-  const contacts: Physics3DCollisionContact[] = [
+  const contacts: CollisionContact[] = [
     { entityA: e1, entityB: e2, started: true },
     { entityA: e2, entityB: e3, started: true },
     { entityA: e3, entityB: e1, started: false },

@@ -110,7 +110,7 @@ export function useHeightfieldCollider(
       ...(options.restitution !== undefined ? { restitution: options.restitution } : {}),
       ...(options.layer !== undefined ? { layers: [options.layer] } : {}),
       ...(options.mask !== undefined ? { mask: [options.mask] } : {}),
-      ...(options.material !== undefined ? { materialPreset: options.material } : {}),
+      ...(options.material !== undefined ? { material: options.material } : {}),
     };
     return collider;
   };

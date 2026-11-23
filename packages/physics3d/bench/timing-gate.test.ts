@@ -28,7 +28,7 @@ import {
   _dispatchContactEvent,
   _clearContactCallbacks,
 } from "../src/composables/on-contact.js";
-import type { Physics3DCollisionContact } from "../src/types.js";
+import type { CollisionContact } from "../src/types.js";
 import { ciThreshold, measureMedianMs, reportTiming } from "./perf";
 
 const BENCH_SLOW = Boolean(process.env["BENCH_SLOW"]);
@@ -72,7 +72,7 @@ describe.skipIf(!BENCH_SLOW)("physics3d timing gates", () => {
         onContact(() => {
           calls += 1;
         });
-        const event: Physics3DCollisionContact = { entityA: 1n, entityB: 2n, started: true };
+        const event: CollisionContact = { entityA: 1n, entityB: 2n, started: true };
         const timing = measureMedianMs(
           () => event,
           (e) => {

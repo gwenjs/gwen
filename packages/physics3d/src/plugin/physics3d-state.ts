@@ -9,9 +9,9 @@ import type {
   Physics3DBodyHandle,
   Physics3DBodyState,
   Physics3DColliderOptions,
-  Physics3DSensorState,
+  SensorState,
   Physics3DPrefabExtension,
-  Physics3DCollisionContact,
+  CollisionContact,
 } from "../types";
 import type { InternalCollisionEvent3D } from "./bridge";
 
@@ -49,14 +49,14 @@ export interface Physics3DPluginState {
   /** Pending async BVH loads: collider ID → { AbortController, ready Promise }. */
   pendingBvhLoads: Map<number, { ac: AbortController; ready: Promise<void> }>;
 
-  /** Sensor state per entity: entity slot → (sensor ID → Physics3DSensorState). */
-  localSensorStates: Map<number, Map<number, Physics3DSensorState>>;
+  /** Sensor state per entity: entity slot → (sensor ID → SensorState). */
+  localSensorStates: Map<number, Map<number, SensorState>>;
 
   /** Per-entity collision callbacks: entity slot → onCollision callback. */
   entityCollisionCallbacks: Map<number, NonNullable<Physics3DPrefabExtension["onCollision"]>>;
 
   /** Current frame contacts — rebuilt each frame in onUpdate. */
-  currentFrameContacts: Physics3DCollisionContact[];
+  currentFrameContacts: CollisionContact[];
 
   /** Track overlapping AABB pairs from previous frame (local mode only). */
   previousLocalContactKeys: Set<string>;

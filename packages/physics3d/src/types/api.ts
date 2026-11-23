@@ -8,8 +8,8 @@ import type {
   Physics3DBodySnapshot,
   Physics3DBodyOptions,
   Physics3DColliderOptions,
-  Physics3DCollisionContact,
-  Physics3DSensorState,
+  CollisionContact,
+  SensorState,
 } from "./index";
 import type { BulkStaticBoxesOptions, BulkStaticBoxesResult } from "./bulk";
 import type { CompoundColliderOptions3D, CompoundColliderHandle3D } from "./colliders";
@@ -441,7 +441,7 @@ export interface Physics3DAPI {
    * Returns `{ contactCount: 0, isActive: false }` when the sensor was never
    * registered or has not received any events yet.
    */
-  getSensorState(entityId: EntityId, sensorId: number): Physics3DSensorState;
+  getSensorState(entityId: EntityId, sensorId: number): SensorState;
 
   /**
    * Manually update the sensor contact state.
@@ -461,7 +461,7 @@ export interface Physics3DAPI {
    *
    * @param opts.max - Maximum number of contacts to return. @default undefined (all)
    */
-  getCollisionContacts(opts?: { max?: number }): ReadonlyArray<Physics3DCollisionContact>;
+  getCollisionContacts(opts?: { max?: number }): ReadonlyArray<CollisionContact>;
 
   /**
    * Return lightweight metrics for the last processed frame.

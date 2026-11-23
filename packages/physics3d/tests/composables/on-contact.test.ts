@@ -7,10 +7,10 @@ import {
   _clearContactCallbacks,
   clearEngineContacts,
 } from "../../src/composables/on-contact.js";
-import type { Physics3DCollisionContact } from "../../src/types.js";
+import type { CollisionContact } from "../../src/types.js";
 import type { EntityId } from "@gwenjs/core";
 
-const sampleContact: Physics3DCollisionContact = {
+const sampleContact: CollisionContact = {
   entityA: 1n as unknown as EntityId,
   entityB: 2n as unknown as EntityId,
   aColliderId: 10,
@@ -33,7 +33,7 @@ describe("onContact / _dispatchContactEvent", () => {
   });
 
   it("registered callback is invoked on dispatch", () => {
-    const received: Physics3DCollisionContact[] = [];
+    const received: CollisionContact[] = [];
     onContact((e) => received.push(e));
     _dispatchContactEvent(sampleContact);
     expect(received).toHaveLength(1);

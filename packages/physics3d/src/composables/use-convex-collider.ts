@@ -73,7 +73,7 @@ export function useConvexCollider(options: ConvexColliderOptions): ConvexCollide
     },
     colliderId,
     ...(options.isSensor !== undefined ? { isSensor: options.isSensor } : {}),
-    ...(options.material !== undefined ? { materialPreset: options.material } : {}),
+    ...(options.material !== undefined ? { material: options.material } : {}),
   };
   physics.addCollider(entityId, collider);
 

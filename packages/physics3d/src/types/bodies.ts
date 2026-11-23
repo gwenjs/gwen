@@ -131,38 +131,6 @@ export interface Physics3DBodySnapshot {
 // ─── RFC-06 DX Composable types ─────────────────────────────────────────────
 
 /**
- * Zero-copy 3D contact event delivered via SAB ring buffer.
- *
- * entityA/entityB are raw slot indices packed as bigint.
- * contactX/Y/Z is the world-space contact point.
- * normalX/Y/Z is the contact normal (unit vector pointing from B to A).
- * relativeVelocity is the magnitude of the relative impact velocity in m/s.
- * restitution is the effective restitution coefficient at the contact.
- */
-export interface ContactEvent3D {
-  /** Packed slot index of the first participant. */
-  entityA: bigint;
-  /** Packed slot index of the second participant. */
-  entityB: bigint;
-  /** World-space contact point X in metres. */
-  contactX: number;
-  /** World-space contact point Y in metres. */
-  contactY: number;
-  /** World-space contact point Z in metres. */
-  contactZ: number;
-  /** Contact normal X (unit vector from B to A). */
-  normalX: number;
-  /** Contact normal Y. */
-  normalY: number;
-  /** Contact normal Z. */
-  normalZ: number;
-  /** Magnitude of relative impact velocity in m/s. */
-  relativeVelocity: number;
-  /** Effective restitution coefficient at the contact point. */
-  restitution: number;
-}
-
-/**
  * Simplified options for registering a static (non-moving) 3D physics body
  * via {@link useStaticBody}.
  */
@@ -174,7 +142,7 @@ export interface StaticBodyOptions3D {
   /** Numeric collision filter bitmask (which layers to collide with). */
   mask?: number;
   /** Built-in material preset. @default 'default' */
-  materialPreset?: Physics3DMaterialPreset;
+  material?: Physics3DMaterialPreset;
 }
 
 /**
@@ -199,7 +167,7 @@ export interface DynamicBodyOptions3D {
   /** Numeric collision filter bitmask (which layers to collide with). */
   mask?: number;
   /** Built-in material preset. @default 'default' */
-  materialPreset?: Physics3DMaterialPreset;
+  material?: Physics3DMaterialPreset;
   /** Initial world-space position in metres. */
   initialPosition?: Partial<Vec3>;
   /** Initial orientation as a unit quaternion. */

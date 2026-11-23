@@ -515,7 +515,7 @@ const TerrainActor = defineActor(TerrainPrefab, () => {
 
 | Function | Callback Signature | Purpose |
 |---|---|---|
-| `onContact(callback)` | `(contact: ContactEvent3D) => void` | Collision event. |
+| `onContact(callback)` | `(contact: CollisionContact) => void` | Collision event. |
 | `onSensorEnter(sensorId, cb)` | `(entityId: bigint) => void` | Sensor entry. |
 | `onSensorExit(sensorId, cb)` | `(entityId: bigint) => void` | Sensor exit. |
 
@@ -538,7 +538,7 @@ const TerrainActor = defineActor(TerrainPrefab, () => {
 ### Types
 
 - `Vec3` — `{ x: number, y: number, z: number }`
-- `ContactEvent3D` — `{ entityA: bigint, entityB: bigint, contactX: number, contactY: number, contactZ: number, normalX: number, normalY: number, normalZ: number, relativeVelocity: number, restitution: number }`
+- `CollisionContact` — `{ entityA: bigint, entityB: bigint, aColliderId?: number, bColliderId?: number, started: boolean }`
 - Various collider handles with `colliderId`, `isSensor`, `remove()`, etc.
 - `UseRaycastHandle` — Hit properties and `dispose()`
 - `UseShapeCastHandle` — Similar to raycast

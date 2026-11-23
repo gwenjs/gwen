@@ -28,10 +28,12 @@ declare module "@gwenjs/schema" {
 
   /**
    * Physics 3D runtime hooks augmenting the engine hook bus.
-   * The names are the hooks the plugin fires.
+   * `physics:collision` and `physics:sensor:changed` come from `@gwenjs/physics-core`.
    *
    * @example
    * ```typescript
+   * engine.hooks.hook('physics:collision', (contacts) => { … })
+   * engine.hooks.hook('physics:sensor:changed', (entityId, sensorId, state) => { … })
    * engine.hooks.hook('physics3d:body-disabled', ({ entity, reason }) => { … })
    * ```
    */

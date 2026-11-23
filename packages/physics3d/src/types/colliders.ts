@@ -105,7 +105,7 @@ export interface Physics3DColliderOptions {
    * Apply a built-in material preset. Preset values are used only for properties
    * not explicitly set on this options object.
    */
-  materialPreset?: Physics3DMaterialPreset;
+  material?: Physics3DMaterialPreset;
   /**
    * URL to a pre-baked BVH binary asset emitted at Vite build time.
    * When set on a `mesh`-type collider, the plugin uses an async fetch pipeline

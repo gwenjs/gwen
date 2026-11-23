@@ -5,7 +5,6 @@
  * If TypeScript compiles this file without errors, the type constraints are satisfied.
  */
 import type {
-  ContactEvent3D,
   StaticBodyHandle3D,
   DynamicBodyHandle3D,
   BoxColliderHandle3D,
@@ -19,21 +18,6 @@ void _dynamicIsStatic;
 // BoxColliderHandle3D must extend ColliderHandle3D
 const _boxIsCollider: ColliderHandle3D = {} as BoxColliderHandle3D;
 void _boxIsCollider;
-
-// ContactEvent3D must have all z-coordinate fields
-const _event: ContactEvent3D = {
-  entityA: 0n,
-  entityB: 1n,
-  contactX: 0,
-  contactY: 0,
-  contactZ: 0, // must exist (3D-only field)
-  normalX: 0,
-  normalY: 0,
-  normalZ: 0, // must exist (3D-only field)
-  relativeVelocity: 0,
-  restitution: 0,
-};
-void _event;
 
 // DynamicBodyHandle3D must have applyForce, applyImpulse, applyTorque, setVelocity
 const _dh: DynamicBodyHandle3D = {} as DynamicBodyHandle3D;

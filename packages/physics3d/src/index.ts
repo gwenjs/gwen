@@ -23,9 +23,9 @@ export type {
   BodyKind,
   Physics3DBodyState,
   Physics3DBodySnapshot,
+  CollisionContact,
   Physics3DColliderOptions,
-  Physics3DCollisionContact,
-  Physics3DSensorState,
+  SensorState,
   QualityPreset,
   Physics3DPrefabExtension,
   Physics3DPluginHooks,
@@ -80,7 +80,6 @@ export type {
 } from "./composables/index";
 export { physics3dVitePlugin } from "./vite-plugin";
 export type {
-  ContactEvent3D,
   StaticBodyOptions3D,
   DynamicBodyOptions3D,
   KinematicBodyOptions3D,
