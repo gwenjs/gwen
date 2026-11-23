@@ -16,7 +16,6 @@ const ALLOW: Readonly<Record<string, string>> = {
   dedupeContactsByPair: "helper function, not a composable",
   isSensorActive: "helper function, not a composable",
   moveKinematicByVelocity: "helper function, not a composable",
-  physics3dVitePlugin: "Vite plugin factory, runs at build time",
   preloadMeshCollider: "takes a url and returns a preload handle, not a composable",
   selectContactsForEntityId: "helper function, not a composable",
   selectResolvedContactsForEntityId: "helper function, not a composable",

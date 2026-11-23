@@ -8,7 +8,12 @@
  * the prefab extension.
  */
 
-import type { Physics2DAPI, Physics2DPluginHooks, Physics2DPrefabExtension } from "./types";
+import type {
+  Physics2DAPI,
+  Physics2DConfig,
+  Physics2DPluginHooks,
+  Physics2DPrefabExtension,
+} from "./types";
 
 /**
  * Physics 2D service slot in the engine's provide/inject registry.
@@ -24,6 +29,12 @@ export interface Physics2DProvides {
 }
 
 declare module "@gwenjs/schema" {
+  /** The root entry does not load module.ts; this keeps the config key typed for a root-only import. */
+  interface GwenModuleOptions {
+    /** Options for `@gwenjs/physics2d`. Configure gravity and physics quality. */
+    physics2d?: Physics2DConfig;
+  }
+
   interface GwenProvides {
     physics2d: Physics2DProvides["physics2d"];
   }
