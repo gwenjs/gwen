@@ -461,6 +461,11 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
             "@gwenjs/core/tween/module",
             "@gwenjs/core > @gwenjs/kit",
           ],
+          exclude: [
+            "@gwenjs/core/wasm/light/factory",
+            "@gwenjs/core/wasm/physics2d/factory",
+            "@gwenjs/core/wasm/physics3d/factory",
+          ],
         },
         resolve: {
           dedupe: ["@gwenjs/core", "@gwenjs/kit"],
