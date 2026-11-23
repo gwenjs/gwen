@@ -6,10 +6,10 @@
 
 import type { Program } from "oxc-parser";
 import type { ScopeTrackerNode } from "oxc-walker";
-import { isBindingIdentifier, ScopeTracker, walk } from "../oxc/index.js";
+import { ScopeTracker, walk } from "../oxc/index.js";
 
 export interface ScopeIndex {
-  /** `undefined` when `start` is not a recorded reference. `null` when the reference is undeclared. */
+  /** Every Identifier of the module is recorded, binding or reference. `undefined` when `start` is not an Identifier. `null` when the name is undeclared. */
   declarationAt(start: number): ScopeTrackerNode | null | undefined;
   isRootName(name: string): boolean;
 }
@@ -67,12 +67,8 @@ function build(program: Program): ScopeData {
   const declarations = new Map<number, ScopeTrackerNode | null>();
   walk(program, {
     scopeTracker: tracker,
-    enter(node, parent) {
+    enter(node) {
       if (node.type !== "Identifier") return;
-      if (isBindingIdentifier(node, parent)) {
-        declarations.set(node.start, tracker.getDeclaration(node.name));
-        return;
-      }
       declarations.set(node.start, tracker.getDeclaration(node.name));
     },
   });
