@@ -96,7 +96,7 @@ export function createPhysicsPlugin<
         });
         engine.hooks.hook("engine:update", () => {
           const packed = created.eventView();
-          if (packed === undefined || packed.count === 0) return;
+          if (packed === undefined) return;
           while (pool.length < packed.count) {
             pool.push({ slotA: 0, slotB: 0, started: false });
           }
