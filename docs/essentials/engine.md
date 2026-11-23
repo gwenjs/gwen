@@ -32,6 +32,8 @@ export default defineConfig({
 
 This file is processed at build time by the Vite plugin.
 
+The generated bootstrap imports `@gwenjs/core/wasm/<variant>/factory`. In dev the binary is served next to that module. A build emits the binary as a hashed asset. `engine.maxEntities` sizes the WASM engine.
+
 `@gwenjs/core` also ships a checked core for each variant, at `@gwenjs/core/wasm/<variant>-dev` (`opt-level=1`, debug assertions and overflow checks on). Nothing loads it yet.
 
 ## Config Reference
