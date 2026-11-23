@@ -66,9 +66,11 @@ Values: `GWEN_DOCS_BASE`, `errorDocsAnchor`, `errorDocsUrl`.
 
 `CORE_RANGE` is `"^1.0.0-alpha.0"`.
 
-Dependency range of the linked framework group: core, kit, physics2d, physics3d, renderer-core, and camera-core. physics-core joins once #58 P-58-0 ships. A plugin declares its `@gwenjs/*` peers on it. It does not satisfy `0.2.x`. It matches stack-harness stamps `1.0.0-integration.<UTC yyyymmddHHMMSS>.g<sha7>`.
+Dependency range of the linked framework group: core, kit, physics2d, physics3d, physics-core, renderer-core, and camera-core. A plugin declares its `@gwenjs/*` peers on it. It does not satisfy `0.2.x`. It matches stack-harness stamps `1.0.0-integration.<UTC yyyymmddHHMMSS>.g<sha7>`.
 
-Value: `CORE_RANGE`.
+`FRAMEWORK_RANGES` is a frozen `Readonly<Record<string, string>>`. Each package of the release-please manifest has one entry. A package of the linked group maps to `CORE_RANGE`. Every other package maps to `"^"` plus its manifest version. The value is generated from `.release-please-manifest.json` and `release-please-config.json` (11 entries).
+
+Values: `CORE_RANGE`, `FRAMEWORK_RANGES`.
 
 ## Assets contract
 

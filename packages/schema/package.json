@@ -32,6 +32,8 @@
   },
   "scripts": {
     "dev": "vite",
+    "generate": "node scripts/generate-framework-ranges.mjs",
+    "prebuild": "node scripts/generate-framework-ranges.mjs --check",
     "build": "vite build && cp dist/index.d.ts dist/index.d.cts",
     "postbuild": "node ../../scripts/fix-dts-extensions.mjs .",
     "test": "vitest run",

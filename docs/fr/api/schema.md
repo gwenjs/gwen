@@ -66,9 +66,11 @@ Valeurs : `GWEN_DOCS_BASE`, `errorDocsAnchor`, `errorDocsUrl`.
 
 `CORE_RANGE` vaut `"^1.0.0-alpha.0"`.
 
-Plage de dépendance du groupe framework lié : core, kit, physics2d, physics3d, renderer-core, et camera-core. physics-core le rejoint avec #58 P-58-0. Un plugin déclare ses pairs `@gwenjs/*` sur cette plage. Elle ne satisfait pas `0.2.x`. Elle correspond aux estampilles du harnais de pile `1.0.0-integration.<UTC yyyymmddHHMMSS>.g<sha7>`.
+Plage de dépendance du groupe framework lié : core, kit, physics2d, physics3d, physics-core, renderer-core et camera-core. Un plugin déclare ses pairs `@gwenjs/*` sur cette plage. Elle ne satisfait pas `0.2.x`. Elle correspond aux estampilles du harnais de pile `1.0.0-integration.<UTC yyyymmddHHMMSS>.g<sha7>`.
 
-Valeur : `CORE_RANGE`.
+`FRAMEWORK_RANGES` est un `Readonly<Record<string, string>>` gelé. Chaque package du manifeste release-please a une entrée. Un package du groupe lié vaut `CORE_RANGE`. Chaque autre package vaut `"^"` plus sa version du manifeste. La valeur est générée depuis `.release-please-manifest.json` et `release-please-config.json` (11 entrées).
+
+Valeurs : `CORE_RANGE`, `FRAMEWORK_RANGES`.
 
 ## Contrat des assets
 
