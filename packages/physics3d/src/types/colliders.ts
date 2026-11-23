@@ -1,3 +1,4 @@
+import type { LayerSelector } from "@gwenjs/physics-core";
 import type { ColliderHandle3D } from "./bodies";
 
 // ─── Colliders ─────────────────────────────────────────────────────────────────
@@ -86,16 +87,14 @@ export interface Physics3DColliderOptions {
    */
   density?: number;
   /**
-   * Named collision layers this collider belongs to, or numeric bitmask values.
-   * Named layers are resolved via the layer registry; numbers are used directly.
-   * `undefined` defaults to all-layers (0xFFFFFFFF).
+   * Collision layer. A number is a raw bitmask, a string is a name from
+   * `Physics3DConfig.layers`, and an array is OR-ed. `undefined` is every bit.
    */
-  layers?: (string | number)[] | undefined;
+  layer?: LayerSelector | undefined;
   /**
-   * Named layers this collider collides with, or numeric bitmask values.
-   * `undefined` defaults to all-layers (0xFFFFFFFF).
+   * Collision mask. Same shapes as {@link layer}. `undefined` is every bit.
    */
-  mask?: (string | number)[] | undefined;
+  mask?: LayerSelector | undefined;
   /**
    * Stable numeric collider id propagated to collision events and sensor state.
    * Defaults to the collider's array index when omitted.
@@ -199,10 +198,10 @@ export interface MeshColliderOptions {
   prebake?: boolean;
   /** Mark as sensor — generates events but no physical response. @default false */
   isSensor?: boolean;
-  /** Numeric collision layer bitmask (membership). */
-  layer?: number;
-  /** Numeric collision filter bitmask (which layers to collide with). */
-  mask?: number;
+  /** Collision layer. A number is a raw bitmask, a string is a name, an array is OR-ed. */
+  layer?: LayerSelector;
+  /** Collision mask. Same shapes as `layer`. */
+  mask?: LayerSelector;
   /** Local-space X offset from the body origin. @default 0 */
   offsetX?: number;
   /** Local-space Y offset from the body origin. @default 0 */

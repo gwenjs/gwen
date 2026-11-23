@@ -377,7 +377,7 @@ export interface Physics3DAPI {
     indices: Uint32Array,
     options?: Pick<
       Physics3DColliderOptions,
-      "isSensor" | "friction" | "restitution" | "layers" | "mask"
+      "isSensor" | "friction" | "restitution" | "layer" | "mask"
     >,
   ): boolean;
 
