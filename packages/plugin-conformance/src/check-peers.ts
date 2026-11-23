@@ -1,5 +1,6 @@
 import { FRAMEWORK_RANGES } from "@gwenjs/schema";
 import { ConformanceErrorCodes } from "./error-codes.js";
+import { usedPackages } from "./imported-packages.js";
 import { indexJson, isRecord } from "./json.js";
 import type { JsonIndex } from "./json.js";
 import type { PackageContext } from "./package-context.js";
@@ -108,11 +109,41 @@ function devFindings(manifest: Record<string, unknown>, index: JsonIndex): Confo
 }
 
 /**
+ * Framework peers (own keys of `FRAMEWORK_RANGES` in `peerDependencies`) that `src` never uses.
+ * `src` is read only when such a peer exists.
+ */
+async function unusedFindings(
+  root: string,
+  manifest: Record<string, unknown>,
+  index: JsonIndex,
+): Promise<ConformanceFinding[]> {
+  const block = sectionRecord(manifest.peerDependencies);
+  if (block === undefined) return [];
+  const names = Object.keys(block).filter((name) => frameworkRange(name) !== undefined);
+  if (names.length === 0) return [];
+  const used = await usedPackages(root);
+  const findings: ConformanceFinding[] = [];
+  for (const name of names) {
+    if (used.has(name)) continue;
+    findings.push(
+      finding(
+        ConformanceErrorCodes.PEER_UNUSED,
+        `peer ${JSON.stringify(name)} is declared but src never uses it`,
+        `Remove ${JSON.stringify(name)} from peerDependencies, or import it from src.`,
+        keyLine(index, "peerDependencies", name),
+      ),
+    );
+  }
+  return findings;
+}
+
+/**
  * Peer policy for every own key of `FRAMEWORK_RANGES`.
  * A framework package in `dependencies` or `optionalDependencies` is `PEER_RANGE`, except
  * `@gwenjs/math` (any spec). A `peerDependencies` spec that is not that package's range is
  * `PEER_RANGE` (strict string equality). A `devDependencies` spec that is not an exact version is
- * `DEV_PIN`. A section that is not an object is skipped. Runs for both profiles.
+ * `DEV_PIN`. A framework peer that no non-test script or declaration file under `src` uses is `PEER_UNUSED`. A section
+ * that is not an object is skipped. Runs for both profiles.
  */
 export async function checkPeers(context: PackageContext): Promise<readonly ConformanceFinding[]> {
   const manifest = context.manifest;
@@ -122,5 +153,6 @@ export async function checkPeers(context: PackageContext): Promise<readonly Conf
     ...dependencyFindings(manifest, index),
     ...peerFindings(manifest, index),
     ...devFindings(manifest, index),
+    ...(await unusedFindings(context.root, manifest, index)),
   ];
 }
