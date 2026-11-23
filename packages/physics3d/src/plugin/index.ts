@@ -9,7 +9,6 @@ import type {
   Physics3DCollisionContact,
   Physics3DPrefabExtension,
   Physics3DSensorState,
-  Physics3DEntityId,
 } from "../types";
 
 import {
@@ -199,11 +198,11 @@ export const Physics3DPlugin = definePlugin(physics3dDeclaration, (config: Physi
 
   // ─── Build bound API methods from sub-modules ──────────────────────────────
 
-  const _createBody = (entityId: Physics3DEntityId, options = {}) =>
+  const _createBody = (entityId: EntityId, options = {}) =>
     createBody(ctx, entityId, options, (eid, opts) => addColliderImpl(ctx, eid, opts));
 
-  const _removeBody = (entityId: Physics3DEntityId) => removeBody(ctx, entityId);
-  const _hasBody = (entityId: Physics3DEntityId) => hasBody(ctx, entityId);
+  const _removeBody = (entityId: EntityId) => removeBody(ctx, entityId);
+  const _hasBody = (entityId: EntityId) => hasBody(ctx, entityId);
 
   const _getBodyKind = getBodyKind(ctx);
   const _setBodyKind = setBodyKind(ctx);

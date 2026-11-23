@@ -1,6 +1,7 @@
-import type { Physics3DVec3, Physics3DQuat } from "./config";
+import type { Quat, Vec3 } from "@gwenjs/math";
+import type { EntityId } from "@gwenjs/schema";
+
 import type { Physics3DColliderShape } from "./colliders";
-import type { Physics3DEntityId } from "./bodies";
 
 // ─── Joint handle & id ────────────────────────────────────────────────────────
 
@@ -21,19 +22,19 @@ export type JointId = JointHandle3D;
 /** Shared options present on every joint type. */
 export interface JointOptsBase {
   /** First body participating in the joint. */
-  bodyA: Physics3DEntityId;
+  bodyA: EntityId;
   /** Second body participating in the joint. */
-  bodyB: Physics3DEntityId;
+  bodyB: EntityId;
   /**
    * Anchor point on `bodyA` in local body-A space (metres).
    * @default { x: 0, y: 0, z: 0 }
    */
-  anchorA?: Partial<Physics3DVec3>;
+  anchorA?: Partial<Vec3>;
   /**
    * Anchor point on `bodyB` in local body-B space (metres).
    * @default { x: 0, y: 0, z: 0 }
    */
-  anchorB?: Partial<Physics3DVec3>;
+  anchorB?: Partial<Vec3>;
 }
 
 /**
@@ -53,7 +54,7 @@ export interface RevoluteJointOpts extends JointOptsBase {
    * Rotation axis in body-A local space (should be normalized).
    * @default { x: 0, y: 1, z: 0 }
    */
-  axis?: Partial<Physics3DVec3>;
+  axis?: Partial<Vec3>;
   /**
    * Optional angular limits `[min, max]` in radians.
    * Omit to allow unrestricted rotation.
@@ -71,7 +72,7 @@ export interface PrismaticJointOpts extends JointOptsBase {
    * Slide axis in body-A local space (should be normalized).
    * @default { x: 0, y: 1, z: 0 }
    */
-  axis?: Partial<Physics3DVec3>;
+  axis?: Partial<Vec3>;
   /**
    * Optional linear limits `[min, max]` in metres.
    * Omit to allow unrestricted translation.
@@ -115,13 +116,13 @@ export interface SpringJointOpts extends JointOptsBase {
  */
 export interface RayHit {
   /** The entity whose collider was struck. */
-  entity: Physics3DEntityId;
+  entity: EntityId;
   /** Distance from the ray origin to the hit point in metres. */
   distance: number;
   /** Surface normal at the hit point (unit vector). */
-  normal: Physics3DVec3;
+  normal: Vec3;
   /** World-space hit point in metres. */
-  point: Physics3DVec3;
+  point: Vec3;
 }
 
 /**
@@ -129,17 +130,17 @@ export interface RayHit {
  */
 export interface ShapeHit {
   /** The entity whose collider was struck. */
-  entity: Physics3DEntityId;
+  entity: EntityId;
   /** Time of impact (distance along the cast direction) in metres. */
   distance: number;
   /** Surface normal at the contact point (unit vector). */
-  normal: Physics3DVec3;
+  normal: Vec3;
   /** World-space contact point in metres. */
-  point: Physics3DVec3;
+  point: Vec3;
   /** Closest witness point on the cast shape (world space). */
-  witnessA: Physics3DVec3;
+  witnessA: Vec3;
   /** Closest witness point on the hit collider (world space). */
-  witnessB: Physics3DVec3;
+  witnessB: Vec3;
 }
 
 /**
@@ -147,9 +148,9 @@ export interface ShapeHit {
  */
 export interface PointProjection {
   /** The entity whose collider is nearest to the query point. */
-  entity: Physics3DEntityId;
+  entity: EntityId;
   /** Projected point on the collider surface in world space. */
-  point: Physics3DVec3;
+  point: Vec3;
   /** `true` when the input point is inside the collider geometry. */
   isInside: boolean;
 }
@@ -177,7 +178,7 @@ export interface Pathfinding3DOptions {
    * World-space origin of the voxel grid.
    * @default { x: 0, y: 0, z: 0 }
    */
-  origin?: Partial<Physics3DVec3>;
+  origin?: Partial<Vec3>;
 }
 
 /**
@@ -244,7 +245,7 @@ export interface CharacterControllerHandle {
    * Surface normal of the ground contact in world space, or `null` when the
    * controller is airborne.
    */
-  readonly groundNormal: Physics3DVec3 | null;
+  readonly groundNormal: Vec3 | null;
   /**
    * Entity the controller is standing on, or `null` when airborne or when ground
    * entity tracking is unavailable.
@@ -252,12 +253,12 @@ export interface CharacterControllerHandle {
    * Populated from the 5-float return value of `physics3d_character_controller_move`
    * when the WASM layer supports it.
    */
-  readonly groundEntity: import("./bodies").Physics3DEntityId | null;
+  readonly groundEntity: EntityId | null;
   /**
    * The actual translation applied during the last `move()` call (metres).
    * May differ from `desiredVelocity × dt` due to collision response.
    */
-  readonly lastTranslation: Physics3DVec3;
+  readonly lastTranslation: Vec3;
   /**
    * Drive the character controller.
    *
@@ -268,7 +269,7 @@ export interface CharacterControllerHandle {
    * @param desiredVelocity - Desired velocity in m/s.
    * @param dt - Frame delta time in seconds.
    */
-  move(desiredVelocity: Physics3DVec3, dt: number): void;
+  move(desiredVelocity: Vec3, dt: number): void;
 }
 
 // ─── Composable slot types ────────────────────────────────────────────────────
@@ -279,7 +280,7 @@ export interface CharacterControllerHandle {
  */
 export interface RaycastOpts {
   /** Ray direction (should be normalized). */
-  direction: Physics3DVec3;
+  direction: Vec3;
   /**
    * Maximum ray travel distance in metres.
    * @default 100
@@ -304,7 +305,7 @@ export interface RaycastOpts {
    * Callback returning the ray origin each frame.
    * When omitted the slot's pre-registered origin is used.
    */
-  origin?: () => Physics3DVec3;
+  origin?: () => Vec3;
 }
 
 /**
@@ -315,13 +316,13 @@ export interface RaycastSlotResult {
   /** Whether the ray hit anything during the last step. */
   hit: boolean;
   /** Hit entity, or the zero entity when no hit occurred. */
-  entity: Physics3DEntityId;
+  entity: EntityId;
   /** Distance to the hit point in metres. */
   distance: number;
   /** Surface normal at the hit point. */
-  normal: Physics3DVec3;
+  normal: Vec3;
   /** World-space hit point. */
-  point: Physics3DVec3;
+  point: Vec3;
 }
 
 /**
@@ -334,13 +335,13 @@ export interface RaycastHandle {
   /** `true` when the last step produced a hit. */
   readonly hit: boolean;
   /** The hit entity from the last step. */
-  readonly entity: Physics3DEntityId;
+  readonly entity: EntityId;
   /** Distance to the last hit in metres. */
   readonly distance: number;
   /** Surface normal at the last hit. */
-  readonly normal: Physics3DVec3;
+  readonly normal: Vec3;
   /** World-space last hit point. */
-  readonly point: Physics3DVec3;
+  readonly point: Vec3;
   /** @internal Slot id used by `unregisterRaycastSlot`. */
   readonly _id: number;
 }
@@ -353,7 +354,7 @@ export interface ShapeCastOpts {
   /** Shape to sweep through the scene. */
   shape: Physics3DColliderShape;
   /** Sweep direction. */
-  direction: Physics3DVec3;
+  direction: Vec3;
   /**
    * Maximum sweep distance in metres.
    * @default 100
@@ -373,12 +374,12 @@ export interface ShapeCastOpts {
    * Callback returning the cast origin each frame.
    * @default () => \{ x: 0, y: 0, z: 0 \}
    */
-  origin?: () => Physics3DVec3;
+  origin?: () => Vec3;
   /**
    * Callback returning the cast rotation each frame.
    * @default () => identity quaternion
    */
-  rotation?: () => Physics3DQuat;
+  rotation?: () => Quat;
 }
 
 /**
@@ -389,17 +390,17 @@ export interface ShapeCastSlotResult {
   /** Whether the sweep hit anything during the last step. */
   hit: boolean;
   /** Hit entity, or the zero entity when no hit. */
-  entity: Physics3DEntityId;
+  entity: EntityId;
   /** Time of impact (distance) of the last hit. */
   distance: number;
   /** Surface normal at the hit. */
-  normal: Physics3DVec3;
+  normal: Vec3;
   /** World-space contact point. */
-  point: Physics3DVec3;
+  point: Vec3;
   /** Witness point on the cast shape. */
-  witnessA: Physics3DVec3;
+  witnessA: Vec3;
   /** Witness point on the hit collider. */
-  witnessB: Physics3DVec3;
+  witnessB: Vec3;
 }
 
 /**
@@ -411,17 +412,17 @@ export interface ShapeCastHandle {
   /** `true` when the last step produced a hit. */
   readonly hit: boolean;
   /** The hit entity from the last step. */
-  readonly entity: Physics3DEntityId;
+  readonly entity: EntityId;
   /** Time of impact / distance of the last hit. */
   readonly distance: number;
   /** Surface normal at the last hit. */
-  readonly normal: Physics3DVec3;
+  readonly normal: Vec3;
   /** World-space contact point from the last hit. */
-  readonly point: Physics3DVec3;
+  readonly point: Vec3;
   /** Witness point on the cast shape. */
-  readonly witnessA: Physics3DVec3;
+  readonly witnessA: Vec3;
   /** Witness point on the hit collider. */
-  readonly witnessB: Physics3DVec3;
+  readonly witnessB: Vec3;
   /** @internal Slot id used by `unregisterShapeCastSlot`. */
   readonly _id: number;
 }
@@ -449,12 +450,12 @@ export interface OverlapOpts {
    */
   maxResults?: number;
   /** Callback returning the query origin each frame. */
-  origin: () => Physics3DVec3;
+  origin: () => Vec3;
   /**
    * Callback returning the query rotation each frame.
    * @default () => identity quaternion
    */
-  rotation?: () => Physics3DQuat;
+  rotation?: () => Quat;
 }
 
 /**
@@ -465,7 +466,7 @@ export interface OverlapSlotResult {
   /** Number of overlapping entities found during the last step. */
   count: number;
   /** Overlapping entity IDs from the last step. */
-  entities: Physics3DEntityId[];
+  entities: EntityId[];
 }
 
 /**
@@ -477,7 +478,7 @@ export interface OverlapHandle {
   /** Number of overlapping entities from the last step. */
   readonly count: number;
   /** Overlapping entity IDs from the last step. */
-  readonly entities: Physics3DEntityId[];
+  readonly entities: EntityId[];
   /** @internal Slot id used by `unregisterOverlapSlot`. */
   readonly _id: number;
 }

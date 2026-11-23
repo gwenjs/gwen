@@ -3,35 +3,30 @@
  * These functions are stateless and can be safely extracted and reused.
  */
 
-import type {
-  Physics3DVec3,
-  Physics3DQuat,
-  Physics3DBodyKind,
-  Physics3DBodyState,
-  Physics3DColliderOptions,
-} from "../types";
+import type { Quat, Vec3 } from "@gwenjs/math";
+import type { Physics3DBodyKind, Physics3DBodyState, Physics3DColliderOptions } from "../types";
 import { PHYSICS3D_MATERIAL_PRESETS } from "../types";
 import { uncheckedAt } from "../internal/unchecked";
 
 /**
- * Construct a fully-initialized Physics3DVec3 from a partial override.
+ * Construct a fully-initialized Vec3 from a partial override.
  * Defaults to zero vector when no overrides are provided.
  *
  * @param v - Partial vector overrides (optional fields use 0)
- * @returns Fully-initialized Physics3DVec3 with x, y, z components
+ * @returns Fully-initialized Vec3 with x, y, z components
  */
-export function vec3(v?: Partial<Physics3DVec3>): Physics3DVec3 {
+export function vec3(v?: Partial<Vec3>): Vec3 {
   return { x: v?.x ?? 0, y: v?.y ?? 0, z: v?.z ?? 0 };
 }
 
 /**
- * Construct a fully-initialized Physics3DQuat from a partial override.
+ * Construct a fully-initialized Quat from a partial override.
  * Defaults to identity quaternion (0, 0, 0, 1) when no overrides are provided.
  *
  * @param v - Partial quaternion overrides (optional fields use identity values)
- * @returns Fully-initialized Physics3DQuat with x, y, z, w components
+ * @returns Fully-initialized Quat with x, y, z, w components
  */
-export function quat(v?: Partial<Physics3DQuat>): Physics3DQuat {
+export function quat(v?: Partial<Quat>): Quat {
   return { x: v?.x ?? 0, y: v?.y ?? 0, z: v?.z ?? 0, w: v?.w ?? 1 };
 }
 
@@ -151,7 +146,7 @@ export interface LocalAABB {
  * @param col - Collider with shape type and offsets
  * @returns World-space AABB bounds
  */
-export function computeColliderAABB(pos: Physics3DVec3, col: Physics3DColliderOptions): LocalAABB {
+export function computeColliderAABB(pos: Vec3, col: Physics3DColliderOptions): LocalAABB {
   const cx = pos.x + (col.offsetX ?? 0);
   const cy = pos.y + (col.offsetY ?? 0);
   const cz = pos.z + (col.offsetZ ?? 0);

@@ -8,13 +8,8 @@
  */
 import { onBeforeUpdate } from "@gwenjs/core/system";
 import { _getActorEntityId } from "@gwenjs/core/internal";
-import type {
-  KinematicBodyOptions3D,
-  KinematicBodyHandle3D,
-  Physics3DBodyOptions,
-  Physics3DVec3,
-  Physics3DQuat,
-} from "../types";
+import type { Quat, Vec3 } from "@gwenjs/math";
+import type { KinematicBodyOptions3D, KinematicBodyHandle3D, Physics3DBodyOptions } from "../types";
 
 import { usePhysics3D } from "../composables";
 
@@ -70,7 +65,7 @@ export function useKinematicBody(options: KinematicBodyOptions3D = {}): Kinemati
 
     const { position: p, rotation: r } = state;
 
-    let rotation: Physics3DQuat;
+    let rotation: Quat;
     if (!_fixedRotation && (_wx !== 0 || _wy !== 0 || _wz !== 0)) {
       // First-order quaternion integration: dq = 0.5 * [wx,wy,wz,0] * q * dt
       const hdt = 0.5 * dt;
@@ -102,10 +97,10 @@ export function useKinematicBody(options: KinematicBodyOptions3D = {}): Kinemati
     get active() {
       return _active;
     },
-    get velocity(): Physics3DVec3 {
+    get velocity(): Vec3 {
       return { x: _vx, y: _vy, z: _vz };
     },
-    get angularVelocity(): Physics3DVec3 {
+    get angularVelocity(): Vec3 {
       return { x: _wx, y: _wy, z: _wz };
     },
 

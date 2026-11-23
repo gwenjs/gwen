@@ -2,7 +2,8 @@
  * @fileoverview Pathfinding service methods for the Physics3D API.
  */
 
-import type { Physics3DAPI, Physics3DVec3, Pathfinding3DOptions, PathWaypoint3D } from "../types";
+import type { Vec3 } from "@gwenjs/math";
+import type { Physics3DAPI, Pathfinding3DOptions, PathWaypoint3D } from "../types";
 import { Physics3DErrorCodes } from "../errors/codes";
 import { localFindPath3D } from "./pathfinding";
 import type { PluginContext } from "./plugin-context";
@@ -34,7 +35,7 @@ export function createPathfindingMethods(
       ctx._localNavGrid = opts;
     },
 
-    findPath3D(from: Physics3DVec3, to: Physics3DVec3): PathWaypoint3D[] {
+    findPath3D(from: Vec3, to: Vec3): PathWaypoint3D[] {
       if (ctx.backendMode === "wasm") {
         let count: number | undefined;
         try {

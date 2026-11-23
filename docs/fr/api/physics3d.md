@@ -37,7 +37,7 @@ export default defineConfig({
 
 | Champ | Type | Défaut | Description |
 |---|---|---|---|
-| `gravity` | `Physics3DVec3` | `{ x: 0, y: -9.81, z: 0 }` | Vecteur de gravité du monde |
+| `gravity` | `Vec3` | `{ x: 0, y: -9.81, z: 0 }` | Vecteur de gravité du monde |
 | `maxEntities` | `number` | `10_000` | Nombre maximum d'entités physiques |
 | `qualityPreset` | `Physics3DQualityPreset` | `'medium'` | Qualité du solveur : `'low'`, `'medium'`, `'high'` ou `'esport'` |
 | `debug` | `boolean` | `false` | Active les journaux de débogage physique à l'exécution |
@@ -125,7 +125,7 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
 
 ```ts
 function useBoxCollider(options: {
-  extents: Physics3DVec3
+  extents: Vec3
   sensor?: boolean
   density?: number
 }): void
@@ -135,7 +135,7 @@ Ajoute un collider de boîte avec les demi-extensions données.
 
 | Paramètre | Type | Description |
 |---|---|---|
-| `options.extents` | `Physics3DVec3` | Demi-taille sur chaque axe |
+| `options.extents` | `Vec3` | Demi-taille sur chaque axe |
 | `options.sensor` | `boolean` | Déclencheur uniquement (sans réponse physique) |
 | `options.density` | `number` | Densité du collider |
 
@@ -306,17 +306,17 @@ physics.applyImpulse(entityId, { x: 0, y: 500, z: 0 })
 
 | Méthode | Signature | Description |
 |---|---|---|
-| `applyImpulse` | `(entityId: Physics3DEntityId, impulse: Partial<Physics3DVec3>) => boolean` | Applique une impulsion linéaire instantanée (N·s) |
-| `applyAngularImpulse` | `(entityId: Physics3DEntityId, impulse: Partial<Physics3DVec3>) => boolean` | Applique une impulsion angulaire instantanée |
-| `addForce` | `(entityId: Physics3DEntityId, force: Partial<Physics3DVec3>) => void` | Accumule une force continue pour ce step (N) |
-| `addTorque` | `(entityId: Physics3DEntityId, torque: Partial<Physics3DVec3>) => void` | Accumule un couple continu pour ce step (N·m) |
-| `setLinearVelocity` | `(entityId: Physics3DEntityId, velocity: Partial<Physics3DVec3>) => boolean` | Remplace la vélocité linéaire (m/s) |
-| `getLinearVelocity` | `(entityId: Physics3DEntityId) => Physics3DVec3 \| undefined` | Lit la vélocité linéaire actuelle |
-| `setAngularVelocity` | `(entityId: Physics3DEntityId, velocity: Partial<Physics3DVec3>) => boolean` | Remplace la vélocité angulaire (rad/s) |
-| `getAngularVelocity` | `(entityId: Physics3DEntityId) => Physics3DVec3 \| undefined` | Lit la vélocité angulaire actuelle |
-| `setGravityScale` | `(entityId: Physics3DEntityId, scale: number) => void` | Échelle de gravité par corps (`0` désactive, `1` = normal) |
-| `getGravityScale` | `(entityId: Physics3DEntityId) => number` | Lit l'échelle de gravité actuelle d'un corps |
-| `castRay` | `(origin: Physics3DVec3, direction: Physics3DVec3, maxDist: number, opts?) => RayHit \| null` | Lance un rayon, retourne l'impact le plus proche ou `null` |
+| `applyImpulse` | `(entityId: EntityId, impulse: Partial<Vec3>) => boolean` | Applique une impulsion linéaire instantanée (N·s) |
+| `applyAngularImpulse` | `(entityId: EntityId, impulse: Partial<Vec3>) => boolean` | Applique une impulsion angulaire instantanée |
+| `addForce` | `(entityId: EntityId, force: Partial<Vec3>) => void` | Accumule une force continue pour ce step (N) |
+| `addTorque` | `(entityId: EntityId, torque: Partial<Vec3>) => void` | Accumule un couple continu pour ce step (N·m) |
+| `setLinearVelocity` | `(entityId: EntityId, velocity: Partial<Vec3>) => boolean` | Remplace la vélocité linéaire (m/s) |
+| `getLinearVelocity` | `(entityId: EntityId) => Vec3 \| undefined` | Lit la vélocité linéaire actuelle |
+| `setAngularVelocity` | `(entityId: EntityId, velocity: Partial<Vec3>) => boolean` | Remplace la vélocité angulaire (rad/s) |
+| `getAngularVelocity` | `(entityId: EntityId) => Vec3 \| undefined` | Lit la vélocité angulaire actuelle |
+| `setGravityScale` | `(entityId: EntityId, scale: number) => void` | Échelle de gravité par corps (`0` désactive, `1` = normal) |
+| `getGravityScale` | `(entityId: EntityId) => number` | Lit l'échelle de gravité actuelle d'un corps |
+| `castRay` | `(origin: Vec3, direction: Vec3, maxDist: number, opts?) => RayHit \| null` | Lance un rayon, retourne l'impact le plus proche ou `null` |
 
 ```ts
 const physics = usePhysics3D()
@@ -431,7 +431,7 @@ Activez `bvhPrebake: true` (via `vite.bvhPrebake` dans la configuration du modul
 
 ```ts
 interface Physics3DConfig {
-  gravity: Physics3DVec3
+  gravity: Vec3
   maxEntities: number
   qualityPreset: 'low' | 'medium' | 'high' | 'esport'
   debug: boolean
@@ -444,26 +444,7 @@ interface Physics3DConfig {
 }
 ```
 
-### Physics3DVec3
-
-```ts
-interface Physics3DVec3 {
-  x: number
-  y: number
-  z: number
-}
-```
-
-### Physics3DQuat
-
-```ts
-interface Physics3DQuat {
-  x: number
-  y: number
-  z: number
-  w: number
-}
-```
+Dans toute cette page, les formes de vecteur et de rotation sont `Vec3` et `Quat` de `@gwenjs/math`, et les identifiants d'entité sont `EntityId` de `@gwenjs/schema`.
 
 ### Physics3DQualityPreset
 

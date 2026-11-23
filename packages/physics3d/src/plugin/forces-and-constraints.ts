@@ -2,7 +2,9 @@
  * @fileoverview Continuous forces, gravity scale, axis locks, and sleep control.
  */
 
-import type { Physics3DAPI, Physics3DEntityId, Physics3DVec3 } from "../types";
+import type { Vec3 } from "@gwenjs/math";
+import type { EntityId } from "@gwenjs/schema";
+import type { Physics3DAPI } from "../types";
 import { guardOwned } from "./entity-owner";
 import type { PluginContext } from "./plugin-context";
 import { callPhysics3DExport } from "./wasm-errors";
@@ -24,7 +26,7 @@ export function createForcesAndConstraints(
   | "wakeAll"
 > {
   return {
-    addForce(entityId: Physics3DEntityId, force: Partial<Physics3DVec3>): void {
+    addForce(entityId: EntityId, force: Partial<Vec3>): void {
       const owned = guardOwned(ctx, entityId, "addForce");
       if (!owned) return;
       const slot = owned.slot;
@@ -47,7 +49,7 @@ export function createForcesAndConstraints(
       });
     },
 
-    addTorque(entityId: Physics3DEntityId, torque: Partial<Physics3DVec3>): void {
+    addTorque(entityId: EntityId, torque: Partial<Vec3>): void {
       const owned = guardOwned(ctx, entityId, "addTorque");
       if (!owned) return;
       const slot = owned.slot;
@@ -70,11 +72,7 @@ export function createForcesAndConstraints(
       });
     },
 
-    addForceAtPoint(
-      entityId: Physics3DEntityId,
-      force: Partial<Physics3DVec3>,
-      point: Partial<Physics3DVec3>,
-    ): void {
+    addForceAtPoint(entityId: EntityId, force: Partial<Vec3>, point: Partial<Vec3>): void {
       const owned = guardOwned(ctx, entityId, "addForceAtPoint");
       if (!owned) return;
       const slot = owned.slot;
@@ -100,7 +98,7 @@ export function createForcesAndConstraints(
       });
     },
 
-    setGravityScale(entityId: Physics3DEntityId, scale: number): void {
+    setGravityScale(entityId: EntityId, scale: number): void {
       const owned = guardOwned(ctx, entityId, "setGravityScale");
       if (!owned) return;
       const slot = owned.slot;
@@ -113,7 +111,7 @@ export function createForcesAndConstraints(
       ctx.localGravityScales.set(slot, scale);
     },
 
-    getGravityScale(entityId: Physics3DEntityId): number {
+    getGravityScale(entityId: EntityId): number {
       const owned = guardOwned(ctx, entityId, "getGravityScale");
       if (!owned) return 1;
       const slot = owned.slot;
@@ -125,7 +123,7 @@ export function createForcesAndConstraints(
       return ctx.localGravityScales.get(slot) ?? 1.0;
     },
 
-    lockTranslations(entityId: Physics3DEntityId, x: boolean, y: boolean, z: boolean): void {
+    lockTranslations(entityId: EntityId, x: boolean, y: boolean, z: boolean): void {
       const owned = guardOwned(ctx, entityId, "lockTranslations");
       if (!owned) return;
       const slot = owned.slot;
@@ -151,7 +149,7 @@ export function createForcesAndConstraints(
       });
     },
 
-    lockRotations(entityId: Physics3DEntityId, x: boolean, y: boolean, z: boolean): void {
+    lockRotations(entityId: EntityId, x: boolean, y: boolean, z: boolean): void {
       const owned = guardOwned(ctx, entityId, "lockRotations");
       if (!owned) return;
       const slot = owned.slot;
@@ -177,7 +175,7 @@ export function createForcesAndConstraints(
       });
     },
 
-    setBodySleeping(entityId: Physics3DEntityId, sleeping: boolean): void {
+    setBodySleeping(entityId: EntityId, sleeping: boolean): void {
       const owned = guardOwned(ctx, entityId, "setBodySleeping");
       if (!owned) return;
       const slot = owned.slot;
@@ -194,7 +192,7 @@ export function createForcesAndConstraints(
       }
     },
 
-    isBodySleeping(entityId: Physics3DEntityId): boolean {
+    isBodySleeping(entityId: EntityId): boolean {
       const owned = guardOwned(ctx, entityId, "isBodySleeping");
       if (!owned) return false;
       const slot = owned.slot;

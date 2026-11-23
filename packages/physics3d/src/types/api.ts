@@ -1,12 +1,12 @@
+import type { Quat, Vec3 } from "@gwenjs/math";
+import type { EntityId } from "@gwenjs/schema";
+
 import type {
-  Physics3DVec3,
-  Physics3DQuat,
   Physics3DBodyHandle,
   Physics3DBodyKind,
   Physics3DBodyState,
   Physics3DBodySnapshot,
   Physics3DBodyOptions,
-  Physics3DEntityId,
   Physics3DColliderOptions,
   Physics3DCollisionContact,
   Physics3DSensorState,
@@ -103,7 +103,7 @@ export interface Physics3DAPI {
    *
    * @since 1.0.0
    */
-  createBody(entityId: Physics3DEntityId, options?: Physics3DBodyOptions): Physics3DBodyHandle;
+  createBody(entityId: EntityId, options?: Physics3DBodyOptions): Physics3DBodyHandle;
 
   /**
    * Remove the rigid body (and all attached colliders) for an entity.
@@ -113,7 +113,7 @@ export interface Physics3DAPI {
    *
    * @since 1.0.0
    */
-  removeBody(entityId: Physics3DEntityId): boolean;
+  removeBody(entityId: EntityId): boolean;
 
   /**
    * Returns `true` if a body is currently registered for the entity.
@@ -123,7 +123,7 @@ export interface Physics3DAPI {
    *
    * @since 1.0.0
    */
-  hasBody(entityId: Physics3DEntityId): boolean;
+  hasBody(entityId: EntityId): boolean;
 
   /**
    * Read the current body kind for an entity.
@@ -133,7 +133,7 @@ export interface Physics3DAPI {
    *
    * @since 1.0.0
    */
-  getBodyKind(entityId: Physics3DEntityId): Physics3DBodyKind | undefined;
+  getBodyKind(entityId: EntityId): Physics3DBodyKind | undefined;
 
   /**
    * Update the body kind at runtime.
@@ -146,7 +146,7 @@ export interface Physics3DAPI {
    *
    * @since 1.0.0
    */
-  setBodyKind(entityId: Physics3DEntityId, kind: Physics3DBodyKind): boolean;
+  setBodyKind(entityId: EntityId, kind: Physics3DBodyKind): boolean;
 
   /**
    * Read a full snapshot of a body's simulation state.
@@ -165,16 +165,16 @@ export interface Physics3DAPI {
    *
    * @since 1.0.0
    */
-  getBodyState(entityId: Physics3DEntityId): Physics3DBodyState | undefined;
+  getBodyState(entityId: EntityId): Physics3DBodyState | undefined;
 
   /** Partially update a body's simulation state. */
   setBodyState(
-    entityId: Physics3DEntityId,
+    entityId: EntityId,
     patch: Partial<{
-      position: Partial<Physics3DVec3>;
-      rotation: Partial<Physics3DQuat>;
-      linearVelocity: Partial<Physics3DVec3>;
-      angularVelocity: Partial<Physics3DVec3>;
+      position: Partial<Vec3>;
+      rotation: Partial<Quat>;
+      linearVelocity: Partial<Vec3>;
+      angularVelocity: Partial<Vec3>;
     }>,
   ): boolean;
 
@@ -194,7 +194,7 @@ export interface Physics3DAPI {
    *
    * @since 1.0.0
    */
-  applyImpulse(entityId: Physics3DEntityId, impulse: Partial<Physics3DVec3>): boolean;
+  applyImpulse(entityId: EntityId, impulse: Partial<Vec3>): boolean;
 
   /**
    * Apply an angular impulse to a body in N·m·s.
@@ -207,7 +207,7 @@ export interface Physics3DAPI {
    *
    * @since 1.0.0
    */
-  applyAngularImpulse(entityId: Physics3DEntityId, impulse: Partial<Physics3DVec3>): boolean;
+  applyAngularImpulse(entityId: EntityId, impulse: Partial<Vec3>): boolean;
 
   /**
    * Apply a continuous torque to a body in N·m.
@@ -229,7 +229,7 @@ export interface Physics3DAPI {
    *
    * @since 1.0.0
    */
-  applyTorque(entityId: Physics3DEntityId, torque: Partial<Physics3DVec3>): boolean;
+  applyTorque(entityId: EntityId, torque: Partial<Vec3>): boolean;
 
   /**
    * Read the current linear velocity of a body in m/s.
@@ -239,7 +239,7 @@ export interface Physics3DAPI {
    *
    * @since 1.0.0
    */
-  getLinearVelocity(entityId: Physics3DEntityId): Physics3DVec3 | undefined;
+  getLinearVelocity(entityId: EntityId): Vec3 | undefined;
 
   /**
    * Set the linear velocity of a body in m/s. Missing components preserve the current value.
@@ -250,7 +250,7 @@ export interface Physics3DAPI {
    *
    * @since 1.0.0
    */
-  setLinearVelocity(entityId: Physics3DEntityId, velocity: Partial<Physics3DVec3>): boolean;
+  setLinearVelocity(entityId: EntityId, velocity: Partial<Vec3>): boolean;
 
   /**
    * Read the current angular velocity of a body in rad/s.
@@ -260,7 +260,7 @@ export interface Physics3DAPI {
    *
    * @since 1.0.0
    */
-  getAngularVelocity(entityId: Physics3DEntityId): Physics3DVec3 | undefined;
+  getAngularVelocity(entityId: EntityId): Vec3 | undefined;
 
   /**
    * Override the angular velocity of a body directly in rad/s.
@@ -277,7 +277,7 @@ export interface Physics3DAPI {
    *
    * @since 1.0.0
    */
-  setAngularVelocity(entityId: Physics3DEntityId, velocity: Partial<Physics3DVec3>): boolean;
+  setAngularVelocity(entityId: EntityId, velocity: Partial<Vec3>): boolean;
 
   /**
    * Teleport a kinematic body to an exact world-space position and optional rotation.
@@ -286,11 +286,7 @@ export interface Physics3DAPI {
    * @param position - Target world-space position.
    * @param rotation - Optional target rotation. Identity quaternion is used when omitted.
    */
-  setKinematicPosition(
-    entityId: Physics3DEntityId,
-    position: Physics3DVec3,
-    rotation?: Physics3DQuat,
-  ): boolean;
+  setKinematicPosition(entityId: EntityId, position: Vec3, rotation?: Quat): boolean;
 
   /**
    * Integrate N kinematic body positions in one WASM call.
@@ -348,7 +344,7 @@ export interface Physics3DAPI {
    *
    * @since 1.0.0
    */
-  addCollider(entityId: Physics3DEntityId, options: Physics3DColliderOptions): boolean;
+  addCollider(entityId: EntityId, options: Physics3DColliderOptions): boolean;
 
   /**
    * Remove a collider by its stable `colliderId`.
@@ -358,7 +354,7 @@ export interface Physics3DAPI {
    * @throws {GwenWasmError} `PHYSICS3D:COLLIDER_NOT_FOUND` when the registry holds the id but
    *   Rust does not (a registry and WASM desync). The registry is left as it was.
    */
-  removeCollider(entityId: Physics3DEntityId, colliderId: number): boolean;
+  removeCollider(entityId: EntityId, colliderId: number): boolean;
 
   /**
    * Rebuild an existing mesh collider with new geometry.
@@ -375,7 +371,7 @@ export interface Physics3DAPI {
    * @returns `true` on success; `false` if the entity has no body.
    */
   rebuildMeshCollider(
-    entityId: Physics3DEntityId,
+    entityId: EntityId,
     colliderId: number,
     vertices: Float32Array,
     indices: Uint32Array,
@@ -435,7 +431,7 @@ export interface Physics3DAPI {
    * @since 1.0.0
    */
   addCompoundCollider(
-    entityId: Physics3DEntityId,
+    entityId: EntityId,
     options: CompoundColliderOptions3D,
   ): CompoundColliderHandle3D | null;
 
@@ -445,19 +441,14 @@ export interface Physics3DAPI {
    * Returns `{ contactCount: 0, isActive: false }` when the sensor was never
    * registered or has not received any events yet.
    */
-  getSensorState(entityId: Physics3DEntityId, sensorId: number): Physics3DSensorState;
+  getSensorState(entityId: EntityId, sensorId: number): Physics3DSensorState;
 
   /**
    * Manually update the sensor contact state.
    *
    * Intended for test helpers and advanced gameplay logic.
    */
-  updateSensorState(
-    entityId: Physics3DEntityId,
-    sensorId: number,
-    isActive: boolean,
-    count: number,
-  ): void;
+  updateSensorState(entityId: EntityId, sensorId: number, isActive: boolean, count: number): void;
 
   /**
    * Return all collision contacts resolved for the current frame.
@@ -486,7 +477,7 @@ export interface Physics3DAPI {
    *
    * All fields are `null` when the body is not registered.
    */
-  getBodySnapshot(entityId: Physics3DEntityId): Physics3DBodySnapshot | undefined;
+  getBodySnapshot(entityId: EntityId): Physics3DBodySnapshot | undefined;
 
   /**
    * Return the total number of currently registered body handles.
@@ -609,7 +600,7 @@ export interface Physics3DAPI {
    * @param entityId - Target entity.
    * @param force    - Force vector in N. Missing components default to `0`.
    */
-  addForce(entityId: Physics3DEntityId, force: Partial<Physics3DVec3>): void;
+  addForce(entityId: EntityId, force: Partial<Vec3>): void;
 
   /**
    * Apply a continuous torque to a body in N·m (accumulates each step).
@@ -617,7 +608,7 @@ export interface Physics3DAPI {
    * @param entityId - Target entity.
    * @param torque   - Torque vector in N·m. Missing components default to `0`.
    */
-  addTorque(entityId: Physics3DEntityId, torque: Partial<Physics3DVec3>): void;
+  addTorque(entityId: EntityId, torque: Partial<Vec3>): void;
 
   /**
    * Apply a force at a specific world-space point, generating both a linear
@@ -629,11 +620,7 @@ export interface Physics3DAPI {
    * @param force    - Force vector in N.
    * @param point    - World-space application point.
    */
-  addForceAtPoint(
-    entityId: Physics3DEntityId,
-    force: Partial<Physics3DVec3>,
-    point: Partial<Physics3DVec3>,
-  ): void;
+  addForceAtPoint(entityId: EntityId, force: Partial<Vec3>, point: Partial<Vec3>): void;
 
   /**
    * Override the per-body gravity scale multiplier.
@@ -643,7 +630,7 @@ export interface Physics3DAPI {
    * @param entityId - Target entity.
    * @param scale    - New gravity scale.
    */
-  setGravityScale(entityId: Physics3DEntityId, scale: number): void;
+  setGravityScale(entityId: EntityId, scale: number): void;
 
   /**
    * Read the current gravity scale for a body.
@@ -651,7 +638,7 @@ export interface Physics3DAPI {
    * @param entityId - Target entity.
    * @returns Current gravity scale, or `1.0` when not set.
    */
-  getGravityScale(entityId: Physics3DEntityId): number;
+  getGravityScale(entityId: EntityId): number;
 
   /**
    * Lock translation degrees of freedom on a body.
@@ -664,7 +651,7 @@ export interface Physics3DAPI {
    * @param y        - Lock translation along the world Y axis.
    * @param z        - Lock translation along the world Z axis.
    */
-  lockTranslations(entityId: Physics3DEntityId, x: boolean, y: boolean, z: boolean): void;
+  lockTranslations(entityId: EntityId, x: boolean, y: boolean, z: boolean): void;
 
   /**
    * Lock rotation degrees of freedom on a body.
@@ -674,7 +661,7 @@ export interface Physics3DAPI {
    * @param y        - Lock rotation around the world Y axis.
    * @param z        - Lock rotation around the world Z axis.
    */
-  lockRotations(entityId: Physics3DEntityId, x: boolean, y: boolean, z: boolean): void;
+  lockRotations(entityId: EntityId, x: boolean, y: boolean, z: boolean): void;
 
   /**
    * Manually put a body to sleep or wake it up.
@@ -684,14 +671,14 @@ export interface Physics3DAPI {
    * @param entityId - Target entity.
    * @param sleeping - `true` to sleep; `false` to wake.
    */
-  setBodySleeping(entityId: Physics3DEntityId, sleeping: boolean): void;
+  setBodySleeping(entityId: EntityId, sleeping: boolean): void;
 
   /**
    * Returns `true` when the body is currently sleeping.
    *
    * @param entityId - Target entity.
    */
-  isBodySleeping(entityId: Physics3DEntityId): boolean;
+  isBodySleeping(entityId: EntityId): boolean;
 
   /**
    * Wake every sleeping body in the physics world.
@@ -724,7 +711,7 @@ export interface Physics3DAPI {
    * @param from - Start position in world space.
    * @param to   - End position in world space.
    */
-  findPath3D(from: Physics3DVec3, to: Physics3DVec3): PathWaypoint3D[];
+  findPath3D(from: Vec3, to: Vec3): PathWaypoint3D[];
 
   // ─── RFC-07: Spatial queries (imperative) ────────────────────────────────────
 
@@ -740,8 +727,8 @@ export interface Physics3DAPI {
    * @returns The nearest {@link RayHit}, or `null` when nothing was struck.
    */
   castRay(
-    origin: Physics3DVec3,
-    direction: Physics3DVec3,
+    origin: Vec3,
+    direction: Vec3,
     maxDist: number,
     opts?: { layers?: number; mask?: number; solid?: boolean },
   ): RayHit | null;
@@ -760,9 +747,9 @@ export interface Physics3DAPI {
    * @returns The first {@link ShapeHit}, or `null` when nothing was struck.
    */
   castShape(
-    pos: Physics3DVec3,
-    rot: Physics3DQuat,
-    dir: Physics3DVec3,
+    pos: Vec3,
+    rot: Quat,
+    dir: Vec3,
     shape: Physics3DColliderShape,
     maxDist: number,
     opts?: { layers?: number; mask?: number },
@@ -780,11 +767,11 @@ export interface Physics3DAPI {
    * @returns Array of overlapping entity IDs.
    */
   overlapShape(
-    pos: Physics3DVec3,
-    rot: Physics3DQuat,
+    pos: Vec3,
+    rot: Quat,
     shape: Physics3DColliderShape,
     opts?: { layers?: number; mask?: number; maxResults?: number },
-  ): Physics3DEntityId[];
+  ): EntityId[];
 
   /**
    * Project a point onto the nearest collider surface.
@@ -796,7 +783,7 @@ export interface Physics3DAPI {
    * @returns A {@link PointProjection} with the projected position, or `null`.
    */
   projectPoint(
-    point: Physics3DVec3,
+    point: Vec3,
     opts?: { layers?: number; mask?: number; solid?: boolean },
   ): PointProjection | null;
 
@@ -815,7 +802,7 @@ export interface Physics3DAPI {
    *   The pool is unchanged. It no longer returns an inert handle.
    */
   addCharacterController(
-    entityId: Physics3DEntityId,
+    entityId: EntityId,
     opts?: CharacterControllerOpts,
   ): CharacterControllerHandle;
 
@@ -825,7 +812,7 @@ export interface Physics3DAPI {
    *
    * @param entityId - Target entity whose controller should be destroyed.
    */
-  removeCharacterController(entityId: Physics3DEntityId): void;
+  removeCharacterController(entityId: EntityId): void;
 
   // ─── RFC-07: Composable slot registration ────────────────────────────────────
 

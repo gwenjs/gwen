@@ -37,7 +37,7 @@ export default defineConfig({
 
 | Field | Type | Default | Description |
 |---|---|---|---|
-| `gravity` | `Physics3DVec3` | `{ x: 0, y: -9.81, z: 0 }` | World gravity vector |
+| `gravity` | `Vec3` | `{ x: 0, y: -9.81, z: 0 }` | World gravity vector |
 | `maxEntities` | `number` | `10_000` | Maximum number of physics entities |
 | `qualityPreset` | `Physics3DQualityPreset` | `'medium'` | Solver quality: `'low'`, `'medium'`, `'high'`, or `'esport'` |
 | `debug` | `boolean` | `false` | Enable runtime physics debug logs |
@@ -125,7 +125,7 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
 
 ```ts
 function useBoxCollider(options: {
-  extents: Physics3DVec3
+  extents: Vec3
   sensor?: boolean
   density?: number
 }): void
@@ -135,7 +135,7 @@ Adds a box collider with the given half-extents.
 
 | Param | Type | Description |
 |---|---|---|
-| `options.extents` | `Physics3DVec3` | Half-size along each axis |
+| `options.extents` | `Vec3` | Half-size along each axis |
 | `options.sensor` | `boolean` | Trigger-only (no physical response) |
 | `options.density` | `number` | Collider density |
 
@@ -306,17 +306,17 @@ physics.applyImpulse(entityId, { x: 0, y: 500, z: 0 })
 
 | Method | Signature | Description |
 |---|---|---|
-| `applyImpulse` | `(entityId: Physics3DEntityId, impulse: Partial<Physics3DVec3>) => boolean` | Apply an instantaneous linear impulse (N·s) |
-| `applyAngularImpulse` | `(entityId: Physics3DEntityId, impulse: Partial<Physics3DVec3>) => boolean` | Apply an instantaneous angular impulse |
-| `addForce` | `(entityId: Physics3DEntityId, force: Partial<Physics3DVec3>) => void` | Accumulate a continuous force for this step (N) |
-| `addTorque` | `(entityId: Physics3DEntityId, torque: Partial<Physics3DVec3>) => void` | Accumulate a continuous torque for this step (N·m) |
-| `setLinearVelocity` | `(entityId: Physics3DEntityId, velocity: Partial<Physics3DVec3>) => boolean` | Override linear velocity (m/s) |
-| `getLinearVelocity` | `(entityId: Physics3DEntityId) => Physics3DVec3 \| undefined` | Read current linear velocity |
-| `setAngularVelocity` | `(entityId: Physics3DEntityId, velocity: Partial<Physics3DVec3>) => boolean` | Override angular velocity (rad/s) |
-| `getAngularVelocity` | `(entityId: Physics3DEntityId) => Physics3DVec3 \| undefined` | Read current angular velocity |
-| `setGravityScale` | `(entityId: Physics3DEntityId, scale: number) => void` | Override per-body gravity scale (`0` disables, `1` is normal) |
-| `getGravityScale` | `(entityId: Physics3DEntityId) => number` | Read current gravity scale for a body |
-| `castRay` | `(origin: Physics3DVec3, direction: Physics3DVec3, maxDist: number, opts?) => RayHit \| null` | Cast a ray, returns nearest hit or `null` |
+| `applyImpulse` | `(entityId: EntityId, impulse: Partial<Vec3>) => boolean` | Apply an instantaneous linear impulse (N·s) |
+| `applyAngularImpulse` | `(entityId: EntityId, impulse: Partial<Vec3>) => boolean` | Apply an instantaneous angular impulse |
+| `addForce` | `(entityId: EntityId, force: Partial<Vec3>) => void` | Accumulate a continuous force for this step (N) |
+| `addTorque` | `(entityId: EntityId, torque: Partial<Vec3>) => void` | Accumulate a continuous torque for this step (N·m) |
+| `setLinearVelocity` | `(entityId: EntityId, velocity: Partial<Vec3>) => boolean` | Override linear velocity (m/s) |
+| `getLinearVelocity` | `(entityId: EntityId) => Vec3 \| undefined` | Read current linear velocity |
+| `setAngularVelocity` | `(entityId: EntityId, velocity: Partial<Vec3>) => boolean` | Override angular velocity (rad/s) |
+| `getAngularVelocity` | `(entityId: EntityId) => Vec3 \| undefined` | Read current angular velocity |
+| `setGravityScale` | `(entityId: EntityId, scale: number) => void` | Override per-body gravity scale (`0` disables, `1` is normal) |
+| `getGravityScale` | `(entityId: EntityId) => number` | Read current gravity scale for a body |
+| `castRay` | `(origin: Vec3, direction: Vec3, maxDist: number, opts?) => RayHit \| null` | Cast a ray, returns nearest hit or `null` |
 
 ```ts
 const physics = usePhysics3D()
@@ -431,7 +431,7 @@ Enable `bvhPrebake: true` (via `vite.bvhPrebake` in module config) for large ter
 
 ```ts
 interface Physics3DConfig {
-  gravity: Physics3DVec3
+  gravity: Vec3
   maxEntities: number
   qualityPreset: 'low' | 'medium' | 'high' | 'esport'
   debug: boolean
@@ -444,26 +444,7 @@ interface Physics3DConfig {
 }
 ```
 
-### Physics3DVec3
-
-```ts
-interface Physics3DVec3 {
-  x: number
-  y: number
-  z: number
-}
-```
-
-### Physics3DQuat
-
-```ts
-interface Physics3DQuat {
-  x: number
-  y: number
-  z: number
-  w: number
-}
-```
+Throughout this page, vector and rotation shapes are `Vec3` and `Quat` from `@gwenjs/math`, and entity ids are `EntityId` from `@gwenjs/schema`.
 
 ### Physics3DQualityPreset
 

@@ -8,7 +8,8 @@
 import { definePlugin } from "@gwenjs/kit/plugin";
 import type { GwenEngine } from "@gwenjs/core";
 import type { ComponentDef } from "@gwenjs/core/system";
-import type { Physics3DAPI, Physics3DQuat, Physics3DVec3 } from "./types";
+import type { Quat, Vec3 } from "@gwenjs/math";
+import type { Physics3DAPI } from "./types";
 import "./augment";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -37,7 +38,7 @@ export interface PhysicsKinematicSyncSystemOptions {
   rotationComponent?: ComponentDef;
 }
 
-function readVec3(value: unknown): Physics3DVec3 | null {
+function readVec3(value: unknown): Vec3 | null {
   if (typeof value !== "object" || value === null) return null;
   if (!("x" in value) || !("y" in value) || !("z" in value)) return null;
   const { x, y, z } = value;
@@ -45,7 +46,7 @@ function readVec3(value: unknown): Physics3DVec3 | null {
   return { x, y, z };
 }
 
-function readQuat(value: unknown): Physics3DQuat | null {
+function readQuat(value: unknown): Quat | null {
   const xyz = readVec3(value);
   if (xyz === null || typeof value !== "object" || value === null || !("w" in value)) return null;
   const { w } = value;

@@ -3,14 +3,10 @@
  */
 
 import { useEngine } from "@gwenjs/core";
+import type { Vec3 } from "@gwenjs/math";
 import type { EntityId } from "@gwenjs/schema";
 import { engineContext } from "@gwenjs/core/internal";
-import type {
-  Physics3DAPI,
-  Physics3DVec3,
-  CharacterControllerOpts,
-  CharacterControllerHandle,
-} from "../types";
+import type { Physics3DAPI, CharacterControllerOpts, CharacterControllerHandle } from "../types";
 import { guardOwned, ownedSlot } from "./entity-owner";
 import { entityIndexToId } from "./plugin-helpers";
 import type { PluginContext } from "./plugin-context";
@@ -24,7 +20,7 @@ import { uncheckedAt } from "../internal/unchecked";
  * A full controller pool is not this case: it throws.
  */
 function createInertCharacterControllerHandle(): CharacterControllerHandle {
-  const zero: Physics3DVec3 = { x: 0, y: 0, z: 0 };
+  const zero: Vec3 = { x: 0, y: 0, z: 0 };
   return {
     get isGrounded() {
       return false;
@@ -38,7 +34,7 @@ function createInertCharacterControllerHandle(): CharacterControllerHandle {
     get lastTranslation() {
       return zero;
     },
-    move(_desiredVelocity: Physics3DVec3, _dt: number) {
+    move(_desiredVelocity: Vec3, _dt: number) {
       // Pool exhausted — intentional no-op.
     },
   } satisfies CharacterControllerHandle;
@@ -105,9 +101,9 @@ export function createCharacterControllerMethods(
 
         const descBuf = ctx.ccDescriptorBuffer;
 
-        let lastTranslation: Physics3DVec3 = { x: 0, y: 0, z: 0 };
+        let lastTranslation: Vec3 = { x: 0, y: 0, z: 0 };
         let _grounded = false;
-        let _groundNormal: Physics3DVec3 | null = null;
+        let _groundNormal: Vec3 | null = null;
         let _groundEntity: EntityId | null = null;
 
         const handle: CharacterControllerHandle = {
@@ -123,7 +119,7 @@ export function createCharacterControllerMethods(
           get lastTranslation() {
             return lastTranslation;
           },
-          move: withThisEngine((desiredVelocity: Physics3DVec3, dt: number) => {
+          move: withThisEngine((desiredVelocity: Vec3, dt: number) => {
             let myDescSlot = -1;
             let _ccSlotIdx = 0;
             for (const _ccEntry of ctx.ccRegistrations.values()) {
@@ -192,7 +188,7 @@ export function createCharacterControllerMethods(
       }
 
       // Local mode: return an inert handle with position-update fallback
-      let lastTranslation: Physics3DVec3 = { x: 0, y: 0, z: 0 };
+      let lastTranslation: Vec3 = { x: 0, y: 0, z: 0 };
       return {
         get isGrounded() {
           return false;
@@ -206,7 +202,7 @@ export function createCharacterControllerMethods(
         get lastTranslation() {
           return lastTranslation;
         },
-        move: withThisEngine((v: Physics3DVec3, dt: number) => {
+        move: withThisEngine((v: Vec3, dt: number) => {
           if (__GWEN_DEV__) {
             if (!ctx._emittedCCLocalWarning) {
               ctx.log.warn("CharacterController uses local fallback — step-up/slope not supported");

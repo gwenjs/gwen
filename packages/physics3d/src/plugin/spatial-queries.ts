@@ -4,11 +4,10 @@
  * Includes both imperative one-shot queries and persistent slot registration.
  */
 
+import type { Quat, Vec3 } from "@gwenjs/math";
 import { createEntityId, type EntityId } from "@gwenjs/schema";
 import type {
   Physics3DAPI,
-  Physics3DVec3,
-  Physics3DQuat,
   Physics3DColliderShape,
   RayHit,
   ShapeHit,
@@ -47,8 +46,8 @@ export function createSpatialQueryMethods(
     // ─── Imperative queries ──────────────────────────────────────────────────
 
     castRay(
-      origin: Physics3DVec3,
-      direction: Physics3DVec3,
+      origin: Vec3,
+      direction: Vec3,
       maxDist: number,
       opts: { layers?: number; mask?: number; solid?: boolean } = {},
     ): RayHit | null {
@@ -95,9 +94,9 @@ export function createSpatialQueryMethods(
     },
 
     castShape(
-      pos: Physics3DVec3,
-      rot: Physics3DQuat,
-      dir: Physics3DVec3,
+      pos: Vec3,
+      rot: Quat,
+      dir: Vec3,
       shape: Physics3DColliderShape,
       maxDist: number,
       opts: { layers?: number; mask?: number } = {},
@@ -162,8 +161,8 @@ export function createSpatialQueryMethods(
     },
 
     overlapShape(
-      pos: Physics3DVec3,
-      rot: Physics3DQuat,
+      pos: Vec3,
+      rot: Quat,
       shape: Physics3DColliderShape,
       opts: { layers?: number; mask?: number; maxResults?: number } = {},
     ): EntityId[] {
@@ -229,7 +228,7 @@ export function createSpatialQueryMethods(
     },
 
     projectPoint(
-      point: Physics3DVec3,
+      point: Vec3,
       opts: { layers?: number; mask?: number; solid?: boolean } = {},
     ): PointProjection | null {
       if (ctx.backendMode === "wasm") {

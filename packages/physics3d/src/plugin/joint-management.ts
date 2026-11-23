@@ -4,9 +4,9 @@
  * Supports fixed, revolute, prismatic, ball, and spring joints.
  */
 
+import type { EntityId } from "@gwenjs/schema";
 import type {
   Physics3DAPI,
-  Physics3DEntityId,
   FixedJointOpts,
   RevoluteJointOpts,
   PrismaticJointOpts,
@@ -31,8 +31,8 @@ import { liveWasmBridge } from "../internal/unchecked";
 function jointEnds(
   ctx: PluginContext,
   operation: string,
-  bodyA: Physics3DEntityId,
-  bodyB: Physics3DEntityId,
+  bodyA: EntityId,
+  bodyB: EntityId,
 ): { slotA: number; slotB: number } | null {
   const a = guardOwned(ctx, bodyA, operation);
   const b = guardOwned(ctx, bodyB, operation);

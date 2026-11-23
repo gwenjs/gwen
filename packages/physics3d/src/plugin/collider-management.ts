@@ -8,7 +8,6 @@ import type {
   Physics3DAPI,
   Physics3DBodyHandle,
   Physics3DColliderOptions,
-  Physics3DEntityId,
   CompoundShapeSpec,
   BulkStaticBoxesOptions,
   BulkStaticBoxesResult,
@@ -378,7 +377,7 @@ function addColliderWasm(
  */
 export function addColliderImpl(
   ctx: PluginContext,
-  entityId: Physics3DEntityId,
+  entityId: EntityId,
   options: Physics3DColliderOptions,
 ): boolean {
   const owned = guardOwned(ctx, entityId, "addCollider");
