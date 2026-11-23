@@ -176,7 +176,7 @@ describe("Physics3D TypeScript fallback", () => {
       runFrame(hookMap, 1 / 60);
 
       expect(callHook).toHaveBeenCalledWith(
-        "physics3d:collision",
+        "physics:collision",
         expect.arrayContaining([expect.objectContaining({ started: true })]),
       );
     });
@@ -257,7 +257,7 @@ describe("Physics3D TypeScript fallback", () => {
       // Activation frame
       runFrame(hookMap, 1 / 60);
       expect(callHook).toHaveBeenCalledWith(
-        "physics3d:sensor:changed",
+        "physics:sensor:changed",
         BigInt(50),
         SENSOR_ID,
         expect.objectContaining({ isActive: true }),
@@ -270,7 +270,7 @@ describe("Physics3D TypeScript fallback", () => {
       // Deactivation frame
       runFrame(hookMap, 1 / 60);
       expect(callHook).toHaveBeenCalledWith(
-        "physics3d:sensor:changed",
+        "physics:sensor:changed",
         BigInt(50),
         SENSOR_ID,
         expect.objectContaining({ isActive: false }),

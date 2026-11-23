@@ -1,7 +1,8 @@
 import { describe, expectTypeOf, it } from "vitest";
 
-import type { PhysicsConfigBase } from "@gwenjs/physics-core";
-import type { GwenProvides } from "@gwenjs/core";
+import type { CollisionContact, PhysicsConfigBase, SensorState } from "@gwenjs/physics-core";
+import { useHook, type GwenProvides } from "@gwenjs/core";
+import type { EntityId } from "@gwenjs/schema";
 import { useService } from "@gwenjs/core/system";
 import {
   useBoxCollider,
@@ -19,6 +20,7 @@ import type {
   KinematicBodyHandle3D,
   Physics3DAPI,
   Physics3DConfig,
+  Physics3DPluginHooks,
   SphereColliderHandle3D,
   StaticBodyHandle3D,
 } from "../../src/index.js";
@@ -44,5 +46,17 @@ describe("physics3d composable inference", () => {
   it("shared names", () => {
     expectTypeOf<Physics3DConfig["layers"]>().toEqualTypeOf<Record<string, number> | undefined>();
     expectTypeOf<Physics3DConfig>().toExtend<PhysicsConfigBase<"3d">>();
+  });
+
+  it("shared collision hooks are the physics-core names", () => {
+    useHook("physics:collision", (contacts) => {
+      expectTypeOf(contacts).toEqualTypeOf<ReadonlyArray<CollisionContact>>();
+    });
+    useHook("physics:sensor:changed", (entityId, sensorId, state) => {
+      expectTypeOf(entityId).toEqualTypeOf<EntityId>();
+      expectTypeOf(sensorId).toEqualTypeOf<number>();
+      expectTypeOf(state).toEqualTypeOf<SensorState>();
+    });
+    expectTypeOf<keyof Physics3DPluginHooks>().toEqualTypeOf<"physics3d:body-disabled">();
   });
 });

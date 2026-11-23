@@ -227,7 +227,7 @@ describe("Physics3D collision events — WASM backend mode", () => {
     runFrame(hookMap, 1 / 60);
 
     expect(engine.hooks.callHook).toHaveBeenCalledWith(
-      "physics3d:collision",
+      "physics:collision",
       expect.arrayContaining([
         expect.objectContaining({ aColliderId: 0, bColliderId: 0, started: true }),
       ]),
@@ -261,10 +261,7 @@ describe("Physics3D collision events — WASM backend mode", () => {
     mockEventCount = 0;
     runFrame(hookMap, 1 / 60);
 
-    expect(engine.hooks.callHook).not.toHaveBeenCalledWith(
-      "physics3d:collision",
-      expect.anything(),
-    );
+    expect(engine.hooks.callHook).not.toHaveBeenCalledWith("physics:collision", expect.anything());
   });
 
   it("calls physics3d_consume_events after reading", () => {
@@ -389,7 +386,7 @@ describe("Physics3D collision events — WASM backend mode", () => {
     // Since we're in WASM mode and entity ids resolve through createEntityId,
     // we check that the sensor hook was called
     expect(engine.hooks.callHook).toHaveBeenCalledWith(
-      "physics3d:sensor:changed",
+      "physics:sensor:changed",
       expect.anything(), // entityId
       sensorId,
       expect.objectContaining({ isActive: true, contactCount: 1 }),
@@ -427,7 +424,7 @@ describe("Physics3D collision events — WASM backend mode", () => {
     }
 
     expect(engine.hooks.callHook).toHaveBeenCalledWith(
-      "physics3d:sensor:changed",
+      "physics:sensor:changed",
       expect.anything(),
       sensorId,
       expect.objectContaining({ isActive: false }),

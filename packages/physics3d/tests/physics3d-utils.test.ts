@@ -291,7 +291,7 @@ describe("cloneState", () => {
 // ─── resolveColliderMaterial() ────────────────────────────────────────────
 
 describe("resolveColliderMaterial", () => {
-  it("uses default preset when no materialPreset is specified", () => {
+  it("uses default preset when no material is specified", () => {
     const options: Physics3DColliderOptions = {
       shape: { type: "box", halfX: 1, halfY: 1, halfZ: 1 },
     };
@@ -299,12 +299,16 @@ describe("resolveColliderMaterial", () => {
 
     // default preset: { friction: 0.5, restitution: 0.0, density: 1.0 }
     expect(resolved).toEqual({ friction: 0.5, restitution: 0.0, density: 1.0 });
+
+    // `material` must select the ice row. The base reads `materialPreset` and ignores this.
+    const ice = resolveColliderMaterial({ material: "ice" });
+    expect(ice).toEqual({ friction: 0.02, restitution: 0.0, density: 0.9 });
   });
 
   it("uses ice preset when specified", () => {
     const options: Physics3DColliderOptions = {
       shape: { type: "box", halfX: 1, halfY: 1, halfZ: 1 },
-      materialPreset: "ice",
+      material: "ice",
     };
     const resolved = resolveColliderMaterial(options);
 
@@ -315,7 +319,7 @@ describe("resolveColliderMaterial", () => {
   it("uses rubber preset when specified", () => {
     const options: Physics3DColliderOptions = {
       shape: { type: "box", halfX: 1, halfY: 1, halfZ: 1 },
-      materialPreset: "rubber",
+      material: "rubber",
     };
     const resolved = resolveColliderMaterial(options);
 
@@ -326,7 +330,7 @@ describe("resolveColliderMaterial", () => {
   it("uses metal preset when specified", () => {
     const options: Physics3DColliderOptions = {
       shape: { type: "box", halfX: 1, halfY: 1, halfZ: 1 },
-      materialPreset: "metal",
+      material: "metal",
     };
     const resolved = resolveColliderMaterial(options);
 
@@ -337,7 +341,7 @@ describe("resolveColliderMaterial", () => {
   it("explicit friction overrides preset", () => {
     const options: Physics3DColliderOptions = {
       shape: { type: "box", halfX: 1, halfY: 1, halfZ: 1 },
-      materialPreset: "ice",
+      material: "ice",
       friction: 0.8,
     };
     const resolved = resolveColliderMaterial(options);
@@ -350,7 +354,7 @@ describe("resolveColliderMaterial", () => {
   it("explicit restitution overrides preset", () => {
     const options: Physics3DColliderOptions = {
       shape: { type: "box", halfX: 1, halfY: 1, halfZ: 1 },
-      materialPreset: "rubber",
+      material: "rubber",
       restitution: 0.1,
     };
     const resolved = resolveColliderMaterial(options);
@@ -363,7 +367,7 @@ describe("resolveColliderMaterial", () => {
   it("explicit density overrides preset", () => {
     const options: Physics3DColliderOptions = {
       shape: { type: "box", halfX: 1, halfY: 1, halfZ: 1 },
-      materialPreset: "default",
+      material: "default",
       density: 5.0,
     };
     const resolved = resolveColliderMaterial(options);
@@ -376,7 +380,7 @@ describe("resolveColliderMaterial", () => {
   it("all explicit values override preset", () => {
     const options: Physics3DColliderOptions = {
       shape: { type: "box", halfX: 1, halfY: 1, halfZ: 1 },
-      materialPreset: "metal",
+      material: "metal",
       friction: 0.7,
       restitution: 0.4,
       density: 2.2,

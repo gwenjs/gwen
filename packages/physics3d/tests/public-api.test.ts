@@ -39,4 +39,26 @@ describe(`${manifest.name} public API`, () => {
     const removed = ["Physics3DBodyKind", "Physics3DQualityPreset", "QUALITY_PRESETS"];
     expect(removed.filter((name) => names.includes(name))).toEqual([]);
   });
+
+  it("the removed 3D contact, sensor and event names are not public types or values", () => {
+    const snapshot = JSON.parse(
+      readFileSync(path.join(pkgRoot, "public-api.snap.json"), "utf8"),
+    ) as {
+      ".": { types: string[]; values: string[] };
+    };
+    const root = snapshot["."];
+    const exported = new Set([...root.types, ...root.values]);
+    const removed = ["Physics3DCollisionContact", "Physics3DSensorState", "ContactEvent3D"];
+    expect(removed.filter((name) => exported.has(name))).toEqual([]);
+  });
+
+  it("the shared contact types are public", () => {
+    const snapshot = JSON.parse(
+      readFileSync(path.join(pkgRoot, "public-api.snap.json"), "utf8"),
+    ) as {
+      ".": { types: string[]; values: string[] };
+    };
+    const types = snapshot["."].types;
+    expect(types).toEqual(expect.arrayContaining(["CollisionContact", "SensorState"]));
+  });
 });

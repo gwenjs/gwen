@@ -163,11 +163,11 @@ describe("p59 two engines", () => {
           if (useEngine() !== b) wrongEngine += 1;
         });
       });
-      a.hooks.hook("physics3d:collision", () => {
+      a.hooks.hook("physics:collision", () => {
         if (useEngine() === a) hookEngineA += 1;
         else wrongEngine += 1;
       });
-      b.hooks.hook("physics3d:collision", () => {
+      b.hooks.hook("physics:collision", () => {
         contactsB += 1;
         if (useEngine() !== b) wrongEngine += 1;
       });

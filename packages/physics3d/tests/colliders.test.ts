@@ -45,8 +45,6 @@ import { engineContext } from "@gwenjs/core/internal";
 afterEach(() => {
   engineContext.unset();
 });
-import type { Physics3DColliderOptions } from "../src/types";
-
 function makeEngine() {
   const services = new Map<string, unknown>();
   const hookMap = new Map<string, (...args: unknown[]) => unknown>();
@@ -193,14 +191,34 @@ describe("Physics3D colliders — local mode", () => {
 
   // ─── Material preset ─────────────────────────────────────────────────────────
 
-  it("accepts materialPreset on collider options", () => {
+  it("accepts material on collider options", () => {
+    const frictions: number[] = [];
+    mockBridge.getPhysicsBridge.mockImplementationOnce(() => ({
+      physics3d_init: physics3dInit,
+      physics3d_step: physics3dStep,
+      physics3d_add_body: () => true,
+      physics3d_add_box_collider: (
+        _idx: number,
+        _halfX: number,
+        _halfY: number,
+        _halfZ: number,
+        _ox: number,
+        _oy: number,
+        _oz: number,
+        _isSensor: boolean,
+        friction: number,
+      ) => {
+        frictions.push(friction);
+        return true;
+      },
+    }));
     const { service } = setup();
     service.createBody(10n);
-    const opts: Physics3DColliderOptions = {
-      shape: { type: "sphere", radius: 1.0 },
-      materialPreset: "ice",
-    };
-    expect(service.addCollider(10n, opts)).toBe(true);
+    service.addCollider(10n, {
+      shape: { type: "box", halfX: 0.5, halfY: 0.5, halfZ: 0.5 },
+      material: "ice",
+    });
+    expect(frictions).toEqual([0.02]);
   });
 
   it("accepts all material presets without error", () => {
@@ -209,7 +227,7 @@ describe("Physics3D colliders — local mode", () => {
       service.createBody(BigInt(20 + i));
       service.addCollider(BigInt(20 + i), {
         shape: { type: "box", halfX: 0.5, halfY: 0.5, halfZ: 0.5 },
-        materialPreset: preset,
+        material: preset,
       });
     }
     expect(service.getBodyCount()).toBe(4);
