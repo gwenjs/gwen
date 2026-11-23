@@ -10,20 +10,9 @@ describe("detectCoreVariant", () => {
     expect(detectCoreVariant({ modules: [] })).toBe("light");
   });
 
-  // ── legacy plugins[] detection ─────────────────────────────────────────────
-
-  it("returns physics2d when Physics2D plugin is present", () => {
-    expect(detectCoreVariant({ plugins: [{ name: "Physics2D" }] })).toBe("physics2d");
-  });
-
-  it("returns physics3d when Physics3D plugin is present", () => {
-    expect(detectCoreVariant({ plugins: [{ name: "Physics3D" }] })).toBe("physics3d");
-  });
-
-  it("physics3d takes priority over physics2d in plugins", () => {
-    expect(detectCoreVariant({ plugins: [{ name: "Physics2D" }, { name: "Physics3D" }] })).toBe(
-      "physics3d",
-    );
+  it("a plugin named Physics3D no longer selects a variant", () => {
+    expect(detectCoreVariant({ plugins: [{ name: "Physics3D" }] })).toBe("light");
+    expect(detectCoreVariant({ plugins: [{ name: "Physics2D" }] })).toBe("light");
   });
 
   // ── modules[] detection ───────────────────────────────────────────────────
@@ -56,7 +45,13 @@ describe("detectCoreVariant", () => {
     expect(detectCoreVariant({ modules: ["@gwenjs/input", "@gwenjs/audio"] })).toBe("light");
   });
 
-  it("modules and plugins can both contribute — physics3d wins", () => {
+  it("a declared module wins over a plugin name", () => {
+    expect(
+      detectCoreVariant({
+        plugins: [{ name: "Physics3D" }],
+        modules: ["@gwenjs/physics2d"],
+      }),
+    ).toBe("physics2d");
     expect(
       detectCoreVariant({
         plugins: [{ name: "Physics2D" }],
