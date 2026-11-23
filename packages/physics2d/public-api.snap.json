@@ -11,13 +11,11 @@
       "buildTilemapPhysicsChunks",
       "createPhysicsKinematicSyncSystem",
       "createPlatformerGroundedSystem",
-      "default",
       "defineLayers",
       "onContact",
       "onSensorEnter",
       "onSensorExit",
       "patchTilemapPhysicsChunk",
-      "physics2dVitePlugin",
       "useBoxCollider",
       "useCapsuleCollider",
       "useCollider",
@@ -66,8 +64,8 @@
     ]
   },
   "./module": {
-    "values": ["default"],
-    "types": []
+    "values": ["default", "physics2dVitePlugin"],
+    "types": ["Physics2DVitePluginOptions"]
   },
   "./helpers": {
     "values": [

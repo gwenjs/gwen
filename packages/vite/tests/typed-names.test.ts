@@ -36,13 +36,13 @@ function isGwenModule(value: unknown): value is GwenModule {
   return typeof meta["name"] === "string";
 }
 
-// `@gwenjs/app` does not depend on `@gwenjs/physics2d`, so `loadModule`'s
-// `import(name)` cannot resolve it. This loader returns that package's real default export.
+// `@gwenjs/app` does not depend on `@gwenjs/physics2d`, so the default loader
+// cannot resolve it. The Gwen module is the `./module` default.
 async function loadPhysics2dModule(name: string): Promise<GwenModule> {
   if (name !== "@gwenjs/physics2d") {
     throw new Error(`unexpected module "${name}"`);
   }
-  const imported: unknown = await import("@gwenjs/physics2d");
+  const imported: unknown = await import("@gwenjs/physics2d/module");
   const candidate = isRecord(imported) ? imported["default"] : undefined;
   if (!isGwenModule(candidate)) {
     throw new Error("@gwenjs/physics2d did not export a GwenModule");

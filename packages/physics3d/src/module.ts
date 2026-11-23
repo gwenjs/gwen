@@ -15,17 +15,14 @@
 import { defineGwenModule } from "@gwenjs/kit/module";
 import type { Physics3DConfig } from "./types";
 import { physics3dVitePlugin, type GwenPhysics3DPluginOptions } from "./vite-plugin";
+import type {} from "./augment";
+
+export { physics3dVitePlugin };
+export type { GwenPhysics3DPluginOptions };
 
 /**
  * GWEN module for the Physics 3D plugin.
  */
-
-declare module "@gwenjs/schema" {
-  interface GwenModuleOptions {
-    /** Options for `@gwenjs/physics3d`. Configure gravity and physics quality. */
-    physics3d?: Physics3DConfig;
-  }
-}
 
 export default defineGwenModule<Physics3DConfig>({
   meta: { name: "@gwenjs/physics3d", configKey: "physics3d" },

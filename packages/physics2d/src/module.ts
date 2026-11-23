@@ -14,8 +14,12 @@
 
 import { defineGwenModule } from "@gwenjs/kit/module";
 import { PHYSICS2D_DEFAULTS, checkPhysics2DConfig } from "./config";
-import { physics2dVitePlugin } from "./vite-plugin";
 import type { Physics2DConfig } from "./types";
+import { physics2dVitePlugin, type Physics2DVitePluginOptions } from "./vite-plugin";
+import type {} from "./augment";
+
+export { physics2dVitePlugin };
+export type { Physics2DVitePluginOptions };
 
 /**
  * GWEN module for the Physics 2D plugin.
@@ -25,12 +29,6 @@ import type { Physics2DConfig } from "./types";
  * 2. Adds `usePhysics2D`, `useRigidBody`, `useCollider` as auto-imports.
  * 3. Adds the physics2d Vite plugin.
  */
-declare module "@gwenjs/schema" {
-  interface GwenModuleOptions {
-    /** Options for `@gwenjs/physics2d`. Configure gravity and physics quality. */
-    physics2d?: Physics2DConfig;
-  }
-}
 
 export default defineGwenModule<Physics2DConfig>({
   meta: { name: "@gwenjs/physics2d", configKey: "physics2d" },

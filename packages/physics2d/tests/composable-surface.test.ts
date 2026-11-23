@@ -13,7 +13,6 @@ const ALLOW: Readonly<Record<string, string>> = {
   Physics2DPlugin: "plugin factory, named after the plugin",
   buildTilemapPhysicsChunks: "helper function, not a composable",
   patchTilemapPhysicsChunk: "helper function, not a composable",
-  physics2dVitePlugin: "Vite plugin factory, runs at build time",
 };
 
 runComposableSurfaceSuite(physics2d, { allow: Object.keys(ALLOW) });

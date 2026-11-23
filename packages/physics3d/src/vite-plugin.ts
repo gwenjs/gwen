@@ -190,7 +190,7 @@ export async function transformBvhReferences(
  * @example
  * ```typescript
  * // vite.config.ts
- * import { physics3dVitePlugin } from '@gwenjs/physics3d'
+ * import { physics3dVitePlugin } from '@gwenjs/physics3d/module'
  *
  * export default {
  *   plugins: [physics3dVitePlugin({ debug: true, bvhPrebake: true })],

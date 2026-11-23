@@ -20,8 +20,6 @@
       "onContact",
       "onSensorEnter",
       "onSensorExit",
-      "physics3dModule",
-      "physics3dVitePlugin",
       "preloadMeshCollider",
       "selectContactsForEntityId",
       "selectResolvedContactsForEntityId",
@@ -93,8 +91,8 @@
     ]
   },
   "./module": {
-    "values": ["default"],
-    "types": []
+    "values": ["default", "physics3dVitePlugin"],
+    "types": ["GwenPhysics3DPluginOptions"]
   },
   "./internal": {
     "values": [

@@ -6,7 +6,7 @@
  * TypeScript simulation when the WASM physics3d variant is unavailable.
  */
 
-import "./augment";
+import type {} from "./augment";
 
 export { Physics3DPlugin } from "./plugin/index";
 export { Physics3DPlugin as default } from "./plugin/index";
@@ -42,7 +42,6 @@ export * from "./systems";
 // ─── Module, composables & type augmentations ─────────────────────────────────
 export * from "./augment";
 export { usePhysics3D } from "./composables";
-export { default as physics3dModule } from "./module";
 
 // ─── RFC-06 DX composables ────────────────────────────────────────────────────
 export {
@@ -78,7 +77,6 @@ export type {
   UseJointHandle,
   UseJointOpts,
 } from "./composables/index";
-export { physics3dVitePlugin } from "./vite-plugin";
 export type {
   ContactEvent3D,
   StaticBodyOptions3D,

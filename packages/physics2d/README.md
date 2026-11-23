@@ -118,7 +118,7 @@ export const BulletPrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 
 
 ### `.`
 
-Values: `BODY_KIND_CODE`, `Physics2DErrorCodes`, `Physics2DPlugin`, `Physics2DStaleBodyHandleError`, `Physics2DStaleEntityError`, `QUALITY_PRESET_CODE`, `SENSOR_ID_FOOT`, `buildTilemapPhysicsChunks`, `createPhysicsKinematicSyncSystem`, `createPlatformerGroundedSystem`, `default`, `defineLayers`, `onContact`, `onSensorEnter`, `onSensorExit`, `patchTilemapPhysicsChunk`, `physics2dVitePlugin`, `useBoxCollider`, `useCapsuleCollider`, `useCollider`, `useDynamicBody`, `useKinematicBody`, `usePhysics2D`, `useRigidBody`, `useShape`, `useSphereCollider`, `useStaticBody`
+Values: `BODY_KIND_CODE`, `Physics2DErrorCodes`, `Physics2DPlugin`, `Physics2DStaleBodyHandleError`, `Physics2DStaleEntityError`, `QUALITY_PRESET_CODE`, `SENSOR_ID_FOOT`, `buildTilemapPhysicsChunks`, `createPhysicsKinematicSyncSystem`, `createPlatformerGroundedSystem`, `defineLayers`, `onContact`, `onSensorEnter`, `onSensorExit`, `patchTilemapPhysicsChunk`, `useBoxCollider`, `useCapsuleCollider`, `useCollider`, `useDynamicBody`, `useKinematicBody`, `usePhysics2D`, `useRigidBody`, `useShape`, `useSphereCollider`, `useStaticBody`
 
 Types: `BodyKind`, `BoxColliderHandle`, `BoxColliderOptions`, `CapsuleColliderHandle`, `CapsuleColliderOptions`, `CircleColliderHandle`, `ColliderOptions`, `CollisionContact`, `CollisionEvent`, `CollisionEventsBatch`, `DynamicBodyHandle`, `DynamicBodyOptions`, `InternalCollisionEventsBatch`, `KinematicBodyHandle`, `KinematicBodyOptions`, `Physics2DAPI`, `Physics2DConfig`, `Physics2DErrorCode`, `Physics2DLayerDefinition`, `Physics2DPluginHooks`, `Physics2DPrefabExtension`, `Physics2DProvides`, `PhysicsColliderDef`, `PhysicsColliderShape`, `PhysicsKinematicSyncSystemOptions`, `PlatformerGroundedSystemOptions`, `QualityPreset`, `SensorState`, `ShapeOptions`, `SphereColliderOptions`, `StaticBodyHandle`, `StaticBodyOptions`, `TilemapPhysicsChunkMap`
 
@@ -136,9 +136,9 @@ Types: `BodyKind`, `BoxColliderHandle`, `BoxColliderOptions`, `CapsuleColliderHa
 
 ### `./module`
 
-Values: `default`
+Values: `default`, `physics2dVitePlugin`
 
-Types: none
+Types: `Physics2DVitePluginOptions`
 
 ### `./helpers`
 

@@ -501,6 +501,7 @@ function patchTilemapPhysicsChunk(opts: {
 ```ts
 function physics2dVitePlugin(options?: Physics2DVitePluginOptions): VitePlugin
 // interface Physics2DVitePluginOptions { debug?: boolean }
+// import { physics2dVitePlugin } from '@gwenjs/physics2d/module'
 ```
 
 **Description.** Vite plugin for bundling Rapier2D WASM. Auto-registered when physics2d plugin is used. Emits a build-time warning when a layer is defined with `defineLayers()` but never referenced in the same file — helps catch dead layer definitions early.

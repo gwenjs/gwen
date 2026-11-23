@@ -10,7 +10,7 @@ import type { GwenEngine } from "@gwenjs/core";
 import type { ComponentDef } from "@gwenjs/core/system";
 import type { Quat, Vec3 } from "@gwenjs/math";
 import type { Physics3DAPI } from "./types";
-import "./augment";
+import type {} from "./augment";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 

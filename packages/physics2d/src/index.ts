@@ -30,7 +30,6 @@ export {
   useShape,
   useKinematicBody,
 } from "./composables/index";
-export { physics2dVitePlugin } from "./vite-plugin";
 export type {
   BoxColliderOptions,
   SphereColliderOptions,
@@ -79,5 +78,3 @@ export type {
 } from "./types";
 
 export { BODY_KIND_CODE, QUALITY_PRESET_CODE } from "./types";
-
-export { default } from "./module";

@@ -172,7 +172,7 @@ export default defineConfig({
 // vite.config.ts
 import { defineConfig } from 'vite'
 import { gwenVitePlugin } from '@gwenjs/vite'
-import { physics2dVitePlugin } from '@gwenjs/physics2d'
+import { physics2dVitePlugin } from '@gwenjs/physics2d/module'
 
 export default defineConfig({
   plugins: [
@@ -223,7 +223,7 @@ export default defineConfig({
 // vite.config.ts
 import { defineConfig } from 'vite'
 import { gwenVitePlugin } from '@gwenjs/vite'
-import { physics3dVitePlugin } from '@gwenjs/physics3d'
+import { physics3dVitePlugin } from '@gwenjs/physics3d/module'
 
 export default defineConfig({
   plugins: [

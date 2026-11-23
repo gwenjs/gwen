@@ -401,6 +401,7 @@ Une lecture groupée dont le pointeur de sortie n'est pas un tampon partagé act
 
 ```ts
 function physics3dVitePlugin(options?: GwenPhysics3DPluginOptions): VitePlugin
+// import { physics3dVitePlugin } from '@gwenjs/physics3d/module'
 ```
 
 Plugin Vite au moment du build. Il est **enregistré automatiquement** par le module `@gwenjs/physics3d` — aucune inscription manuelle n'est nécessaire dans la plupart des projets. Configurez-le via la clé `vite` dans les options du module.

@@ -6,7 +6,7 @@
  * `@gwenjs/schema` with typed physics service keys and hooks.
  */
 
-import type { Physics3DAPI, Physics3DPluginHooks } from "./types";
+import type { Physics3DAPI, Physics3DConfig, Physics3DPluginHooks } from "./types";
 
 /**
  * Physics 3D service slot in the engine's provide/inject registry.
@@ -22,6 +22,12 @@ export interface Physics3DProvides {
 }
 
 declare module "@gwenjs/schema" {
+  /** The root entry does not load module.ts; this keeps the config key typed for a root-only import. */
+  interface GwenModuleOptions {
+    /** Options for `@gwenjs/physics3d`. Configure gravity and physics quality. */
+    physics3d?: Physics3DConfig;
+  }
+
   interface GwenProvides {
     physics3d: Physics3DProvides["physics3d"];
   }

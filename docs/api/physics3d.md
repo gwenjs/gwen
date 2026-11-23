@@ -401,6 +401,7 @@ A bulk read whose output pointer is not a live shared buffer throws `CORE:INVALI
 
 ```ts
 function physics3dVitePlugin(options?: GwenPhysics3DPluginOptions): VitePlugin
+// import { physics3dVitePlugin } from '@gwenjs/physics3d/module'
 ```
 
 Build-time Vite plugin. It is **auto-registered** by the `@gwenjs/physics3d` module — no manual registration is needed in most projects. Configure it via the `vite` key in the module options.
