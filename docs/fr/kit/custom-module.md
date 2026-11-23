@@ -428,7 +428,7 @@ gwen.hook('vite:extendConfig', (config) => {
 
 ## Module dans le projet
 
-Enregistrez le module dans `gwen.config.ts` :
+Enregistrez le module dans `gwen.config.ts`. Un paquet de module npm doit exporter `./module` (`defineGwenModule`). GWEN charge cette entrée.
 
 ```ts
 import { defineConfig } from '@gwenjs/app'

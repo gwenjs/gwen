@@ -18,8 +18,10 @@ import {
 import { createHooks } from "hookable";
 import { createJiti } from "jiti";
 import { mkdirSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 import { writeIfChanged, writeScenesDts } from "./scenes-dts.js";
 import { resolve, join } from "node:path";
+import { resolveModuleEntry } from "./module-entry";
 import { inferModuleName, scanLocalModuleFiles } from "./local-modules";
 import { readConfigFile, type ResolvedGwenConfig } from "./config";
 import { GwenAppConfigError } from "./config-error";
@@ -126,8 +128,8 @@ export class GwenApp {
    *
    * For each config module entry, then each local file (loaded through jiti after
    * the config modules, from `options.root`):
-   * 1. Resolves the module (via `moduleLoader` or dynamic `import()` for a config
-   *    module; jiti for a local file).
+   * 1. Resolves the module (via `moduleLoader`, or `./module` then a file URL,
+   *    for a config module; jiti for a local file).
    * 2. Deep-merges user options with module defaults (user values win).
    * 3. Fires `module:before`, calls `mod.setup(options, kit)`, fires `module:done`.
    *
@@ -143,6 +145,7 @@ export class GwenApp {
    *
    * @throws {GwenError} `KIT:MODULE_INVALID` when any field is invalid.
    *   `APP:MODULE_LOAD_FAILED` when the import fails.
+   *   `APP:MODULE_ENTRY_MISSING` when the package has no `./module` export.
    *
    * @example
    * ```typescript
@@ -155,13 +158,20 @@ export class GwenApp {
     moduleLoader?: (name: string) => Promise<GwenModule>,
     options?: { root?: string },
   ): Promise<void> {
+    const root = options?.root ?? process.cwd();
     const loaded: LoadedModule[] = [];
     for (const name of config.modules ?? []) {
       let mod: GwenModule;
       try {
-        mod = moduleLoader ? await moduleLoader(name) : await loadModule(name);
+        mod = moduleLoader
+          ? await moduleLoader(name)
+          : await loadModule(name, undefined, undefined, root);
       } catch (cause) {
-        if (cause instanceof GwenError && cause.code === AppErrorCodes.MODULE_LOAD_FAILED) {
+        if (
+          cause instanceof GwenError &&
+          (cause.code === AppErrorCodes.MODULE_LOAD_FAILED ||
+            cause.code === AppErrorCodes.MODULE_ENTRY_MISSING)
+        ) {
           throw cause;
         }
         const hint =
@@ -177,7 +187,6 @@ export class GwenApp {
       loaded.push({ name, mod });
     }
 
-    const root = options?.root ?? process.cwd();
     if (config.localModulesDir !== false) {
       const dir = resolve(root, config.localModulesDir ?? "src/modules");
       const files = scanLocalModuleFiles(dir);
@@ -682,14 +691,43 @@ function freezeResolved(config: ResolvedGwenConfig): Readonly<ResolvedGwenConfig
 }
 
 /**
+ * `APP:MODULE_LOAD_FAILED` for a package import.
+ * `missingPackage` is the install hint: a missing `package.json` has no
+ * "Cannot find package" text, and the dev hint still names `gwen add`.
+ */
+function packageLoadError(name: string, cause: unknown, missingPackage: boolean): GwenError {
+  const missing =
+    missingPackage || (cause instanceof Error && cause.message.includes("Cannot find package"));
+  return new GwenError(
+    AppErrorCodes.MODULE_LOAD_FAILED,
+    `Failed to load module "${name}". ` +
+      `Check that the package is installed and the name is spelled correctly. ` +
+      `Cause: ${causeText(cause)}`,
+    {
+      cause,
+      hint: __GWEN_DEV__
+        ? missing
+          ? `run 'gwen add ${name}' to install it.`
+          : undefined
+        : undefined,
+    },
+  );
+}
+
+/**
  * Dynamically imports a module by name.
- * Works in Node.js environments with standard ESM or via `jiti` in the CLI.
+ * An npm package is loaded from its `./module` export under `root`.
+ * A local file is loaded through `read` (jiti in the caller).
  *
  * @param name - Npm package name, or the inferred `local:<slug>` when `read` loads a local file.
- * @param read - When set, loads that file instead of `import(name)`.
+ * @param read - When set, loads that file instead of the package `./module` entry.
  * @param file - Absolute path of the local file. Set together with `read`.
+ * @param root - Project root for `node_modules`. Defaults to `process.cwd()`.
  * @returns The resolved `GwenModule` exported as `default` or as the module object.
  *
+ * @throws {GwenError} `APP:MODULE_ENTRY_MISSING` when the package has no `./module` export.
+ *   That error is not wrapped. A missing `package.json` is wrapped as
+ *   `APP:MODULE_LOAD_FAILED` with the same sentence as a failed import.
  * @throws {GwenError} `APP:MODULE_LOAD_FAILED` when the import throws.
  *   A local file names `file` and does not suggest installing a package.
  * @throws {GwenError} `KIT:MODULE_INVALID` when any field is invalid.
@@ -702,36 +740,40 @@ async function loadModule(
   name: string,
   read?: () => Promise<unknown>,
   file?: string,
+  root?: string,
 ): Promise<GwenModule> {
-  let imported: { default?: unknown } & Record<string, unknown>;
+  let value: unknown;
 
-  try {
-    const value: unknown = read ? await read() : await import(/* @vite-ignore */ name);
-    imported = value as typeof imported; // boundary: a dynamic import() result is untyped
-  } catch (cause) {
-    if (read !== undefined) {
+  if (read !== undefined) {
+    try {
+      value = await read();
+    } catch (cause) {
       throw new GwenError(
         AppErrorCodes.MODULE_LOAD_FAILED,
         `Failed to load local module "${name}" from ${file}. Cause: ${causeText(cause)}`,
         { cause },
       );
     }
-    const missing = cause instanceof Error && cause.message.includes("Cannot find package");
-    throw new GwenError(
-      AppErrorCodes.MODULE_LOAD_FAILED,
-      `Failed to load module "${name}". ` +
-        `Check that the package is installed and the name is spelled correctly. ` +
-        `Cause: ${causeText(cause)}`,
-      {
+  } else {
+    let specifier: string;
+    try {
+      specifier = pathToFileURL(resolveModuleEntry(root ?? process.cwd(), name)).href;
+    } catch (cause) {
+      if (cause instanceof GwenError) throw cause;
+      throw packageLoadError(
+        name,
         cause,
-        hint: __GWEN_DEV__
-          ? missing
-            ? `run 'gwen add ${name}' to install it.`
-            : undefined
-          : undefined,
-      },
-    );
+        cause instanceof Error && Reflect.get(cause, "code") === "ENOENT",
+      );
+    }
+    try {
+      value = await import(/* @vite-ignore */ specifier);
+    } catch (cause) {
+      throw packageLoadError(name, cause, false);
+    }
   }
+
+  const imported: { default?: unknown } & Record<string, unknown> = value as typeof imported; // boundary: a dynamic import() result is untyped
 
   const definition: unknown = imported.default ?? imported;
   const checked = file !== undefined ? withInferredModuleName(definition, name) : definition;

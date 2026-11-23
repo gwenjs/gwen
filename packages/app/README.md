@@ -78,6 +78,6 @@ Types: `AutoImport`, `GwenBuildHooks`, `GwenKit`, `GwenModule`, `GwenModuleDefin
 
 ### `./resolve`
 
-Values: `GwenApp`, `GwenAppConfigError`, `GwenConfigLoadError`, `inferModuleName`, `loadRawGwenConfig`, `resolveGwenConfig`, `scanLocalModuleFiles`
+Values: `GwenApp`, `GwenAppConfigError`, `GwenConfigLoadError`, `inferModuleName`, `loadRawGwenConfig`, `resolveGwenConfig`, `resolveModuleEntry`, `scanLocalModuleFiles`
 
 Types: `GwenBuildHooks`, `GwenModuleEntry`, `GwenModuleOptions`, `GwenUserConfig`, `RawGwenConfig`, `ResolvedGwenConfig`

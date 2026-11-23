@@ -29,6 +29,7 @@
       "inferModuleName",
       "loadRawGwenConfig",
       "resolveGwenConfig",
+      "resolveModuleEntry",
       "scanLocalModuleFiles"
     ],
     "types": [

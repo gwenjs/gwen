@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it } from "vitest";
@@ -21,9 +21,14 @@ function fail(error: Error): never {
 async function thrown(
   name: string,
   loader?: (moduleName: string) => Promise<GwenModule>,
+  root?: string,
 ): Promise<GwenError> {
   const caught: unknown = await new GwenApp()
-    .setupModules(resolveLoadedConfig({ modules: [name] }), loader)
+    .setupModules(
+      resolveLoadedConfig({ modules: [name] }),
+      loader,
+      root === undefined ? undefined : { root },
+    )
     .catch((err: unknown) => err);
   expect(caught).toBeInstanceOf(GwenError);
   if (!(caught instanceof GwenError)) throw new Error("expected GwenError");
@@ -59,10 +64,16 @@ it("missing package renders one [GWEN], a Fix line, and one See line", async () 
 });
 it("evaluated module throw has no install Fix line", async () => {
   const dir = mkdtempSync(join(tmpdir(), "gwen-p64-"));
+  const name = "eval-blow";
   try {
-    const name = join(dir, "blow.mjs");
-    writeFileSync(name, "throw new Error('eval blew');\n");
-    const caught = await thrown(name);
+    const pkg = join(dir, "node_modules", name);
+    mkdirSync(pkg, { recursive: true });
+    writeFileSync(
+      join(pkg, "package.json"),
+      JSON.stringify({ name, type: "module", exports: { "./module": "./blow.mjs" } }),
+    );
+    writeFileSync(join(pkg, "blow.mjs"), "throw new Error('eval blew');\n");
+    const caught = await thrown(name, undefined, dir);
     const cause = caught.cause;
     expect(cause instanceof Error ? cause.message : "").toBe("eval blew");
     expect(caught.message).toBe(
@@ -84,10 +95,16 @@ it("a GwenError from setup() keeps one [GWEN], one See line, and the cause", asy
 
 it("an invalid module export throws KIT:MODULE_INVALID without a tag", async () => {
   const dir = mkdtempSync(join(tmpdir(), "gwen-p648-"));
+  const name = "no-setup";
   try {
-    const name = join(dir, "no-setup.mjs");
-    writeFileSync(name, "export default { meta: { name: 'no-setup' } };\n");
-    const caught = await thrown(name);
+    const pkg = join(dir, "node_modules", name);
+    mkdirSync(pkg, { recursive: true });
+    writeFileSync(
+      join(pkg, "package.json"),
+      JSON.stringify({ name, type: "module", exports: { "./module": "./blow.mjs" } }),
+    );
+    writeFileSync(join(pkg, "blow.mjs"), "export default { meta: { name: 'no-setup' } };\n");
+    const caught = await thrown(name, undefined, dir);
     expect(caught.code).toBe("APP:MODULE_LOAD_FAILED");
     const cause = caught.cause;
     expect(cause).toBeInstanceOf(GwenError);

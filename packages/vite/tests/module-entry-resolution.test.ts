@@ -69,115 +69,54 @@ afterEach(() => {
 });
 
 describe("gwen() config hook — module entry resolution", () => {
-  it("falls back to main when the exports conditions of '.' are nested objects", async () => {
-    const seen = loadConfig(["mod-nested"], (root) => {
+  it("loads a scoped package from its ./module string export", async () => {
+    const seen = loadConfig(["@scope/mod-string"], (root) => {
       installModule(
         root,
-        "mod-nested",
-        { exports: { ".": { import: { default: "x.js" } } }, main: "./lib.mjs" },
-        { "lib.mjs": moduleSource("main-entry") },
-      );
-    });
-    await expect(seen).resolves.toEqual(["main-entry"]);
-  });
-
-  it("falls back to index.js when main is not a string", async () => {
-    const seen = loadConfig(["mod-numeric-main"], (root) => {
-      installModule(
-        root,
-        "mod-numeric-main",
-        { main: 5 },
-        { "index.js": moduleSource("index-entry") },
-      );
-    });
-    await expect(seen).resolves.toEqual(["index-entry"]);
-  });
-
-  it("falls back to index.js when exports has no string entry and there is no main", async () => {
-    const seen = loadConfig(["mod-nested-no-main"], (root) => {
-      installModule(
-        root,
-        "mod-nested-no-main",
-        { exports: { ".": { import: { default: "x.js" } } } },
-        { "index.js": moduleSource("index-entry") },
-      );
-    });
-    await expect(seen).resolves.toEqual(["index-entry"]);
-  });
-
-  it("resolves the entry of every documented package.json shape", async () => {
-    const seen = await loadConfig(
-      [
-        "mod-import",
-        "mod-default",
         "@scope/mod-string",
-        "mod-dot-string",
-        "mod-main",
-        "mod-index",
-        "mod-subpath-only",
-      ],
-      (root) => {
-        installModule(
-          root,
-          "mod-import",
-          {
-            exports: { ".": { import: "./esm.mjs", default: "./dflt.mjs", require: "./cjs.cjs" } },
-          },
-          { "esm.mjs": moduleSource("import-before-default"), "dflt.mjs": moduleSource("wrong") },
-        );
-        installModule(
-          root,
-          "mod-default",
-          { exports: { ".": { default: "./dflt.mjs" } } },
-          { "dflt.mjs": moduleSource("default-without-import") },
-        );
-        installModule(
-          root,
-          "@scope/mod-string",
-          { exports: "./str.mjs" },
-          { "str.mjs": moduleSource("string-exports-scoped") },
-        );
-        installModule(
-          root,
-          "mod-dot-string",
-          { exports: { ".": "./dot.mjs" } },
-          { "dot.mjs": moduleSource("dot-string") },
-        );
-        installModule(
-          root,
-          "mod-main",
-          { main: "./lib.mjs" },
-          { "lib.mjs": moduleSource("main-without-exports") },
-        );
-        installModule(root, "mod-index", {}, { "index.js": moduleSource("index-by-default") });
-        installModule(
-          root,
-          "mod-subpath-only",
-          { exports: { "./extra": "./extra.mjs" }, main: "./lib.mjs" },
-          { "lib.mjs": moduleSource("main-without-dot"), "extra.mjs": moduleSource("wrong") },
-        );
-      },
-    );
-    expect([...seen].sort()).toEqual(
-      [
-        "import-before-default",
-        "default-without-import",
-        "string-exports-scoped",
-        "dot-string",
-        "main-without-exports",
-        "index-by-default",
-        "main-without-dot",
-      ].sort(),
-    );
+        { exports: { "./module": "./str.mjs" } },
+        { "str.mjs": moduleSource("scoped-string") },
+      );
+    });
+    await expect(seen).resolves.toEqual(["scoped-string"]);
   });
 
-  it("falls back to index.js when package.json holds a JSON primitive", async () => {
-    const seen = loadConfig(["mod-primitive-json"], (root) => {
-      installModule(root, "mod-primitive-json", {}, { "index.js": moduleSource("index-entry") });
-      const manifest = path.join(root, "node_modules", "mod-primitive-json", "package.json");
+  it("loads the default condition of ./module when import is absent", async () => {
+    const seen = loadConfig(["mod-default"], (root) => {
+      installModule(
+        root,
+        "mod-default",
+        { exports: { "./module": { default: "./dflt.mjs" } } },
+        { "dflt.mjs": moduleSource("default-condition") },
+      );
+    });
+    await expect(seen).resolves.toEqual(["default-condition"]);
+  });
+
+  it("rejects with the module-entry code when the package only declares main", async () => {
+    const name = "mod-main-only";
+    const pending = loadConfig([name], (root) => {
+      installModule(
+        root,
+        name,
+        { main: "./lib.mjs" },
+        { "lib.mjs": moduleSource("main-entry"), "index.js": moduleSource("index-entry") },
+      );
+    });
+    await expect(pending).rejects.toMatchObject({ code: "APP:MODULE_ENTRY_MISSING" });
+    await expect(pending).rejects.toThrow(name);
+    await expect(pending).rejects.toThrow("./module");
+  });
+
+  it("rejects with the module-entry code when package.json is a JSON primitive", async () => {
+    const name = "mod-primitive-json";
+    const pending = loadConfig([name], (root) => {
+      installModule(root, name, {}, { "index.js": moduleSource("index-entry") });
+      const manifest = path.join(root, "node_modules", name, "package.json");
       fs.writeFileSync(manifest, JSON.stringify("not an object"));
     });
-    await expect(seen).resolves.toEqual(["index-entry"]);
+    await expect(pending).rejects.toMatchObject({ code: "APP:MODULE_ENTRY_MISSING" });
+    await expect(pending).rejects.toThrow(name);
   });
 
   it("rejects with the module-entry code and the package name when the package has no ./module export", async () => {
