@@ -486,6 +486,19 @@ describe("Physics3D TypeScript fallback", () => {
   // ─── Local mode: forces, torques, gravity scale, axis locks, sleep ─────────
 
   describe("local physics state", () => {
+    it("fills a missing gravity component from the default", () => {
+      const { service, hookMap } = setup({ gravity: { x: 1 } });
+      service.createBody(1n, { kind: "dynamic" });
+      runFrame(hookMap, 1 / 60);
+      const velocity = service.getBodyState(1n)?.linearVelocity;
+      expect(velocity?.x).toBeCloseTo(1 / 60, 5);
+      expect(velocity?.y).toBeCloseTo(-9.81 / 60, 5);
+    });
+
+    it("surfaces PHYSICS3D:INVALID_LAYERS when a layer bit is 40", () => {
+      expect(() => setup({ layers: { a: 40 } })).toThrow("(PHYSICS3D:INVALID_LAYERS)");
+    });
+
     it("addForce accelerates a dynamic body (F=ma → Δv=F/m·dt)", () => {
       const { service, hookMap } = setup({ gravity: { x: 0, y: 0, z: 0 } });
       service.createBody(1n, { kind: "dynamic", mass: 2 });

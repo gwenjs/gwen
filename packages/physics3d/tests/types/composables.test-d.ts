@@ -1,5 +1,6 @@
 import { describe, expectTypeOf, it } from "vitest";
 
+import type { PhysicsConfigBase } from "@gwenjs/physics-core";
 import type { GwenProvides } from "@gwenjs/core";
 import { useService } from "@gwenjs/core/system";
 import {
@@ -17,6 +18,7 @@ import type {
   DynamicBodyHandle3D,
   KinematicBodyHandle3D,
   Physics3DAPI,
+  Physics3DConfig,
   SphereColliderHandle3D,
   StaticBodyHandle3D,
 } from "../../src/index.js";
@@ -38,5 +40,9 @@ describe("physics3d composable inference", () => {
 
   it("physics3d program does not know the physics2d service key", () => {
     expectTypeOf<"physics2d">().not.toExtend<keyof GwenProvides>();
+  });
+  it("shared names", () => {
+    expectTypeOf<Physics3DConfig["layers"]>().toEqualTypeOf<Record<string, number> | undefined>();
+    expectTypeOf<Physics3DConfig>().toExtend<PhysicsConfigBase<"3d">>();
   });
 });
