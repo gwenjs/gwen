@@ -102,6 +102,21 @@ describe("gwen() config hook — optimizeDeps", () => {
     expect(config.resolve?.dedupe).toContain("@gwenjs/kit");
     expect(config.optimizeDeps?.include).toContain("@gwenjs/core > @gwenjs/kit");
   });
+
+  it("gwen() config excludes the three core factory subpaths from optimizeDeps and keeps them out of include", async () => {
+    const config = await configFromTmp();
+    const factories = [
+      "@gwenjs/core/wasm/light/factory",
+      "@gwenjs/core/wasm/physics2d/factory",
+      "@gwenjs/core/wasm/physics3d/factory",
+    ];
+    expect(config.optimizeDeps?.exclude).toEqual(factories);
+    const include = config.optimizeDeps?.include ?? [];
+    for (const factory of factories) {
+      expect(include).not.toContain(factory);
+    }
+    expect(include).toContain("@gwenjs/core");
+  });
 });
 
 // ── Virtual module — resolveId ────────────────────────────────────────────────
@@ -476,6 +491,81 @@ describe("generateEntryModule — bootstrap correctness", () => {
     const names = gwen({ watch: false }).map((plugin) => plugin.name);
     expect(names).not.toContain("gwen:local-modules");
     expect(names).toContain("gwen:local-plugins");
+  });
+
+  function entryForVariant(
+    variant: "light" | "physics2d" | "physics3d",
+    hasScenesDir: boolean,
+    declarations: Parameters<typeof generateEntryModule>[1] = [],
+  ): string {
+    return generateEntryModule(hasScenesDir, declarations, [], {
+      engine: { variant, loop: "internal" },
+    });
+  }
+
+  it("the entry has exactly one @gwenjs/core/wasm/ specifier and it is the resolved variant's factory", () => {
+    const declarationCases: Parameters<typeof generateEntryModule>[1][] = [
+      [],
+      [{ src: "@gwenjs/audio" }],
+    ];
+    for (const variant of ["light", "physics2d", "physics3d"] as const) {
+      for (const hasScenesDir of [false, true]) {
+        for (const declarations of declarationCases) {
+          const code = entryForVariant(variant, hasScenesDir, declarations);
+          const importLine = `import * as __gwenGlue from "@gwenjs/core/wasm/${variant}/factory";`;
+          expect(code.split("@gwenjs/core/wasm/").length - 1).toBe(1);
+          expect(code).toContain(importLine);
+          for (const other of ["light", "physics2d", "physics3d"] as const) {
+            if (other === variant) continue;
+            expect(code).not.toContain(`@gwenjs/core/wasm/${other}`);
+          }
+          expect(code).not.toContain(`@gwenjs/core/wasm/${variant}"`);
+          const importAt = code.indexOf(importLine);
+          const bootstrapAt = code.indexOf("async function bootstrap");
+          expect(importAt).toBeGreaterThanOrEqual(0);
+          expect(bootstrapAt).toBeGreaterThan(importAt);
+          expect(code).not.toContain("import(");
+          expect(code).not.toContain("import.meta.glob");
+          expect(code).not.toContain("@vite-ignore");
+          expect(code).not.toContain("if (variant");
+          expect(code).not.toContain("detectCoreVariant");
+          expect(code).not.toContain("hot.dispose");
+          expect(code).not.toContain("invalidateWasmModule");
+        }
+      }
+    }
+  });
+
+  it("the entry passes the imported factory as glue to init with the same variant literal", () => {
+    for (const variant of ["light", "physics2d", "physics3d"] as const) {
+      const code = entryForVariant(variant, false);
+      const initCall = `await bridge.init("${variant}", { glue: __gwenGlue, maxEntities: __gwenResolved.engine.maxEntities });`;
+      expect(code).toContain(initCall);
+      const specMarker = 'import * as __gwenGlue from "@gwenjs/core/wasm/';
+      const specAt = code.indexOf(specMarker);
+      const specFrom = specAt < 0 ? code.length : specAt;
+      const specEnd = code.indexOf('/factory"', specFrom);
+      const specVariant =
+        specAt < 0 || specEnd < 0 ? "" : code.slice(specAt + specMarker.length, specEnd);
+      const initMarker = 'await bridge.init("';
+      const initAt = code.indexOf(initMarker);
+      const initFrom = initAt < 0 ? -1 : initAt + initMarker.length;
+      const initEnd = initFrom < 0 ? -1 : code.indexOf('"', initFrom);
+      const initVariant = initFrom < 0 || initEnd < 0 ? "" : code.slice(initFrom, initEnd);
+      expect(specVariant).toBe(variant);
+      expect(initVariant).toBe(variant);
+    }
+  });
+
+  it("the entry forwards maxEntities from the resolved block, not from the raw config", () => {
+    for (const variant of ["light", "physics2d", "physics3d"] as const) {
+      const code = entryForVariant(variant, false);
+      const initAt = code.indexOf("await bridge.init(");
+      const initEnd = code.indexOf(";", initAt < 0 ? 0 : initAt);
+      const initCall = initAt < 0 || initEnd < 0 ? "" : code.slice(initAt, initEnd + 1);
+      expect(initCall).toContain("maxEntities: __gwenResolved.engine.maxEntities");
+      expect(code).not.toContain("gwenConfig.engine");
+    }
   });
 });
 
