@@ -565,6 +565,7 @@ export const FRAMEWORK_ENTRIES: Readonly<Record<string, readonly string[]>> = {
     "MaterialValues",
     "PhysicsAdapter",
     "PhysicsConfigBase",
+    "PhysicsSensorTracker",
     "QUALITY_PRESET_CODE",
     "QualityPreset",
     "SENSOR_ID_FOOT",

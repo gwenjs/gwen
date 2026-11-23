@@ -49,3 +49,4 @@ export type { ContactRegistry, SensorRegistry } from "./registries.js";
 
 export { createPhysicsPlugin } from "./plugin.js";
 export type { PhysicsAdapter } from "./adapter.js";
+export type { PhysicsSensorTracker } from "./sensor-tracker.js";

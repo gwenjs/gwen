@@ -4,11 +4,16 @@
 
 import { useEngine } from "@gwenjs/core";
 import type { GwenEngine } from "@gwenjs/core";
+import { reportRejectedHook } from "@gwenjs/core/internal";
 import { definePlugin } from "@gwenjs/kit/plugin";
 import type { GwenConfigIssue, GwenPluginServiceKey, GwenProvides } from "@gwenjs/schema";
 import type { PhysicsAdapter } from "./adapter.js";
-import { clearEngineContacts } from "./registries.js";
-import type { Dim } from "./types.js";
+import { readCollisionEvents } from "./events.js";
+import type { InternalCollisionEvent } from "./events.js";
+import { clearEngineContacts, createContactRegistry, createSensorRegistry } from "./registries.js";
+import { createSensorTracker } from "./sensor-tracker.js";
+import type { PhysicsSensorTracker } from "./sensor-tracker.js";
+import type { CollisionContact, Dim } from "./types.js";
 
 /**
  * Builds a plugin that steps one {@link PhysicsAdapter} on the engine that installs it.
@@ -17,6 +22,9 @@ import type { Dim } from "./types.js";
  * `prefab:instantiate`, `entity:destroy`, `engine:before-update` and `engine:update`
  * on that same engine. `beginFrame`, when the adapter has one, runs on every
  * `engine:before-update`. `step` runs only when `dt > 0`.
+ * `engine:update` reads `eventView`. No view, or a count of 0, emits nothing.
+ * Otherwise the order is sensor transitions, `physics:collision`, `onContact`,
+ * then `onContacts`. A rejected `physics:collision` handler is reported.
  * `teardown` clears that engine's contact and sensor callbacks, then calls `dispose`.
  * A throw from `makeAdapter` is the error `engine.use` rejects with.
  *
@@ -27,6 +35,7 @@ import type { Dim } from "./types.js";
  * @param name - Plugin name. `engine.unuse` takes this string.
  * @param serviceKey - Key of `engine.provide` and of `provides`.
  * @param makeAdapter - Builds the adapter for one engine and one resolved config.
+ *   The third argument is that plugin instance's sensor tracker.
  * @param declaration - Defaults, and an optional check of the resolved options.
  * @returns A factory. Each call returns a new plugin instance.
  */
@@ -38,7 +47,11 @@ export function createPhysicsPlugin<
 >(
   name: string,
   serviceKey: K,
-  makeAdapter: (engine: GwenEngine, config: Readonly<O>) => PhysicsAdapter<D, Api>,
+  makeAdapter: (
+    engine: GwenEngine,
+    config: Readonly<O>,
+    ctx: { readonly sensors: PhysicsSensorTracker },
+  ) => PhysicsAdapter<D, Api>,
   declaration: {
     readonly defaults: O;
     readonly validate?: (resolved: Readonly<O>) => readonly GwenConfigIssue[];
@@ -56,7 +69,9 @@ export function createPhysicsPlugin<
     return {
       name,
       setup(engine: GwenEngine) {
-        const created = makeAdapter(engine, config);
+        const tracker = createSensorTracker();
+        const created = makeAdapter(engine, config, { sensors: tracker.sensors });
+        const pool: InternalCollisionEvent[] = [];
         engine.provide(serviceKey, created.api);
         engine.hooks.hook("prefab:instantiate", (entityId, extensions) => {
           created.onPrefab?.(entityId, extensions);
@@ -70,9 +85,65 @@ export function createPhysicsPlugin<
           created.step(dt);
         });
         engine.hooks.hook("engine:update", () => {
-          created.eventView();
+          const packed = created.eventView();
+          if (packed === undefined || packed.count === 0) return;
+          while (pool.length < packed.count) {
+            pool.push({ slotA: 0, slotB: 0, started: false });
+          }
+          const written = readCollisionEvents(packed.view, packed.count, pool, created.eventLayout);
+          for (let index = 0; index < written; index += 1) {
+            const event = pool[index];
+            if (event === undefined) continue;
+            noteSide(event.slotA, event.aColliderId, event.started);
+            noteSide(event.slotB, event.bColliderId, event.started);
+          }
+          const contacts: CollisionContact[] = [];
+          for (let index = 0; index < written; index += 1) {
+            const event = pool[index];
+            if (event === undefined) continue;
+            const entityA = created.resolveEntity(event.slotA);
+            const entityB = created.resolveEntity(event.slotB);
+            if (entityA === undefined || entityB === undefined) continue;
+            const contact: CollisionContact = {
+              entityA,
+              entityB,
+              started: event.started,
+            };
+            if (event.aColliderId !== undefined) contact.aColliderId = event.aColliderId;
+            if (event.bColliderId !== undefined) contact.bColliderId = event.bColliderId;
+            contacts.push(contact);
+          }
+          reportRejectedHook(
+            engine,
+            name,
+            "physics:collision",
+            engine.hooks.callHook("physics:collision", contacts),
+          );
+          const contactRegistry = createContactRegistry().peek(engine);
+          if (contactRegistry !== undefined) {
+            for (const contact of contacts) contactRegistry.emit(contact);
+          }
+          created.onContacts?.(contacts);
         });
         adapter = created;
+
+        function noteSide(slot: number, reportedId: number | undefined, started: boolean): void {
+          const sensorId = created.resolveSensorId(slot, reportedId);
+          if (sensorId === undefined) return;
+          const entityId = created.resolveEntity(slot);
+          if (entityId === undefined) return;
+          const applied = tracker.apply(entityId, sensorId, started);
+          if (!applied.changed) return;
+          reportRejectedHook(
+            engine,
+            name,
+            "physics:sensor:changed",
+            engine.hooks.callHook("physics:sensor:changed", entityId, sensorId, applied.state),
+          );
+          const sensorRegistry = createSensorRegistry().peek(engine);
+          if (applied.state.isActive) sensorRegistry?.emit(sensorId, entityId, "enter");
+          else sensorRegistry?.emit(sensorId, entityId, "exit");
+        }
       },
       teardown() {
         clearEngineContacts(useEngine(name));

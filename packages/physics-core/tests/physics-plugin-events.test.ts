@@ -474,7 +474,8 @@ it("a rejected physics:collision handler is reported, not thrown", async () => {
   } catch {
     threw = true;
   }
-  await Promise.resolve();
+  // The bus receives the rejection on a later microtask than `engine:update`.
+  for (let index = 0; index < 6; index += 1) await Promise.resolve();
   expect(threw).toBe(false);
   const hit = events.find((event) => event.code === "CORE:PLUGIN_RUNTIME_ERROR");
   expect(hit?.code).toBe("CORE:PLUGIN_RUNTIME_ERROR");
