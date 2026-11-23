@@ -164,6 +164,7 @@ export function createTransformPipeline(options: {
         this.error({ message: caught.message, id, loc, cause: caught });
       }
     },
+    watchChange(): void {},
     api,
   };
 

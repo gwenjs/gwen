@@ -5,7 +5,7 @@
  */
 
 import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { originalPositionFor, TraceMap } from "@jridgewell/trace-mapping";
 import type { AutoImport } from "@gwenjs/kit";
 import { walk } from "oxc-walker";
@@ -238,18 +238,47 @@ export async function applyTransform(
   return pipelineCode(await transform.handler.call(host as never, code, id));
 }
 
-/** Create the pipeline, settle its lifecycle, and transform one module. */
-export async function runPipeline(
-  code: string,
-  options: RunOptions = {},
-): Promise<PipelineCode | null> {
+/**
+ * One plugin after `configResolved` and `buildStart`.
+ * Several importers share that instance, including its barrel cache.
+ */
+export async function openPipeline(options: RunOptions = {}): Promise<Plugin> {
   const units = options.units ?? [];
   const plugin =
     options.autoImports === undefined
       ? createTransformPipeline({ units })
       : createTransformPipeline({ units, autoImports: options.autoImports });
   await preparePipeline(plugin, options.resolveId, options.root);
+  return plugin;
+}
+
+/** Create the pipeline, settle its lifecycle, and transform one module. */
+export async function runPipeline(
+  code: string,
+  options: RunOptions = {},
+): Promise<PipelineCode | null> {
+  const plugin = await openPipeline(options);
   return applyTransform(plugin, code, options.id ?? "/src/x.ts", options.resolveId);
+}
+
+/** Relative specifier to `<directory of the importer>/<specifier>.ts`. */
+export function resolveRelativeId(source: string, importer: string | undefined): string | null {
+  if (importer === undefined) return null;
+  if (!source.startsWith(".")) return null;
+  return join(dirname(importer), `${source}.ts`);
+}
+
+/** Call the plugin `watchChange` hook. A missing hook does nothing. */
+export function watchPipeline(plugin: Plugin, id: string): void {
+  const hook = plugin.watchChange;
+  const host = createHost(undefined);
+  const change = { event: "update" as const };
+  if (typeof hook === "function") {
+    void hook.call(host as never, id, change);
+    return;
+  }
+  if (hook === undefined || hook === null) return;
+  void hook.handler.call(host as never, id, change);
 }
 
 /** Read `input.ts`, `output.ts`, and optional `error.json` (`{ code }`). */

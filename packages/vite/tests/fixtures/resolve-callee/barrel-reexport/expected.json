@@ -1,0 +1,4 @@
+[
+  { "callee": "defineSceneRouter", "call": "route(1)" },
+  { "callee": "defineScene", "call": "defineScene(2)" }
+]
