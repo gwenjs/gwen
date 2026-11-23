@@ -210,9 +210,9 @@ export interface StaticBodyHandle3D {
  */
 export interface DynamicBodyHandle3D extends StaticBodyHandle3D {
   /**
-   * Apply a continuous linear force to the body in N.
-   * Internally mapped to {@link Physics3DAPI.applyImpulse} since
-   * the Rapier3D WASM bridge processes forces as per-step impulses.
+   * Accumulate a continuous force in newtons.
+   * Applied as one impulse each frame, scaled by dt.
+   * Call it every frame to sustain the force.
    */
   applyForce(fx: number, fy: number, fz: number): void;
   /** Apply an instantaneous linear impulse in N·s. */

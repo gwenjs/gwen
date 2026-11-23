@@ -459,7 +459,7 @@ body.setVelocity(5, 0, 0)
 // Appliquer une impulsion (N·s) — changement de vélocité instantané
 body.applyImpulse(0, 10, 0)
 
-// Appliquer une force (N) — continue
+// Appliquer une force (N) — newtons, appliquée comme force × dt à chaque frame. L'appeler chaque frame.
 body.applyForce(0, 20, 0)
 
 // Appliquer un couple (N·m) — force rotationnelle
@@ -525,7 +525,7 @@ const TerrainActor = defineActor(TerrainPrefab, () => {
 - `get velocity(): Vec3` — Vélocité linéaire actuelle.
 - `get angularVelocity(): Vec3` — Vélocité angulaire actuelle.
 - `setVelocity(vx, vy, vz): void` — Définir la vélocité.
-- `applyForce(fx, fy, fz): void` — Appliquer une force continue.
+- `applyForce(fx, fy, fz): void` — Newtons, appliquée comme force × dt à chaque frame. L'appeler chaque frame.
 - `applyImpulse(ix, iy, iz): void` — Appliquer une impulsion instantanée.
 - `applyTorque(tx, ty, tz): void` — Appliquer une force rotationnelle.
 - `enable(): void` — Réactiver si désactivé.

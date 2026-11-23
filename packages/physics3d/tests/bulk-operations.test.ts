@@ -5,6 +5,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createEngine } from "@gwenjs/core/node";
+import { defineSystem } from "@gwenjs/core/system";
 
 // ─── Mocks for dynamic body test ─────────────────────────────────────
 
@@ -52,10 +53,26 @@ describe("physics3d bulk operations", () => {
     mockPhysics3D.createBody.mockReturnValue(mockBodyHandle);
   });
 
-  it("creates 500 dynamic bodies, one physics body each", () => {
-    for (let i = 0; i < 500; i++) {
-      useDynamicBody();
+  // onBeforeUpdate needs a system scope, so the 500 bodies share one mount().
+  async function mount(setup: () => void): Promise<void> {
+    const engine = await createEngine({ maxDeltaSeconds: 10 });
+    try {
+      await engine.use(
+        defineSystem("bulk-dynamic-bodies", () => {
+          setup();
+        })(),
+      );
+    } finally {
+      await engine.stop();
     }
+  }
+
+  it("creates 500 dynamic bodies, one physics body each", async () => {
+    await mount(() => {
+      for (let i = 0; i < 500; i++) {
+        useDynamicBody();
+      }
+    });
     expect(mockPhysics3D.createBody).toHaveBeenCalledTimes(500);
   });
 

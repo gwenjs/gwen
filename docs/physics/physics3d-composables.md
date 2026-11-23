@@ -459,7 +459,7 @@ body.setVelocity(5, 0, 0)
 // Apply impulse (N·s) — instantaneous velocity change
 body.applyImpulse(0, 10, 0)
 
-// Apply force (N) — continuous
+// Apply force (N) — newtons, applied as force × dt each frame. Call it every frame.
 body.applyForce(0, 20, 0)
 
 // Apply torque (N·m) — rotational force
@@ -525,7 +525,7 @@ const TerrainActor = defineActor(TerrainPrefab, () => {
 - `get velocity(): Vec3` — Current linear velocity.
 - `get angularVelocity(): Vec3` — Current angular velocity.
 - `setVelocity(vx, vy, vz): void` — Set velocity.
-- `applyForce(fx, fy, fz): void` — Apply continuous force.
+- `applyForce(fx, fy, fz): void` — Newtons, applied as force × dt each frame. Call it every frame.
 - `applyImpulse(ix, iy, iz): void` — Apply instantaneous impulse.
 - `applyTorque(tx, ty, tz): void` — Apply rotational force.
 - `enable(): void` — Re-enable if disabled.
