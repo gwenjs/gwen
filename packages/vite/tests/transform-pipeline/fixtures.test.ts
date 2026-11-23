@@ -94,3 +94,61 @@ it("idempotent", async () => {
     expect(await runCase(item.dir, output), `${item.unit}/${item.name}`).toBeNull();
   }
 });
+
+/**
+ * 1-based line, 0-based column. `lineColumn` is 1-based
+ * (`packages/vite/src/pipeline/parse.ts:29-42`); `loc.column` subtracts 1
+ * (`packages/vite/src/pipeline/transform-pipeline.ts:91`).
+ */
+function callPlace(code: string, offset: number): { line: number; column: number } {
+  let line = 1;
+  let column = 0;
+  const end = offset > 0 ? offset : 0;
+  for (let index = 0; index < end; index += 1) {
+    if (code.charCodeAt(index) === 10) {
+      line += 1;
+      column = 0;
+    } else {
+      column += 1;
+    }
+  }
+  return { line, column };
+}
+
+it("actor-name/deps-local-binding raises with the exact message, hint and position", async () => {
+  const dir = join(fixturesRoot, "actor-name", "deps-local-binding");
+  const fixture = fixtureCase(dir);
+  const offset = fixture.input.indexOf("useActor(Dep)");
+  expect(offset).toBeGreaterThanOrEqual(0);
+  const place = callPlace(fixture.input, offset);
+  const what = "[gwen()] useActor(Dep) inside Boss: Dep is not a module-scope binding.";
+  const fix = "Fix: Declare the actor at module scope or pass it through the factory arguments.";
+  const see =
+    "See https://gwenjs.github.io/gwen/api/errors#vite-transform-unsupported (VITE:TRANSFORM_UNSUPPORTED)";
+  // Same condition as devHint (`packages/vite/src/pipeline/dev-hint.ts:7`).
+  const message =
+    process.env["NODE_ENV"] !== "production" ? `${what}\n${fix}\n${see}` : `${what}\n${see}`;
+  await expect(runCase(dir, fixture.input)).rejects.toMatchObject({
+    message,
+    loc: { file: caseId(dir), line: place.line, column: place.column },
+  });
+});
+
+it("actor-name/deps-declared-after raises with the exact message, hint and position", async () => {
+  const dir = join(fixturesRoot, "actor-name", "deps-declared-after");
+  const fixture = fixtureCase(dir);
+  const offset = fixture.input.indexOf("useActor(Y)");
+  expect(offset).toBeGreaterThanOrEqual(0);
+  const place = callPlace(fixture.input, offset);
+  const what = "[gwen()] useActor(Y) inside Boss: Y is declared after Boss.";
+  const fix = "Fix: Declare the actor at module scope or pass it through the factory arguments.";
+  const see =
+    "See https://gwenjs.github.io/gwen/api/errors#vite-transform-unsupported (VITE:TRANSFORM_UNSUPPORTED)";
+  // Same condition as devHint (`packages/vite/src/pipeline/dev-hint.ts:7`).
+  const message =
+    process.env["NODE_ENV"] !== "production" ? `${what}\n${fix}\n${see}` : `${what}\n${see}`;
+  await expect(runCase(dir, fixture.input)).rejects.toMatchObject({
+    message,
+    loc: { file: caseId(dir), line: place.line, column: place.column },
+  });
+});
