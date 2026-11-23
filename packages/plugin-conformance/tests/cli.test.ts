@@ -21,7 +21,7 @@ const cleanups: Array<() => Promise<void>> = [];
 const CHECK_USAGE =
   "Usage: gwen-conformance check [--profile plugin|package] [--write] [--lockfile-base <ref>]\n";
 
-const TWELVE_CLEAN = "CONFORMANCE: 0 findings (12 checks)\n";
+const THIRTEEN_CLEAN = "CONFORMANCE: 0 findings (13 checks)\n";
 
 const BASE_LOCKFILE = lockfileText([
   { name: "left-pad", version: "1.2.0" },
@@ -80,7 +80,7 @@ describe("gwen-conformance", () => {
       const lines = BARE_MANIFEST_MESSAGES.map(
         (message) => `CONFORMANCE:MANIFEST package.json:1 ${message}`,
       );
-      expect(captured.stdout()).toBe(`${lines.join("\n")}\nCONFORMANCE: 3 findings (11 checks)\n`);
+      expect(captured.stdout()).toBe(`${lines.join("\n")}\nCONFORMANCE: 3 findings (12 checks)\n`);
       expect(code).toBe(1);
       expect(captured.stderr()).toBe("");
     },
@@ -93,7 +93,7 @@ describe("gwen-conformance", () => {
       const captured = capture(goodPluginRoot());
 
       const code = await runCli(["check"], captured.io);
-      expect(captured.stdout()).toBe("CONFORMANCE: 0 findings (11 checks)\n");
+      expect(captured.stdout()).toBe("CONFORMANCE: 0 findings (12 checks)\n");
       expect(code).toBe(0);
       expect(captured.stderr()).toBe("");
     },
@@ -122,7 +122,7 @@ describe("gwen-conformance", () => {
       const captured = capture(fixture.root);
 
       const code = await runCli(["check", "--profile", "package"], captured.io);
-      expect(captured.stdout()).toBe("CONFORMANCE: 0 findings (11 checks)\n");
+      expect(captured.stdout()).toBe("CONFORMANCE: 0 findings (12 checks)\n");
       expect(code).toBe(0);
       expect(captured.stderr()).toBe("");
     },
@@ -163,11 +163,11 @@ describe("gwen-conformance", () => {
 
     expect(await runCli(["check"], plain.io)).toBe(1);
     expect(plain.stdout()).toBe(
-      "CONFORMANCE:SNAPSHOT_MISMATCH public-api.snap.json public-api.snap.json is missing\nCONFORMANCE: 1 findings (11 checks)\n",
+      "CONFORMANCE:SNAPSHOT_MISMATCH public-api.snap.json public-api.snap.json is missing\nCONFORMANCE: 1 findings (12 checks)\n",
     );
     const written = capture(fixture.root);
     expect(await runCli(["check", "--write", "--profile", "plugin"], written.io)).toBe(0);
-    expect(written.stdout()).toBe("CONFORMANCE: 0 findings (11 checks)\n");
+    expect(written.stdout()).toBe("CONFORMANCE: 0 findings (12 checks)\n");
     const text = await readFile(path.join(fixture.root, SNAPSHOT_FILE), "utf8");
     expect(JSON.parse(text)).toEqual({
       ".": { values: ["ready"], types: [] },
@@ -193,7 +193,7 @@ describe("gwen-conformance", () => {
   });
 
   it(
-    "--lockfile-base prints the drift line with its file and line, the 12-check summary, and returns 1",
+    "--lockfile-base prints the drift line with its file and line, the 13-check summary, and returns 1",
     { timeout: SLOW_TEST_MS },
     async () => {
       const root = await lockfileRepo(BASE_LOCKFILE);
@@ -210,13 +210,13 @@ describe("gwen-conformance", () => {
       expect(code).toBe(1);
       expect(captured.stderr()).toBe("");
       expect(captured.stdout()).toBe(
-        'CONFORMANCE:LOCKFILE_DRIFT pnpm-lock.yaml:16 third-party package "kleur" resolves to 4.1.6, base ref HEAD has 4.1.5\nCONFORMANCE: 1 findings (12 checks)\n',
+        'CONFORMANCE:LOCKFILE_DRIFT pnpm-lock.yaml:16 third-party package "kleur" resolves to 4.1.6, base ref HEAD has 4.1.5\nCONFORMANCE: 1 findings (13 checks)\n',
       );
     },
   );
 
   it(
-    "--lockfile-base returns 0 on an unchanged lockfile and prints 12 checks, then returns 2 when the value is missing",
+    "--lockfile-base returns 0 on an unchanged lockfile and prints 13 checks, then returns 2 when the value is missing",
     { timeout: SLOW_TEST_MS },
     async () => {
       const root = await lockfileRepo(BASE_LOCKFILE);
@@ -225,7 +225,7 @@ describe("gwen-conformance", () => {
 
       const code = await runCli(["check", "--lockfile-base", "HEAD", "--write"], ok.io);
       expect(code).toBe(0);
-      expect(ok.stdout()).toBe(TWELVE_CLEAN);
+      expect(ok.stdout()).toBe(THIRTEEN_CLEAN);
       expect(ok.stderr()).toBe("");
       const text = await readFile(path.join(root, SNAPSHOT_FILE), "utf8");
       expect(JSON.parse(text)).toEqual({
@@ -259,7 +259,7 @@ describe("gwen-conformance", () => {
         ok.io,
       );
       expect(code).toBe(0);
-      expect(ok.stdout()).toBe(TWELVE_CLEAN);
+      expect(ok.stdout()).toBe(THIRTEEN_CLEAN);
       expect(ok.stderr()).toBe("");
 
       const twice = capture(root);
@@ -282,7 +282,7 @@ describe("gwen-conformance", () => {
 
       const code = await runCli(["check", "--lockfile-base", "HEAD"], ok.io);
       expect(code).toBe(0);
-      expect(ok.stdout()).toBe(TWELVE_CLEAN);
+      expect(ok.stdout()).toBe(THIRTEEN_CLEAN);
 
       const snap = path.join(root, SNAPSHOT_FILE);
       const before = await readFile(snap, "utf8");

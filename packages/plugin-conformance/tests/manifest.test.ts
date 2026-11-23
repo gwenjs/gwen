@@ -114,6 +114,7 @@ describe("checkPluginPackage manifest", () => {
         "augment",
         "hooks",
         "test-mocks",
+        "peers",
         "manifest",
       ]);
       // publint cannot parse a BOM package.json: that is its one finding.

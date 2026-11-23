@@ -31,6 +31,7 @@ const ALL_CHECKS = [
   "augment",
   "hooks",
   "test-mocks",
+  "peers",
   "manifest",
 ];
 
