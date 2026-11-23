@@ -66,8 +66,8 @@ export function useSphereCollider(options: SphereColliderOptions3D): SphereColli
     ...(options.isSensor !== undefined ? { isSensor: options.isSensor } : {}),
     ...(options.layer !== undefined ? { layer: options.layer } : {}),
     ...(options.mask !== undefined ? { mask: options.mask } : {}),
+    ...(options.material !== undefined ? { material: options.material } : {}),
   };
-  if (options.material !== undefined) Object.assign(collider, { material: options.material });
   physics.addCollider(entityId, collider);
 
   return {

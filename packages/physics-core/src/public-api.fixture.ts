@@ -16,9 +16,12 @@ export type PublicApiTypes = [
   Root.InternalCollisionEvent,
   Root.KinematicBodyOptions<"2d">,
   Root.LayerSelector,
+  Root.MaterialTable,
+  Root.MaterialValues,
   Root.PhysicsConfigBase<"2d">,
   Root.QualityPreset,
   Root.SensorRegistry,
   Root.SensorState,
+  Root.SharedMaterialPreset,
   Root.SphereColliderOptions<"2d">,
 ];

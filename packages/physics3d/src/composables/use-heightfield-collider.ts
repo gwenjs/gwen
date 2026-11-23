@@ -107,8 +107,8 @@ export function useHeightfieldCollider(
       ...(options.restitution !== undefined ? { restitution: options.restitution } : {}),
       ...(options.layer !== undefined ? { layer: options.layer } : {}),
       ...(options.mask !== undefined ? { mask: options.mask } : {}),
+      ...(options.material !== undefined ? { material: options.material } : {}),
     };
-    if (options.material !== undefined) Object.assign(collider, { material: options.material });
     return collider;
   };
 

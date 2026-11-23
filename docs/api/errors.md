@@ -351,11 +351,15 @@ Cause. The entity is not alive. Fix. Create it again before the call.
 
 ### PHYSICS3D:INVALID_LAYERS {#physics3d-invalid-layers}
 
-Cause. `buildLayerRegistry` (`packages/physics3d/src/config.ts`) received more than 32 layers, or a bit that is not an integer in `0..31`. The shared registry reports `LAYER_LIMIT` or `LAYER_BIT_RANGE` (`packages/physics-core/src/layer-registry.ts:34-46`). The plugin maps both to this code (`packages/physics3d/src/config.ts:78-80`, `packages/physics3d/src/errors/codes.ts:11`). Fix. Use an integer bit from 0 to 31, and at most 32 layers.
+Cause. `buildLayerRegistry` (`packages/physics3d/src/config.ts`) received more than 32 layers, or a bit that is not an integer in `0..31`. The shared registry reports `LAYER_LIMIT` or `LAYER_BIT_RANGE` (`packages/physics-core/src/layer-registry.ts:34-46`). The plugin maps both to this code (`packages/physics3d/src/config.ts:78-80`, `packages/physics3d/src/errors/codes.ts:13`). Fix. Use an integer bit from 0 to 31, and at most 32 layers.
 
 ### PHYSICS3D:UNKNOWN_LAYER {#physics3d-unknown-layer}
 
 Cause. The layer name is not in the registry. Fix. Declare it before resolving bits.
+
+### PHYSICS3D:UNKNOWN_MATERIAL {#physics3d-unknown-material}
+
+Cause. The material name is not `default`, `ice`, `rubber`, or `metal`. Fix. Use one of those names. Resolved on the WASM backend only.
 
 ### PHYSICS3D:INVALID_COMPOUND {#physics3d-invalid-compound}
 

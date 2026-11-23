@@ -10,6 +10,7 @@ import * as api from "../src/index.js";
 const ALLOW: Readonly<Record<string, string>> = {
   readCollisionEvents: "pure buffer reader; it takes a DataView and does not touch an engine",
   clearEngineContacts: "engine is an argument; the clear prefix is not a composable prefix",
+  resolveMaterial: "pure table lookup; it takes a table and does not touch an engine",
 };
 
 /** Reason kept beside the suite. Passing this name in `allow` would be reported stale. */

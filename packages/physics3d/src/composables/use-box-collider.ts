@@ -75,8 +75,8 @@ export function useBoxCollider(options: BoxColliderOptions3D): BoxColliderHandle
     ...(options.isSensor !== undefined ? { isSensor: options.isSensor } : {}),
     ...(options.layer !== undefined ? { layer: options.layer } : {}),
     ...(options.mask !== undefined ? { mask: options.mask } : {}),
+    ...(options.material !== undefined ? { material: options.material } : {}),
   };
-  if (options.material !== undefined) Object.assign(collider, { material: options.material });
   physics.addCollider(entityId, collider);
 
   return {

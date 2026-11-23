@@ -147,6 +147,7 @@ const TerrainActor = defineActor(TerrainPrefab, () => {
 - `isSensor?: boolean` — Événements de chevauchement uniquement, pas de réponse physique
 - `layer?: number | string | Array<number | string>` — Appartenance. Un nombre est un masque brut. Une chaîne est un nom de bit de `Physics3DConfig.layers`. Un tableau est combiné par OU. Appliqué sur le backend WASM seulement.
 - `mask?: number | string | Array<number | string>` — Filtre de collision. Mêmes formes que `layer`.
+- `material?: string` — Nom de preset : `default`, `ice`, `rubber` ou `metal`. Un nom inconnu lève `PHYSICS3D:UNKNOWN_MATERIAL`. Résolu sur le backend WASM seulement.
 
 **Collider de boîte :**
 - `w: number` — Largeur (X)
