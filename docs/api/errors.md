@@ -579,7 +579,11 @@ Cause. A file imports a framework package that `package.json` does not declare: 
 
 ### CONFORMANCE:INVALID_SPEC {#conformance-invalid-spec}
 
-Cause. `checkPluginPackage` received a `profile` that is not `"plugin"` or `"package"`. It returns this one finding and runs no check. Fix. Pass `"plugin"` or `"package"` as `profile`.
+Cause. `checkPluginPackage` received a `profile` that is not `"plugin"` or `"package"`, a bad or empty `lockfileBase`, no `pnpm-lock.yaml` at the ref or in the package root, a `lockfileVersion` other than 9.0, or a git that cannot start. A bad `profile` returns this one finding and runs no check. Each lockfile case is one finding from the `lockfile` check, and the other checks still run. Fix. Pass `"plugin"` or `"package"` as `profile`. For the lockfile, pass a ref that holds `pnpm-lock.yaml` at the package root, commit the lockfile, and use lockfile v9.
+
+### CONFORMANCE:LOCKFILE_DRIFT {#conformance-lockfile-drift}
+
+Cause. With `lockfileBase` set, a third-party package in `pnpm-lock.yaml` (a name that does not start with `@gwenjs/`) was added, removed, or resolved to a different set of versions than in that git ref. The version is the text of a `packages:` or `snapshots:` key after the name and before the first `(`. One finding per name, on the first key in the new file; a removed package is reported on `<ref>:pnpm-lock.yaml`. Fix. Commit the updated `pnpm-lock.yaml` and review the third-party change, or pin the package. A stack install must move only `@gwenjs` packages.
 
 ### CONFORMANCE:MANIFEST {#conformance-manifest}
 

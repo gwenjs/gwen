@@ -4,6 +4,7 @@ import { CONFORMANCE_CHECK_IDS } from "./check-ids.js";
 import { checkExports } from "./check-exports.js";
 import { checkHooks } from "./check-hooks.js";
 import { checkImports } from "./check-imports.js";
+import { checkLockfile } from "./check-lockfile.js";
 import { checkManifest } from "./check-manifest.js";
 import { checkPublint } from "./check-publint.js";
 import { checkReadme } from "./check-readme.js";
@@ -46,6 +47,7 @@ function invalidProfileReport(profile: string): ConformanceReport {
  * checks always run. The snapshot, publint, attw and readme checks run only when `exports` has no
  * finding. With `write`, the snapshot is rewritten from the build before it is compared. When
  * `package.json` is missing or not JSON, only the manifest check is reported.
+ * The `lockfile` check runs only when `lockfileBase` is given.
  * An unknown `profile` (from a JS caller) is one `INVALID_SPEC` finding, not a throw. A `src` file
  * that cannot be read (any error but a missing file) rejects with that error: a silent pass would
  * hide a violation.
@@ -87,6 +89,9 @@ export async function checkPluginPackage(
     "test-mocks": testMocksFindings,
     manifest: manifestFindings,
   };
+  if (opts.lockfileBase !== undefined) {
+    byId.lockfile = await checkLockfile(opts.root, opts.lockfileBase);
+  }
   // A missing target already is an `exports` finding; the artifact checks would repeat it.
   if (exportsFindings.length === 0) {
     const snapshot = await snapshotFindings(context, opts.write === true);
