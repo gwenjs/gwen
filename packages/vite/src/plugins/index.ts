@@ -9,7 +9,6 @@ import { gwenHooksPlugin } from "./hooks.js";
 import { gwenLocalPluginsPlugin } from "./local-plugins.js";
 import { gwenLocalModulesPlugin } from "./local-modules.js";
 import { gwenOptimizerPlugin } from "./optimizer.js";
-import { gwenSystemPlugin } from "./system.js";
 import { gwenAsyncContextPlugin } from "./async-context.js";
 import { gwenQueryHoistPlugin } from "./query-hoist.js";
 import { gwenDevStripPlugin } from "./dev-strip.js";
@@ -43,7 +42,6 @@ export {
   scanLocalModuleFiles,
   generateLocalModulesModule,
 } from "./local-modules.js";
-export { gwenSystemPlugin, transformSystemNames } from "./system.js";
 export { gwenAsyncContextPlugin, transformAsyncContext } from "./async-context.js";
 export { gwenQueryHoistPlugin } from "./query-hoist.js";
 export { gwenDevStripPlugin, type GwenDevStripReport } from "./dev-strip.js";
@@ -61,7 +59,6 @@ export { gwenDevStripPlugin, type GwenDevStripReport } from "./dev-strip.js";
  * - `gwen:hooks` — generates `hooks.d.ts` from `src/hooks.ts`
  * - `gwen:local-plugins` — auto-discovers `src/plugins/`, generates `virtual:gwen/local-plugins`
  * - `gwen:local-modules` — auto-discovers `src/modules/`, generates `virtual:gwen/local-modules`
- * - `gwen:system` — system name injection
  * - `gwen:query-hoist` — hoists useQuery arrays and pre-computes cache keys
  * - `gwen:optimizer` — ECS bulk optimizer
  * - `gwen:async-context` — propagates engine context across await boundaries
@@ -112,7 +109,6 @@ export function gwenVitePlugin(options: GwenViteOptions = {}): PluginOption {
     gwenHooksPlugin(options),
     gwenLocalPluginsPlugin(options),
     gwenLocalModulesPlugin(options),
-    gwenSystemPlugin(),
     gwenQueryHoistPlugin(),
     gwenOptimizerPlugin(resolveOptimizerOptions(options.optimizer)),
     gwenAsyncContextPlugin(),

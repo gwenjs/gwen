@@ -74,7 +74,7 @@ export function extractUseActorNames(factory: ArrowFunctionExpression | OxcFunct
  * name metadata.
  *
  * - `defineActor`: injects the variable name as a **string literal** first argument,
- *   matching the pattern used by `transformSystemNames` for `defineSystem`.
+ *   the same string-literal first argument used for `defineSystem`.
  *   Skipped if the first argument is already a string literal.
  * - `definePrefab`: keeps the existing comment injection (`__prefabName__: "Foo"`)
  *   because `definePrefab` does not accept a name argument.

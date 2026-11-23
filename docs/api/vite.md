@@ -15,6 +15,8 @@ Vite integration for GWEN. Provides the composite main plugin, an opt-in ECS opt
 
 The main entry point. A composite Vite plugin that wires up WASM bundling, actor/scene hot-reload, auto-imports, TypeScript declarations, layout support, tween helpers, and the optional ECS optimizer — all from a single registration.
 
+Names are injected by `gwen:transform-pipeline` in both `gwen()` and `gwenVitePlugin()`, matched by import binding.
+
 ```ts
 // vite.config.ts
 import { defineConfig } from 'vite'
