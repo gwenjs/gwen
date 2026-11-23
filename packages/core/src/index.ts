@@ -50,6 +50,7 @@ export {
   GwenHookNameError,
   GwenSceneRouterError,
 } from "./engine/engine-errors";
+export { GwenScenePreloadError } from "./scene/scene-preload-error";
 export type { CoreWasmErrorCode, GwenEngineStateMethod } from "./engine/engine-errors";
 export { GwenWasmMismatchError } from "./engine/wasm-contract";
 export type { GwenWasmMismatchReason } from "./engine/wasm-contract";

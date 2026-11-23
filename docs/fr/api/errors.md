@@ -95,6 +95,7 @@ Cause. L'appel est hors de `defineActor()`, `plugin setup()` ou `withCleanup()`.
 - `CORE:DEFINITION_INCOMPLETE` {#core-definition-incomplete} `defineSystem(name)`, `defineComponent(name)`, `defineActor(name, prefab)` ou `defineActor(prefab)` a été appelé sans sa fonction setup ou sa factory. L'erreur est levée à l'installation du système, ou à l'appel de `defineComponent` et de `defineActor`. Elle est aussi levée quand `defineActor` reçoit ses arguments dans le mauvais ordre, ou une fonction en troisième argument.
 - `CORE:INVALID_COMPONENT_TYPE` {#core-invalid-component-type}
 - `CORE:INVALID_SCENE_ROUTE` {#core-invalid-scene-route} — `defineSceneRouter` lance `GwenSceneRouterError` quand `initial` ou une cible de transition n'est pas une clé de route.
+- `CORE:SCENE_PRELOAD_FAILED` {#core-scene-preload-failed} — le rejet d'un gestionnaire `scene:preload` lance `GwenScenePreloadError` : `cause` est le premier rejet, la transition est annulée et la progression `1` n'est pas émise.
 - `CORE:FRAME_LOOP_ERROR` {#core-frame-loop-error}
 - `CORE:PLUGIN_SETUP_ERROR` {#core-plugin-setup-error}
 - `CORE:PLUGIN_RUNTIME_ERROR` {#core-plugin-runtime-error}
