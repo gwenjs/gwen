@@ -7,6 +7,8 @@ export const Physics3DErrorCodes = {
   /** Entity id is not alive. */
   STALE_ENTITY: "PHYSICS3D:STALE_ENTITY",
   UNKNOWN_LAYER: "PHYSICS3D:UNKNOWN_LAYER",
+  /** The material name is not an own key of the preset table. */
+  UNKNOWN_MATERIAL: "PHYSICS3D:UNKNOWN_MATERIAL",
   /** A layer bit is outside 0..31, or more than 32 layers were declared. */
   INVALID_LAYERS: "PHYSICS3D:INVALID_LAYERS",
   INVALID_COMPOUND: "PHYSICS3D:INVALID_COMPOUND",

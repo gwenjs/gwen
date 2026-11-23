@@ -351,11 +351,15 @@ Cause. L'entité n'est plus vivante. Fix. Recréez-la avant l'appel.
 
 ### PHYSICS3D:INVALID_LAYERS {#physics3d-invalid-layers}
 
-Cause. `buildLayerRegistry` (`packages/physics3d/src/config.ts`) a reçu plus de 32 calques, ou un bit qui n'est pas un entier de `0` à `31`. Le registre partagé signale `LAYER_LIMIT` ou `LAYER_BIT_RANGE` (`packages/physics-core/src/layer-registry.ts:34-46`). Le plugin mappe les deux sur ce code (`packages/physics3d/src/config.ts:78-80`, `packages/physics3d/src/errors/codes.ts:11`). Fix. Utilisez un bit entier de 0 à 31, et 32 calques au plus.
+Cause. `buildLayerRegistry` (`packages/physics3d/src/config.ts`) a reçu plus de 32 calques, ou un bit qui n'est pas un entier de `0` à `31`. Le registre partagé signale `LAYER_LIMIT` ou `LAYER_BIT_RANGE` (`packages/physics-core/src/layer-registry.ts:34-46`). Le plugin mappe les deux sur ce code (`packages/physics3d/src/config.ts:78-80`, `packages/physics3d/src/errors/codes.ts:13`). Fix. Utilisez un bit entier de 0 à 31, et 32 calques au plus.
 
 ### PHYSICS3D:UNKNOWN_LAYER {#physics3d-unknown-layer}
 
 Cause. Ce nom de calque n'est pas dans le registre. Fix. Déclarez-le avant de résoudre les bits.
+
+### PHYSICS3D:UNKNOWN_MATERIAL {#physics3d-unknown-material}
+
+Cause. Ce nom de matériau n'est pas `default`, `ice`, `rubber` ou `metal`. Fix. Utilisez l'un de ces noms. Résolu sur le backend WASM seulement.
 
 ### PHYSICS3D:INVALID_COMPOUND {#physics3d-invalid-compound}
 

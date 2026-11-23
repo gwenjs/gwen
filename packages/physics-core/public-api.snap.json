@@ -8,6 +8,7 @@
       "MAX_LAYERS",
       "QUALITY_PRESET_CODE",
       "SENSOR_ID_FOOT",
+      "SHARED_MATERIAL_PRESETS",
       "clearEngineContacts",
       "createContactRegistry",
       "createSensorRegistry",
@@ -15,7 +16,8 @@
       "onContact",
       "onSensorEnter",
       "onSensorExit",
-      "readCollisionEvents"
+      "readCollisionEvents",
+      "resolveMaterial"
     ],
     "types": [
       "BodyKind",
@@ -32,10 +34,13 @@
       "InternalCollisionEvent",
       "KinematicBodyOptions",
       "LayerSelector",
+      "MaterialTable",
+      "MaterialValues",
       "PhysicsConfigBase",
       "QualityPreset",
       "SensorRegistry",
       "SensorState",
+      "SharedMaterialPreset",
       "SphereColliderOptions"
     ]
   },

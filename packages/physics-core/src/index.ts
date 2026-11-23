@@ -33,6 +33,9 @@ export {
 export { readCollisionEvents } from "./events.js";
 export type { CollisionEventLayout, InternalCollisionEvent } from "./events.js";
 
+export { resolveMaterial, SHARED_MATERIAL_PRESETS } from "./materials.js";
+export type { MaterialTable, MaterialValues, SharedMaterialPreset } from "./materials.js";
+
 export {
   SENSOR_ID_FOOT,
   clearEngineContacts,

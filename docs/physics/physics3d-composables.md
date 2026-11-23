@@ -147,6 +147,7 @@ const TerrainActor = defineActor(TerrainPrefab, () => {
 - `isSensor?: boolean` — Overlap events only, no physical response
 - `layer?: number | string | Array<number | string>` — Membership. A number is a raw bitmask. A string is a bit name from `Physics3DConfig.layers`. An array is OR-ed. Applied on the WASM backend only.
 - `mask?: number | string | Array<number | string>` — Collision filter. Same shapes as `layer`.
+- `material?: string` — Preset name: `default`, `ice`, `rubber`, or `metal`. An unknown name throws `PHYSICS3D:UNKNOWN_MATERIAL`. Resolved on the WASM backend only.
 
 **Box collider:**
 - `w: number` — Width (X)

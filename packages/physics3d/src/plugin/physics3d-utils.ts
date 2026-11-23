@@ -4,10 +4,12 @@
  */
 
 import type { Quat, Vec3 } from "@gwenjs/math";
-import type { BodyKind, Physics3DBodyState, Physics3DColliderOptions } from "../types";
-import { BODY_KIND_CODE } from "../types";
-import { PHYSICS3D_MATERIAL_PRESETS } from "../types";
+import { resolveMaterial } from "@gwenjs/physics-core";
+import { GwenError } from "@gwenjs/schema";
+import { Physics3DErrorCodes } from "../errors/codes";
 import { uncheckedAt } from "../internal/unchecked";
+import type { BodyKind, Physics3DBodyState, Physics3DColliderOptions } from "../types";
+import { BODY_KIND_CODE, PHYSICS3D_MATERIAL_PRESETS } from "../types";
 
 /**
  * Construct a fully-initialized Vec3 from a partial override.
@@ -89,11 +91,12 @@ export function cloneState(s: Physics3DBodyState): Physics3DBodyState {
 
 /**
  * Resolve material preset defaults into explicit collider values.
- * Explicit options always win over the preset, and the preset always falls back to
- * PHYSICS3D_MATERIAL_PRESETS.default if not found.
+ * Explicit options always win over the preset. An absent name uses `default`.
+ * An unknown or inherited name throws `PHYSICS3D:UNKNOWN_MATERIAL`.
  *
  * @param options - Collider options with optional material name
  * @returns Object with explicit friction, restitution, and density values
+ * @throws {GwenError} `PHYSICS3D:UNKNOWN_MATERIAL` when the name is not an own preset key.
  */
 export function resolveColliderMaterial(
   options: Pick<Physics3DColliderOptions, "material" | "friction" | "restitution" | "density">,
@@ -102,9 +105,18 @@ export function resolveColliderMaterial(
   restitution: number;
   density: number;
 } {
-  const preset = options.material
-    ? PHYSICS3D_MATERIAL_PRESETS[options.material]
-    : PHYSICS3D_MATERIAL_PRESETS.default;
+  const preset = resolveMaterial(options.material, PHYSICS3D_MATERIAL_PRESETS);
+  if (preset === undefined) {
+    const known = Object.keys(PHYSICS3D_MATERIAL_PRESETS).join(", ");
+    throw new GwenError(
+      Physics3DErrorCodes.UNKNOWN_MATERIAL,
+      `Unknown material "${options.material ?? ""}". Known materials: [${known}].`,
+      {
+        composable: "Physics3DPlugin",
+        hint: __GWEN_DEV__ ? "Use default, ice, rubber, or metal." : undefined,
+      },
+    );
+  }
 
   return {
     friction: options.friction ?? preset.friction,

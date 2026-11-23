@@ -1,4 +1,4 @@
-import type { LayerSelector } from "@gwenjs/physics-core";
+import type { LayerSelector, MaterialValues, SharedMaterialPreset } from "@gwenjs/physics-core";
 import type { ColliderHandle3D } from "./bodies";
 
 // ─── Colliders ─────────────────────────────────────────────────────────────────
@@ -36,7 +36,7 @@ export type Physics3DColliderShape =
  * - `'rubber'`  — High friction and moderate restitution.
  * - `'metal'`   — Low friction, high density.
  */
-export type Physics3DMaterialPreset = "default" | "ice" | "rubber" | "metal";
+export type Physics3DMaterialPreset = SharedMaterialPreset | "metal";
 
 /** Numeric material values for a Physics3DMaterialPreset. */
 export interface Physics3DMaterialValues {
@@ -45,14 +45,14 @@ export interface Physics3DMaterialValues {
   density: number;
 }
 
-/** Lookup table for built-in material presets. */
-export const PHYSICS3D_MATERIAL_PRESETS: Record<Physics3DMaterialPreset, Physics3DMaterialValues> =
-  {
-    default: { friction: 0.5, restitution: 0.0, density: 1.0 },
-    ice: { friction: 0.02, restitution: 0.0, density: 0.9 },
-    rubber: { friction: 1.2, restitution: 0.6, density: 1.2 },
-    metal: { friction: 0.3, restitution: 0.05, density: 7.8 },
-  } as const;
+/** Lookup table for built-in material presets. A missing shared name is a compile error. */
+export const PHYSICS3D_MATERIAL_PRESETS = {
+  default: { friction: 0.5, restitution: 0.0, density: 1.0 },
+  ice: { friction: 0.02, restitution: 0.0, density: 0.9 },
+  rubber: { friction: 1.2, restitution: 0.6, density: 1.2 },
+  metal: { friction: 0.3, restitution: 0.05, density: 7.8 },
+} satisfies Record<SharedMaterialPreset, MaterialValues> &
+  Record<Physics3DMaterialPreset, Physics3DMaterialValues>;
 
 /**
  * Options for a single collider attached to a body.
@@ -101,10 +101,11 @@ export interface Physics3DColliderOptions {
    */
   colliderId?: number;
   /**
-   * Apply a built-in material preset. Preset values are used only for properties
-   * not explicitly set on this options object.
+   * Material preset name. Built-in names are `default`, `ice`, `rubber`, and `metal`.
+   * An unknown name throws `PHYSICS3D:UNKNOWN_MATERIAL`. Resolved on the WASM backend only.
+   * Preset values fill friction, restitution, and density when those fields are omitted.
    */
-  material?: Physics3DMaterialPreset;
+  material?: string;
   /**
    * URL to a pre-baked BVH binary asset emitted at Vite build time.
    * When set on a `mesh`-type collider, the plugin uses an async fetch pipeline
