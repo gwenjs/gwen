@@ -1,14 +1,13 @@
 /**
- * Red tests for callee resolution through bindings.
- * The pipeline still matches a direct named import, so each name fails
- * on the recorded calls, the import binding, or the scope answer.
+ * Callees resolved through the import binding, the scope index and auto-imports.
+ * Each fixture records the calls the pipeline accepts.
  */
 
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Node } from "oxc-parser";
-import { walk } from "oxc-walker";
+import { isBindingIdentifier, walk } from "oxc-walker";
 import { describe, expect, it } from "vitest";
 import type { AutoImport } from "@gwenjs/kit";
 import type {
@@ -18,7 +17,9 @@ import type {
   GwenSourceTransform,
 } from "../../src/pipeline/types.js";
 import {
+  applyTransform,
   calleeFixture,
+  openPipeline,
   probeCallees,
   probeCalls,
   readCalleeRecords,
@@ -72,6 +73,9 @@ interface ScopeReport {
   readonly moduleLevel: readonly boolean[];
   readonly unknown: boolean;
   readonly pastEnd: boolean;
+  readonly parameter: boolean;
+  readonly nestedConst: boolean;
+  readonly atEnd: boolean;
 }
 
 function scopeProbe(target: { report: ScopeReport | undefined }): GwenSourceTransform {
@@ -80,6 +84,7 @@ function scopeProbe(target: { report: ScopeReport | undefined }): GwenSourceTran
     run(program, ctx) {
       const bindingAt = new Map<string, number>();
       const yUses: number[] = [];
+      const yBindings: number[] = [];
       walk(program, {
         enter(node, parent) {
           const name = identifierName(node);
@@ -87,11 +92,14 @@ function scopeProbe(target: { report: ScopeReport | undefined }): GwenSourceTran
           if (parent !== null && isModuleBinding(parent, node) && !bindingAt.has(name)) {
             bindingAt.set(name, node.start);
           }
+          if (name === "Y" && isBindingIdentifier(node, parent)) yBindings.push(node.start);
           if (name === "Y" && isYUse(parent, node)) yUses.push(node.start);
         },
       });
       const first = yUses[0];
       const second = yUses[1];
+      const parameter = yBindings[1];
+      const nestedConst = yBindings[2];
       target.report = {
         yUseCount: yUses.length,
         firstUse: first === undefined ? false : ctx.isModuleScopeBinding("Y", first),
@@ -102,6 +110,9 @@ function scopeProbe(target: { report: ScopeReport | undefined }): GwenSourceTran
         }),
         unknown: ctx.isModuleScopeBinding("notDeclared", 0),
         pastEnd: ctx.isModuleScopeBinding("Y", ctx.code.length + 1),
+        parameter: parameter === undefined ? true : ctx.isModuleScopeBinding("Y", parameter),
+        nestedConst: nestedConst === undefined ? true : ctx.isModuleScopeBinding("Y", nestedConst),
+        atEnd: ctx.isModuleScopeBinding("Y", ctx.code.length),
       };
       return [];
     },
@@ -244,6 +255,9 @@ it("isModuleScopeBinding is true only for a binding declared at module scope", a
     "export function takesY(Y: number) {",
     "  return Y;",
     "}",
+    "export function nested() {",
+    "  const Y = 2;",
+    "}",
     "",
   ].join("\n");
   const found: { report: ScopeReport | undefined } = { report: undefined };
@@ -255,6 +269,17 @@ it("isModuleScopeBinding is true only for a binding declared at module scope", a
   expect(report.moduleLevel).toEqual([true, true, true, true, true]);
   expect(report.unknown).toBe(false);
   expect(report.pastEnd).toBe(false);
+  expect(report.atEnd).toBe(false);
   expect(report.firstUse).toBe(true);
   expect(report.secondUse).toBe(false);
+  expect(report.parameter).toBe(false);
+  expect(report.nestedConst).toBe(false);
+});
+
+it("autoImports pushed after the pipeline is created still resolve", async () => {
+  const autoImports: AutoImport[] = [];
+  const plugin = await openPipeline({ units: [probeCallees], autoImports });
+  autoImports.push({ name: "defineSystem", from: "@gwenjs/core/system" });
+  await applyTransform(plugin, "export const run = defineSystem(1);\n", "/src/free.ts");
+  expect(readCalleeRecords()).toEqual([{ callee: "defineSystem", call: "defineSystem(1)" }]);
 });

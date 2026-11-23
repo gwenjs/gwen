@@ -1,0 +1,4 @@
+[
+  { "callee": "defineSceneRouter", "call": "defineSceneRouter(1)" },
+  { "callee": "defineSystem", "call": "G.defineSystem(() => 1)" }
+]

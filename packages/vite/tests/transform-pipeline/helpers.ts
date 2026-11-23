@@ -10,7 +10,7 @@ import { originalPositionFor, TraceMap } from "@jridgewell/trace-mapping";
 import type { AutoImport } from "@gwenjs/kit";
 import { walk } from "oxc-walker";
 import { expect } from "vitest";
-import type { Plugin, ResolvedConfig } from "vite";
+import type { Alias, Plugin, ResolvedConfig } from "vite";
 import { resolveConfig } from "vite";
 import { createTransformPipeline } from "../../src/pipeline/transform-pipeline.js";
 import type { GwenCallSite, GwenSourceTransform, TransformEdit } from "../../src/pipeline/types.js";
@@ -99,6 +99,7 @@ interface RunOptions {
     source: string,
     importer: string | undefined,
   ) => string | null | Promise<string | null>;
+  aliases?: readonly Alias[];
 }
 
 type BuildStartFn = Exclude<NonNullable<Plugin["buildStart"]>, { handler: unknown }>;
@@ -205,9 +206,14 @@ export async function preparePipeline(
   plugin: Plugin,
   resolveId?: RunOptions["resolveId"],
   root?: string,
+  aliases?: RunOptions["aliases"],
 ): Promise<void> {
   const host = createHost(resolveId);
-  const config = await cachedServeConfig(root);
+  const loaded = await cachedServeConfig(root);
+  const config =
+    aliases === undefined
+      ? loaded
+      : { ...loaded, resolve: { ...loaded.resolve, alias: [...aliases] } };
   const configResolved = plugin.configResolved;
   if (typeof configResolved === "function") {
     await configResolved.call(host as never, config);
@@ -248,7 +254,7 @@ export async function openPipeline(options: RunOptions = {}): Promise<Plugin> {
     options.autoImports === undefined
       ? createTransformPipeline({ units })
       : createTransformPipeline({ units, autoImports: options.autoImports });
-  await preparePipeline(plugin, options.resolveId, options.root);
+  await preparePipeline(plugin, options.resolveId, options.root, options.aliases);
   return plugin;
 }
 
@@ -268,7 +274,7 @@ export function resolveRelativeId(source: string, importer: string | undefined):
   return join(dirname(importer), `${source}.ts`);
 }
 
-/** Call the plugin `watchChange` hook. A missing hook does nothing. */
+/** Call the plugin `watchChange` hook. */
 export function watchPipeline(plugin: Plugin, id: string): void {
   const hook = plugin.watchChange;
   const host = createHost(undefined);
@@ -277,7 +283,7 @@ export function watchPipeline(plugin: Plugin, id: string): void {
     void hook.call(host as never, id, change);
     return;
   }
-  if (hook === undefined || hook === null) return;
+  if (hook === undefined || hook === null) throw new Error("watchChange is missing");
   void hook.handler.call(host as never, id, change);
 }
 
