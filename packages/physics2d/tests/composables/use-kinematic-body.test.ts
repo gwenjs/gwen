@@ -199,8 +199,8 @@ describe("useKinematicBody (physics2d)", () => {
     expect(mockPhysics.addRigidBody).toHaveBeenCalledWith(10n, "kinematic", 3, 4);
   });
 
-  it("passes initialAngle to setKinematicPositionWithAngle", async () => {
-    await mount(() => useKinematicBody({ initialAngle: Math.PI }));
+  it("initialRotation sets the starting angle", async () => {
+    await mount(() => useKinematicBody({ initialRotation: Math.PI }));
     expect(mockPhysics.setKinematicPositionWithAngle).toHaveBeenCalledWith(10n, 0, 0, Math.PI);
   });
 

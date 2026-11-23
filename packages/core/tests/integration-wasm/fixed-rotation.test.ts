@@ -58,12 +58,12 @@ function strike(engine: RealEngineHandle["engine"], physics: Physics2DAPI, id: E
   const position = physics.getPosition(id);
   if (position === null) throw new Error("expected a physics body");
   const bullet = engine.createEntity();
-  const handle = physics.addRigidBody(bullet, "dynamic", position.x + 0.95, position.y + 0.35, {
+  physics.addRigidBody(bullet, "dynamic", position.x + 0.95, position.y + 0.35, {
     gravityScale: 0,
     mass: 8,
     initialVelocity: { vx: -10, vy: 0 },
   });
-  physics.addBoxCollider(handle, 0.2, 0.2, { friction: 0.9, restitution: 0 });
+  physics.addBoxCollider(bullet, 0.2, 0.2, { friction: 0.9, restitution: 0 });
   return bullet;
 }
 
@@ -82,11 +82,11 @@ describe("dynamic fixedRotation", () => {
       await engine.use(lockedActor._plugin);
       const lockedId = lockedActor._plugin.spawn();
       const freeId = engine.createEntity();
-      const freeHandle = physics.addRigidBody(freeId, "dynamic", 20, 0, {
+      physics.addRigidBody(freeId, "dynamic", 20, 0, {
         gravityScale: 0,
         mass: 1,
       });
-      physics.addBoxCollider(freeHandle, 0.5, 0.5);
+      physics.addBoxCollider(freeId, 0.5, 0.5);
       const lockedBullet = strike(engine, physics, lockedId);
       const freeBullet = strike(engine, physics, freeId);
       await advance(45, 1 / 60);
@@ -158,8 +158,8 @@ describe("dynamic fixedRotation", () => {
       expect(Math.abs(rotation(physics, id))).toBeLessThan(1e-3);
       physics.removeBody(first);
       body.disable();
-      const again = physics.addRigidBody(id, "dynamic", 0, 0, { gravityScale: 0, mass: 1 });
-      physics.addBoxCollider(again, 0.5, 0.5);
+      physics.addRigidBody(id, "dynamic", 0, 0, { gravityScale: 0, mass: 1 });
+      physics.addBoxCollider(id, 0.5, 0.5);
       const second = strike(engine, physics, id);
       await advance(45, 1 / 60);
       expect(Math.abs(rotation(physics, id))).toBeGreaterThan(0.05);

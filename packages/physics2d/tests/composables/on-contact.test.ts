@@ -4,10 +4,10 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { GwenContextError, type GwenEngine } from "@gwenjs/core";
 import { createEngine } from "@gwenjs/core/node";
+import { onContact as coreOnContact } from "@gwenjs/physics-core";
 import {
   _dispatchContactEvent,
   onContact,
-  _setCurrentContactEntityId,
   _clearContactCallbacks,
   clearEngineContacts,
 } from "../../src/composables/on-contact.js";
@@ -26,7 +26,6 @@ describe("onContact / _dispatchContactEvent", () => {
   beforeEach(async () => {
     engine = await createEngine();
     engine.activate();
-    _setCurrentContactEntityId(null);
   });
 
   afterEach(async () => {
@@ -39,7 +38,7 @@ describe("onContact / _dispatchContactEvent", () => {
     onContact((e) => {
       received = e;
     }, 1n);
-    _dispatchContactEvent(1n, sampleEvent);
+    _dispatchContactEvent(sampleEvent);
     expect(received).toEqual(sampleEvent);
   });
 
@@ -48,24 +47,24 @@ describe("onContact / _dispatchContactEvent", () => {
     onContact((e) => {
       received = e;
     }, 99n);
-    _dispatchContactEvent(1n, sampleEvent);
+    _dispatchContactEvent(sampleEvent);
     expect(received).toBeNull();
   });
 
   it("dispatches to multiple callbacks for the same entity", () => {
     const results: number[] = [];
+    const event: CollisionContact = { entityA: 5n, entityB: 6n, started: true };
     onContact(() => results.push(1), 5n);
     onContact(() => results.push(2), 5n);
-    _dispatchContactEvent(5n, sampleEvent);
+    _dispatchContactEvent(event);
     expect(results).toEqual([1, 2]);
   });
 
   it("does not throw when dispatching to an entity with no callbacks", () => {
-    expect(() => _dispatchContactEvent(999n, sampleEvent)).not.toThrow();
+    expect(() => _dispatchContactEvent(sampleEvent)).not.toThrow();
   });
 
   it("throws CORE:OUTSIDE_ACTOR_CONTEXT when entityId is missing and no actor is current", () => {
-    _setCurrentContactEntityId(null);
     let caught: unknown;
     try {
       onContact(() => {});
@@ -78,40 +77,49 @@ describe("onContact / _dispatchContactEvent", () => {
     expect(caught.composable).toBe("onContact");
   });
 
-  it("registers callback using context entity ID set via _setCurrentContactEntityId", () => {
-    _setCurrentContactEntityId(77n);
+  it("onContact returns an unsubscribe that removes the callback", () => {
+    let calls = 0;
+    const off = onContact(() => {
+      calls += 1;
+    }, 1n);
+    expect(typeof off).toBe("function");
+    _dispatchContactEvent(sampleEvent);
+    expect(calls).toBe(1);
+    off();
+    _dispatchContactEvent(sampleEvent);
+    expect(calls).toBe(1);
+  });
+
+  it("a callback registered with physics-core's onContact receives the 2D plugin's contacts", () => {
     let received: CollisionContact | null = null;
-    onContact((e) => {
-      received = e;
-    }); // uses context ID
-    _dispatchContactEvent(77n, sampleEvent);
+    coreOnContact((event) => {
+      received = event;
+    }, 1n);
+    _dispatchContactEvent(sampleEvent);
     expect(received).toEqual(sampleEvent);
   });
 
-  it("explicit entityId takes precedence over context entity ID", () => {
-    _setCurrentContactEntityId(10n);
-    let received: CollisionContact | null = null;
-    onContact((e) => {
-      received = e;
-    }, 20n); // explicit ID = 20
-    _dispatchContactEvent(20n, sampleEvent);
-    expect(received).toEqual(sampleEvent);
-    // Should not receive for entity 10
-    let receivedFromContext: CollisionContact | null = null;
-    onContact((e) => {
-      receivedFromContext = e;
-    }); // registers for 10
-    _dispatchContactEvent(10n, sampleEvent);
-    expect(receivedFromContext).toEqual(sampleEvent);
+  it("a contact callback that clears its entity does not skip the next physics-core contact callback", () => {
+    const seen: string[] = [];
+    onContact(() => {
+      seen.push("A");
+      _clearContactCallbacks(1n);
+    }, 1n);
+    coreOnContact(() => {
+      seen.push("B");
+    }, 2n);
+    _dispatchContactEvent({ entityA: 1n, entityB: 2n, started: true });
+    expect(seen).toEqual(["A", "B"]);
   });
 
   it("_clearContactCallbacks removes callbacks for entity", () => {
     let called = false;
+    const event: CollisionContact = { entityA: 5n, entityB: 6n, started: true };
     onContact(() => {
       called = true;
     }, 5n);
     _clearContactCallbacks(5n);
-    _dispatchContactEvent(5n, sampleEvent);
+    _dispatchContactEvent(event);
     expect(called).toBe(false);
   });
 });
@@ -136,11 +144,11 @@ describe("onContact engine isolation", () => {
         hits += 100;
       }, 1n);
       clearEngineContacts(b);
-      _dispatchContactEvent(1n, sampleEvent);
+      _dispatchContactEvent(sampleEvent);
       expect(hits).toBe(0);
       b.deactivate();
       a.activate();
-      _dispatchContactEvent(1n, sampleEvent);
+      _dispatchContactEvent(sampleEvent);
       expect(hits).toBe(1);
       a.deactivate();
     } finally {

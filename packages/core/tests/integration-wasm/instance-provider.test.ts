@@ -478,7 +478,8 @@ async function buildScene(engine: GwenEngine): Promise<ReturnType<GwenEngine["cr
   await engine.use(Physics2DPlugin({ gravity: { y: -10 }, maxEntities: 32 }));
   const api = engine.inject("physics2d");
   const floor = engine.createEntity();
-  api.addBoxCollider(api.addRigidBody(floor, "fixed", 0, 0), 5, 0.25);
+  api.addRigidBody(floor, "fixed", 0, 0);
+  api.addBoxCollider(floor, 5, 0.25);
   const spots = [
     { x: 0, y: 4 },
     { x: 1.25, y: 7.5 },
@@ -486,7 +487,8 @@ async function buildScene(engine: GwenEngine): Promise<ReturnType<GwenEngine["cr
   ] as const;
   return spots.map((spot) => {
     const id = engine.createEntity();
-    api.addBoxCollider(api.addRigidBody(id, "dynamic", spot.x, spot.y), 0.3, 0.3);
+    api.addRigidBody(id, "dynamic", spot.x, spot.y);
+    api.addBoxCollider(id, 0.3, 0.3);
     return id;
   });
 }
@@ -811,7 +813,8 @@ describe("isolated wasm instance", () => {
       await engineB.use(Physics2DPlugin({ gravity: { y: -10 }, maxEntities: 32 }));
       const apiB = engineB.inject("physics2d");
       const idB = engineB.createEntity();
-      apiB.addBoxCollider(apiB.addRigidBody(idB, "dynamic", 2, 6), 0.3, 0.3);
+      apiB.addRigidBody(idB, "dynamic", 2, 6);
+      apiB.addBoxCollider(idB, 0.3, 0.3);
       await engineA.startExternal();
       await engineB.startExternal();
       for (let step = 0; step < 60; step += 1) {

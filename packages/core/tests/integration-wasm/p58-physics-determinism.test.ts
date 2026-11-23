@@ -44,14 +44,16 @@ describe("P-58-0 physics determinism", () => {
       });
       const physics = engine.inject("physics2d");
       const ground = engine.createEntity();
-      physics.addBoxCollider(physics.addRigidBody(ground, "fixed", 0, -1), 2, 0.5);
+      physics.addRigidBody(ground, "fixed", 0, -1);
+      physics.addBoxCollider(ground, 2, 0.5);
       const dynamic = engine.createEntity();
-      physics.addBoxCollider(physics.addRigidBody(dynamic, "dynamic", 0, 4), 0.5, 0.5);
+      physics.addRigidBody(dynamic, "dynamic", 0, 4);
+      physics.addBoxCollider(dynamic, 0.5, 0.5);
       const kinematic = engine.createEntity();
       physics.addRigidBody(kinematic, "kinematic", 2, 1);
       const sensor = engine.createEntity();
       await engine.hooks.callHook("prefab:instantiate", sensor, {
-        physics: {
+        physics2d: {
           bodyType: "fixed",
           colliders: [{ shape: "box", hw: 0.5, hh: 0.5, isSensor: true, colliderId: 1 }],
         },

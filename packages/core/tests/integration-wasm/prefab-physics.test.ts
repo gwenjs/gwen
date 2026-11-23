@@ -48,7 +48,7 @@ describe("prefab physics extensions", () => {
       try {
         const prefab = definePrefab([{ def: Marker2D, defaults: { x: 0 } }], {
           extensions: {
-            physics: {
+            physics2d: {
               bodyType: "dynamic",
               colliders: [{ shape: "ball", radius: 8 }],
             },
@@ -79,7 +79,7 @@ describe("prefab physics extensions", () => {
       try {
         const prefab = definePrefab([{ def: Marker2D, defaults: { x: 0 } }], {
           extensions: {
-            physics: {
+            physics2d: {
               bodyType: "dynamic",
               colliders: [{ shape: "ball", radius: 8 }],
             },

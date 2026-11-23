@@ -46,12 +46,12 @@ function addBody(
 ): void {
   if (variant === "physics2d") {
     const api = physics as Physics2DAPI;
-    const handle = api.addRigidBody(id, "dynamic", x, 0, {
+    api.addRigidBody(id, "dynamic", x, 0, {
       gravityScale: 0,
       linearDamping: 0,
       initialVelocity: { vx, vy: 0 },
     });
-    if (collider) api.addBoxCollider(handle, 0.5, 0.5, { isSensor: true, colliderId: 0 });
+    if (collider) api.addBoxCollider(id, 0.5, 0.5, { isSensor: true, colliderId: 0 });
     return;
   }
   const api = physics as Physics3DAPI;
@@ -259,7 +259,7 @@ describe.each(["physics2d", "physics3d"] as const)("p54 stale physics handles (%
 
     if (variant === "physics2d") {
       await handle.engine.hooks.callHook("prefab:instantiate", first, {
-        physics: {
+        physics2d: {
           bodyType: "dynamic",
           gravityScale: 0,
           linearDamping: 0,

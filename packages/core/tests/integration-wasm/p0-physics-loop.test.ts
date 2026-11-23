@@ -223,10 +223,10 @@ describe("P0 physics loop", () => {
       });
       const left = engine.createEntity();
       const right = engine.createEntity();
-      const leftHandle = physics.addRigidBody(left, "dynamic", 0, 0);
-      const rightHandle = physics.addRigidBody(right, "dynamic", 0.2, 0);
-      physics.addBoxCollider(leftHandle, 0.5, 0.5);
-      physics.addBoxCollider(rightHandle, 0.5, 0.5);
+      physics.addRigidBody(left, "dynamic", 0, 0);
+      physics.addRigidBody(right, "dynamic", 0.2, 0);
+      physics.addBoxCollider(left, 0.5, 0.5);
+      physics.addBoxCollider(right, 0.5, 0.5);
 
       await advance(5, 1 / 60);
       expect(hits).toBeGreaterThan(0);
@@ -238,10 +238,10 @@ describe("P0 physics loop", () => {
       const hitsBeforeGrow = hits;
       const againLeft = engine.createEntity();
       const againRight = engine.createEntity();
-      const againLeftHandle = physics.addRigidBody(againLeft, "dynamic", 5, 0);
-      const againRightHandle = physics.addRigidBody(againRight, "dynamic", 5.2, 0);
-      physics.addBoxCollider(againLeftHandle, 0.5, 0.5);
-      physics.addBoxCollider(againRightHandle, 0.5, 0.5);
+      physics.addRigidBody(againLeft, "dynamic", 5, 0);
+      physics.addRigidBody(againRight, "dynamic", 5.2, 0);
+      physics.addBoxCollider(againLeft, 0.5, 0.5);
+      physics.addBoxCollider(againRight, 0.5, 0.5);
       await advance(5, 1 / 60);
 
       expect(hits).toBeGreaterThan(hitsBeforeGrow);

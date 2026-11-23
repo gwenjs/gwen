@@ -16,12 +16,7 @@ import type {
 import { type EntityId } from "@gwenjs/core";
 import { createEngine } from "@gwenjs/core/node";
 import { engineContext, entityIndex, getWasmBridge } from "@gwenjs/core/internal";
-import {
-  Physics2DErrorCodes,
-  Physics2DPlugin,
-  Physics2DStaleBodyHandleError,
-  Physics2DStaleEntityError,
-} from "../src";
+import { Physics2DErrorCodes, Physics2DPlugin, Physics2DStaleEntityError } from "../src";
 
 vi.mock("@gwenjs/core/internal", async (importOriginal) => {
   const original = await importOriginal<typeof import("@gwenjs/core/internal")>();
@@ -243,23 +238,108 @@ describe("Physics2D stale entity guards", () => {
     expect(wasm.physics_remove_rigid_body).toHaveBeenCalledWith(1);
   });
 
-  it("throws Physics2DStaleBodyHandleError for a removed handle", () => {
+  it("addBoxCollider(entityId) attaches the collider to that entity's body", () => {
+    const { api, wasm, alive } = installPhysics2D();
+    const id = 3n as EntityId;
+    alive.add(id);
+    const handle = api.addRigidBody(id, "dynamic", 0, 0);
+    wasm.physics_add_box_collider.mockClear();
+    api.addBoxCollider(id, 0.5, 0.4);
+    expect(wasm.physics_add_box_collider).toHaveBeenCalledWith(
+      handle,
+      0.5,
+      0.4,
+      0,
+      0.5,
+      0,
+      1,
+      0xffffffff,
+      0xffffffff,
+      undefined,
+      undefined,
+      undefined,
+      0,
+    );
+  });
+
+  it("addBallCollider(entityId) attaches the collider to that entity's body", () => {
+    const { api, wasm, alive } = installPhysics2D();
+    const id = 4n as EntityId;
+    alive.add(id);
+    const handle = api.addRigidBody(id, "dynamic", 0, 0);
+    wasm.physics_add_ball_collider.mockClear();
+    api.addBallCollider(id, 0.3);
+    expect(wasm.physics_add_ball_collider).toHaveBeenCalledWith(
+      handle,
+      0.3,
+      0,
+      0.5,
+      0,
+      1,
+      0xffffffff,
+      0xffffffff,
+      undefined,
+      undefined,
+      undefined,
+    );
+  });
+
+  it("addBoxCollider on a stale entity throws PHYSICS2D:STALE_ENTITY", () => {
+    const { api } = installPhysics2D();
+    const dead = 9n as EntityId;
+    let message = "";
+    try {
+      api.addBoxCollider(dead, 0.5, 0.5);
+    } catch (error) {
+      if (error instanceof Physics2DStaleEntityError) message = error.message;
+    }
+    expect(message).toContain("addBoxCollider rejected a stale entity.");
+  });
+
+  it("addBallCollider on a stale entity throws PHYSICS2D:STALE_ENTITY", () => {
+    const { api } = installPhysics2D();
+    const dead = 10n as EntityId;
+    let message = "";
+    try {
+      api.addBallCollider(dead, 0.5);
+    } catch (error) {
+      if (error instanceof Physics2DStaleEntityError) message = error.message;
+    }
+    expect(message).toContain("addBallCollider rejected a stale entity.");
+  });
+
+  it("addBoxCollider on a live entity without a body throws PHYSICS2D:BODY_NOT_FOUND", () => {
     const { api, alive } = installPhysics2D();
     const id = 2n as EntityId;
     alive.add(id);
-    const handle = api.addRigidBody(id, "dynamic", 0, 0);
+    api.addRigidBody(id, "dynamic", 0, 0);
     api.removeBody(id);
-
-    expect(() => api.addBoxCollider(handle, 0.5, 0.5)).toThrow(Physics2DStaleBodyHandleError);
+    let code = "";
     try {
-      api.addBoxCollider(handle, 0.5, 0.5);
+      api.addBoxCollider(id, 0.5, 0.5);
     } catch (error) {
-      expect(error).toBeInstanceOf(Physics2DStaleBodyHandleError);
-      const stale = error as Physics2DStaleBodyHandleError;
-      expect(stale.code).toBe(Physics2DErrorCodes.STALE_BODY_HANDLE);
-      expect(stale.bodyHandle).toBe(handle);
-      expect(stale.operation).toBe("addBoxCollider");
+      if (typeof error === "object" && error !== null && "code" in error) {
+        const value = error.code;
+        if (typeof value === "string") code = value;
+      }
     }
+    expect(code).toBe(Physics2DErrorCodes.BODY_NOT_FOUND);
+  });
+
+  it("addBallCollider on a live entity without a body throws PHYSICS2D:BODY_NOT_FOUND", () => {
+    const { api, alive } = installPhysics2D();
+    const id = 6n as EntityId;
+    alive.add(id);
+    let code = "";
+    try {
+      api.addBallCollider(id, 0.5);
+    } catch (error) {
+      if (typeof error === "object" && error !== null && "code" in error) {
+        const value = error.code;
+        if (typeof value === "string") code = value;
+      }
+    }
+    expect(code).toBe(Physics2DErrorCodes.BODY_NOT_FOUND);
   });
 
   it("clears sensor contacts when engine.destroyEntity runs", async () => {

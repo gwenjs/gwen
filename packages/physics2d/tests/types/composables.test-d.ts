@@ -3,6 +3,7 @@ import { describe, expectTypeOf, it } from "vitest";
 import type { Vec2 } from "@gwenjs/math";
 import { useService } from "@gwenjs/core/system";
 import {
+  onContact,
   useBoxCollider,
   useCapsuleCollider,
   useDynamicBody,
@@ -22,8 +23,10 @@ import type {
   DynamicBodyHandle,
   DynamicBodyOptions,
   KinematicBodyHandle,
+  KinematicBodyOptions,
   Physics2DAPI,
   Physics2DConfig,
+  Physics2DPrefabExtension,
   QualityPreset,
   SensorState,
   StaticBodyHandle,
@@ -59,6 +62,26 @@ describe("physics2d composable inference", () => {
     expectTypeOf<DynamicBodyOptions["mask"]>().toEqualTypeOf<
       string | number | readonly (string | number)[] | undefined
     >();
+  });
+
+  it("initialAngle is not a kinematic option", () => {
+    expectTypeOf<KinematicBodyOptions<"2d">>().not.toHaveProperty("initialAngle");
+    expectTypeOf<KinematicBodyOptions<"2d">>().toHaveProperty("initialRotation");
+  });
+
+  it("Physics2DPrefabExtension initialLinearVelocity is Vec2 or undefined", () => {
+    expectTypeOf<Physics2DPrefabExtension["initialLinearVelocity"]>().toEqualTypeOf<
+      Vec2 | undefined
+    >();
+  });
+
+  it("addBoxCollider and addBallCollider take an EntityId", () => {
+    expectTypeOf<Parameters<Physics2DAPI["addBoxCollider"]>[0]>().toEqualTypeOf<EntityId>();
+    expectTypeOf<Parameters<Physics2DAPI["addBallCollider"]>[0]>().toEqualTypeOf<EntityId>();
+  });
+
+  it("onContact returns an unsubscribe", () => {
+    expectTypeOf(onContact).returns.toEqualTypeOf<() => void>();
   });
 
   it("collision hooks stay typed when only physics2d is imported", () => {
