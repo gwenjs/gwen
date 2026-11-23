@@ -303,6 +303,7 @@
       "readTransform3DRotation",
       "readTransform3DScale",
       "reportRejectedHook",
+      "runScenePreload",
       "sharedProvider",
       "stringPoolFor",
       "toGwenWasmError",
