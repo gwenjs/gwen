@@ -236,6 +236,31 @@ describe("Physics3D colliders — local mode", () => {
   // ─── Layer resolution ─────────────────────────────────────────────────────────
 
   it("accepts layer and mask options on collider", () => {
+    const memberships: number[] = [];
+    const filters: number[] = [];
+    mockBridge.getPhysicsBridge.mockImplementationOnce(() => ({
+      physics3d_init: physics3dInit,
+      physics3d_step: physics3dStep,
+      physics3d_add_body: () => true,
+      physics3d_add_box_collider: (
+        _idx: number,
+        _halfX: number,
+        _halfY: number,
+        _halfZ: number,
+        _ox: number,
+        _oy: number,
+        _oz: number,
+        _isSensor: boolean,
+        _friction: number,
+        _restitution: number,
+        membership: number,
+        filter: number,
+      ) => {
+        memberships.push(membership);
+        filters.push(filter);
+        return true;
+      },
+    }));
     const plugin = Physics3DPlugin({
       layers: { default: 0, player: 1, enemy: 2 },
     });
@@ -248,11 +273,65 @@ describe("Physics3D colliders — local mode", () => {
     expect(
       service.addCollider(30n, {
         shape: { type: "box", halfX: 1, halfY: 1, halfZ: 1 },
-        layers: ["player"],
+        layer: "player",
         mask: ["enemy", "default"],
         colliderId: 1,
       }),
     ).toBe(true);
+    // player is bit 1 -> 2. enemy is bit 2 -> 4. default is bit 0 -> 1.
+    expect(memberships).toEqual([2]);
+    expect(filters).toEqual([4 | 1]);
+  });
+
+  it("rebuildMeshCollider applies the layer and mask bits", () => {
+    const bits: number[] = [];
+    mockBridge.getPhysicsBridge.mockImplementationOnce(() => ({
+      physics3d_init: physics3dInit,
+      physics3d_step: physics3dStep,
+      physics3d_add_body: () => true,
+      physics3d_add_mesh_collider: () => true,
+      physics3d_rebuild_mesh_collider: (
+        _slot: number,
+        _colliderId: number,
+        _vertices: Float32Array,
+        _indices: Uint32Array,
+        _ox: number,
+        _oy: number,
+        _oz: number,
+        _isSensor: boolean,
+        _friction: number,
+        _restitution: number,
+        membership: number,
+        filter: number,
+      ) => {
+        bits.push(membership, filter);
+        return true;
+      },
+    }));
+    const plugin = Physics3DPlugin({
+      layers: { default: 0, player: 1, enemy: 2 },
+    });
+    const { engine, services } = makeEngine();
+    engineContext.set(engine, true);
+    plugin.setup(engine);
+    const service = services.get("physics3d") as Physics3DAPI;
+    const vertices = new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]);
+    const indices = new Uint32Array([0, 1, 2]);
+
+    service.createBody(31n);
+    expect(
+      service.addCollider(31n, {
+        shape: { type: "mesh", vertices, indices },
+        colliderId: 7,
+      }),
+    ).toBe(true);
+    expect(
+      service.rebuildMeshCollider(31n, 7, vertices, indices, {
+        layer: "player",
+        mask: ["enemy"],
+      }),
+    ).toBe(true);
+    expect(bits).toEqual([2, 4]);
   });
 
   // ─── Sensor flag ──────────────────────────────────────────────────────────────

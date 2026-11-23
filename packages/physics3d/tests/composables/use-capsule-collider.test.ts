@@ -83,4 +83,31 @@ describe("useCapsuleCollider", () => {
       expect.objectContaining({ isSensor: true, material: "metal" }),
     );
   });
+
+  it("passes layer and mask to addCollider", () => {
+    useCapsuleCollider({ radius: 0.5, height: 2, layer: 2, mask: 1 });
+    expect(mockPhysics3D.addCollider).toHaveBeenCalledWith(
+      1n,
+      expect.objectContaining({ layer: 2, mask: 1 }),
+    );
+    mockPhysics3D.addCollider.mockClear();
+    useCapsuleCollider({ radius: 0.5, height: 2 });
+    const passed = mockPhysics3D.addCollider.mock.calls[0][1];
+    expect(passed).not.toHaveProperty("layer");
+    expect(passed).not.toHaveProperty("mask");
+  });
+
+  it("accepts a layer name, an array and layer 0", () => {
+    useCapsuleCollider({ radius: 0.5, height: 2, layer: "player", mask: ["a", 4] });
+    expect(mockPhysics3D.addCollider).toHaveBeenCalledWith(
+      1n,
+      expect.objectContaining({ layer: "player", mask: ["a", 4] }),
+    );
+    mockPhysics3D.addCollider.mockClear();
+    useCapsuleCollider({ radius: 0.5, height: 2, layer: 0, mask: [] });
+    expect(mockPhysics3D.addCollider).toHaveBeenCalledWith(
+      1n,
+      expect.objectContaining({ layer: 0, mask: [] }),
+    );
+  });
 });

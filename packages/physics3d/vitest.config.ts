@@ -31,6 +31,20 @@ export default defineConfig({
         define: { __GWEN_DEV__: "false" },
         test: { name: "prod", ...shared },
       },
+      {
+        resolve: { alias },
+        define: { __GWEN_DEV__: "true" },
+        test: {
+          name: "types-compat",
+          ...shared,
+          typecheck: {
+            enabled: true,
+            only: true,
+            include: ["tests/types-compat/**/*.test-d.ts"],
+            tsconfig: "tsconfig.compat.json",
+          },
+        },
+      },
     ],
   },
 });
