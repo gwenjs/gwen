@@ -1,5 +1,7 @@
+import { GwenError } from "@gwenjs/schema";
 import { WasmBridgeImpl } from "./wasm-bridge";
 import { validateEngineConfig } from "./engine-config-validator";
+import { CoreErrorCodes } from "./engine-errors.js";
 import type { GwenEngine, GwenEngineOptions } from "./engine-types.js";
 import type { InitWasmOptions } from "./wasm-bridge-types.js";
 import { GwenEngineImpl } from "./gwen-engine.js";
@@ -44,6 +46,7 @@ function warnAutoFallback(engine: GwenEngine, bridge: WasmBridgeImpl | undefined
  * @returns The engine. When `options._bridge` is omitted, the light bridge is loaded first.
  * The engine owns that bridge, so `stop()` disposes it. A caller that passes `_bridge`
  * calls `bridge.dispose()` after `stop()`.
+ * @throws {GwenError} `CORE:WASM_VARIANT_MISMATCH` when `options._bridge.variant` differs from `options.variant`.
  *
  * @example
  * ```typescript
@@ -58,6 +61,18 @@ export async function createEngine(
   validateEngineConfig(options ?? {});
   const opts = options ?? {};
   if (opts._bridge !== undefined) {
+    if (opts.variant !== undefined && opts._bridge.variant !== opts.variant) {
+      throw new GwenError(
+        CoreErrorCodes.WASM_VARIANT_MISMATCH,
+        `The bridge is "${opts._bridge.variant}" but the engine config declares "${opts.variant}".`,
+        {
+          composable: "createEngine",
+          hint: __GWEN_DEV__
+            ? "Pass the same variant to bridge.init() and createEngine(), or omit variant on one side."
+            : undefined,
+        },
+      );
+    }
     return warnAutoFallback(new GwenEngineImpl(engineFieldsOf(opts)), opts._bridge);
   }
   const bridge = new WasmBridgeImpl();
