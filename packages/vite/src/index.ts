@@ -693,7 +693,7 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
 
   return [
     mainPlugin,
-    createTransformPipeline({ units: BUILT_IN_UNITS }),
+    createTransformPipeline({ units: BUILT_IN_UNITS, autoImports: _sharedAutoImports }),
     gwenDevStripPlugin(),
     gwenAutoImportsPlugin({ autoImports: _sharedAutoImports }),
     gwenLocalPluginsPlugin(localPluginsScan),
