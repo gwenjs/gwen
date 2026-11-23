@@ -80,7 +80,7 @@ describe("useBoxCollider", () => {
     useBoxCollider({ w: 2, h: 2, isSensor: true, material: "ice" });
     expect(mockPhysics3D.addCollider).toHaveBeenCalledWith(
       1n,
-      expect.objectContaining({ isSensor: true, materialPreset: "ice" }),
+      expect.objectContaining({ isSensor: true, material: "ice" }),
     );
   });
 

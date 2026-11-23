@@ -95,13 +95,13 @@ describe("P-58-0 physics determinism", () => {
       let collisions = 0;
       let started = 0;
       let sensors = 0;
-      engine.hooks.hook("physics3d:collision", (contacts) => {
+      engine.hooks.hook("physics:collision", (contacts) => {
         for (const contact of contacts) {
           collisions += 1;
           if (contact.started) started += 1;
         }
       });
-      engine.hooks.hook("physics3d:sensor:changed", () => {
+      engine.hooks.hook("physics:sensor:changed", () => {
         sensors += 1;
       });
       const physics = engine.inject("physics3d");

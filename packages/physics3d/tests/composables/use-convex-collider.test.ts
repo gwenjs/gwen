@@ -74,7 +74,7 @@ describe("useConvexCollider", () => {
     useConvexCollider({ vertices, isSensor: true, material: "rubber" });
     expect(mockPhysics3D.addCollider).toHaveBeenCalledWith(
       1n,
-      expect.objectContaining({ isSensor: true, materialPreset: "rubber" }),
+      expect.objectContaining({ isSensor: true, material: "rubber" }),
     );
   });
 });

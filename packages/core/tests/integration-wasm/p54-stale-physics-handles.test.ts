@@ -169,8 +169,7 @@ describe.each(["physics2d", "physics3d"] as const)("p54 stale physics handles (%
     addBody(variant, physics, right, 0.2, 0, true);
 
     const seen: Contact[] = [];
-    const hook = variant === "physics2d" ? "physics:collision" : "physics3d:collision";
-    handle.engine.hooks.hook(hook, (contacts: readonly Contact[]) => {
+    handle.engine.hooks.hook("physics:collision", (contacts: readonly Contact[]) => {
       seen.push(...contacts);
     });
 
@@ -194,8 +193,7 @@ describe.each(["physics2d", "physics3d"] as const)("p54 stale physics handles (%
     addBody(variant, physics, other, 0.2, 0, true);
 
     const seen: Contact[] = [];
-    const hook = variant === "physics2d" ? "physics:collision" : "physics3d:collision";
-    handle.engine.hooks.hook(hook, (contacts: readonly Contact[]) => {
+    handle.engine.hooks.hook("physics:collision", (contacts: readonly Contact[]) => {
       seen.push(...contacts);
     });
 

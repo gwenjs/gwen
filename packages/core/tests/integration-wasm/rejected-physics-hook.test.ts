@@ -24,7 +24,7 @@ async function flush(): Promise<void> {
 }
 
 describe("a rejected physics listener does not stop the physics plugin", () => {
-  it("physics3d: a rejecting physics3d:collision listener isolates nothing and bodies keep falling", async () => {
+  it("physics3d: a rejecting physics:collision listener isolates nothing and bodies keep falling", async () => {
     const unhandled: unknown[] = [];
     const onUnhandled = (reason: unknown): void => {
       unhandled.push(reason);
@@ -39,7 +39,7 @@ describe("a rejected physics listener does not stop the physics plugin", () => {
         events.push(event);
       });
       let rejected = 0;
-      engine.hooks.hook("physics3d:collision", () => {
+      engine.hooks.hook("physics:collision", () => {
         rejected += 1;
         return Promise.reject(new Error("collision listener failed"));
       });
@@ -78,7 +78,7 @@ describe("a rejected physics listener does not stop the physics plugin", () => {
           level: "error",
           code: CoreErrorCodes.PLUGIN_RUNTIME_ERROR,
           source: "@gwenjs/physics3d",
-          context: { hook: "physics3d:collision" },
+          context: { hook: "physics:collision" },
         });
         expect(failure.target).toBeUndefined();
       }

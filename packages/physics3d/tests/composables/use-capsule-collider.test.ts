@@ -80,7 +80,7 @@ describe("useCapsuleCollider", () => {
     useCapsuleCollider({ radius: 0.5, height: 2, isSensor: true, material: "metal" });
     expect(mockPhysics3D.addCollider).toHaveBeenCalledWith(
       1n,
-      expect.objectContaining({ isSensor: true, materialPreset: "metal" }),
+      expect.objectContaining({ isSensor: true, material: "metal" }),
     );
   });
 });

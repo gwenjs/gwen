@@ -5,7 +5,7 @@ import type { GwenErrorPayload } from "@gwenjs/schema";
 import { Physics3DPlugin } from "../src/plugin/index";
 
 describe("physics3d rejected collision hook", () => {
-  it("puts a rejected physics3d:collision handler on the error bus", async () => {
+  it("puts a rejected physics:collision handler on the error bus", async () => {
     const unhandled: unknown[] = [];
     const onUnhandled = (reason: unknown): void => {
       unhandled.push(reason);
@@ -22,7 +22,7 @@ describe("physics3d rejected collision hook", () => {
 
     try {
       await engine.use(Physics3DPlugin({ gravity: { x: 0, y: 0, z: 0 } }));
-      engine.hooks.hook("physics3d:collision", () =>
+      engine.hooks.hook("physics:collision", () =>
         Promise.reject(new Error("physics3d collision hook failed")),
       );
       const physics = engine.inject("physics3d");
@@ -43,7 +43,7 @@ describe("physics3d rejected collision hook", () => {
         level: "error",
         code: CoreErrorCodes.PLUGIN_RUNTIME_ERROR,
         source: "@gwenjs/physics3d",
-        context: { hook: "physics3d:collision" },
+        context: { hook: "physics:collision" },
       });
       // A rejected callHook does not say which listener failed: no target, no isolation.
       expect(hit?.target).toBeUndefined();

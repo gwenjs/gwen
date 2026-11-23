@@ -74,11 +74,11 @@ describe("useSphereCollider", () => {
     );
   });
 
-  it("passes material to addCollider as materialPreset", () => {
+  it("passes material to addCollider", () => {
     useSphereCollider({ radius: 1, material: "rubber" });
     expect(mockPhysics3D.addCollider).toHaveBeenCalledWith(
       1n,
-      expect.objectContaining({ materialPreset: "rubber" }),
+      expect.objectContaining({ material: "rubber" }),
     );
   });
 });
