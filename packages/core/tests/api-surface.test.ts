@@ -139,4 +139,12 @@ describe("API surface (RFC-V2-013)", () => {
     expect(typeof core.GwenScenePreloadError).toBe("function");
     expect(core.CoreErrorCodes.SCENE_PRELOAD_FAILED).toBe("CORE:SCENE_PRELOAD_FAILED");
   });
+
+  it("exposes runScenePreload from @gwenjs/core/internal only", () => {
+    expect(typeof internal.runScenePreload).toBe("function");
+    expect("runScenePreload" in core).toBe(false);
+    expect("runScenePreload" in scene).toBe(false);
+    expect("runScenePreload" in system).toBe(false);
+    expect("runScenePreload" in actor).toBe(false);
+  });
 });
