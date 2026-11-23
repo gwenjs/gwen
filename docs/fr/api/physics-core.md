@@ -41,3 +41,7 @@ Un compte de 0 n'écrit rien. Un compte au-delà du pool s'arrête au pool.
 ## Callbacks
 
 `onContact`, `onSensorEnter` et `onSensorExit` utilisent le moteur courant. Hors de ce contexte, ils lèvent `GwenContextError` avec le code `CORE:OUTSIDE_ENGINE_CONTEXT`. La liste d'un moteur disparaît avec son `stop()`.
+
+## Module
+
+`definePhysicsModule` construit un module à partir d'une `PhysicsModuleDefinition`. Son `setup` enregistre la déclaration du plugin avec les options résolues, copie les auto-imports dans l'ordre donné, et ajoute le plugin Vite construit depuis ces options. `defaults` et `validate` restent les objets passés par l'appelant. Un nom vide est rejeté avec le code `KIT:MODULE_INVALID`.

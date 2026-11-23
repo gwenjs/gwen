@@ -32,9 +32,9 @@ Types: `BodyKind`, `BodyOptions`, `BoxColliderOptions`, `CapsuleColliderOptions`
 
 ### `./module`
 
-Values: none
+Values: `definePhysicsModule`
 
-Types: none
+Types: `PhysicsModuleDefinition`
 
 ## Contacts
 

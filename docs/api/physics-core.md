@@ -41,3 +41,7 @@ A count of 0 writes nothing. A count past the pool stops at the pool.
 ## Callbacks
 
 `onContact`, `onSensorEnter` and `onSensorExit` use the current engine. Outside that context they throw `GwenContextError` with code `CORE:OUTSIDE_ENGINE_CONTEXT`. Each engine's list dies with that engine's `stop()`.
+
+## Module
+
+`definePhysicsModule` builds a module from a `PhysicsModuleDefinition`. Its `setup` registers the plugin declaration with the resolved options, copies the auto-imports in the given order, and adds the Vite plugin built from those options. `defaults` and `validate` stay the objects the caller passed. An empty name is rejected with code `KIT:MODULE_INVALID`.
