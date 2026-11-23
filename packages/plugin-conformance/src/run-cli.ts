@@ -11,11 +11,17 @@ export interface CliIo {
   readonly stderr: { write(chunk: string): void };
 }
 
-const USAGE = "Usage: gwen-conformance check [--profile plugin|package] [--write]\n";
+const USAGE =
+  "Usage: gwen-conformance check [--profile plugin|package] [--write] [--lockfile-base <ref>]\n";
 
 type Parsed =
   | { readonly kind: "usage" }
-  | { readonly kind: "check"; readonly profile: "plugin" | "package"; readonly write: boolean };
+  | {
+      readonly kind: "check";
+      readonly profile: "plugin" | "package";
+      readonly write: boolean;
+      readonly lockfileBase: string | undefined;
+    };
 
 function isProfile(value: string | undefined): value is "plugin" | "package" {
   return value === "plugin" || value === "package";
@@ -26,10 +32,21 @@ function parseArgv(argv: readonly string[]): Parsed {
   let profile: "plugin" | "package" = "plugin";
   let seenProfile = false;
   let write = false;
+  let seenLockfileBase = false;
+  let lockfileBase: string | undefined;
   for (let index = 1; index < argv.length; index += 1) {
     const token = argv[index];
     if (token === "--write" && !write) {
       write = true;
+      continue;
+    }
+    if (token === "--lockfile-base" && !seenLockfileBase) {
+      seenLockfileBase = true;
+      const value = argv[index + 1];
+      if (value === undefined || value.length === 0 || value.startsWith("-"))
+        return { kind: "usage" };
+      lockfileBase = value;
+      index += 1;
       continue;
     }
     if (token !== "--profile" || seenProfile) return { kind: "usage" };
@@ -39,7 +56,7 @@ function parseArgv(argv: readonly string[]): Parsed {
     profile = value;
     index += 1;
   }
-  return { kind: "check", profile, write };
+  return { kind: "check", profile, write, lockfileBase };
 }
 
 function formatFinding(finding: ConformanceFinding): string {
@@ -60,7 +77,7 @@ function writeReport(report: ConformanceReport, stdout: CliIo["stdout"]): void {
 /**
  * Run `gwen-conformance` for `argv` without the program name.
  * Returns 0 when there is no finding, 1 when there is one, and 2 for an unknown command, an unknown
- * option or a repeated option.
+ * option, a repeated option, or a `--lockfile-base` value that is missing, empty, or starts with `-`.
  */
 export async function runCli(argv: readonly string[], io: CliIo): Promise<number> {
   const parsed = parseArgv(argv);
@@ -72,6 +89,7 @@ export async function runCli(argv: readonly string[], io: CliIo): Promise<number
     root: io.cwd,
     profile: parsed.profile,
     write: parsed.write,
+    ...(parsed.lockfileBase === undefined ? {} : { lockfileBase: parsed.lockfileBase }),
   });
   writeReport(report, io.stdout);
   return report.findings.length > 0 ? 1 : 0;

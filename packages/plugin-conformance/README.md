@@ -5,10 +5,10 @@ Static checks for a GWEN plugin or package.
 ## CLI
 
 ```bash
-gwen-conformance check [--profile plugin|package] [--write]
+gwen-conformance check [--profile plugin|package] [--write] [--lockfile-base <ref>]
 ```
 
-The default profile is `plugin`. `--write` rewrites `public-api.snap.json` from the build before the checks compare it (see `snapshot-values` and `snapshot-types`). Each option may be given at most once, in any order. Each finding is one line `<code> <file>:<line> <message>` (the file and `:<line>` are omitted when absent). The last line is `CONFORMANCE: <n> findings (<k> checks)`. The process returns 0 when `n` is 0, 1 when `n` is greater than 0, and 2 for an unknown command, an unknown option or a repeated option.
+The default profile is `plugin`. `--write` rewrites `public-api.snap.json` from the build before the checks compare it (see `snapshot-values` and `snapshot-types`). `--lockfile-base <ref>` passes that ref as `lockfileBase`; the value is required, must not be empty, and must not start with `-`. Each option may be given at most once, in any order. Each finding is one line `<code> <file>:<line> <message>` (the file and `:<line>` are omitted when absent). The last line is `CONFORMANCE: <n> findings (<k> checks)`. The process returns 0 when `n` is 0, 1 when `n` is greater than 0, and 2 for an unknown command, an unknown option, a repeated option, or a `--lockfile-base` value that is missing, empty, or starts with `-`.
 
 ## Checks
 
