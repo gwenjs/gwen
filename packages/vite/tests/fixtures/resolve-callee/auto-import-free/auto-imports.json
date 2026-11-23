@@ -1,0 +1,4 @@
+[
+  { "name": "defineSystem", "from": "@gwenjs/core/system" },
+  { "name": "defineScene", "from": "other" }
+]

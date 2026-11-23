@@ -1,0 +1,1 @@
+[{ "name": "defineSystem", "from": "@gwenjs/core/system", "as": "sys" }]
