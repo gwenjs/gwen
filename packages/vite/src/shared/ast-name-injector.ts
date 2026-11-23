@@ -22,8 +22,8 @@ export type AstInjectorFn = (
  * Creates a source-code transformer that walks `VariableDeclarator` nodes,
  * finds calls to `targetFn`, and delegates the mutation to `inject`.
  *
- * Eliminates the boilerplate shared by `transformSystemNames`,
- * `transformLayoutNames`, and the name-injection part of `transformActorNames`:
+ * Eliminates the boilerplate shared by `transformLayoutNames`
+ * and the name-injection part of `transformActorNames`:
  * parse → walk → find matching call → apply MagicString mutation.
  *
  * @param targetFn - The function name to match (e.g. `"defineSystem"`).
@@ -32,8 +32,9 @@ export type AstInjectorFn = (
  *
  * @example
  * ```ts
- * export const transformSystemNames = createAstNameInjector(
- *   "defineSystem",
+ * // Name injection for a `defineExample` call.
+ * export const transformExampleNames = createAstNameInjector(
+ *   "defineExample",
  *   (varName, args, s) => {
  *     const first = args[0];
  *     if (first && first.type !== "Literal") {

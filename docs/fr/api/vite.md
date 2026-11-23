@@ -15,6 +15,8 @@ Intégration Vite pour GWEN. Fournit le plugin composite principal, un optimiseu
 
 Le point d'entrée principal. Un plugin Vite composite qui configure le bundling WASM, le hot-reload des acteurs et scènes, les auto-imports, les déclarations TypeScript, le support des layouts, les helpers tween, et l'optimiseur ECS optionnel — le tout en une seule registration.
 
+Les noms sont injectés par `gwen:transform-pipeline` dans `gwen()` comme dans `gwenVitePlugin()`, selon la liaison d'import.
+
 ```ts
 // vite.config.ts
 import { defineConfig } from 'vite'

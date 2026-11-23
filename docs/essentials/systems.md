@@ -255,7 +255,7 @@ export const GameOverSystem = defineSystem(() => {
 
 ## System Naming
 
-The engine uses a name for deduplication and debugging. With `gwenVitePlugin`, the name is **injected automatically** from the exported variable name. Without the Vite plugin (tests, Node.js), pass it explicitly:
+The engine uses a name for deduplication and debugging. With `gwen()` or `gwenVitePlugin()`, the name is **injected automatically** from the exported variable name. Without the Vite plugin (tests, Node.js), pass it explicitly:
 
 ```ts
 // ✅ With Vite plugin — name inferred from export const
