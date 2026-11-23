@@ -42,10 +42,10 @@ declare module "@gwenjs/schema" {
   interface GwenRuntimeHooks extends Physics2DPluginHooks {}
 
   /**
-   * Physics 2D prefab extension — enables typed `extensions.physics` blocks
-   * inside `definePrefab(components, { extensions: { physics: { … } } })`.
+   * Physics 2D prefab extension — enables typed `extensions.physics2d` blocks
+   * inside `definePrefab(components, { extensions: { physics2d: { … } } })`.
    */
   interface GwenPrefabExtensions {
-    physics?: Physics2DPrefabExtension;
+    physics2d?: Physics2DPrefabExtension;
   }
 }

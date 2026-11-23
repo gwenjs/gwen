@@ -24,8 +24,8 @@ async function installPhysics(
   for (let index = 0; index < scene.n; index += 1) {
     const slot = scene.slots[index] ?? 0;
     const id = createEntityId(slot, handle.bridge.getEntityGeneration(slot));
-    const body = physics.addRigidBody(id, "dynamic", scene.xs[index] ?? 0, scene.ys[index] ?? 0);
-    physics.addBoxCollider(body, FRAME_LOOP_BOX_HALF, FRAME_LOOP_BOX_HALF);
+    physics.addRigidBody(id, "dynamic", scene.xs[index] ?? 0, scene.ys[index] ?? 0);
+    physics.addBoxCollider(id, FRAME_LOOP_BOX_HALF, FRAME_LOOP_BOX_HALF);
   }
   return [plugin.name];
 }

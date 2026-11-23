@@ -241,7 +241,7 @@ Cause. L'entité n'est plus vivante. Fix. Recréez-la avant l'appel.
 
 ### PHYSICS2D:STALE_BODY_HANDLE {#physics2d-stale-body-handle}
 
-Cause. Le handle de corps n'a aucun propriétaire. Fix. Ajoutez le corps avant le collider.
+Cause. Le code reste dans `Physics2DErrorCodes` (`packages/physics2d/src/errors.ts:11`) et `Physics2DStaleBodyHandleError` reste exporté (`packages/physics2d/src/errors.ts:64`). Le plugin ne lève pas cette classe. Un collider sur une entité sans corps rigide lève `PHYSICS2D:BODY_NOT_FOUND` (`packages/physics2d/src/plugin/index.ts:316`). Un appel sur une entité qui n'est plus vivante lève `PHYSICS2D:STALE_ENTITY` (`packages/physics2d/src/plugin/index.ts:302`). Les exports WASM `physics_add_box_collider` et `physics_add_ball_collider` renvoient encore `PHYSICS2D:STALE_BODY_HANDLE` quand le handle numérique n'est pas enregistré (`crates/gwen-core/src/physics2d/world.rs:281`, `crates/gwen-core/src/physics2d/world.rs:370`). `callPhysicsExport` transmet chaque code `PHYSICS2D:` (`packages/physics2d/src/plugin/index.ts:330`, `packages/physics2d/src/plugin/index.ts:344`), donc ce code peut encore atteindre l'appelant.
 
 ### PHYSICS2D:INVALID_LAYERS {#physics2d-invalid-layers}
 
@@ -261,7 +261,7 @@ Cause. Le WASM du core n'a pas la physique. Fix. Chargez une variante qui l'incl
 
 ### PHYSICS2D:INVALID_PREFAB_EXTENSION {#physics2d-invalid-prefab-extension}
 
-Cause. L'extension de prefab n'a pas de tableau colliders. Fix. Posez extensions.physics.colliders.
+Cause. L'extension de prefab n'a pas de tableau colliders. Fix. Posez extensions.physics2d.colliders.
 
 ### PHYSICS2D:POSITION_COMPONENT_REQUIRED {#physics2d-position-component-required}
 

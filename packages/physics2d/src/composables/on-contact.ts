@@ -1,29 +1,53 @@
 /**
  * @file onContact() — subscribes to collision events for one actor entity.
  */
-import { useEngine, createEngineLocal } from "@gwenjs/core";
-import { GwenContextError, GwenContextErrorCodes } from "@gwenjs/kit";
+import { useEngine } from "@gwenjs/core";
 import type { GwenEngine } from "@gwenjs/core";
+import { GwenContextError, GwenContextErrorCodes } from "@gwenjs/kit";
 import { _getActorContext } from "@gwenjs/core/internal";
+import type { EntityId } from "@gwenjs/schema";
+import {
+  clearEngineContacts as clearCoreEngineContacts,
+  createContactRegistry,
+  onContact as coreOnContact,
+} from "@gwenjs/physics-core";
 import type { CollisionContact } from "../types";
 
-interface ContactRegistry {
-  byEntity: Map<string, ((e: CollisionContact) => void)[]>;
-  setupEntityId: bigint | null;
+let contactEmitDepth = 0;
+const pendingContactClears: Array<{ engine: GwenEngine; entityId: bigint }> = [];
+
+function dropContactEntries(
+  entries: Array<{ readonly entityId: EntityId | undefined }>,
+  entityId: bigint,
+): void {
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index];
+    if (entry !== undefined && entry.entityId === entityId) entries.splice(index, 1);
+  }
 }
 
-const contacts = createEngineLocal<ContactRegistry>(() => ({
-  byEntity: new Map(),
-  setupEntityId: null,
-}));
+function flushContactClears(): void {
+  const pending = pendingContactClears.splice(0, pendingContactClears.length);
+  for (const item of pending) {
+    const entries = createContactRegistry().peek(item.engine)?.entries;
+    if (entries === undefined) continue;
+    dropContactEntries(entries, item.entityId);
+  }
+}
 
 /**
- * @internal Called by the physics2d plugin per-frame to dispatch contact events.
+ * @internal Called by the physics2d plugin per contact to emit into the shared registry.
+ * Removals requested during `emit` wait until the walk finishes, so a callback that
+ * destroys its entity does not splice the list the iterator is walking.
  */
-export function _dispatchContactEvent(entityId: bigint, event: CollisionContact): void {
-  const cbs = contacts.peek(useEngine("Physics2DPlugin"))?.byEntity.get(String(entityId));
-  if (!cbs) return;
-  for (const cb of cbs) cb(event);
+export function _dispatchContactEvent(event: CollisionContact): void {
+  contactEmitDepth += 1;
+  try {
+    createContactRegistry().peek(useEngine("Physics2DPlugin"))?.emit(event);
+  } finally {
+    contactEmitDepth -= 1;
+    if (contactEmitDepth === 0) flushContactClears();
+  }
 }
 
 /**
@@ -33,42 +57,39 @@ export function _dispatchContactEvent(entityId: bigint, event: CollisionContact)
  * Pass `entityId` explicitly outside an actor. Inside a `defineActor` factory
  * the id is the actor being spawned.
  *
+ * @returns A function that removes this callback.
  * @throws {GwenContextError} `CORE:OUTSIDE_ENGINE_CONTEXT` when no engine is current.
  * @throws {GwenContextError} `CORE:OUTSIDE_ACTOR_CONTEXT` when neither an actor nor `entityId` is set.
  */
-export function onContact(callback: (contact: CollisionContact) => void, entityId?: bigint): void {
-  const engine = useEngine("onContact");
-  const registry = contacts.get(engine);
-  const id = entityId ?? _getActorContext()?.entityId ?? registry.setupEntityId;
-  if (id === null) {
+export function onContact(
+  callback: (contact: CollisionContact) => void,
+  entityId?: EntityId,
+): () => void {
+  useEngine("onContact");
+  const id = entityId ?? _getActorContext()?.entityId;
+  if (id === undefined) {
     throw new GwenContextError(GwenContextErrorCodes.OUTSIDE_ACTOR_CONTEXT, "onContact", {
       hint: __GWEN_DEV__
         ? "Call onContact() inside defineActor(), or pass { entityId }."
         : undefined,
     });
   }
-  const key = String(id);
-  const list = registry.byEntity.get(key);
-  if (list) list.push(callback);
-  else registry.byEntity.set(key, [callback]);
+  return coreOnContact(callback, id);
 }
 
 /** @internal Remove this engine's contact callbacks for one entity. */
 export function _clearContactCallbacks(entityId: bigint): void {
-  contacts.peek(useEngine("Physics2DPlugin"))?.byEntity.delete(String(entityId));
+  const engine = useEngine("Physics2DPlugin");
+  const entries = createContactRegistry().peek(engine)?.entries;
+  if (entries === undefined) return;
+  if (contactEmitDepth > 0) {
+    pendingContactClears.push({ engine, entityId });
+    return;
+  }
+  dropContactEntries(entries, entityId);
 }
 
-/** @internal Drop every contact callback owned by `engine`. */
+/** @internal Drop contact and sensor callbacks owned by `engine`. */
 export function clearEngineContacts(engine: GwenEngine): void {
-  const registry = contacts.peek(engine);
-  if (!registry) return;
-  registry.byEntity.clear();
-  registry.setupEntityId = null;
-}
-
-/**
- * @internal Bind `onContact()` to the current engine's actor entity.
- */
-export function _setCurrentContactEntityId(id: bigint | null): void {
-  contacts.use().setupEntityId = id;
+  clearCoreEngineContacts(engine);
 }

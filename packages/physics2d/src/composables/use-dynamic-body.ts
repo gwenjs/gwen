@@ -50,9 +50,9 @@ export function useDynamicBody(options: DynamicBodyOptions = {}): DynamicBodyHan
   function _createBody(): void {
     _bodyHandle = physics.addRigidBody(entityId, "dynamic", 0, 0, rigidBodyOpts);
     if (options.shape === "ball") {
-      physics.addBallCollider(_bodyHandle, 0.5, colliderOpts);
+      physics.addBallCollider(entityId, 0.5, colliderOpts);
     } else {
-      physics.addBoxCollider(_bodyHandle, 0.5, 0.5, colliderOpts);
+      physics.addBoxCollider(entityId, 0.5, 0.5, colliderOpts);
     }
   }
 

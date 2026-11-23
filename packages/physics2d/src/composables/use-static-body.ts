@@ -50,12 +50,12 @@ export function useStaticBody(options: StaticBodyOptions = {}): StaticBodyHandle
 
     if (options.shape === "ball") {
       const radius = shapeData?.radius && shapeData.radius > 0 ? shapeData.radius : 0.5;
-      physics.addBallCollider(_bodyHandle, radius, colliderOpts);
+      physics.addBallCollider(entityId, radius, colliderOpts);
     } else {
       // Default to box collider for 'box', 'capsule', or unspecified shape
       const hw = shapeData?.w && shapeData.w > 0 ? shapeData.w / 2 : 0.5;
       const hh = shapeData?.h && shapeData.h > 0 ? shapeData.h / 2 : 0.5;
-      physics.addBoxCollider(_bodyHandle, hw, hh, colliderOpts);
+      physics.addBoxCollider(entityId, hw, hh, colliderOpts);
     }
   }
 

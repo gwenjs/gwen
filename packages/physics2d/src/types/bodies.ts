@@ -116,24 +116,7 @@ export interface DynamicBodyHandle {
   disable(): void;
 }
 
-/**
- * Configuration for a kinematic 2D physics body.
- *
- * Kinematic bodies are driven by explicit position writes rather than the
- * physics simulation. They participate in collision detection and push dynamic
- * bodies out of the way, but are never displaced by forces or gravity.
- */
-export interface KinematicBodyOptions {
-  /** Initial world-space position in metres. */
-  initialPosition?: { x: number; y: number };
-  /** Initial orientation in radians. @default 0 */
-  initialAngle?: number;
-  /**
-   * When `true`, angular velocity and angle integration are disabled.
-   * @default false
-   */
-  fixedRotation?: boolean;
-}
+export type { KinematicBodyOptions } from "@gwenjs/physics-core";
 
 /**
  * Runtime handle returned by {@link useKinematicBody} for a 2D kinematic body.

@@ -35,13 +35,13 @@ import { usePhysics2D } from "../composables";
  *
  * @since 1.0.0
  */
-export function useKinematicBody(options: KinematicBodyOptions = {}): KinematicBodyHandle {
+export function useKinematicBody(options: KinematicBodyOptions<"2d"> = {}): KinematicBodyHandle {
   const physics = usePhysics2D();
   const entityId = _getActorEntityId("useKinematicBody");
   const _fixedRotation = options.fixedRotation ?? false;
   const _initX = options.initialPosition?.x ?? 0;
   const _initY = options.initialPosition?.y ?? 0;
-  const _initAngle = options.initialAngle ?? 0;
+  const _initAngle = options.initialRotation ?? 0;
 
   let _bodyHandle = physics.addRigidBody(entityId, "kinematic", _initX, _initY);
   physics.setKinematicPositionWithAngle(entityId, _initX, _initY, _initAngle);

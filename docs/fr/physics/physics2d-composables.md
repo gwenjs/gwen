@@ -401,7 +401,7 @@ onUpdate(() => {
 
 | Fonction | Signature du callback | Objectif |
 |---|---|---|
-| `onContact(callback, entityId?)` | `(contact: CollisionContact) => void` | Se déclenche sur ce moteur quand cette entité entre en collision. Dans un acteur, l'entité est implicite. Hors d'un acteur, passez `entityId`. |
+| `onContact(callback, entityId?)` | `(contact: CollisionContact) => void` | Se déclenche sur ce moteur quand cette entité entre en collision. Dans un acteur, l'entité est implicite. Hors d'un acteur, passez `entityId`. Retourne `() => void`. |
 | `onSensorEnter(sensorId, callback)` | `(entityId: bigint) => void` | Se déclenche lorsqu'une entité entre dans un collider capteur. |
 | `onSensorExit(sensorId, callback)` | `(entityId: bigint) => void` | Se déclenche lorsqu'une entité quitte un collider capteur. |
 

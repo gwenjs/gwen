@@ -7,7 +7,7 @@ import type {
 import { PHYSICS_MATERIAL_PRESETS } from "./types";
 import type { LayerRegistry } from "@gwenjs/physics-core";
 import { LAYER_ALL, PIXELS_PER_METER } from "./config";
-import { GwenError } from "@gwenjs/schema";
+import { GwenError, type EntityId } from "@gwenjs/schema";
 import { Physics2DErrorCodes } from "./errors";
 
 /**
@@ -32,7 +32,7 @@ export function resolveMaterial(
  */
 export function addPrefabCollider(
   service: Physics2DAPI,
-  bodyHandle: number,
+  entityId: EntityId,
   collider: PhysicsColliderDef,
   registry: LayerRegistry,
   colliderId?: number,
@@ -67,7 +67,7 @@ export function addPrefabCollider(
         `Invalid collider config: shape="ball" requires \`radius\` (collider id: ${collider.id ?? "<unnamed>"}).`,
       );
     }
-    service.addBallCollider(bodyHandle, collider.radius / PIXELS_PER_METER, colliderOpts);
+    service.addBallCollider(entityId, collider.radius / PIXELS_PER_METER, colliderOpts);
     return;
   }
 
@@ -79,7 +79,7 @@ export function addPrefabCollider(
       );
     }
     service.addBoxCollider(
-      bodyHandle,
+      entityId,
       collider.hw / PIXELS_PER_METER,
       collider.hh / PIXELS_PER_METER,
       colliderOpts,
