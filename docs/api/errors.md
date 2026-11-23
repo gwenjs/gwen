@@ -183,7 +183,11 @@ Cause. A module `setup()` threw. The `cause` is that throw. Fix. Read the cause 
 
 ### APP:MODULE_LOAD_FAILED {#app-module-load-failed}
 
-Cause. The module package or file could not be imported, the import fails module validation (the `cause` is `KIT:MODULE_INVALID` and names the fields), or a custom `moduleLoader` threw. Fix. Check the name and that the package is installed. In development a missing package says to run `gwen add <name>`.
+Cause. The module package or file could not be imported, the import fails module validation (the `cause` is `KIT:MODULE_INVALID` and names the fields), or a custom `moduleLoader` threw. A package with no `./module` export is `APP:MODULE_ENTRY_MISSING`. Fix. Check the name and that the package is installed. In development a missing package says to run `gwen add <name>`.
+
+### APP:MODULE_ENTRY_MISSING {#app-module-entry-missing}
+
+Cause. A module package declares no `./module` export. The message names the package. Fix. Export `./module` (`defineGwenModule`), or remove the package from `modules`.
 
 ### APP:PLUGIN_NOT_DECLARATIVE {#app-plugin-not-declarative}
 

@@ -14,6 +14,7 @@
  */
 
 export { resolveGwenConfig } from "./config";
+export { resolveModuleEntry } from "./module-entry";
 export { GwenAppConfigError } from "./config-error";
 export { loadRawGwenConfig, GwenConfigLoadError } from "./config-loader";
 export type { RawGwenConfig } from "./config-loader";

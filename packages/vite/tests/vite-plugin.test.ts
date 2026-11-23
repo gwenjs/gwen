@@ -741,11 +741,7 @@ function writeModule(root: string, name: string, source: string): void {
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(
     path.join(dir, "package.json"),
-    JSON.stringify({
-      type: "module",
-      main: "index.js",
-      exports: { ".": "./index.js", "./module": "./index.js" },
-    }),
+    JSON.stringify({ type: "module", exports: { "./module": "./index.js" } }),
   );
   fs.writeFileSync(path.join(dir, "index.js"), source);
 }

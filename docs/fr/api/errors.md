@@ -183,7 +183,11 @@ Cause. Le `setup()` d'un module a levé une erreur. `cause` est cette erreur. Fi
 
 ### APP:MODULE_LOAD_FAILED {#app-module-load-failed}
 
-Cause. Le paquet ou le fichier du module n'a pas pu être importé, l'import échoue à la validation du module (`cause` est `KIT:MODULE_INVALID` et nomme les champs), ou un `moduleLoader` personnalisé a levé une erreur. Fix. Vérifiez le nom et que le paquet est installé. En développement, un paquet manquant indique de lancer `gwen add <name>`.
+Cause. Le paquet ou le fichier du module n'a pas pu être importé, l'import échoue à la validation du module (`cause` est `KIT:MODULE_INVALID` et nomme les champs), ou un `moduleLoader` personnalisé a levé une erreur. Un paquet sans export `./module` est `APP:MODULE_ENTRY_MISSING`. Fix. Vérifiez le nom et que le paquet est installé. En développement, un paquet manquant indique de lancer `gwen add <name>`.
+
+### APP:MODULE_ENTRY_MISSING {#app-module-entry-missing}
+
+Cause. Un paquet de module ne déclare pas d'export `./module`. Le message nomme le paquet. Fix. Exportez `./module` (`defineGwenModule`), ou retirez le paquet de `modules`.
 
 ### APP:PLUGIN_NOT_DECLARATIVE {#app-plugin-not-declarative}
 

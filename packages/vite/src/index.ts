@@ -32,7 +32,12 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawnSync, spawn, type ChildProcess } from "node:child_process";
 import { mergeConfig, type Plugin, type ViteDevServer } from "vite";
 import { writeScenesDts } from "@gwenjs/app";
-import { resolveGwenConfig, GwenApp, type ResolvedGwenConfig } from "@gwenjs/app/resolve";
+import {
+  resolveGwenConfig,
+  GwenApp,
+  resolveModuleEntry,
+  type ResolvedGwenConfig,
+} from "@gwenjs/app/resolve";
 import type { PluginDeclaration, GwenModule } from "@gwenjs/schema";
 import type { AutoImport, ViteUserConfig } from "@gwenjs/kit";
 import {
@@ -103,11 +108,6 @@ const WASM_SERVABLE_EXTENSIONS = new Set([".wasm", ".js"]);
 /** Adapts Vite's `mergeConfig` to `ViteUserConfig`. */
 const deepMergeVite = (config: ViteUserConfig, patch: Partial<ViteUserConfig>): ViteUserConfig =>
   mergeConfig(config, patch);
-
-/** Read `key` from `value` when it is an object, else `undefined`. */
-function readField(value: unknown, key: string): unknown {
-  return typeof value === "object" && value !== null ? Reflect.get(value, key) : undefined;
-}
 
 function wireConfigHooks(app: GwenApp, hooks: ResolvedGwenConfig["hooks"]): void {
   if (hooks === undefined) return;
@@ -405,38 +405,6 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
     return JSON.stringify({ version: "0.1.0", plugins: [], engine: {} });
   }
 
-  /**
-   * Resolves a bare package name to its ESM entry point by reading the
-   * project's local node_modules. Uses the package's `exports["."].import`
-   * (or `.default`, then `main`) so ESM-only packages are handled correctly —
-   * createRequire / require.resolve cannot resolve `"import"`-only exports.
-   */
-  function resolveProjectModuleEntry(root: string, name: string): string {
-    const parts = name.startsWith("@") ? name.split("/").slice(0, 2) : [name];
-    const pkgDir = path.join(root, "node_modules", ...parts);
-    const pkgJson: unknown = JSON.parse(
-      fs.readFileSync(path.join(pkgDir, "package.json"), "utf-8"),
-    );
-
-    let entry: string | undefined;
-    const exp = readField(pkgJson, "exports");
-    if (exp) {
-      const main = typeof exp === "string" ? exp : readField(exp, ".");
-      if (typeof main === "string") {
-        entry = main;
-      } else if (main && typeof main === "object") {
-        const picked =
-          readField(main, "import") ?? readField(main, "default") ?? readField(main, "require");
-        entry = typeof picked === "string" ? picked : undefined;
-      }
-    }
-    if (!entry) {
-      const fallback = readField(pkgJson, "main");
-      entry = typeof fallback === "string" ? fallback : "index.js";
-    }
-    return path.join(pkgDir, entry);
-  }
-
   function _loadModules(root: string): Promise<void> {
     return (_loadPromise ??= loadResolved(root));
   }
@@ -450,10 +418,9 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
     wireConfigHooks(app, gwenConfig.hooks);
 
     // @gwenjs/app lives in the pnpm store with only its own deps visible.
-    // Resolve user modules (e.g. @gwenjs/physics2d) directly from the project's
-    // node_modules, handling ESM-only "exports" maps that createRequire can't resolve.
+    // Load each user module from its `./module` export in the project's node_modules.
     const moduleLoader = async (name: string): Promise<GwenModule> => {
-      const entry = resolveProjectModuleEntry(root, name);
+      const entry = resolveModuleEntry(root, name);
       const mod = (await import(pathToFileURL(entry).href)) as Record<string, unknown>; // boundary: a dynamic import of a user path is typed any, read as a record of its exports
       return (mod.default ?? mod) as GwenModule; // boundary: the loader contract returns a GwenModule, but the default export (or the namespace) of a user module has no static type
     };
