@@ -9,7 +9,13 @@ const REPO_ROOT = fileURLToPath(new URL("../../../../", import.meta.url));
 const DECLARATION = path.join(REPO_ROOT, "packages/schema/src/runtime-hooks.ts");
 
 const VIEWPORT_HOOKS = new Set(["viewport:add", "viewport:resize", "viewport:remove"]);
-const FIRING_CALLEES = new Set(["callHook", "callHookWith", "_callHook", "emit"]);
+const FIRING_CALLEES = new Set([
+  "callHook",
+  "callHookWith",
+  "_callHook",
+  "callHookParallel",
+  "emit",
+]);
 const HOOK_NAME = /^[a-z][A-Za-z0-9-]*:[A-Za-z0-9:-]+$/;
 
 interface HookSourceFile {
@@ -280,6 +286,10 @@ describe("declared core hooks", () => {
   it("positive control entity:destroy is found", () => {
     expect(firedHookNames(sources)).toContain("entity:destroy");
     expect(missingFiringSites(declaration, sources)).toEqual([]);
+  });
+
+  it("positive control scene:preload is found", () => {
+    expect(firedHookNames(sources)).toContain("scene:preload");
   });
 
   it("ignores a test file and a property emit", () => {
