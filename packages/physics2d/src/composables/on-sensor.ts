@@ -1,99 +1,156 @@
 /**
  * @file onSensorEnter() / onSensorExit() — sensor overlap event composables.
  */
-import { useEngine, createEngineLocal } from "@gwenjs/core";
+import { createEngineLocal, useEngine } from "@gwenjs/core";
 import type { GwenEngine } from "@gwenjs/core";
 import { _getActorContext } from "@gwenjs/core/internal";
+import type { EntityId } from "@gwenjs/schema";
+import {
+  createSensorRegistry,
+  onSensorEnter as coreOnSensorEnter,
+  onSensorExit as coreOnSensorExit,
+} from "@gwenjs/physics-core";
 
-type SensorCallback = (entityId: bigint) => void;
+type SensorCallback = (entityId: EntityId) => void;
 
-interface SensorRegistry {
-  enter: Map<string, SensorCallback[]>;
-  exit: Map<string, SensorCallback[]>;
+interface SensorOwner {
+  entityId: EntityId;
+  sensorId: number;
+  cb: SensorCallback;
 }
 
-const sensors = createEngineLocal<SensorRegistry>(() => ({
-  enter: new Map(),
-  exit: new Map(),
-}));
+const sensorOwners = createEngineLocal<SensorOwner[]>(() => []);
 
-/** Unbound callbacks use `*:sensorId`. Actor callbacks use `entity:sensorId`. */
-function sensorKey(sensorId: number, entityId?: bigint): string {
-  return entityId === undefined ? `*:${sensorId}` : `${entityId}:${sensorId}`;
+let sensorEmitDepth = 0;
+const pendingSensorClears: Array<{ engine: GwenEngine; callbacks: SensorCallback[] }> = [];
+
+function flushSensorClears(): void {
+  const pending = pendingSensorClears.splice(0, pendingSensorClears.length);
+  for (const item of pending) {
+    const entries = createSensorRegistry().peek(item.engine)?.entries;
+    if (entries === undefined) continue;
+    const owned = new Set(item.callbacks);
+    for (let index = entries.length - 1; index >= 0; index -= 1) {
+      const entry = entries[index];
+      if (entry !== undefined && owned.has(entry.cb)) entries.splice(index, 1);
+    }
+  }
 }
 
-function listFor(map: Map<string, SensorCallback[]>, key: string): SensorCallback[] {
-  const existing = map.get(key);
-  if (existing) return existing;
-  const created: SensorCallback[] = [];
-  map.set(key, created);
-  return created;
-}
-
-function fire(
-  map: Map<string, SensorCallback[]> | undefined,
-  sensorId: number,
-  entityId: bigint,
-): void {
-  if (!map) return;
-  const specific = map.get(sensorKey(sensorId, entityId));
-  const shared = map.get(sensorKey(sensorId));
-  if (specific) for (const cb of specific) cb(entityId);
-  if (shared) for (const cb of shared) cb(entityId);
+function runSensorEmit(run: () => void): void {
+  sensorEmitDepth += 1;
+  try {
+    run();
+  } finally {
+    sensorEmitDepth -= 1;
+    if (sensorEmitDepth === 0) flushSensorClears();
+  }
 }
 
 /** @internal Called by the physics2d plugin for sensor enter events on this engine. */
-export function _dispatchSensorEnter(sensorId: number, entityId: bigint): void {
-  fire(sensors.peek(useEngine("Physics2DPlugin"))?.enter, sensorId, entityId);
+export function _dispatchSensorEnter(sensorId: number, entityId: EntityId): void {
+  runSensorEmit(() => {
+    createSensorRegistry().peek(useEngine("Physics2DPlugin"))?.emit(sensorId, entityId, "enter");
+  });
 }
 
 /** @internal Called by the physics2d plugin for sensor exit events on this engine. */
-export function _dispatchSensorExit(sensorId: number, entityId: bigint): void {
-  fire(sensors.peek(useEngine("Physics2DPlugin"))?.exit, sensorId, entityId);
+export function _dispatchSensorExit(sensorId: number, entityId: EntityId): void {
+  runSensorEmit(() => {
+    createSensorRegistry().peek(useEngine("Physics2DPlugin"))?.emit(sensorId, entityId, "exit");
+  });
+}
+
+function queueOrDropSensorEntries(
+  engine: GwenEngine,
+  entries: Array<{ readonly cb: SensorCallback }>,
+  callbacks: SensorCallback[],
+): void {
+  if (callbacks.length === 0) return;
+  if (sensorEmitDepth > 0) {
+    pendingSensorClears.push({ engine, callbacks });
+    return;
+  }
+  const owned = new Set(callbacks);
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index];
+    if (entry !== undefined && owned.has(entry.cb)) entries.splice(index, 1);
+  }
 }
 
 /**
  * Remove callbacks for one sensor.
  * A number clears callbacks registered outside an actor.
  * A bigint plus `sensorId` clears that entity only.
+ * Removals requested during `emit` wait until the walk finishes.
  */
 export function _clearSensorCallbacks(sensorOrEntity: number | bigint, sensorId?: number): void {
-  const registry = sensors.peek(useEngine("Physics2DPlugin"));
-  if (!registry) return;
+  const engine = useEngine("Physics2DPlugin");
+  const entries = createSensorRegistry().peek(engine)?.entries;
+  const owners = sensorOwners.peek(engine);
+  if (entries === undefined) return;
   if (typeof sensorOrEntity === "number") {
-    registry.enter.delete(sensorKey(sensorOrEntity));
-    registry.exit.delete(sensorKey(sensorOrEntity));
+    const owned = new Set<SensorCallback>();
+    if (owners !== undefined) {
+      for (const owner of owners) {
+        if (owner.sensorId === sensorOrEntity) owned.add(owner.cb);
+      }
+    }
+    const callbacks: SensorCallback[] = [];
+    for (const entry of entries) {
+      if (entry.sensorId !== sensorOrEntity || owned.has(entry.cb)) continue;
+      callbacks.push(entry.cb);
+    }
+    queueOrDropSensorEntries(engine, entries, callbacks);
     return;
   }
   if (sensorId === undefined) return;
-  registry.enter.delete(sensorKey(sensorId, sensorOrEntity));
-  registry.exit.delete(sensorKey(sensorId, sensorOrEntity));
+  const owned = new Set<SensorCallback>();
+  if (owners !== undefined) {
+    for (let index = owners.length - 1; index >= 0; index -= 1) {
+      const owner = owners[index];
+      if (owner === undefined) continue;
+      if (owner.entityId !== sensorOrEntity || owner.sensorId !== sensorId) continue;
+      owned.add(owner.cb);
+      owners.splice(index, 1);
+    }
+  }
+  queueOrDropSensorEntries(engine, entries, [...owned]);
 }
 
 /** @internal Drop every sensor callback owned by `engine`. */
 export function clearEngineSensors(engine: GwenEngine): void {
-  const registry = sensors.peek(engine);
-  if (!registry) return;
-  registry.enter.clear();
-  registry.exit.clear();
+  const entries = createSensorRegistry().peek(engine)?.entries;
+  if (entries !== undefined) entries.length = 0;
+  const owners = sensorOwners.peek(engine);
+  if (owners !== undefined) owners.length = 0;
 }
 
-/** Adds `callback` under `key` and returns a function that removes it once. */
-function subscribe(
-  map: Map<string, SensorCallback[]>,
-  key: string,
+function bindSensor(
+  phase: "enter" | "exit",
+  sensorId: number,
   callback: SensorCallback,
 ): () => void {
-  const list = listFor(map, key);
-  list.push(callback);
-  let active = true;
+  const engine = useEngine(phase === "enter" ? "onSensorEnter" : "onSensorExit");
+  const actorId = _getActorContext()?.entityId;
+  const delivered: SensorCallback =
+    actorId === undefined
+      ? callback
+      : (id) => {
+          if (id === actorId) callback(id);
+        };
+  const off =
+    phase === "enter"
+      ? coreOnSensorEnter(sensorId, delivered)
+      : coreOnSensorExit(sensorId, delivered);
+  if (actorId === undefined) return off;
+  const owners = sensorOwners.get(engine);
+  const owner: SensorOwner = { entityId: actorId, sensorId, cb: delivered };
+  owners.push(owner);
   return () => {
-    if (!active) return;
-    active = false;
-    const current = map.get(key);
-    if (!current) return;
-    const index = current.indexOf(callback);
-    if (index !== -1) current.splice(index, 1);
+    off();
+    const index = owners.indexOf(owner);
+    if (index >= 0) owners.splice(index, 1);
   };
 }
 
@@ -107,11 +164,7 @@ function subscribe(
  * @throws {GwenContextError} `CORE:OUTSIDE_ENGINE_CONTEXT` when no engine is current.
  */
 export function onSensorEnter(sensorId: number, callback: SensorCallback): () => void {
-  return subscribe(
-    sensors.use().enter,
-    sensorKey(sensorId, _getActorContext()?.entityId),
-    callback,
-  );
+  return bindSensor("enter", sensorId, callback);
 }
 
 /**
@@ -124,5 +177,5 @@ export function onSensorEnter(sensorId: number, callback: SensorCallback): () =>
  * @throws {GwenContextError} `CORE:OUTSIDE_ENGINE_CONTEXT` when no engine is current.
  */
 export function onSensorExit(sensorId: number, callback: SensorCallback): () => void {
-  return subscribe(sensors.use().exit, sensorKey(sensorId, _getActorContext()?.entityId), callback);
+  return bindSensor("exit", sensorId, callback);
 }

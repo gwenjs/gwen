@@ -40,7 +40,7 @@ export function useCapsuleCollider(options: CapsuleColliderOptions<"2d">): Capsu
   );
 
   // Approximate capsule with a box collider (Physics2DAPI has no capsule primitive)
-  physics.addBoxCollider(bodyHandle, options.radius, options.height / 2, {
+  physics.addBoxCollider(entityId, options.radius, options.height / 2, {
     ...(options.isSensor !== undefined ? { isSensor: options.isSensor } : {}),
     ...(options.layer !== undefined ? { layer: options.layer } : {}),
     ...(options.mask !== undefined ? { mask: options.mask } : {}),

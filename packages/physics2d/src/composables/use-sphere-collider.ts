@@ -34,7 +34,7 @@ export function useSphereCollider(options: SphereColliderOptions<"2d">): CircleC
     options.offsetY ?? 0,
   );
 
-  physics.addBallCollider(bodyHandle, options.radius, {
+  physics.addBallCollider(entityId, options.radius, {
     ...(options.isSensor !== undefined ? { isSensor: options.isSensor } : {}),
     ...(options.layer !== undefined ? { layer: options.layer } : {}),
     ...(options.mask !== undefined ? { mask: options.mask } : {}),

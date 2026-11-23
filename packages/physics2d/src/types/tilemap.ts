@@ -8,7 +8,7 @@ import type {
   PhysicsMaterialPreset,
   PhysicsMaterialPresetName,
 } from "./materials";
-import type { LayerSelector } from "@gwenjs/physics-core";
+import type { DimVec, LayerSelector } from "@gwenjs/physics-core";
 import type { BodyKind, PhysicsGroundedRole } from "./bodies";
 import type { CollisionContact } from "./events";
 import type { Physics2DAPI } from "./api";
@@ -101,7 +101,7 @@ export interface Physics2DPrefabExtension {
   gravityScale?: number;
   linearDamping?: number;
   angularDamping?: number;
-  initialVelocity?: { vx: number; vy: number };
+  initialLinearVelocity?: DimVec<"2d">;
   onCollision?: (self: EntityId, other: EntityId, contact: CollisionContact) => void;
 }
 

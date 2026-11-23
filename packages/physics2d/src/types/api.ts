@@ -77,8 +77,8 @@ export interface Physics2DAPI {
       fixedRotation?: boolean;
     },
   ): number;
-  addBoxCollider(bodyHandle: number, hw: number, hh: number, opts?: ColliderOptions): void;
-  addBallCollider(bodyHandle: number, radius: number, opts?: ColliderOptions): void;
+  addBoxCollider(entityId: EntityId, hw: number, hh: number, opts?: ColliderOptions): void;
+  addBallCollider(entityId: EntityId, radius: number, opts?: ColliderOptions): void;
   removeBody(entityId: EntityId): void;
   setKinematicPosition(entityId: EntityId, x: number, y: number): void;
   /**

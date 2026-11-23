@@ -401,7 +401,7 @@ onUpdate(() => {
 
 | Function | Callback Signature | Purpose |
 |---|---|---|
-| `onContact(callback, entityId?)` | `(contact: CollisionContact) => void` | Fires on this engine when this entity collides. Inside an actor the entity is implied. Outside an actor, pass `entityId`. |
+| `onContact(callback, entityId?)` | `(contact: CollisionContact) => void` | Fires on this engine when this entity collides. Inside an actor the entity is implied. Outside an actor, pass `entityId`. Returns `() => void`. |
 | `onSensorEnter(sensorId, callback)` | `(entityId: bigint) => void` | Fires when an entity enters a sensor collider. |
 | `onSensorExit(sensorId, callback)` | `(entityId: bigint) => void` | Fires when an entity leaves a sensor collider. |
 

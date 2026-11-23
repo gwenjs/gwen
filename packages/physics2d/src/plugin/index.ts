@@ -50,11 +50,7 @@ import {
 } from "../config";
 
 import { addPrefabCollider } from "../prefab";
-import {
-  Physics2DErrorCodes,
-  Physics2DStaleBodyHandleError,
-  Physics2DStaleEntityError,
-} from "../errors";
+import { Physics2DErrorCodes, Physics2DStaleEntityError } from "../errors";
 import { tilemapChunkIdFromKey, tilemapPseudoEntityFromChunkId } from "../utils";
 import {
   _clearContactCallbacks,
@@ -192,6 +188,8 @@ export const Physics2DPlugin = definePlugin(physics2dDeclaration, (config) => {
     ownerBySlot: Map<number, EntityId>;
     ownerByHandle: Map<number, EntityId>;
     handleBySlot: Map<number, number>;
+    /** Chunk body handles. Absent from `ownerBySlot`, so contacts with a chunk are dropped. */
+    tilemapHandleBySlot: Map<number, number>;
     ownerChangedSinceStep: Set<number>;
     unhooks: Array<() => void>;
     bridge: WasmBridge | null;
@@ -214,6 +212,7 @@ export const Physics2DPlugin = definePlugin(physics2dDeclaration, (config) => {
     ownerBySlot: new Map(),
     ownerByHandle: new Map(),
     handleBySlot: new Map(),
+    tilemapHandleBySlot: new Map(),
     ownerChangedSinceStep: new Set(),
     unhooks: [],
     bridge: null,
@@ -304,8 +303,28 @@ export const Physics2DPlugin = definePlugin(physics2dDeclaration, (config) => {
     return null;
   }
 
-  function requireHandle(handle: number, operation: "addBoxCollider" | "addBallCollider"): void {
-    if (!st.ownerByHandle.has(handle)) throw new Physics2DStaleBodyHandleError(handle, operation);
+  function colliderHandle(
+    entityId: EntityId,
+    operation: "addBoxCollider" | "addBallCollider",
+  ): number {
+    const slot = entityIndex(entityId);
+    const tilemapHandle = st.tilemapHandleBySlot.get(slot);
+    if (tilemapHandle !== undefined && entityId === createEntityId(slot, 0)) return tilemapHandle;
+    const owned = guard(entityId, operation);
+    if (owned === null) {
+      throw new GwenError(
+        Physics2DErrorCodes.BODY_NOT_FOUND,
+        `${operation} rejected an entity with no rigid body.`,
+      );
+    }
+    const handle = st.handleBySlot.get(owned.slot);
+    if (handle === undefined) {
+      throw new GwenError(
+        Physics2DErrorCodes.BODY_NOT_FOUND,
+        `${operation} rejected an entity with no rigid body.`,
+      );
+    }
+    return handle;
   }
 
   function isPhysics2DWasmCode(code: unknown): code is `PHYSICS2D:${string}` {
@@ -518,9 +537,9 @@ export const Physics2DPlugin = definePlugin(physics2dDeclaration, (config) => {
         setOwner(s, entityId, handle);
         return handle;
       },
-      addBoxCollider: (handle, hw, hh, opts = {}) => {
+      addBoxCollider: (entityId, hw, hh, opts = {}) => {
         const pb = live();
-        requireHandle(handle, "addBoxCollider");
+        const handle = colliderHandle(entityId, "addBoxCollider");
         const layer = maskOf(opts.layer, "layer");
         const mask = maskOf(opts.mask, "mask");
         callPhysicsExport("physics_add_box_collider", () =>
@@ -541,9 +560,9 @@ export const Physics2DPlugin = definePlugin(physics2dDeclaration, (config) => {
           ),
         );
       },
-      addBallCollider: (handle, radius, opts = {}) => {
+      addBallCollider: (entityId, radius, opts = {}) => {
         const pb = live();
-        requireHandle(handle, "addBallCollider");
+        const handle = colliderHandle(entityId, "addBallCollider");
         const layer = maskOf(opts.layer, "layer");
         const mask = maskOf(opts.mask, "mask");
         callPhysicsExport("physics_add_ball_collider", () =>
@@ -765,7 +784,7 @@ export const Physics2DPlugin = definePlugin(physics2dDeclaration, (config) => {
         const existing = st.loadedTilemapChunks.get(chunk.key);
         if (existing?.checksum === chunk.checksum) return;
         if (existing) {
-          st.ownerByHandle.delete(existing.bodyHandle);
+          st.tilemapHandleBySlot.delete(tilemapPseudoEntityFromChunkId(existing.chunkId));
           callPhysicsExport("physics_unload_tilemap_chunk_body", () =>
             pb.physics_unload_tilemap_chunk_body(existing.chunkId),
           );
@@ -776,10 +795,11 @@ export const Physics2DPlugin = definePlugin(physics2dDeclaration, (config) => {
         const bodyHandle = callPhysicsExport("physics_load_tilemap_chunk_body", () =>
           pb.physics_load_tilemap_chunk_body(chunkId, pseudoEntityIndex, x, y),
         );
-        st.ownerByHandle.set(bodyHandle, createEntityId(pseudoEntityIndex, 0));
+        const pseudoId = createEntityId(pseudoEntityIndex, 0);
+        st.tilemapHandleBySlot.set(pseudoEntityIndex, bodyHandle);
         if (!opts.debugNaive) {
           for (const [colliderIndex, collider] of chunk.colliders.entries())
-            addPrefabCollider(this, bodyHandle, collider, layersNow(), colliderIndex, 0.5);
+            addPrefabCollider(this, pseudoId, collider, layersNow(), colliderIndex, 0.5);
         }
         // Teardown cleared the map: a held service must not leave an entry that a later setup
         // would read as a chunk it already loaded.
@@ -791,7 +811,7 @@ export const Physics2DPlugin = definePlugin(physics2dDeclaration, (config) => {
         const pb = live();
         const loaded = st.loadedTilemapChunks.get(key);
         if (!loaded) return;
-        st.ownerByHandle.delete(loaded.bodyHandle);
+        st.tilemapHandleBySlot.delete(tilemapPseudoEntityFromChunkId(loaded.chunkId));
         callPhysicsExport("physics_unload_tilemap_chunk_body", () =>
           pb.physics_unload_tilemap_chunk_body(loaded.chunkId),
         );
@@ -846,21 +866,21 @@ export const Physics2DPlugin = definePlugin(physics2dDeclaration, (config) => {
 
       track(
         engine.hooks.hook("prefab:instantiate", (entityId, extensions) => {
-          const ext = extensions?.physics;
+          const ext = extensions?.physics2d;
           if (!ext) return;
 
           const slot = entityIndex(entityId);
 
-          const handle = api.addRigidBody(entityId, ext.bodyType ?? "dynamic", 0, 0, {
+          api.addRigidBody(entityId, ext.bodyType ?? "dynamic", 0, 0, {
             ...(ext.mass !== undefined ? { mass: ext.mass } : {}),
             ...(ext.gravityScale !== undefined ? { gravityScale: ext.gravityScale } : {}),
             ...(ext.linearDamping !== undefined ? { linearDamping: ext.linearDamping } : {}),
             ...(ext.angularDamping !== undefined ? { angularDamping: ext.angularDamping } : {}),
-            ...(ext.initialVelocity
+            ...(ext.initialLinearVelocity
               ? {
                   initialVelocity: {
-                    vx: ext.initialVelocity.vx / PIXELS_PER_METER,
-                    vy: ext.initialVelocity.vy / PIXELS_PER_METER,
+                    vx: ext.initialLinearVelocity.x / PIXELS_PER_METER,
+                    vy: ext.initialLinearVelocity.y / PIXELS_PER_METER,
                   },
                 }
               : {}),
@@ -874,14 +894,14 @@ export const Physics2DPlugin = definePlugin(physics2dDeclaration, (config) => {
             const sensors = new Set<number>();
             for (const [idx, collider] of ext.colliders.entries()) {
               const colliderId = collider.colliderId ?? idx;
-              addPrefabCollider(api, handle, collider, layersNow(), colliderId, 0);
+              addPrefabCollider(api, entityId, collider, layersNow(), colliderId, 0);
               if (collider.isSensor) sensors.add(colliderId);
             }
             if (sensors.size > 0) st.activeSensors.set(slot, sensors);
           } else {
             throw new GwenError(
               Physics2DErrorCodes.INVALID_PREFAB_EXTENSION,
-              "Prefab extension must declare extensions.physics.colliders in v2.",
+              "Prefab extension must declare extensions.physics2d.colliders in v2.",
             );
           }
 
@@ -915,6 +935,7 @@ export const Physics2DPlugin = definePlugin(physics2dDeclaration, (config) => {
           st.cachedCollisionBatch = null;
           const stepBridge = st.bridge === null ? undefined : physics2dExports(st.bridge);
           if (stepBridge !== undefined) {
+            if (deltaTime <= 0) return;
             callPhysicsExport("physics_step", () => stepBridge.physics_step(deltaTime));
             emitDisabledBodies(stepBridge);
           }
@@ -989,8 +1010,7 @@ export const Physics2DPlugin = definePlugin(physics2dDeclaration, (config) => {
               entityB: contact.entityB,
               started: contact.started,
             };
-            _dispatchContactEvent(contact.entityA, event);
-            _dispatchContactEvent(contact.entityB, event);
+            _dispatchContactEvent(event);
             st.entityCollisionCallbacks.get(slotA)?.(contact.entityA, contact.entityB, contact);
             st.entityCollisionCallbacks.get(slotB)?.(contact.entityB, contact.entityA, contact);
           }
@@ -1014,6 +1034,7 @@ export const Physics2DPlugin = definePlugin(physics2dDeclaration, (config) => {
       st.ownerBySlot.clear();
       st.ownerByHandle.clear();
       st.handleBySlot.clear();
+      st.tilemapHandleBySlot.clear();
       st.ownerChangedSinceStep.clear();
       st.loadedTilemapChunks.clear();
       st.bridge = null;

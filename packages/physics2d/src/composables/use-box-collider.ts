@@ -35,7 +35,7 @@ export function useBoxCollider(options: BoxColliderOptions<"2d">): BoxColliderHa
     options.offsetY ?? 0,
   );
 
-  physics.addBoxCollider(bodyHandle, options.w / 2, options.h / 2, {
+  physics.addBoxCollider(entityId, options.w / 2, options.h / 2, {
     ...(options.isSensor !== undefined ? { isSensor: options.isSensor } : {}),
     ...(options.layer !== undefined ? { layer: options.layer } : {}),
     ...(options.mask !== undefined ? { mask: options.mask } : {}),

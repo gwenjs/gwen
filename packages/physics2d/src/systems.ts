@@ -59,7 +59,7 @@ export interface PhysicsKinematicSyncSystemOptions {
  * O(matched) instead of O(all entities).
  *
  * Body and collider lifecycle is managed separately by the prefab
- * `extensions.physics` block inside the `Physics2DPlugin`.
+ * `extensions.physics2d` block inside the `Physics2DPlugin`.
  *
  * `Physics2DPlugin` must be installed first, else `engine.use` rejects
  * `CORE:PLUGIN_DEPENDENCY_MISSING`.

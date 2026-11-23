@@ -82,7 +82,7 @@ export const BallActor = defineActor(BallPrefab, () => {
 
 **Signature:**
 ```ts
-function useKinematicBody(options?: KinematicBodyOptions): void
+function useKinematicBody(options?: KinematicBodyOptions<"2d">): void
 ```
 
 **Description.** Adds a kinematic body (not affected by gravity, controlled by velocity). Use for platforms, moving hazards.
@@ -197,11 +197,11 @@ engine.hooks.hook("physics2d:body-disabled", ({ entity, reason }) => {
 
 The default cap of 400 m/s slows a faster dynamic body. A step delta above 1 s is refused with `PHYSICS2D:INVALID_STEP_DELTA`.
 
-### onContact(handler)
+### onContact(handler, entityId?)
 
 **Signature:**
 ```ts
-function onContact(handler: (event: CollisionContact) => void): void
+function onContact(handler: (event: CollisionContact) => void, entityId?: EntityId): () => void
 ```
 
 **Description.** Registers a handler for collision events (when two colliders collide).
@@ -210,8 +210,9 @@ function onContact(handler: (event: CollisionContact) => void): void
 | Param | Type | Description |
 |---|---|---|
 | handler | `function` | Called with collision info |
+| entityId | `EntityId` | Optional. Limits the callback to contacts that include this entity. Inside `defineActor`, the actor entity is used when this is omitted. |
 
-**Returns:** `void`
+**Returns:** `() => void`
 
 **Example:**
 ```ts
@@ -583,12 +584,13 @@ interface DynamicBodyOptions {
 }
 ```
 
-### KinematicBodyOptions
+### KinematicBodyOptions<"2d">
 
 ```ts
-interface KinematicBodyOptions {
-  friction?: number;
-  restitution?: number;
+interface KinematicBodyOptions<"2d"> {
+  initialPosition?: { x: number; y: number };
+  initialRotation?: number;
+  fixedRotation?: boolean;
 }
 ```
 

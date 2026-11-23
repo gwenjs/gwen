@@ -21,7 +21,7 @@ type _0 = [
   Root.DynamicBodyHandle,
   Root.DynamicBodyOptions,
   Root.KinematicBodyHandle,
-  Root.KinematicBodyOptions,
+  Root.KinematicBodyOptions<"2d">,
   Root.Physics2DAPI,
   Root.Physics2DConfig,
   Root.Physics2DLayerDefinition,

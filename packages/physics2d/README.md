@@ -33,7 +33,7 @@ export default defineConfig({
 
 - `physics` service (runtime API): bodies, colliders, velocity, impulses, collision batches.
 - Global hooks: `physics:collision`, `physics:collision:batch`, `physics:sensor:changed`, `physics2d:body-disabled`.
-- Prefab extension `extensions.physics` with legacy bridge + vNext `colliders[]`.
+- Prefab extension `extensions.physics2d` with legacy bridge + vNext `colliders[]`.
 - Material presets: `default`, `ice`, `rubber`.
 - Tilemap helpers and chunk streaming runtime.
 - Systems: `createPhysicsKinematicSyncSystem({ positionComponent })` and `createPlatformerGroundedSystem()`.
@@ -77,7 +77,7 @@ import { createTilemapChunkOrchestrator } from "@gwenjs/physics2d/helpers/orches
 
 ## Recommended runtime pattern
 
-1. Declare physics in prefabs with `extensions.physics.colliders[]`.
+1. Declare physics in prefabs with `extensions.physics2d.colliders[]`.
 2. Prefer `physics.getCollisionContacts()` in gameplay systems (EntityId-first).
 3. For one-entity filtering, use `getEntityCollisionContacts(physics, entityId)` from `@gwenjs/physics2d/helpers/contact`.
 4. Use `physics.getCollisionEventsBatch()` when raw slot-level diagnostics are needed.
@@ -97,7 +97,7 @@ const Position = defineComponent({
 
 export const BulletPrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }], {
   extensions: {
-    physics: {
+    physics2d: {
       bodyType: "dynamic",
       ccdEnabled: true,
       colliders: [{ shape: "ball", radius: 4 }],
@@ -122,9 +122,11 @@ Values: `BODY_KIND_CODE`, `Physics2DErrorCodes`, `Physics2DPlugin`, `Physics2DSt
 
 Types: `BodyKind`, `BoxColliderHandle`, `BoxColliderOptions`, `CapsuleColliderHandle`, `CapsuleColliderOptions`, `CircleColliderHandle`, `ColliderOptions`, `CollisionContact`, `CollisionEvent`, `CollisionEventsBatch`, `DynamicBodyHandle`, `DynamicBodyOptions`, `InternalCollisionEventsBatch`, `KinematicBodyHandle`, `KinematicBodyOptions`, `Physics2DAPI`, `Physics2DConfig`, `Physics2DErrorCode`, `Physics2DLayerDefinition`, `Physics2DPluginHooks`, `Physics2DPrefabExtension`, `Physics2DProvides`, `PhysicsColliderDef`, `PhysicsColliderShape`, `PhysicsKinematicSyncSystemOptions`, `PlatformerGroundedSystemOptions`, `QualityPreset`, `SensorState`, `ShapeOptions`, `SphereColliderOptions`, `StaticBodyHandle`, `StaticBodyOptions`, `TilemapPhysicsChunkMap`
 
+`KinematicBodyOptions` — Generic over the dimension: write `KinematicBodyOptions<"2d">`.
+
 `Physics2DErrorCodes` — Error codes emitted by the Physics2D plugin.
 
-`Physics2DStaleBodyHandleError` — Thrown when a collider call uses a body handle that has no owner.
+`Physics2DStaleBodyHandleError` — Retained export. The plugin does not throw this class. A collider call on an entity with no rigid body throws `PHYSICS2D:BODY_NOT_FOUND`. A call on an entity that is not alive throws `PHYSICS2D:STALE_ENTITY`. WASM `physics_add_box_collider` and `physics_add_ball_collider` still return `PHYSICS2D:STALE_BODY_HANDLE` for an unregistered numeric handle, and `callPhysicsExport` forwards that code.
 
 `Physics2DStaleEntityError` — Thrown when a Physics2D call targets an entity that is not alive.
 

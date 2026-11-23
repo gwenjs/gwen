@@ -4,7 +4,10 @@ import { GwenError, type EntityId } from "@gwenjs/schema";
 export const Physics2DErrorCodes = {
   /** Entity id is not alive. */
   STALE_ENTITY: "PHYSICS2D:STALE_ENTITY",
-  /** bodyHandle is not registered to a live owner. */
+  /**
+   * WASM returns this when `physics_add_box_collider` or `physics_add_ball_collider`
+   * receives a numeric handle that is not registered. The plugin does not throw it.
+   */
   STALE_BODY_HANDLE: "PHYSICS2D:STALE_BODY_HANDLE",
   INVALID_LAYERS: "PHYSICS2D:INVALID_LAYERS",
   UNKNOWN_LAYER: "PHYSICS2D:UNKNOWN_LAYER",
@@ -50,7 +53,14 @@ export class Physics2DStaleEntityError extends GwenError {
   }
 }
 
-/** Thrown when a collider call uses a body handle that has no owner. */
+/**
+ * Retained export. The plugin does not throw this class.
+ * A collider call on an entity with no rigid body throws `PHYSICS2D:BODY_NOT_FOUND`.
+ * A call on an entity that is not alive throws `PHYSICS2D:STALE_ENTITY`.
+ * WASM `physics_add_box_collider` and `physics_add_ball_collider` still return
+ * `PHYSICS2D:STALE_BODY_HANDLE` when the numeric handle is not registered, and
+ * `callPhysicsExport` forwards that code.
+ */
 export class Physics2DStaleBodyHandleError extends GwenError {
   readonly bodyHandle: number;
   readonly operation: "addBoxCollider" | "addBallCollider";
