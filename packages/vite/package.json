@@ -47,6 +47,7 @@
     "unimport": "^6.3.0"
   },
   "devDependencies": {
+    "@gwenjs/core": "workspace:*",
     "@jridgewell/trace-mapping": "0.3.31",
     "@types/node": "^20",
     "typescript": "^6.0.2",
