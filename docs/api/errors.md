@@ -242,7 +242,7 @@ Cause. Two units edit overlapping ranges in one module. The message names both u
 
 ### VITE:TRANSFORM_UNSUPPORTED {#vite-transform-unsupported}
 
-Cause. `register()` was called after `gwen:transform-pipeline`'s `configResolved`. Fix. Call `register()` from a `config` hook, or from `configResolved` of an `enforce: "pre"` plugin listed before `gwen()`.
+Cause. Thrown from two sites. `register()` was called after `gwen:transform-pipeline`'s `configResolved`. `useActor(Y)` inside an actor factory, when `Y` is not a module-scope binding or when `Y` is a `const`, `let`, `var`, or `class` declared after that actor. Fix. Call `register()` from a `config` hook, or from `configResolved` of an `enforce: "pre"` plugin listed before `gwen()`. Declare `Y` at module scope, before the actor, or pass it through the factory arguments.
 
 ### VITE:BVH_PREBAKE_FAILED {#vite-bvh-prebake-failed}
 
