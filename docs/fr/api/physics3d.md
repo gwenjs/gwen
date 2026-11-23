@@ -24,7 +24,7 @@ export default defineConfig({
     debug: false,
     coalesceEvents: true,
     maxLinearVelocity: 400,
-    layers: ['default', 'player', 'enemy'],
+    layers: { default: 0, player: 1, enemy: 2 },
     vite: {
       bvhPrebake: false,
       debug: false,
@@ -37,13 +37,13 @@ export default defineConfig({
 
 | Champ | Type | Défaut | Description |
 |---|---|---|---|
-| `gravity` | `Vec3` | `{ x: 0, y: -9.81, z: 0 }` | Vecteur de gravité du monde |
+| `gravity` | `Partial<Vec3>` | `{ x: 0, y: -9.81, z: 0 }` | Vecteur de gravité. Un composant manquant utilise le composant par défaut (x 0, y -9.81, z 0) (`packages/physics3d/src/config.ts:21`). |
 | `maxEntities` | `number` | `10_000` | Nombre maximum d'entités physiques |
-| `qualityPreset` | `Physics3DQualityPreset` | `'medium'` | Qualité du solveur : `'low'`, `'medium'`, `'high'` ou `'esport'` |
+| `qualityPreset` | `QualityPreset` | `'medium'` | Qualité du solveur : `'low'`, `'medium'`, `'high'` ou `'esport'` |
 | `debug` | `boolean` | `false` | Active les journaux de débogage physique à l'exécution |
 | `coalesceEvents` | `boolean` | `true` | Fusionne les événements de contact dupliqués dans une frame |
 | `maxLinearVelocity` | `number` | `400` | Plafond de vitesse linéaire (m/s). Aussi le plafond Rapier après chaque sous-pas. Un corps dynamique plus rapide est ramené à ce plafond et reste actif |
-| `layers` | `string[]` | `['default']` | Liste de calques de collision nommés (max 32) |
+| `layers` | `Record<string, number>` | `{}` | Nom de calque vers un indice de bit, entiers `0..31`, 32 au plus |
 | `vite` | `object` | — | Options du plugin Vite au moment du build (voir ci-dessous) |
 | `vite.bvhPrebake` | `boolean` | `false` | Pré-compile le BVH pour `useMeshCollider('./x.glb')` au moment du build |
 | `vite.debug` | `boolean` | `false` | Active la journalisation du plugin Vite |
@@ -265,18 +265,18 @@ Appelé lorsqu'un autre collider quitte le collider capteur de cet acteur.
 
 ### Calques
 
-#### defineLayers(layerList)
+#### defineLayers(definition)
 
 ```ts
-function defineLayers(layerList: string[]): Record<string, number>
+function defineLayers(definition: Record<string, number>): Record<string, number>
 ```
 
-Convertit une liste de calques nommés (correspondant à celle dans `gwen.config.ts`) en un objet de masques de bits. Le plugin Vite intègre ces valeurs littérales au moment du build.
+Renvoie une copie superficielle du dictionnaire de masques. Si deux valeurs partagent des bits, elle écrit un avertissement dans la console. `defineLayers` travaille avec des masques, tandis que `Physics3DConfig.layers` prend des index de bits 0..31.
 
 ```ts
 import { defineLayers } from '@gwenjs/physics3d'
 
-const Layers = defineLayers(['default', 'player', 'enemy'])
+const Layers = defineLayers({ default: 1, player: 2, enemy: 4 })
 // Layers.default === 1, Layers.player === 2, Layers.enemy === 4
 
 useBoxCollider({
@@ -430,14 +430,15 @@ Activez `bvhPrebake: true` (via `vite.bvhPrebake` dans la configuration du modul
 ### Physics3DConfig
 
 ```ts
-interface Physics3DConfig {
-  gravity: Vec3
-  maxEntities: number
-  qualityPreset: 'low' | 'medium' | 'high' | 'esport'
-  debug: boolean
-  coalesceEvents: boolean
-  layers: string[]
-  vite: {
+interface Physics3DConfig extends PhysicsConfigBase<'3d'> {
+  gravity?: Partial<Vec3>
+  maxEntities?: number
+  qualityPreset?: QualityPreset
+  debug?: boolean
+  coalesceEvents?: boolean
+  maxLinearVelocity?: number
+  layers?: Record<string, number>
+  vite?: {
     bvhPrebake: boolean
     debug: boolean
   }
@@ -446,8 +447,8 @@ interface Physics3DConfig {
 
 Dans toute cette page, les formes de vecteur et de rotation sont `Vec3` et `Quat` de `@gwenjs/math`, et les identifiants d'entité sont `EntityId` de `@gwenjs/schema`.
 
-### Physics3DQualityPreset
+### QualityPreset
 
 ```ts
-type Physics3DQualityPreset = 'low' | 'medium' | 'high' | 'esport'
+type QualityPreset = 'low' | 'medium' | 'high' | 'esport'
 ```

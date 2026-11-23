@@ -3,6 +3,7 @@
 import type * as Root from "@gwenjs/physics3d";
 
 type _0 = [
+  Root.BodyKind,
   Root.BoxColliderHandle3D,
   Root.BoxColliderOptions3D,
   Root.BulkStaticBoxesOptions,
@@ -26,7 +27,6 @@ type _0 = [
   Root.MeshColliderOptions,
   Root.Physics3DAPI,
   Root.Physics3DBodyHandle,
-  Root.Physics3DBodyKind,
   Root.Physics3DBodyOptions,
   Root.Physics3DBodySnapshot,
   Root.Physics3DBodyState,
@@ -36,10 +36,10 @@ type _0 = [
   Root.Physics3DErrorCode,
   Root.Physics3DPluginHooks,
   Root.Physics3DPrefabExtension,
-  Root.Physics3DQualityPreset,
   Root.Physics3DSensorState,
   Root.PhysicsKinematicSyncSystemOptions,
   Root.PreloadedBvhHandle,
+  Root.QualityPreset,
   Root.SphereColliderHandle3D,
   Root.SphereColliderOptions3D,
   Root.StaticBodyHandle3D,

@@ -2,8 +2,8 @@ import type { Quat, Vec3 } from "@gwenjs/math";
 import type { EntityId } from "@gwenjs/schema";
 
 import type {
+  BodyKind,
   Physics3DBodyHandle,
-  Physics3DBodyKind,
   Physics3DBodyState,
   Physics3DBodySnapshot,
   Physics3DBodyOptions,
@@ -133,7 +133,7 @@ export interface Physics3DAPI {
    *
    * @since 1.0.0
    */
-  getBodyKind(entityId: EntityId): Physics3DBodyKind | undefined;
+  getBodyKind(entityId: EntityId): BodyKind | undefined;
 
   /**
    * Update the body kind at runtime.
@@ -146,7 +146,7 @@ export interface Physics3DAPI {
    *
    * @since 1.0.0
    */
-  setBodyKind(entityId: EntityId, kind: Physics3DBodyKind): boolean;
+  setBodyKind(entityId: EntityId, kind: BodyKind): boolean;
 
   /**
    * Read a full snapshot of a body's simulation state.

@@ -17,6 +17,7 @@ import {
 } from "../src/plugin/physics3d-utils";
 
 import type { Vec3 } from "@gwenjs/math";
+import { BODY_KIND_CODE } from "@gwenjs/physics-core";
 import type { Physics3DBodyState, Physics3DColliderOptions } from "../src/types";
 
 // ─── vec3() ────────────────────────────────────────────────────────────────
@@ -127,14 +128,17 @@ describe("quat", () => {
 describe("kindFromU8", () => {
   it('converts 0 to "fixed"', () => {
     expect(kindFromU8(0)).toBe("fixed");
+    expect(kindFromU8(BODY_KIND_CODE.fixed)).toBe("fixed");
   });
 
   it('converts 1 to "dynamic"', () => {
     expect(kindFromU8(1)).toBe("dynamic");
+    expect(kindFromU8(BODY_KIND_CODE.dynamic)).toBe("dynamic");
   });
 
   it('converts 2 to "kinematic"', () => {
     expect(kindFromU8(2)).toBe("kinematic");
+    expect(kindFromU8(BODY_KIND_CODE.kinematic)).toBe("kinematic");
   });
 
   it('defaults unknown value to "dynamic"', () => {
@@ -155,14 +159,17 @@ describe("kindFromU8", () => {
 describe("kindToU8", () => {
   it('converts "fixed" to 0', () => {
     expect(kindToU8("fixed")).toBe(0);
+    expect(kindToU8("fixed")).toBe(BODY_KIND_CODE.fixed);
   });
 
   it('converts "dynamic" to 1', () => {
     expect(kindToU8("dynamic")).toBe(1);
+    expect(kindToU8("dynamic")).toBe(BODY_KIND_CODE.dynamic);
   });
 
   it('converts "kinematic" to 2', () => {
     expect(kindToU8("kinematic")).toBe(2);
+    expect(kindToU8("kinematic")).toBe(BODY_KIND_CODE.kinematic);
   });
 });
 

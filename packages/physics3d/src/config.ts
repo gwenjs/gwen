@@ -2,36 +2,48 @@
  * Configuration normalization for the Physics3D plugin.
  */
 
-import type { Physics3DConfig, ResolvedPhysics3DConfig, Physics3DQualityPreset } from "./types";
+import type { Vec3 } from "@gwenjs/math";
 import { GwenConfigError } from "@gwenjs/core";
+import { LAYER_ERROR_CODES, LayerRegistry } from "@gwenjs/physics-core";
 import { GwenError } from "@gwenjs/schema";
 import { Physics3DErrorCodes } from "./errors/codes";
+import type { Physics3DConfig, QualityPreset, ResolvedPhysics3DConfig } from "./types";
 
-export { QUALITY_PRESETS } from "./types";
+export { QUALITY_PRESET_CODE } from "./types";
+
+/** Full default gravity. A caller-supplied object is stored as given. */
+const DEFAULT_GRAVITY = { x: 0, y: -9.81, z: 0 };
+
+/** A missing component uses DEFAULT_GRAVITY (`packages/physics3d/src/config.ts:21`). */
+export function readGravityAxis(gravity: Partial<Vec3>, key: "x" | "y" | "z"): number {
+  const value = gravity[key];
+  if (value !== undefined) return value;
+  return DEFAULT_GRAVITY[key];
+}
 
 /** Fully-resolved default configuration values. */
 export const DEFAULT_PHYSICS3D_CONFIG: ResolvedPhysics3DConfig = {
-  gravity: { x: 0, y: -9.81, z: 0 },
+  gravity: DEFAULT_GRAVITY,
   maxEntities: 10_000,
   qualityPreset: "medium",
   debug: false,
   coalesceEvents: true,
   maxLinearVelocity: 400,
-  layers: [],
+  layers: {},
 };
 
 /**
  * Normalize a partial `Physics3DConfig` into a fully-resolved config.
  *
  * Missing fields are filled with {@link DEFAULT_PHYSICS3D_CONFIG} values.
- * `gravity`, when set, replaces the default vector.
+ * The stored gravity object is kept as given. Its components are not filled in.
  *
  * @param config - Partial configuration from the plugin constructor.
  * @returns A fully-resolved configuration object.
  * @throws {GwenConfigError} If `maxLinearVelocity` is not finite or not positive.
  */
 export function normalizePhysics3DConfig(config: Physics3DConfig = {}): ResolvedPhysics3DConfig {
-  const qualityPreset: Physics3DQualityPreset =
+  const qualityPreset: QualityPreset =
     config.qualityPreset ?? DEFAULT_PHYSICS3D_CONFIG.qualityPreset;
 
   if (
@@ -55,56 +67,55 @@ export function normalizePhysics3DConfig(config: Physics3DConfig = {}): Resolved
 }
 
 /**
- * Build a layer name-to-bitmask registry from a list of layer names.
- *
- * Each entry in `layers` maps to bit position `index`. The first entry
- * occupies bit 0 (value 1), the second bit 1 (value 2), and so on.
- * Maximum 32 layers.
- *
- * @param layers - Ordered array of unique layer names.
- * @returns A `Map<layerName, bitMask>`.
+ * Map a physics-core layer code onto a Physics3D error.
+ * `what` is the registry message, unchanged.
  */
-export function buildLayerRegistry(layers: string[]): Map<string, number> {
-  const registry = new Map<string, number>();
-  for (let i = 0; i < Math.min(layers.length, 32); i++) {
-    const name = layers[i];
-    if (name !== undefined) registry.set(name, 1 << i);
-  }
-  return registry;
+function layerError(code: string, what: string): never {
+  throw new GwenError(
+    code === LAYER_ERROR_CODES.LAYER_UNKNOWN
+      ? Physics3DErrorCodes.UNKNOWN_LAYER
+      : Physics3DErrorCodes.INVALID_LAYERS,
+    what,
+    {
+      composable: "Physics3DPlugin",
+      ...(code === LAYER_ERROR_CODES.LAYER_UNKNOWN
+        ? {
+            hint: __GWEN_DEV__ ? "Add it to Physics3DConfig.layers or fix the typo." : undefined,
+          }
+        : {}),
+    },
+  );
 }
 
 /**
- * Resolve an array of layer names to a combined bitmask.
+ * Build the shared layer registry from explicit bit indexes.
+ * Constructed once per engine. Own keys are copied onto a null-prototype object (`packages/physics-core/src/layer-registry.ts:49`).
  *
- * Returns `0xFFFFFFFF` (all bits set) when `names` is empty or `undefined`.
- * Throws if any name is not found in the registry — this prevents silent
- * layer-typo bugs where a collider silently uses the wrong filter.
+ * @param layers - Layer name to bit index.
+ * @returns The shared registry.
+ * @throws {GwenError} `PHYSICS3D:INVALID_LAYERS` when the record is not a valid registry.
+ */
+export function buildLayerRegistry(layers: Record<string, number>): LayerRegistry {
+  const own: Record<string, number> = Object.create(null);
+  for (const [name, bit] of Object.entries(layers)) own[name] = bit;
+  return new LayerRegistry(own, layerError);
+}
+
+/**
+ * Resolve layer names to a combined bitmask.
  *
- * @param names    - Layer names to resolve.
+ * Returns `0xFFFFFFFF` when `names` is empty or `undefined`, before the registry
+ * is asked. An empty list would otherwise resolve to 0.
+ *
+ * @param names    - Layer names or raw masks to resolve.
  * @param registry - Layer registry built by {@link buildLayerRegistry}.
  * @returns Combined bitmask.
- * @throws {GwenError} if a layer name is not declared in the registry.
+ * @throws {GwenError} `PHYSICS3D:UNKNOWN_LAYER` when a name is not declared.
  */
 export function resolveLayerBits(
   names: (string | number)[] | undefined,
-  registry: Map<string, number>,
+  registry: LayerRegistry,
 ): number {
   if (!names || names.length === 0) return 0xffffffff;
-  const declared = [...registry.keys()];
-  let mask = 0;
-  for (const name of names) {
-    if (typeof name === "number") {
-      mask |= name;
-    } else {
-      const bit = registry.get(name);
-      if (bit === undefined) {
-        throw new GwenError(
-          Physics3DErrorCodes.UNKNOWN_LAYER,
-          `Unknown layer "${name}". Declared layers: [${declared.join(", ")}].`,
-        );
-      }
-      mask |= bit;
-    }
-  }
-  return mask >>> 0; // ensure unsigned 32-bit
+  return registry.resolve(names, "layers");
 }

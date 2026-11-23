@@ -37,6 +37,7 @@
     "@gwenjs/core": "workspace:^",
     "@gwenjs/kit": "workspace:^",
     "@gwenjs/math": "workspace:^",
+    "@gwenjs/physics-core": "workspace:^",
     "@gwenjs/schema": "workspace:^",
     "@gwenjs/vite": "workspace:^"
   },

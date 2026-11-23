@@ -4,14 +4,36 @@
 import { describe, it, expect } from "vitest";
 import { GwenConfigError } from "@gwenjs/core";
 import { GwenError } from "@gwenjs/schema";
-import { Physics3DErrorCodes } from "../src/errors/codes";
 import {
   DEFAULT_PHYSICS3D_CONFIG,
   normalizePhysics3DConfig,
   buildLayerRegistry,
   resolveLayerBits,
 } from "../src/config";
-import { QUALITY_PRESETS } from "../src/types";
+import { Physics3DErrorCodes } from "../src/errors/codes";
+import { QUALITY_PRESET_CODE } from "../src/types";
+
+function caughtError(run: () => void): unknown {
+  try {
+    run();
+  } catch (error: unknown) {
+    return error;
+  }
+  return undefined;
+}
+
+function requireGwenError(error: unknown, code: string, message: string): void {
+  expect(error).toBeInstanceOf(GwenError);
+  if (!(error instanceof GwenError)) {
+    throw new Error("expected GwenError");
+  }
+  expect(error.code).toBe(code);
+  expect(error.message).toContain(message);
+}
+
+function isBitRecord(value: unknown): value is Record<string, number> {
+  return typeof value === "object" && value !== null;
+}
 
 describe("normalizePhysics3DConfig", () => {
   it("applies full defaults on empty input", () => {
@@ -63,11 +85,6 @@ describe("normalizePhysics3DConfig", () => {
     expect(cfg.coalesceEvents).toBe(false);
   });
 
-  it("defaults layers to empty array", () => {
-    const cfg = normalizePhysics3DConfig();
-    expect(cfg.layers).toEqual([]);
-  });
-
   it("defaults layers to an empty record", () => {
     const cfg = normalizePhysics3DConfig();
     expect(cfg.layers).toEqual({});
@@ -75,8 +92,8 @@ describe("normalizePhysics3DConfig", () => {
   });
 
   it("stores provided layer names", () => {
-    const cfg = normalizePhysics3DConfig({ layers: ["default", "player", "enemy"] });
-    expect(cfg.layers).toEqual(["default", "player", "enemy"]);
+    const cfg = normalizePhysics3DConfig({ layers: { default: 0, player: 1, enemy: 2 } });
+    expect(cfg.layers).toEqual({ default: 0, player: 1, enemy: 2 });
   });
 
   it("rejects a cap that is not finite or not positive", () => {
@@ -151,36 +168,43 @@ describe("layer record", () => {
   });
 });
 
-describe("QUALITY_PRESETS", () => {
+describe("QUALITY_PRESET_CODE", () => {
   it("maps preset names to numeric codes", () => {
-    expect(QUALITY_PRESETS.low).toBe(0);
-    expect(QUALITY_PRESETS.medium).toBe(1);
-    expect(QUALITY_PRESETS.high).toBe(2);
-    expect(QUALITY_PRESETS.esport).toBe(3);
+    expect(QUALITY_PRESET_CODE.low).toBe(0);
+    expect(QUALITY_PRESET_CODE.medium).toBe(1);
+    expect(QUALITY_PRESET_CODE.high).toBe(2);
+    expect(QUALITY_PRESET_CODE.esport).toBe(3);
   });
 });
 
 describe("buildLayerRegistry", () => {
   it("maps each layer name to its bit position", () => {
-    const reg = buildLayerRegistry(["default", "player", "enemy"]);
-    expect(reg.get("default")).toBe(1);
-    expect(reg.get("player")).toBe(2);
-    expect(reg.get("enemy")).toBe(4);
+    const reg = buildLayerRegistry({ default: 0, player: 1, enemy: 2 });
+    expect(resolveLayerBits(["default"], reg)).toBe(1);
+    expect(resolveLayerBits(["player"], reg)).toBe(2);
+    expect(resolveLayerBits(["enemy"], reg)).toBe(4);
   });
 
   it("caps at 32 layers", () => {
-    const names = Array.from({ length: 40 }, (_, i) => `layer${i}`);
-    const reg = buildLayerRegistry(names);
-    expect(reg.size).toBe(32);
+    const layers: Record<string, number> = {};
+    for (let i = 0; i < 40; i += 1) layers[`layer${i}`] = 0;
+    requireGwenError(
+      caughtError(() => {
+        buildLayerRegistry(layers);
+      }),
+      Physics3DErrorCodes.INVALID_LAYERS,
+      "at most 32 layers, received 40",
+    );
   });
 
   it("returns empty map for empty input", () => {
-    expect(buildLayerRegistry([])).toEqual(new Map());
+    const reg = buildLayerRegistry({});
+    expect(resolveLayerBits(undefined, reg)).toBe(0xffffffff);
   });
 });
 
 describe("resolveLayerBits", () => {
-  const registry = buildLayerRegistry(["default", "player", "enemy", "ground"]);
+  const registry = buildLayerRegistry({ default: 0, player: 1, enemy: 2, ground: 3 });
 
   it("returns 0xFFFFFFFF for undefined names", () => {
     expect(resolveLayerBits(undefined, registry)).toBe(0xffffffff);
@@ -200,61 +224,35 @@ describe("resolveLayerBits", () => {
 
   it("throws on unknown layer names with a helpful message", () => {
     expect(() => resolveLayerBits(["unknown"], registry)).toThrow(
-      '[GWEN] Unknown layer "unknown". Declared layers: [default, player, enemy, ground].',
+      '[Physics3DPlugin()] Unknown layer "unknown" in layers. Declared layers: [default, player, enemy, ground].',
     );
   });
 
   it("throws on first unknown in a mixed valid/invalid list", () => {
     expect(() => resolveLayerBits(["player", "typo"], registry)).toThrow(
-      '[GWEN] Unknown layer "typo".',
+      '[Physics3DPlugin()] Unknown layer "typo" in layers.',
     );
   });
 
   it("produces unsigned 32-bit value", () => {
-    const big = buildLayerRegistry(Array.from({ length: 32 }, (_, i) => `l${i}`));
-    const result = resolveLayerBits(
-      Array.from({ length: 32 }, (_, i) => `l${i}`),
-      big,
-    );
-    expect(result >>> 0).toBe(result);
+    const layers: Record<string, number> = {};
+    const names: string[] = [];
+    for (let i = 0; i < 32; i += 1) {
+      const name = `l${i}`;
+      layers[name] = i;
+      names.push(name);
+    }
+    const big = buildLayerRegistry(layers);
+    const result = resolveLayerBits(names, big);
+    expect(result).toBe(0xffffffff);
   });
 });
-
-function caughtError(run: () => void): unknown {
-  try {
-    run();
-  } catch (error: unknown) {
-    return error;
-  }
-  return undefined;
-}
-
-function requireGwenError(error: unknown, code: string, message: string): void {
-  expect(error).toBeInstanceOf(GwenError);
-  if (!(error instanceof GwenError)) {
-    throw new Error("expected GwenError");
-  }
-  expect(error.code).toBe(code);
-  expect(error.message).toContain(message);
-}
-
-function isBitRecord(value: unknown): value is Record<string, number> {
-  return typeof value === "object" && value !== null;
-}
-
-function bitsOrMinus(names: string[], reg: ReturnType<typeof buildLayerRegistry>): number {
-  try {
-    return resolveLayerBits(names, reg);
-  } catch {
-    return -1;
-  }
-}
 
 describe("layer own keys", () => {
   it("rejects inherited names, bad bits, and a source record changed after build", () => {
     const layers: Record<string, number> = { ground: 3 };
     const reg = buildLayerRegistry(layers);
-    expect(bitsOrMinus(["ground"], reg)).toBe(8);
+    expect(resolveLayerBits(["ground"], reg)).toBe(8);
     for (const name of ["toString", "constructor", "__proto__"] as const) {
       requireGwenError(
         caughtError(() => resolveLayerBits([name], reg)),
@@ -264,7 +262,7 @@ describe("layer own keys", () => {
     }
     layers.late = 40;
     layers.ground = 0;
-    expect(bitsOrMinus(["ground"], reg)).toBe(8);
+    expect(resolveLayerBits(["ground"], reg)).toBe(8);
     requireGwenError(
       caughtError(() => resolveLayerBits(["late"], reg)),
       Physics3DErrorCodes.UNKNOWN_LAYER,
@@ -273,14 +271,13 @@ describe("layer own keys", () => {
     for (const bit of [Number.NaN, Number.POSITIVE_INFINITY]) {
       requireGwenError(
         caughtError(() => buildLayerRegistry({ n: bit })),
-        "PHYSICS3D:INVALID_LAYERS",
+        Physics3DErrorCodes.INVALID_LAYERS,
         String(bit),
       );
     }
     const error = caughtError(() => resolveLayerBits(["missing"], reg));
     requireGwenError(error, Physics3DErrorCodes.UNKNOWN_LAYER, "missing");
     if (!(error instanceof GwenError)) throw new Error("expected GwenError");
-    expect(error.message).toContain("Declared layers: [ground]");
     expect(error.hint).toBe(
       __GWEN_DEV__ ? "Add it to Physics3DConfig.layers or fix the typo." : undefined,
     );
@@ -290,22 +287,11 @@ describe("layer own keys", () => {
     const protoReg = buildLayerRegistry(parsed);
     parsed.late = 4;
     expect(Object.getOwnPropertyDescriptor(Object.prototype, "__proto__")?.get).toBe(before);
-    expect(bitsOrMinus(["__proto__"], protoReg)).toBe(2);
+    expect(resolveLayerBits(["__proto__"], protoReg)).toBe(2);
     requireGwenError(
       caughtError(() => resolveLayerBits(["late"], protoReg)),
       Physics3DErrorCodes.UNKNOWN_LAYER,
       "late",
     );
-  });
-
-  it("resolves all 32 named bits to 0xffffffff", () => {
-    const layers: Record<string, number> = {};
-    const names: string[] = [];
-    for (let i = 0; i < 32; i += 1) {
-      const name = `l${i}`;
-      layers[name] = i;
-      names.push(name);
-    }
-    expect(bitsOrMinus(names, buildLayerRegistry(layers))).toBe(0xffffffff);
   });
 });

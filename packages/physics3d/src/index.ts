@@ -20,17 +20,19 @@ export type {
   Physics3DAPI,
   Physics3DBodyOptions,
   Physics3DBodyHandle,
-  Physics3DBodyKind,
+  BodyKind,
   Physics3DBodyState,
   Physics3DBodySnapshot,
   Physics3DColliderOptions,
   Physics3DCollisionContact,
   Physics3DSensorState,
-  Physics3DQualityPreset,
+  QualityPreset,
   Physics3DPrefabExtension,
   Physics3DPluginHooks,
   Physics3DConfig,
 } from "./types";
+
+export { BODY_KIND_CODE, QUALITY_PRESET_CODE } from "./types";
 
 export * from "./helpers/contact";
 export * from "./helpers/movement";

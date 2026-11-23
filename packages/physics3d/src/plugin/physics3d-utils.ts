@@ -4,7 +4,8 @@
  */
 
 import type { Quat, Vec3 } from "@gwenjs/math";
-import type { Physics3DBodyKind, Physics3DBodyState, Physics3DColliderOptions } from "../types";
+import type { BodyKind, Physics3DBodyState, Physics3DColliderOptions } from "../types";
+import { BODY_KIND_CODE } from "../types";
 import { PHYSICS3D_MATERIAL_PRESETS } from "../types";
 import { uncheckedAt } from "../internal/unchecked";
 
@@ -36,9 +37,9 @@ export function quat(v?: Partial<Quat>): Quat {
  * @param k - WASM body kind byte (0, 1, 2, or invalid)
  * @returns TypeScript body kind string; defaults to 'dynamic' for unknown values
  */
-export function kindFromU8(k: number): Physics3DBodyKind {
-  if (k === 0) return "fixed";
-  if (k === 2) return "kinematic";
+export function kindFromU8(k: number): BodyKind {
+  if (k === BODY_KIND_CODE.fixed) return "fixed";
+  if (k === BODY_KIND_CODE.kinematic) return "kinematic";
   return "dynamic";
 }
 
@@ -48,10 +49,10 @@ export function kindFromU8(k: number): Physics3DBodyKind {
  * @param k - TypeScript body kind string
  * @returns WASM body kind byte
  */
-export function kindToU8(k: Physics3DBodyKind): number {
-  if (k === "fixed") return 0;
-  if (k === "kinematic") return 2;
-  return 1;
+export function kindToU8(k: BodyKind): number {
+  if (k === "fixed") return BODY_KIND_CODE.fixed;
+  if (k === "kinematic") return BODY_KIND_CODE.kinematic;
+  return BODY_KIND_CODE.dynamic;
 }
 
 /**
