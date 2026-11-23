@@ -1,8 +1,9 @@
 /**
  * Tests @gwenjs/vite
  * Verifies the `GWEN_VERSION` constant of `virtual:gwen/env` when the `version` field of
- * `@gwenjs/core/package.json` is not a string. One case per file: Node caches the resolution of
- * `@gwenjs/core/package.json` for the whole worker.
+ * `@gwenjs/core/package.json` is not a string. `@gwenjs/vite` depends on `@gwenjs/core`; the
+ * temporary manifest is installed with `Module._resolveFilename`. One case per file: Node caches
+ * the resolution of `@gwenjs/core/package.json` for the whole worker.
  */
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -23,24 +24,23 @@ afterEach(() => {
 });
 
 /**
- * Makes `@gwenjs/core/package.json` resolvable for `createRequire` through `NODE_PATH`
- * (the vite package does not depend on core), with the given manifest.
+ * Serves `request === "@gwenjs/core/package.json"` from a temporary manifest.
+ * `@gwenjs/vite` depends on `@gwenjs/core`, so `NODE_PATH` cannot hide the installed copy.
+ * `restore` puts the previous `Module._resolveFilename` back and deletes the manifest.
  */
 function installCoreManifest(manifest: Record<string, unknown>): void {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "gwen-vite-env-"));
-  fs.mkdirSync(path.join(dir, "@gwenjs", "core"), { recursive: true });
-  fs.writeFileSync(
-    path.join(dir, "@gwenjs", "core", "package.json"),
-    JSON.stringify({ name: "@gwenjs/core", ...manifest }),
-  );
-  const previous = process.env.NODE_PATH;
-  const initPaths = (): unknown => Reflect.apply(Reflect.get(Module, "_initPaths"), Module, []);
-  process.env.NODE_PATH = dir;
-  initPaths();
+  const manifestPath = path.join(dir, "@gwenjs", "core", "package.json");
+  fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
+  fs.writeFileSync(manifestPath, JSON.stringify({ name: "@gwenjs/core", ...manifest }));
+  const previous = Reflect.get(Module, "_resolveFilename");
+  const resolveFilename = (request: string, ...rest: unknown[]): unknown => {
+    if (request === "@gwenjs/core/package.json") return manifestPath;
+    return Reflect.apply(previous, Module, [request, ...rest]);
+  };
+  Reflect.set(Module, "_resolveFilename", resolveFilename);
   restore = () => {
-    if (previous === undefined) delete process.env.NODE_PATH;
-    else process.env.NODE_PATH = previous;
-    initPaths();
+    Reflect.set(Module, "_resolveFilename", previous);
     fs.rmSync(dir, { recursive: true, force: true });
   };
 }
