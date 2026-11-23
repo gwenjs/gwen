@@ -663,6 +663,7 @@ export const FRAMEWORK_ENTRIES: Readonly<Record<string, readonly string[]>> = {
     "EngineErrorPayload",
     "EngineStateChangePayload",
     "EntityId",
+    "FRAMEWORK_RANGES",
     "ForbiddenPluginKey",
     "FrameworkHookNamespace",
     "GWEN_DOCS_BASE",

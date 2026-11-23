@@ -154,3 +154,4 @@ export type {
 // ─── Framework range ─────────────────────────────────────────────────────────
 
 export { CORE_RANGE } from "./core-range";
+export { FRAMEWORK_RANGES } from "./framework-ranges.generated";

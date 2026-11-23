@@ -3,6 +3,7 @@
     "values": [
       "CORE_RANGE",
       "ENGINE_DEFAULTS",
+      "FRAMEWORK_RANGES",
       "GWEN_DOCS_BASE",
       "GWEN_FRAMEWORK_HOOK_NAMESPACES",
       "GWEN_PLUGIN_KEYS",

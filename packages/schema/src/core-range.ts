@@ -9,7 +9,9 @@
  */
 
 /**
- * Dependency range shared by core, kit, physics2d, physics3d, renderer-core,
- * and camera-core. physics-core joins once #58 P-58-0 ships.
+ * Dependency range shared by the linked framework group: core, kit, physics2d,
+ * physics3d, physics-core, renderer-core, and camera-core.
+ *
+ * @see FRAMEWORK_RANGES
  */
 export const CORE_RANGE = "^1.0.0-alpha.0" as const;
