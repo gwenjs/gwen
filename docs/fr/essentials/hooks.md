@@ -127,6 +127,8 @@ Les espaces de noms `engine`, `entity`, `scene`, `plugin`, `actor`, `prefab` et 
 | `scene:leave` | `name` | Scène désactivée |
 | `scene:transition:leave` | `{ from, to }` | Avant l'animation de sortie |
 | `scene:transition:enter` | `{ from, to }` | Après l'animation d'entrée |
+| `scene:preload` | `{ from, to, progress }` | Pendant le préchargement de la scène suivante. Les handlers tournent en parallèle |
+| `scene:preload:progress` | `{ from, to, progress }` | `0` d'abord, puis l'agrégat ; `1` seulement quand chaque handler a réussi |
 | `actor:enable` | `entityId` | Ré-acquisition d'un acteur du pool |
 | `actor:disable` | `entityId` | Relâchement d'un acteur du pool |
 | `engine:error` | `EngineErrorPayload` | Erreur de frame non gérée |

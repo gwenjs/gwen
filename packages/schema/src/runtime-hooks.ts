@@ -67,6 +67,46 @@ export interface PluginErrorEvent {
 }
 
 /**
+ * Argument of a `scene:preload` handler.
+ * Every handler for one preload runs in parallel.
+ */
+export interface ScenePreloadEvent {
+  /** Scene being left. `null` when no scene is active. */
+  readonly from: GwenSceneName | null;
+  /** Scene being preloaded. */
+  readonly to: GwenSceneName;
+  /**
+   * Report work for one task key as `(task, loaded, total)`.
+   * `loaded` is clamped into `[0, total]`.
+   * A report with `total <= 0`, or a non-finite `loaded` or `total`, is ignored.
+   * The published value is the aggregate whenever it rises and stays below `1`.
+   * `1` is published once every handler has resolved (never on failure).
+   * A report publishes only values below `1`.
+   * @param task - Key that identifies this piece of work.
+   * @param loaded - Units finished for `task`.
+   * @param total - Units expected for `task`.
+   */
+  progress(task: string, loaded: number, total: number): void;
+}
+
+/**
+ * Payload of `scene:preload:progress`.
+ * The hook emits `0` first and `1` only after every `scene:preload` handler has resolved.
+ * It never emits `1` when a handler fails.
+ */
+export interface ScenePreloadProgress {
+  /** Scene being left. `null` when no scene is active. */
+  readonly from: GwenSceneName | null;
+  /** Scene being preloaded. */
+  readonly to: GwenSceneName;
+  /**
+   * The published value is the aggregate whenever it rises and stays below `1`.
+   * `1` is published once every handler has resolved (never on failure).
+   */
+  readonly progress: number;
+}
+
+/**
  * Core engine runtime hooks.
  *
  * Extensible map of all GWEN runtime hook event names to their handler signatures.
@@ -148,6 +188,19 @@ export interface GwenRuntimeHooks {
     from: GwenSceneName;
     to: GwenSceneName;
   }) => void | Promise<void>;
+  /**
+   * Preload the scene named by `event.to`.
+   * Handlers run in parallel.
+   * Each calls `event.progress(task, loaded, total)` per task key.
+   */
+  "scene:preload": (event: ScenePreloadEvent) => void | Promise<void>;
+  /**
+   * The published value is the aggregate whenever it rises and stays below `1`.
+   * `1` is published once every handler has resolved (never on failure).
+   * Emits `0` first.
+   * Emits `1` only after every `scene:preload` handler has resolved, never on failure.
+   */
+  "scene:preload:progress": (payload: ScenePreloadProgress) => void;
   /** Fired when a pooled actor is acquired again. The first acquire does not fire this hook. */
   "actor:enable": (entityId: bigint) => void;
   /** Fired when a pooled actor is released. */

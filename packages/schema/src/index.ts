@@ -85,6 +85,8 @@ export type {
   IsHookName,
   PluginErrorEvent,
   ReservedHookNamespace,
+  ScenePreloadEvent,
+  ScenePreloadProgress,
   ServiceChangeEvent,
   ServiceChangeReason,
 } from "./runtime-hooks";

@@ -55,6 +55,8 @@ type _0 = [
   Root.PluginErrorContext,
   Root.PluginErrorEvent,
   Root.ReservedHookNamespace,
+  Root.ScenePreloadEvent,
+  Root.ScenePreloadProgress,
   Root.ServiceChangeEvent,
   Root.ServiceChangeReason,
   Root.TransformReader2D,
