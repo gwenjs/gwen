@@ -14,8 +14,28 @@ import {
   stripPluginManifest,
   writeSource,
 } from "./helpers/fixture.js";
+import { commitLockfile, initGitRepo, lockfileText, writeLockfile } from "./helpers/lockfile.js";
 
 const cleanups: Array<() => Promise<void>> = [];
+
+const CHECK_USAGE =
+  "Usage: gwen-conformance check [--profile plugin|package] [--write] [--lockfile-base <ref>]\n";
+
+const TWELVE_CLEAN = "CONFORMANCE: 0 findings (12 checks)\n";
+
+const BASE_LOCKFILE = lockfileText([
+  { name: "left-pad", version: "1.2.0" },
+  { name: "kleur", version: "4.1.5" },
+]);
+
+/** Clean package fixture with `text` committed as `pnpm-lock.yaml` on `main`. */
+async function lockfileRepo(text: string): Promise<string> {
+  const fixture = await createFixture();
+  cleanups.push(fixture.cleanup);
+  initGitRepo(fixture.root);
+  await commitLockfile(fixture.root, text);
+  return fixture.root;
+}
 
 afterEach(async () => {
   const pending = cleanups.splice(0);
@@ -161,9 +181,7 @@ describe("gwen-conformance", () => {
     const code = await runCli(["check", "--write", "--write"], captured.io);
     expect(code).toBe(2);
     expect(captured.stdout()).toBe("");
-    expect(captured.stderr()).toBe(
-      "Usage: gwen-conformance check [--profile plugin|package] [--write]\n",
-    );
+    expect(captured.stderr()).toBe(CHECK_USAGE);
   });
 
   it("returns 2 for an unknown command", async () => {
@@ -173,4 +191,107 @@ describe("gwen-conformance", () => {
     expect(code).toBe(2);
     expect(captured.stdout()).toBe("");
   });
+
+  it(
+    "--lockfile-base prints the drift line with its file and line, the 12-check summary, and returns 1",
+    { timeout: SLOW_TEST_MS },
+    async () => {
+      const root = await lockfileRepo(BASE_LOCKFILE);
+      await writeLockfile(
+        root,
+        lockfileText([
+          { name: "left-pad", version: "1.2.0" },
+          { name: "kleur", version: "4.1.6" },
+        ]),
+      );
+      const captured = capture(root);
+
+      const code = await runCli(["check", "--lockfile-base", "HEAD"], captured.io);
+      expect(code).toBe(1);
+      expect(captured.stderr()).toBe("");
+      expect(captured.stdout()).toBe(
+        'CONFORMANCE:LOCKFILE_DRIFT pnpm-lock.yaml:16 third-party package "kleur" resolves to 4.1.6, base ref HEAD has 4.1.5\nCONFORMANCE: 1 findings (12 checks)\n',
+      );
+    },
+  );
+
+  it(
+    "--lockfile-base returns 0 on an unchanged lockfile and prints 12 checks, then returns 2 when the value is missing",
+    { timeout: SLOW_TEST_MS },
+    async () => {
+      const root = await lockfileRepo(BASE_LOCKFILE);
+      await rm(path.join(root, SNAPSHOT_FILE));
+      const ok = capture(root);
+
+      const code = await runCli(["check", "--lockfile-base", "HEAD", "--write"], ok.io);
+      expect(code).toBe(0);
+      expect(ok.stdout()).toBe(TWELVE_CLEAN);
+      expect(ok.stderr()).toBe("");
+      const text = await readFile(path.join(root, SNAPSHOT_FILE), "utf8");
+      expect(JSON.parse(text)).toEqual({
+        ".": { values: ["ready"], types: [] },
+        "./module": { values: ["default"], types: [] },
+      });
+
+      const missing = capture(root);
+      const rejected = await runCli(["check", "--lockfile-base"], missing.io);
+      expect(rejected).toBe(2);
+      expect(missing.stderr()).toBe(CHECK_USAGE);
+      expect(missing.stdout()).toBe("");
+
+      const empty = capture(root);
+      const emptyCode = await runCli(["check", "--lockfile-base", ""], empty.io);
+      expect(emptyCode).toBe(2);
+      expect(empty.stderr()).toBe(CHECK_USAGE);
+      expect(empty.stdout()).toBe("");
+    },
+  );
+
+  it(
+    "--lockfile-base returns 2 when given twice, after a valid single use",
+    { timeout: SLOW_TEST_MS },
+    async () => {
+      const root = await lockfileRepo(BASE_LOCKFILE);
+      const ok = capture(root);
+
+      const code = await runCli(
+        ["check", "--profile", "package", "--lockfile-base", "HEAD"],
+        ok.io,
+      );
+      expect(code).toBe(0);
+      expect(ok.stdout()).toBe(TWELVE_CLEAN);
+      expect(ok.stderr()).toBe("");
+
+      const twice = capture(root);
+      const rejected = await runCli(
+        ["check", "--lockfile-base", "HEAD", "--lockfile-base", "HEAD"],
+        twice.io,
+      );
+      expect(rejected).toBe(2);
+      expect(twice.stderr()).toBe(CHECK_USAGE);
+      expect(twice.stdout()).toBe("");
+    },
+  );
+
+  it(
+    "--lockfile-base returns 2 for a value that starts with a dash, after a valid single use",
+    { timeout: SLOW_TEST_MS },
+    async () => {
+      const root = await lockfileRepo(BASE_LOCKFILE);
+      const ok = capture(root);
+
+      const code = await runCli(["check", "--lockfile-base", "HEAD"], ok.io);
+      expect(code).toBe(0);
+      expect(ok.stdout()).toBe(TWELVE_CLEAN);
+
+      const snap = path.join(root, SNAPSHOT_FILE);
+      const before = await readFile(snap, "utf8");
+      const dashed = capture(root);
+      const rejected = await runCli(["check", "--lockfile-base", "--write"], dashed.io);
+      expect(rejected).toBe(2);
+      expect(dashed.stderr()).toBe(CHECK_USAGE);
+      expect(dashed.stdout()).toBe("");
+      expect(await readFile(snap, "utf8")).toBe(before);
+    },
+  );
 });
