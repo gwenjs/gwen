@@ -6,9 +6,9 @@
 import { createEngineLocal } from "@gwenjs/core";
 import { GwenContextError } from "@gwenjs/kit";
 import type { GwenEngine } from "@gwenjs/core";
-import type { Physics3DCollisionContact } from "../types";
+import type { CollisionContact } from "../types";
 
-type ContactCallback = (e: Physics3DCollisionContact) => void;
+type ContactCallback = (e: CollisionContact) => void;
 
 const contacts = createEngineLocal<ContactCallback[]>(() => []);
 
@@ -27,11 +27,11 @@ function listOrNull(): ContactCallback[] | undefined {
  * Must be called inside an active engine context (inside `defineSystem()`,
  * `engine.run()`, or a plugin lifecycle hook).
  *
- * A {@link Physics3DCollisionContact} includes the two participating entity IDs,
+ * A {@link CollisionContact} includes the two participating entity IDs,
  * optional per-side collider IDs, and a flag indicating whether contact started
  * or ended this frame.
  *
- * @param callback - Function invoked with each {@link Physics3DCollisionContact}.
+ * @param callback - Function invoked with each {@link CollisionContact}.
  * @returns An unregister function. Call it to remove the callback (e.g. on actor
  *   despawn) and prevent stale-closure memory leaks.
  *
@@ -46,7 +46,7 @@ function listOrNull(): ContactCallback[] | undefined {
  *
  * @since 1.0.0
  */
-export function onContact(callback: (contact: Physics3DCollisionContact) => void): () => void {
+export function onContact(callback: (contact: CollisionContact) => void): () => void {
   const list = contacts.use();
   list.push(callback);
   return () => {
@@ -64,7 +64,7 @@ export function onContact(callback: (contact: Physics3DCollisionContact) => void
  * @param event - The contact event to dispatch.
  * @internal
  */
-export function _dispatchContactEvent(event: Physics3DCollisionContact): void {
+export function _dispatchContactEvent(event: CollisionContact): void {
   const list = listOrNull();
   if (!list) return;
   for (const cb of list) cb(event);

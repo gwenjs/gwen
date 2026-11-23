@@ -92,21 +92,18 @@ export function cloneState(s: Physics3DBodyState): Physics3DBodyState {
  * Explicit options always win over the preset, and the preset always falls back to
  * PHYSICS3D_MATERIAL_PRESETS.default if not found.
  *
- * @param options - Collider options with optional materialPreset name
+ * @param options - Collider options with optional material name
  * @returns Object with explicit friction, restitution, and density values
  */
 export function resolveColliderMaterial(
-  options: Pick<
-    Physics3DColliderOptions,
-    "materialPreset" | "friction" | "restitution" | "density"
-  >,
+  options: Pick<Physics3DColliderOptions, "material" | "friction" | "restitution" | "density">,
 ): {
   friction: number;
   restitution: number;
   density: number;
 } {
-  const preset = options.materialPreset
-    ? PHYSICS3D_MATERIAL_PRESETS[options.materialPreset]
+  const preset = options.material
+    ? PHYSICS3D_MATERIAL_PRESETS[options.material]
     : PHYSICS3D_MATERIAL_PRESETS.default;
 
   return {

@@ -76,7 +76,7 @@ export function useBoxCollider(options: BoxColliderOptions3D): BoxColliderHandle
     ...(options.offsetY !== undefined ? { offsetY: options.offsetY } : {}),
     ...(options.offsetZ !== undefined ? { offsetZ: options.offsetZ } : {}),
     ...(options.isSensor !== undefined ? { isSensor: options.isSensor } : {}),
-    ...(options.material !== undefined ? { materialPreset: options.material } : {}),
+    ...(options.material !== undefined ? { material: options.material } : {}),
   };
   physics.addCollider(entityId, collider);
 

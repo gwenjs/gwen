@@ -44,7 +44,7 @@ import {
   _dispatchContactEvent,
   _clearContactCallbacks,
 } from "../src/composables/on-contact.js";
-import type { Physics3DCollisionContact } from "../src/types.js";
+import type { CollisionContact } from "../src/types.js";
 
 describe("physics3d bulk operations", () => {
   beforeEach(() => {
@@ -65,13 +65,13 @@ describe("physics3d bulk operations", () => {
     try {
       _clearContactCallbacks();
       let calls = 0;
-      let last: Physics3DCollisionContact | undefined;
+      let last: CollisionContact | undefined;
       onContact((contact) => {
         calls += 1;
         last = contact;
       });
 
-      const event: Physics3DCollisionContact = {
+      const event: CollisionContact = {
         entityA: 1n,
         entityB: 2n,
         started: true,

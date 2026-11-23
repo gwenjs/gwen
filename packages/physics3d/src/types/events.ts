@@ -1,38 +1,8 @@
+import type { CollisionContact, SensorState } from "@gwenjs/physics-core";
 import type { EntityId } from "@gwenjs/schema";
 import type { Physics3DBodyOptions } from "./bodies";
 
-// ─── Sensor ─────────────────────────────────────────────────────────────────────
-
-/**
- * Persistent sensor contact state for a `(entityId, sensorId)` pair.
- * Updated each frame from collision events; readable in O(1).
- */
-export interface Physics3DSensorState {
-  /** Number of overlapping contacts right now. */
-  contactCount: number;
-  /** `true` when at least one contact is active. */
-  isActive: boolean;
-}
-
-// ─── Collision events ──────────────────────────────────────────────────────────
-
-/**
- * A resolved collision contact emitted by the Physics3D plugin.
- *
- * `entityA` and `entityB` are packed `EntityId`s ready to pass to the ECS.
- */
-export interface Physics3DCollisionContact {
-  /** Packed EntityId of the first participant. */
-  entityA: EntityId;
-  /** Packed EntityId of the second participant. */
-  entityB: EntityId;
-  /** Collider id on A side (when multi-collider path is used). */
-  aColliderId?: number;
-  /** Collider id on B side (when multi-collider path is used). */
-  bColliderId?: number;
-  /** `true` = contact started this frame, `false` = contact ended. */
-  started: boolean;
-}
+export type { CollisionContact, SensorState };
 
 // ─── Prefab extension ──────────────────────────────────────────────────────────
 
@@ -49,7 +19,7 @@ export interface Physics3DPrefabExtension {
    * Optional per-entity collision callback.
    * Called during `engine:update` for every contact event involving this entity.
    */
-  onCollision?: (entityA: EntityId, entityB: EntityId, contact: Physics3DCollisionContact) => void;
+  onCollision?: (entityA: EntityId, entityB: EntityId, contact: CollisionContact) => void;
 }
 
 // ─── Plugin hooks ──────────────────────────────────────────────────────────────
@@ -66,7 +36,8 @@ export interface Physics3DBodyDisabled {
 /**
  * Hooks emitted by the Physics3D plugin.
  *
- * Register via `api.hooks.hook('physics3d:collision', ...)`.
+ * `physics:collision` and `physics:sensor:changed` come from `@gwenjs/physics-core`.
+ * Register the package hook via `engine.hooks.hook('physics3d:body-disabled', ...)`.
  */
 export interface Physics3DPluginHooks {
   /**
@@ -74,24 +45,4 @@ export interface Physics3DPluginHooks {
    * `reason` is `non-finite`, `out-of-bounds` or `velocity`.
    */
   "physics3d:body-disabled": (payload: Physics3DBodyDisabled) => void;
-
-  /**
-   * Fired once per frame during `engine:update` with all resolved collision contacts.
-   * The array is read-only and ephemeral — do not retain across frames.
-   */
-  "physics3d:collision": (contacts: ReadonlyArray<Physics3DCollisionContact>) => void;
-
-  /**
-   * Emitted on every sensor state transition (inactive → active or active → inactive).
-   * Not emitted on "stay" frames.
-   *
-   * @param entityId - Packed EntityId of the entity whose sensor changed.
-   * @param sensorId - Stable sensor id (e.g. `SENSOR_ID_FOOT`).
-   * @param state    - Updated sensor state after the transition.
-   */
-  "physics3d:sensor:changed": (
-    entityId: EntityId,
-    sensorId: number,
-    state: Physics3DSensorState,
-  ) => void;
 }

@@ -6,9 +6,9 @@ import type { GwenEngine } from "@gwenjs/core";
 import type {
   Physics3DAPI,
   Physics3DConfig,
-  Physics3DCollisionContact,
+  CollisionContact,
   Physics3DPrefabExtension,
-  Physics3DSensorState,
+  SensorState,
 } from "../types";
 
 import {
@@ -496,7 +496,7 @@ export const Physics3DPlugin = definePlugin(physics3dDeclaration, (config: Physi
         const rawEvents =
           ctx.backendMode === "wasm" ? readWasmCollisionEvents(ctx) : detectLocalCollisions(ctx);
 
-        const contacts: Physics3DCollisionContact[] = [];
+        const contacts: CollisionContact[] = [];
         for (const ev of rawEvents) {
           const entityA = ownerEntityId(ctx, ev.slotA);
           const entityB = ownerEntityId(ctx, ev.slotB);
@@ -521,8 +521,8 @@ export const Physics3DPlugin = definePlugin(physics3dDeclaration, (config: Physi
         reportRejectedHook(
           ctx._engine,
           "@gwenjs/physics3d",
-          "physics3d:collision",
-          ctx._engine.hooks.callHook("physics3d:collision", contacts),
+          "physics:collision",
+          ctx._engine.hooks.callHook("physics:collision", contacts),
         );
 
         // Dispatch to composable onContact() callbacks
@@ -552,15 +552,15 @@ export const Physics3DPlugin = definePlugin(physics3dDeclaration, (config: Physi
               ? prev.contactCount + 1
               : Math.max(0, prev.contactCount - 1);
             const newActive = newCount > 0;
-            const next: Physics3DSensorState = { contactCount: newCount, isActive: newActive };
+            const next: SensorState = { contactCount: newCount, isActive: newActive };
             sensorMap.set(colliderId, next);
 
             if (prev.isActive !== newActive) {
               reportRejectedHook(
                 ctx._engine,
                 "@gwenjs/physics3d",
-                "physics3d:sensor:changed",
-                ctx._engine.hooks.callHook("physics3d:sensor:changed", eid, colliderId, next),
+                "physics:sensor:changed",
+                ctx._engine.hooks.callHook("physics:sensor:changed", eid, colliderId, next),
               );
               if (newActive) {
                 _dispatchSensorEnter(colliderId, eid);

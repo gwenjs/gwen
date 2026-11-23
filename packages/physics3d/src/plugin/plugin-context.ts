@@ -13,7 +13,7 @@ import type {
   Physics3DBodyHandle,
   Physics3DBodyState,
   Physics3DColliderOptions,
-  Physics3DSensorState,
+  SensorState,
   Physics3DPrefabExtension,
   Pathfinding3DOptions,
   RaycastOpts,
@@ -22,7 +22,7 @@ import type {
   ShapeCastSlotResult,
   OverlapOpts,
   OverlapSlotResult,
-  Physics3DCollisionContact,
+  CollisionContact,
 } from "../types";
 import type {
   InternalCollisionEvent3D,
@@ -81,7 +81,7 @@ export interface PluginContext {
   _pendingBvhLoads: Map<number, { ac: AbortController; ready: Promise<void> }>;
 
   // ── Sensor state ───────────────────────────────────────────────────────────
-  localSensorStates: Map<number, Map<number, Physics3DSensorState>>;
+  localSensorStates: Map<number, Map<number, SensorState>>;
   /** Collider ids created as sensors, keyed by entity slot. */
   activeSensors: Map<number, Set<number>>;
 
@@ -89,7 +89,7 @@ export interface PluginContext {
   entityCollisionCallbacks: Map<number, NonNullable<Physics3DPrefabExtension["onCollision"]>>;
 
   // ── Frame contacts ─────────────────────────────────────────────────────────
-  currentFrameContacts: Physics3DCollisionContact[];
+  currentFrameContacts: CollisionContact[];
   previousLocalContactKeys: Set<string>;
 
   // ── WASM event buffer ──────────────────────────────────────────────────────

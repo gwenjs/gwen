@@ -219,7 +219,7 @@ Tous les composables d'événements sont automatiquement nettoyés à la destruc
 #### onContact(handler)
 
 ```ts
-function onContact(handler: (event: ContactEvent3D) => void): void
+function onContact(handler: (event: CollisionContact) => void): void
 ```
 
 Enregistre un gestionnaire appelé lorsque le collider de cet acteur entre ou sort de contact avec un autre.

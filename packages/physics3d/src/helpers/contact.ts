@@ -6,7 +6,7 @@
  */
 
 import type { EntityId } from "@gwenjs/schema";
-import type { Physics3DCollisionContact } from "../types";
+import type { CollisionContact } from "../types";
 
 /**
  * Filter a contact batch to those involving a specific entity.
@@ -23,9 +23,9 @@ import type { Physics3DCollisionContact } from "../types";
  * ```
  */
 export function selectContactsForEntityId(
-  batch: ReadonlyArray<Physics3DCollisionContact>,
+  batch: ReadonlyArray<CollisionContact>,
   entityId: EntityId,
-): Physics3DCollisionContact[] {
+): CollisionContact[] {
   return batch.filter((c) => c.entityA === entityId || c.entityB === entityId);
 }
 
@@ -49,9 +49,9 @@ export function selectContactsForEntityId(
  * ```
  */
 export function dedupeContactsByPair(
-  contacts: ReadonlyArray<Physics3DCollisionContact>,
-): Physics3DCollisionContact[] {
-  const out: Physics3DCollisionContact[] = [];
+  contacts: ReadonlyArray<CollisionContact>,
+): CollisionContact[] {
+  const out: CollisionContact[] = [];
   const seen = new Set<string>();
 
   for (const c of contacts) {
@@ -84,8 +84,8 @@ export function dedupeContactsByPair(
  * @returns All contacts where `entityId` participates.
  */
 export function selectResolvedContactsForEntityId(
-  contacts: ReadonlyArray<Physics3DCollisionContact>,
+  contacts: ReadonlyArray<CollisionContact>,
   entityId: EntityId,
-): Physics3DCollisionContact[] {
+): CollisionContact[] {
   return contacts.filter((c) => c.entityA === entityId || c.entityB === entityId);
 }

@@ -1,6 +1,6 @@
 /**
  * Internal raw event read from the WASM ring buffer.
- * Carries slot indices not exposed on the public `Physics3DCollisionContact`.
+ * Carries slot indices not exposed on the public `CollisionContact`.
  */
 export type InternalCollisionEvent3D = {
   slotA: number;

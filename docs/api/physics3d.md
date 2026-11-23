@@ -219,7 +219,7 @@ All event composables are auto-cleaned up when the actor is destroyed.
 #### onContact(handler)
 
 ```ts
-function onContact(handler: (event: ContactEvent3D) => void): void
+function onContact(handler: (event: CollisionContact) => void): void
 ```
 
 Registers a handler called when this actor's collider makes or breaks contact with another.
