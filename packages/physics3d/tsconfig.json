@@ -23,6 +23,9 @@
   "extends": "../../tsconfig.base.json",
   "references": [
     {
+      "path": "../physics-core"
+    },
+    {
       "path": "../core"
     },
     {

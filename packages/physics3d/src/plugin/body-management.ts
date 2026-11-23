@@ -5,9 +5,15 @@
  */
 
 import type { EntityId } from "@gwenjs/schema";
-import type { Physics3DAPI, Physics3DBodyHandle, Physics3DBodyOptions } from "../types";
-import type { Physics3DColliderOptions } from "../types";
+import type {
+  Physics3DAPI,
+  Physics3DBodyHandle,
+  Physics3DBodyOptions,
+  Physics3DColliderOptions,
+  QualityPreset,
+} from "../types";
 import type { PluginContext } from "./plugin-context";
+import { readGravityAxis } from "../config";
 import { Physics3DErrorCodes } from "../errors/codes";
 import { callPhysics3DExport, hasPhysics3DCode } from "./wasm-errors";
 import { entitySlot, guardAlive, guardOwned, noteOwnerChange, ownedSlot } from "./entity-owner";
@@ -70,6 +76,9 @@ export function removeBodyLocal(ctx: PluginContext, entityId: EntityId): boolean
 }
 
 export function advanceLocalState(ctx: PluginContext, deltaSeconds: number): void {
+  const gx = readGravityAxis(ctx.cfg.gravity, "x");
+  const gy = readGravityAxis(ctx.cfg.gravity, "y");
+  const gz = readGravityAxis(ctx.cfg.gravity, "z");
   for (const [slot, handle] of ctx.bodyByEntity.entries()) {
     const state = ctx.stateByEntity.get(slot);
     if (!state) continue;
@@ -81,9 +90,9 @@ export function advanceLocalState(ctx: PluginContext, deltaSeconds: number): voi
       // Per-body gravity scale (default 1.0)
       const gs = ctx.localGravityScales.get(slot) ?? 1.0;
       state.linearVelocity = {
-        x: state.linearVelocity.x + ctx.cfg.gravity.x * gs * deltaSeconds,
-        y: state.linearVelocity.y + ctx.cfg.gravity.y * gs * deltaSeconds,
-        z: state.linearVelocity.z + ctx.cfg.gravity.z * gs * deltaSeconds,
+        x: state.linearVelocity.x + gx * gs * deltaSeconds,
+        y: state.linearVelocity.y + gy * gs * deltaSeconds,
+        z: state.linearVelocity.z + gz * gs * deltaSeconds,
       };
 
       // Apply accumulated forces: F = m*a → a = F/m → Δv = a*dt
@@ -263,7 +272,7 @@ function applyWasmBodyOptions(
   }
 
   if (options.quality !== undefined) {
-    const QUALITY_ITER_MAP: Record<import("../types/config").Physics3DQualityPreset, number> = {
+    const QUALITY_ITER_MAP: Record<QualityPreset, number> = {
       low: 0,
       medium: 0,
       high: 1,

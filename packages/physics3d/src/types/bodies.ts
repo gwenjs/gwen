@@ -1,8 +1,13 @@
 import type { Quat, Vec3 } from "@gwenjs/math";
 import type { EntityId } from "@gwenjs/schema";
 
-import type { Physics3DQualityPreset } from "./config";
+import type { BodyKind } from "@gwenjs/physics-core";
+
 import type { Physics3DColliderOptions, Physics3DMaterialPreset } from "./colliders";
+import type { QualityPreset } from "./config";
+
+export type { BodyKind };
+export { BODY_KIND_CODE } from "@gwenjs/physics-core";
 
 /**
  * How a 3D rigid body participates in the simulation.
@@ -11,7 +16,6 @@ import type { Physics3DColliderOptions, Physics3DMaterialPreset } from "./collid
  * - `'dynamic'`   — Fully simulated (gravity, forces, collisions).
  * - `'kinematic'` — Position driven by explicit writes; ignores gravity.
  */
-export type Physics3DBodyKind = "dynamic" | "kinematic" | "fixed";
 
 /**
  * Options accepted by `createBody`.
@@ -21,7 +25,7 @@ export interface Physics3DBodyOptions {
    * How the body participates in the simulation.
    * @default 'dynamic'
    */
-  kind?: Physics3DBodyKind;
+  kind?: BodyKind;
   /**
    * Body mass in kg. Values ≤ 0 are clamped to 0.0001.
    * @default 1
@@ -71,7 +75,7 @@ export interface Physics3DBodyOptions {
    * Maps to Rapier's `additional_solver_iterations`.
    * @default undefined (uses world preset)
    */
-  quality?: import("./config").Physics3DQualityPreset;
+  quality?: QualityPreset;
 }
 
 /** Opaque handle returned by `createBody`, stored internally. */
@@ -81,7 +85,7 @@ export interface Physics3DBodyHandle {
   /** The EntityId this handle was created for. */
   entityId: EntityId;
   /** Current simulation kind. */
-  kind: Physics3DBodyKind;
+  kind: BodyKind;
   /** Body mass in kg. */
   mass: number;
   /** Linear damping coefficient. */
@@ -212,9 +216,9 @@ export interface DynamicBodyOptions3D {
   /**
    * CCD quality preset for fast-moving bodies.
    * @default 'medium'
-   * @see {@link Physics3DQualityPreset}
+   * @see {@link QualityPreset}
    */
-  quality?: Physics3DQualityPreset;
+  quality?: QualityPreset;
 }
 
 /**

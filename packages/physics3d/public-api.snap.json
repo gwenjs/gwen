@@ -1,9 +1,11 @@
 {
   ".": {
     "values": [
+      "BODY_KIND_CODE",
       "Physics3DErrorCodes",
       "Physics3DPlugin",
       "Physics3DStaleEntityError",
+      "QUALITY_PRESET_CODE",
       "SENSOR_ID_FOOT",
       "SENSOR_ID_HEAD",
       "applyDirectionalImpulse",
@@ -41,6 +43,7 @@
       "useStaticBody"
     ],
     "types": [
+      "BodyKind",
       "BoxColliderHandle3D",
       "BoxColliderOptions3D",
       "BulkStaticBoxesOptions",
@@ -64,7 +67,6 @@
       "MeshColliderOptions",
       "Physics3DAPI",
       "Physics3DBodyHandle",
-      "Physics3DBodyKind",
       "Physics3DBodyOptions",
       "Physics3DBodySnapshot",
       "Physics3DBodyState",
@@ -75,10 +77,10 @@
       "Physics3DPluginHooks",
       "Physics3DPrefabExtension",
       "Physics3DProvides",
-      "Physics3DQualityPreset",
       "Physics3DSensorState",
       "PhysicsKinematicSyncSystemOptions",
       "PreloadedBvhHandle",
+      "QualityPreset",
       "SphereColliderHandle3D",
       "SphereColliderOptions3D",
       "StaticBodyHandle3D",
@@ -99,7 +101,7 @@
       "COLLIDER_ID_ABSENT",
       "EVENT_STRIDE_3D",
       "MAX_EVENTS_3D",
-      "QUALITY_PRESETS",
+      "QUALITY_PRESET_CODE",
       "normalizePhysics3DConfig"
     ],
     "types": []

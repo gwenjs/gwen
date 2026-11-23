@@ -219,7 +219,7 @@ describe("Physics3D colliders — local mode", () => {
 
   it("accepts layer and mask options on collider", () => {
     const plugin = Physics3DPlugin({
-      layers: ["default", "player", "enemy"],
+      layers: { default: 0, player: 1, enemy: 2 },
     });
     const { engine, services } = makeEngine();
     engineContext.set(engine, true);

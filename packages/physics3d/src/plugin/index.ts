@@ -15,7 +15,8 @@ import {
   DEFAULT_PHYSICS3D_CONFIG,
   normalizePhysics3DConfig,
   buildLayerRegistry,
-  QUALITY_PRESETS,
+  QUALITY_PRESET_CODE,
+  readGravityAxis,
 } from "../config";
 
 import { _dispatchContactEvent, _clearContactCallbacks } from "../composables/on-contact";
@@ -381,9 +382,9 @@ export const Physics3DPlugin = definePlugin(physics3dDeclaration, (config: Physi
       }
 
       pb.physics3d_init(
-        ctx.cfg.gravity.x,
-        ctx.cfg.gravity.y,
-        ctx.cfg.gravity.z,
+        readGravityAxis(ctx.cfg.gravity, "x"),
+        readGravityAxis(ctx.cfg.gravity, "y"),
+        readGravityAxis(ctx.cfg.gravity, "z"),
         ctx.cfg.maxEntities,
       );
 
@@ -400,7 +401,7 @@ export const Physics3DPlugin = definePlugin(physics3dDeclaration, (config: Physi
       if (typeof pb.physics3d_set_quality === "function") {
         const setQuality = pb.physics3d_set_quality;
         callPhysics3DExport(ctx, "physics3d_set_quality", () =>
-          setQuality.call(pb, QUALITY_PRESETS[ctx.cfg.qualityPreset]),
+          setQuality.call(pb, QUALITY_PRESET_CODE[ctx.cfg.qualityPreset]),
         );
       }
 

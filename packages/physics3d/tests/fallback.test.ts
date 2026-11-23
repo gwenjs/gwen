@@ -494,7 +494,6 @@ describe("Physics3D TypeScript fallback", () => {
       expect(velocity?.x).toBeCloseTo(1 / 60, 5);
       expect(velocity?.y).toBeCloseTo(-9.81 / 60, 5);
     });
-
     it("surfaces PHYSICS3D:INVALID_LAYERS when a layer bit is 40", () => {
       expect(() => setup({ layers: { a: 40 } })).toThrow("(PHYSICS3D:INVALID_LAYERS)");
     });

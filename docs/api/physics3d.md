@@ -24,7 +24,7 @@ export default defineConfig({
     debug: false,
     coalesceEvents: true,
     maxLinearVelocity: 400,
-    layers: ['default', 'player', 'enemy'],
+    layers: { default: 0, player: 1, enemy: 2 },
     vite: {
       bvhPrebake: false,
       debug: false,
@@ -37,13 +37,13 @@ export default defineConfig({
 
 | Field | Type | Default | Description |
 |---|---|---|---|
-| `gravity` | `Vec3` | `{ x: 0, y: -9.81, z: 0 }` | World gravity vector |
+| `gravity` | `Partial<Vec3>` | `{ x: 0, y: -9.81, z: 0 }` | World gravity vector. A missing component uses the default component (x 0, y -9.81, z 0) (`packages/physics3d/src/config.ts:21`). |
 | `maxEntities` | `number` | `10_000` | Maximum number of physics entities |
-| `qualityPreset` | `Physics3DQualityPreset` | `'medium'` | Solver quality: `'low'`, `'medium'`, `'high'`, or `'esport'` |
+| `qualityPreset` | `QualityPreset` | `'medium'` | Solver quality: `'low'`, `'medium'`, `'high'`, or `'esport'` |
 | `debug` | `boolean` | `false` | Enable runtime physics debug logs |
 | `coalesceEvents` | `boolean` | `true` | Merge duplicate contact events within a frame |
 | `maxLinearVelocity` | `number` | `400` | Linear speed cap (m/s). Also Rapier's per-substep cap. A faster dynamic body is scaled and stays enabled |
-| `layers` | `string[]` | `['default']` | Named collision layer list (max 32) |
+| `layers` | `Record<string, number>` | `{}` | Layer name to bit index, integers `0..31`, at most 32 |
 | `vite` | `object` | — | Build-time Vite plugin options (see below) |
 | `vite.bvhPrebake` | `boolean` | `false` | Pre-bake BVH for `useMeshCollider('./x.glb')` at build time |
 | `vite.debug` | `boolean` | `false` | Enable Vite plugin logging |
@@ -265,18 +265,18 @@ Called when another collider leaves this actor's sensor collider.
 
 ### Layers
 
-#### defineLayers(layerList)
+#### defineLayers(definition)
 
 ```ts
-function defineLayers(layerList: string[]): Record<string, number>
+function defineLayers(definition: Record<string, number>): Record<string, number>
 ```
 
-Converts a named layer list (matching the one in `gwen.config.ts`) into a bitmask object. The Vite plugin inlines these literal values at build time.
+Returns a shallow copy of the mask map. When two values share bits, it writes a console warning. `defineLayers` works with masks while `Physics3DConfig.layers` takes bit indexes 0..31.
 
 ```ts
 import { defineLayers } from '@gwenjs/physics3d'
 
-const Layers = defineLayers(['default', 'player', 'enemy'])
+const Layers = defineLayers({ default: 1, player: 2, enemy: 4 })
 // Layers.default === 1, Layers.player === 2, Layers.enemy === 4
 
 useBoxCollider({
@@ -430,14 +430,15 @@ Enable `bvhPrebake: true` (via `vite.bvhPrebake` in module config) for large ter
 ### Physics3DConfig
 
 ```ts
-interface Physics3DConfig {
-  gravity: Vec3
-  maxEntities: number
-  qualityPreset: 'low' | 'medium' | 'high' | 'esport'
-  debug: boolean
-  coalesceEvents: boolean
-  layers: string[]
-  vite: {
+interface Physics3DConfig extends PhysicsConfigBase<'3d'> {
+  gravity?: Partial<Vec3>
+  maxEntities?: number
+  qualityPreset?: QualityPreset
+  debug?: boolean
+  coalesceEvents?: boolean
+  maxLinearVelocity?: number
+  layers?: Record<string, number>
+  vite?: {
     bvhPrebake: boolean
     debug: boolean
   }
@@ -446,8 +447,8 @@ interface Physics3DConfig {
 
 Throughout this page, vector and rotation shapes are `Vec3` and `Quat` from `@gwenjs/math`, and entity ids are `EntityId` from `@gwenjs/schema`.
 
-### Physics3DQualityPreset
+### QualityPreset
 
 ```ts
-type Physics3DQualityPreset = 'low' | 'medium' | 'high' | 'esport'
+type QualityPreset = 'low' | 'medium' | 'high' | 'esport'
 ```
