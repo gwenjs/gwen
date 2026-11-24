@@ -67,6 +67,7 @@ interface PackedFrame {
 interface SensorRead {
   read(entityId: bigint, sensorId: number): SensorState;
   update?(entityId: bigint, sensorId: number, started: boolean): void;
+  set?(entityId: bigint, sensorId: number, state: SensorState): void;
 }
 
 interface Harness {
@@ -758,5 +759,80 @@ it("a manual sensor update and the dispatch share one count", async () => {
   box.frames.push(frame16([[1, 2, 4, 1, true]]));
   await update(engine);
   expect(sensors.read(entityA, 4)).toEqual({ contactCount: 2, isActive: true });
+  expect(entered).toEqual([]);
+});
+
+it("a manual absolute sensor update is read back and forgotten with the entity", async () => {
+  const engine = await openEngine();
+  const box = harness(LAYOUT_16);
+  let tracker: SensorRead | undefined;
+  await usePlugin(engine, "absolute-set", box, (sensors) => {
+    tracker = sensors;
+  });
+  const sensors = tracker;
+  expect(sensors).toBeDefined();
+  if (sensors === undefined) return;
+  const entity = engine.createEntity();
+  const other = engine.createEntity();
+  const write = sensors.set;
+  if (typeof write === "function") {
+    write(entity, 4, { contactCount: 2, isActive: true });
+    write(entity, 7, { contactCount: 0, isActive: true });
+    write(entity, 8, { contactCount: 3, isActive: false });
+    write(other, 4, { contactCount: 1, isActive: true });
+  }
+  expect(sensors.read(entity, 4)).toEqual({ contactCount: 2, isActive: true });
+  expect(sensors.read(entity, 7)).toEqual({ contactCount: 0, isActive: true });
+  expect(sensors.read(entity, 8)).toEqual({ contactCount: 3, isActive: false });
+  expect(sensors.read(other, 4)).toEqual({ contactCount: 1, isActive: true });
+  await engine.hooks.callHook("entity:destroy", entity);
+  expect(sensors.read(entity, 4)).toEqual({ contactCount: 0, isActive: false });
+  expect(sensors.read(entity, 7)).toEqual({ contactCount: 0, isActive: false });
+  expect(sensors.read(other, 4)).toEqual({ contactCount: 1, isActive: true });
+});
+
+it("an absolute update changes the next transition", async () => {
+  const engine = await openEngine();
+  const box = harness(LAYOUT_16);
+  let tracker: SensorRead | undefined;
+  await usePlugin(engine, "absolute-transition", box, (sensors) => {
+    tracker = sensors;
+  });
+  const sensors = tracker;
+  expect(sensors).toBeDefined();
+  if (sensors === undefined) return;
+  const entity = engine.createEntity();
+  const other = engine.createEntity();
+  box.owners.set(1, entity);
+  box.owners.set(2, other);
+  box.sensors.set(1, 4);
+  const write = sensors.set;
+  if (typeof write === "function") write(entity, 4, { contactCount: 0, isActive: true });
+  expect(sensors.read(entity, 4)).toEqual({ contactCount: 0, isActive: true });
+  const exited: bigint[] = [];
+  const reported: SensorState[] = [];
+  await engine.run(() => {
+    api.onSensorExit(4, (entityId) => {
+      exited.push(entityId);
+    });
+  });
+  engine.hooks.hook("physics:sensor:changed", (_entityId, _sensorId, state) => {
+    reported.push({ contactCount: state.contactCount, isActive: state.isActive });
+  });
+  box.frames.push(frame16([[1, 2, 4, 1, false]]));
+  await update(engine);
+  expect(exited).toEqual([entity]);
+  expect(reported).toEqual([{ contactCount: 0, isActive: false }]);
+  expect(sensors.read(entity, 4)).toEqual({ contactCount: 0, isActive: false });
+  const entered: bigint[] = [];
+  await engine.run(() => {
+    api.onSensorEnter(4, (entityId) => {
+      entered.push(entityId);
+    });
+  });
+  if (typeof write === "function") write(entity, 4, { contactCount: 1, isActive: true });
+  box.frames.push(frame16([[1, 2, 4, 1, true]]));
+  await update(engine);
+  expect(sensors.read(entity, 4)).toEqual({ contactCount: 2, isActive: true });
   expect(entered).toEqual([]);
 });
