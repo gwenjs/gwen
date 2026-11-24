@@ -1,5 +1,13 @@
-import { describe, it, expect } from "vitest";
-import { generateLayoutsModule, extractLayoutNames } from "../src/plugins/layout.js";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { ViteErrorCodes } from "../src/error-codes.js";
+import {
+  generateLayoutsModule,
+  extractLayoutNames,
+  gwenLayoutPlugin,
+} from "../src/plugins/layout.js";
 
 describe("generateLayoutsModule", () => {
   it("returns empty layouts object when no files given", () => {
@@ -99,5 +107,80 @@ describe("extractLayoutNames", () => {
 
     expect(names).toContain("Level1");
     expect(names.size).toBe(1);
+  });
+});
+
+type Failure = { code: string; message: string; cause: unknown };
+type Outcome<T> = { value: T } | Failure;
+
+function isFailure(outcome: Outcome<unknown>): outcome is Failure {
+  return "code" in outcome;
+}
+
+function thrown(caught: unknown): Failure {
+  if (typeof caught === "object" && caught !== null) {
+    const code = "code" in caught ? caught.code : undefined;
+    const message = "message" in caught ? caught.message : undefined;
+    if (typeof code === "string" && typeof message === "string") {
+      const cause = "cause" in caught ? caught.cause : undefined;
+      return { code, message, cause };
+    }
+  }
+  if (caught instanceof Error) {
+    return { code: "", message: caught.message, cause: caught.cause };
+  }
+  return { code: "", message: "thrown value was not an Error", cause: undefined };
+}
+
+function outcomeOf<T>(run: () => T): Outcome<T> {
+  try {
+    return { value: run() };
+  } catch (caught) {
+    return thrown(caught);
+  }
+}
+
+describe("gwenLayoutPlugin", () => {
+  let root = "";
+
+  beforeEach(() => {
+    root = mkdtempSync(join(tmpdir(), "gwen-layout-plugin-"));
+  });
+
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it("load throws VITE:TRANSFORM_PARSE_FAILED for an unparsable layout file", () => {
+    const dir = join(root, "src", "layouts");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "bad.ts"), "export const L = defineLayout(() => { const = ; });\n");
+
+    const plugin = gwenLayoutPlugin({
+      layout: { include: ["src/layouts/**/*.ts"] },
+      autoImports: [{ name: "defineLayout", from: "@gwenjs/core/actor" }],
+    });
+    const configResolved = plugin.configResolved;
+    expect(typeof configResolved).toBe("function");
+    if (typeof configResolved !== "function") return;
+    Reflect.apply(configResolved, plugin, [{ root }]);
+
+    const resolveId = plugin.resolveId;
+    expect(typeof resolveId).toBe("function");
+    if (typeof resolveId !== "function") return;
+    const resolved: unknown = Reflect.apply(resolveId, plugin, ["virtual:gwen/layouts"]);
+    expect(typeof resolved).toBe("string");
+    if (typeof resolved !== "string") return;
+
+    const load = plugin.load;
+    expect(typeof load).toBe("function");
+    if (typeof load !== "function") return;
+    const outcome = outcomeOf(() => {
+      const value: unknown = Reflect.apply(load, plugin, [resolved]);
+      return value;
+    });
+    expect(isFailure(outcome) ? outcome.code : undefined).toBe(
+      ViteErrorCodes.TRANSFORM_PARSE_FAILED,
+    );
   });
 });

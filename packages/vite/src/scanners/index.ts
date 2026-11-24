@@ -6,6 +6,7 @@ import fs from "node:fs";
 import * as path from "node:path";
 import { walk } from "oxc-walker";
 import { GwenError } from "@gwenjs/schema";
+import type { AutoImport } from "@gwenjs/kit";
 import { getCallArgs, isCallTo, parseSource } from "../oxc/index.js";
 import { ViteErrorCodes } from "../error-codes.js";
 
@@ -18,6 +19,23 @@ export interface SceneInfo {
   isFactory: boolean;
   isConst: boolean;
   relPath: string;
+}
+
+/** One exported `defineHooks` binding and the file that declares it. */
+export interface HookExport {
+  file: string;
+  name: string;
+}
+
+/** One `defineLayout` binding and the file that declares it. */
+export interface LayoutName {
+  file: string;
+  name: string;
+}
+
+/** Shared scanner options. `autoImports` supplies bare callees. */
+export interface ScanOptions {
+  autoImports?: readonly AutoImport[];
 }
 
 /**
@@ -115,7 +133,7 @@ function scanSceneFile(
 }
 
 /** Scan `src/scenes/*.ts`. Files whose names start with `_` or `.` are skipped. */
-export function scanScenes(projectRoot: string): SceneInfo[] {
+export function scanScenes(projectRoot: string, _options?: ScanOptions): SceneInfo[] {
   const scenesDir = path.join(projectRoot, "src", "scenes");
   if (!fs.existsSync(scenesDir)) return [];
 
@@ -202,4 +220,26 @@ export function resolveMainScene(
     return fromConfig;
   }
   return scenes[0]?.sceneName;
+}
+
+/** Inert until hooks files are read with the strict parser. */
+export function scanDefineHooks(
+  _root: string,
+  _options?: ScanOptions & { file?: string; dir?: string },
+): HookExport[] {
+  return [];
+}
+
+/** Inert until layout files are read with the strict parser. */
+export function scanLayoutNames(
+  _root: string,
+  _include: readonly string[],
+  _options?: ScanOptions,
+): LayoutName[] {
+  return [];
+}
+
+/** Inert until easing calls are read with the strict parser. */
+export function scanEasingNames(_root: string, _options?: ScanOptions): string[] {
+  return [];
 }

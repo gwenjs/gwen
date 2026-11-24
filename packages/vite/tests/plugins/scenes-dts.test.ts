@@ -315,4 +315,92 @@ describe("scenes.d.ts", () => {
     expect(readFileSync(file, "utf8")).toBe(generateScenesDts(["play"]));
     expect(sent).toEqual([{ type: "full-reload" }]);
   });
+
+  it("gwen prepare and buildStart produce the same SceneInfo[] through the shared scanner", async () => {
+    const expected = generateScenesDts(["game", "menu"]);
+    writeFileSync(join(root, "gwen.config.ts"), "export default { modules: [] };\n");
+    writeScene(root, "game.ts", 'export const Game = defineScene("game", () => {});\n');
+    writeScene(
+      root,
+      "menu.ts",
+      'import { defineScene as ds } from "@gwenjs/core/scene";\nexport const Menu = ds("menu", () => {});\n',
+    );
+
+    const built = await scenesTextFromBuild(root);
+    const prepared = await scenesTextFromPrepare(root);
+    expect(textOf(built)).toBe(expected);
+    expect(textOf(prepared)).toBe(expected);
+  });
 });
+
+type ScanFailure = { code: string; message: string; cause: unknown };
+type ScanOutcome<T> = { value: T } | ScanFailure;
+
+function isScanFailure(outcome: ScanOutcome<unknown>): outcome is ScanFailure {
+  return "code" in outcome;
+}
+
+function scanThrown(caught: unknown): ScanFailure {
+  if (typeof caught === "object" && caught !== null) {
+    const code = "code" in caught ? caught.code : undefined;
+    const message = "message" in caught ? caught.message : undefined;
+    if (typeof code === "string" && typeof message === "string") {
+      const cause = "cause" in caught ? caught.cause : undefined;
+      return { code, message, cause };
+    }
+  }
+  if (caught instanceof Error) {
+    return { code: "", message: caught.message, cause: caught.cause };
+  }
+  return { code: "", message: "thrown value was not an Error", cause: undefined };
+}
+
+function textOf(outcome: ScanOutcome<string>): string {
+  return isScanFailure(outcome) ? outcome.code : outcome.value;
+}
+
+async function scenesTextFromBuild(projectRoot: string): Promise<ScanOutcome<string>> {
+  const plugins = gwen();
+  const plugin = plugins.find((item) => item.name === "gwen");
+  if (plugin === undefined) {
+    return { code: "SETUP", message: 'gwen() did not return the "gwen" plugin', cause: undefined };
+  }
+  const configResolved = plugin.configResolved;
+  if (typeof configResolved !== "function") {
+    return { code: "SETUP", message: "gwen plugin has no configResolved", cause: undefined };
+  }
+  Reflect.apply(configResolved, plugin, [{ root: projectRoot }]);
+  const buildStart = plugin.buildStart;
+  if (typeof buildStart !== "function") {
+    return { code: "SETUP", message: "gwen plugin has no buildStart", cause: undefined };
+  }
+  try {
+    await Reflect.apply(buildStart, plugin, []);
+  } catch (caught) {
+    return scanThrown(caught);
+  }
+  const file = scenesFile(projectRoot);
+  if (!existsSync(file)) {
+    return { code: "SETUP", message: "scenes.d.ts was not written", cause: undefined };
+  }
+  return { value: readFileSync(file, "utf8") };
+}
+
+async function scenesTextFromPrepare(projectRoot: string): Promise<ScanOutcome<string>> {
+  const appInstance = new GwenApp();
+  await appInstance.setupModules(makeConfig());
+  let names: string[];
+  try {
+    names = scanScenes(projectRoot, {
+      autoImports: [{ name: "defineScene", from: "@gwenjs/core/scene" }],
+    }).map((scene) => scene.sceneName);
+  } catch (caught) {
+    return scanThrown(caught);
+  }
+  await appInstance.prepare(projectRoot, { sceneNames: names });
+  const file = scenesFile(projectRoot);
+  if (!existsSync(file)) {
+    return { code: "SETUP", message: "scenes.d.ts was not written", cause: undefined };
+  }
+  return { value: readFileSync(file, "utf8") };
+}

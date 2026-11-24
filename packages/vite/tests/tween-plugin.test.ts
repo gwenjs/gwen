@@ -1,4 +1,7 @@
-import { describe, it, expect } from "vitest";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
 import { extractUsedEasings, gwenTweenPlugin } from "../src/plugins/tween.js";
 import type { GwenViteOptions } from "../src/types.js";
 
@@ -289,5 +292,42 @@ describe("gwenTweenPlugin()", () => {
     const secondOutput = loadVirtual();
     expect(secondOutput).toContain("export const usedEasings = []");
     expect(secondOutput).not.toContain("easeOutExpo");
+  });
+
+  const roots: string[] = [];
+
+  afterEach(() => {
+    for (const dir of roots) rmSync(dir, { recursive: true, force: true });
+    roots.length = 0;
+  });
+
+  it("virtual module exports the easing names found under the project root", () => {
+    const projectRoot = mkdtempSync(join(tmpdir(), "gwen-tween-plugin-"));
+    roots.push(projectRoot);
+    mkdirSync(join(projectRoot, "src"), { recursive: true });
+    writeFileSync(
+      join(projectRoot, "src", "actor.ts"),
+      'useTween({ duration: 1, easing: "easeInBack" });\n',
+    );
+
+    const plugin = gwenTweenPlugin({
+      autoImports: [{ name: "useTween", from: "@gwenjs/core/tween" }],
+    });
+    const configResolved = plugin.configResolved;
+    if (typeof configResolved === "function") {
+      Reflect.apply(configResolved, plugin, [{ root: projectRoot }]);
+    }
+    const resolveId = plugin.resolveId;
+    expect(typeof resolveId).toBe("function");
+    if (typeof resolveId !== "function") return;
+    const resolved: unknown = Reflect.apply(resolveId, plugin, ["virtual:gwen/used-easings"]);
+    expect(typeof resolved).toBe("string");
+    if (typeof resolved !== "string") return;
+    const load = plugin.load;
+    expect(typeof load).toBe("function");
+    if (typeof load !== "function") return;
+    const value: unknown = Reflect.apply(load, plugin, [resolved]);
+    const text = typeof value === "string" ? value : "";
+    expect(text).toContain("easeInBack");
   });
 });
