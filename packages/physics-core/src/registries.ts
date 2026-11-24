@@ -4,6 +4,8 @@
  * A removal during `emit` waits until the outermost `emit` returns.
  * The entry stays in `entries` for that walk. Outside `emit` it drops at once.
  * `clearEngineContacts` and `stop()` empty the lists at once, even during a walk.
+ * A sensor entry stores `ownerEntityId` only when that argument was passed.
+ * `emit` keeps registration order and skips a set owner that is not the event entity.
  */
 
 import { createEngineLocal, useEngine } from "@gwenjs/core";
@@ -36,6 +38,7 @@ interface SensorEntry {
   readonly sensorId: number;
   readonly phase: "enter" | "exit";
   readonly cb: (entityId: EntityId) => void;
+  readonly ownerEntityId?: EntityId;
 }
 
 /** Sensor callbacks stored for one engine. */
@@ -50,6 +53,15 @@ export interface SensorRegistry {
    * @param callbacks - Callbacks to drop. Identity is the function reference.
    */
   remove(callbacks: readonly ((entityId: EntityId) => void)[]): void;
+  /**
+   * Drop every entry stored for `entityId`.
+   * Pass `sensorId` to drop only that sensor. A second call drops nothing.
+   * During `emit` those entries stay until the outermost `emit` returns.
+   *
+   * @param entityId - Owner whose callbacks should leave the list.
+   * @param sensorId - When set, only this sensor is dropped.
+   */
+  removeOwned(entityId: EntityId, sensorId?: number): void;
 }
 
 interface RemovalGate {
@@ -98,6 +110,15 @@ function dropSensorCallbacks(
   for (let index = entries.length - 1; index >= 0; index -= 1) {
     const entry = entries[index];
     if (entry !== undefined && owned.has(entry.cb)) entries.splice(index, 1);
+  }
+}
+
+function dropOwned(entries: SensorEntry[], entityId: EntityId, sensorId: number | undefined): void {
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index];
+    if (entry === undefined || entry.ownerEntityId !== entityId) continue;
+    if (sensorId !== undefined && entry.sensorId !== sensorId) continue;
+    entries.splice(index, 1);
   }
 }
 
@@ -157,6 +178,7 @@ const sensorLocals = createEngineLocal<SensorRegistry>(
         try {
           for (const entry of entries) {
             if (entry.sensorId !== sensorId || entry.phase !== phase) continue;
+            if (entry.ownerEntityId !== undefined && entry.ownerEntityId !== entityId) continue;
             entry.cb(entityId);
           }
         } finally {
@@ -168,6 +190,12 @@ const sensorLocals = createEngineLocal<SensorRegistry>(
         const gate = removalGate(sensorGates, registry);
         schedule(gate, () => {
           dropSensorCallbacks(entries, callbacks);
+        });
+      },
+      removeOwned(entityId: EntityId, sensorId?: number): void {
+        const gate = removalGate(sensorGates, registry);
+        schedule(gate, () => {
+          dropOwned(entries, entityId, sensorId);
         });
       },
     };
@@ -216,24 +244,42 @@ export function onContact(
 
 /**
  * Subscribe to a sensor becoming active on the current engine.
+ * Pass `ownerEntityId` to deliver this callback only for that entity.
+ * Omit it and the callback receives every entity. `emit` keeps registration order.
  * The returned function drops this callback. During `emit` that drop waits until the outermost `emit` returns.
  *
+ * @param sensorId - Sensor whose enter events call `cb`.
+ * @param cb - Called with the entity that entered.
+ * @param ownerEntityId - When passed, `cb` runs only for this entity.
  * @throws {GwenContextError} `CORE:OUTSIDE_ENGINE_CONTEXT` when no engine is current.
  */
-export function onSensorEnter(sensorId: number, cb: (entityId: EntityId) => void): () => void {
+export function onSensorEnter(
+  sensorId: number,
+  cb: (entityId: EntityId) => void,
+  ownerEntityId?: EntityId,
+): () => void {
   const engine = useEngine("onSensorEnter");
-  return addSensor(engine, sensorId, "enter", cb);
+  return addSensor(engine, sensorId, "enter", cb, ownerEntityId);
 }
 
 /**
  * Subscribe to a sensor becoming inactive on the current engine.
+ * Pass `ownerEntityId` to deliver this callback only for that entity.
+ * Omit it and the callback receives every entity. `emit` keeps registration order.
  * The returned function drops this callback. During `emit` that drop waits until the outermost `emit` returns.
  *
+ * @param sensorId - Sensor whose exit events call `cb`.
+ * @param cb - Called with the entity that exited.
+ * @param ownerEntityId - When passed, `cb` runs only for this entity.
  * @throws {GwenContextError} `CORE:OUTSIDE_ENGINE_CONTEXT` when no engine is current.
  */
-export function onSensorExit(sensorId: number, cb: (entityId: EntityId) => void): () => void {
+export function onSensorExit(
+  sensorId: number,
+  cb: (entityId: EntityId) => void,
+  ownerEntityId?: EntityId,
+): () => void {
   const engine = useEngine("onSensorExit");
-  return addSensor(engine, sensorId, "exit", cb);
+  return addSensor(engine, sensorId, "exit", cb, ownerEntityId);
 }
 
 function addSensor(
@@ -241,9 +287,11 @@ function addSensor(
   sensorId: number,
   phase: "enter" | "exit",
   cb: (entityId: EntityId) => void,
+  ownerEntityId?: EntityId,
 ): () => void {
   const registry = sensorLocals.get(engine);
-  const entry: SensorEntry = { sensorId, phase, cb };
+  const entry: SensorEntry =
+    ownerEntityId === undefined ? { sensorId, phase, cb } : { sensorId, phase, cb, ownerEntityId };
   registry.entries.push(entry);
   const gate = removalGate(sensorGates, registry);
   return () => {

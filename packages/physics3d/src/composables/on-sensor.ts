@@ -1,44 +1,25 @@
 /**
  * @file onSensorEnter / onSensorExit — register callbacks for sensor zone events.
  *
- * Maps live on the current engine.
+ * Callbacks live on the current engine's shared sensor registry.
  */
-import { createEngineLocal } from "@gwenjs/core";
-import { GwenContextError } from "@gwenjs/kit";
+import { useEngine } from "@gwenjs/core";
 import type { GwenEngine } from "@gwenjs/core";
 import { _getActorContext } from "@gwenjs/core/internal";
-
-type SensorCallback = (entityId: bigint) => void;
-
-interface SensorRegistry {
-  enter: Map<string, SensorCallback[]>;
-  exit: Map<string, SensorCallback[]>;
-}
-
-/** Unbound callbacks use `*:sensorId`. Actor callbacks use `entity:sensorId`. */
-function sensorKey(sensorId: number, entityId?: bigint): string {
-  return entityId === undefined ? `*:${sensorId}` : `${entityId}:${sensorId}`;
-}
-
-const sensors = createEngineLocal<SensorRegistry>(() => ({
-  enter: new Map(),
-  exit: new Map(),
-}));
-
-function registryOrNull(): SensorRegistry | undefined {
-  try {
-    return sensors.use();
-  } catch (error) {
-    if (error instanceof GwenContextError) return undefined;
-    throw error;
-  }
-}
+import type { EntityId } from "@gwenjs/schema";
+import {
+  createSensorRegistry,
+  onSensorEnter as coreOnSensorEnter,
+  onSensorExit as coreOnSensorExit,
+} from "@gwenjs/physics-core";
+import type { SensorRegistry } from "@gwenjs/physics-core";
 
 /**
  * Register a callback invoked when an entity enters a physics sensor zone.
  *
  * Callbacks are keyed by `sensorId` so that multiple sensors can coexist
  * within the same actor without interfering with one another.
+ * Inside `defineActor`, the callback is stored for that actor's entity.
  *
  * @param sensorId - The collider ID of the sensor (from {@link useBoxCollider} or similar).
  * @param callback - Function invoked with the entering entity's packed slot index as a `bigint`.
@@ -57,21 +38,13 @@ function registryOrNull(): SensorRegistry | undefined {
  * @since 1.0.0
  */
 export function onSensorEnter(sensorId: number, callback: (entityId: bigint) => void): () => void {
-  const registry = sensors.use();
-  const key = sensorKey(sensorId, _getActorContext()?.entityId);
-  const existing = registry.enter.get(key) ?? [];
-  existing.push(callback);
-  registry.enter.set(key, existing);
-  return () => {
-    const cbs = registry.enter.get(key);
-    if (!cbs) return;
-    const idx = cbs.indexOf(callback);
-    if (idx !== -1) cbs.splice(idx, 1);
-  };
+  return coreOnSensorEnter(sensorId, callback, _getActorContext()?.entityId);
 }
 
 /**
  * Register a callback invoked when an entity exits a physics sensor zone.
+ *
+ * Inside `defineActor`, the callback is stored for that actor's entity.
  *
  * @param sensorId - The collider ID of the sensor.
  * @param callback - Function invoked with the exiting entity's packed slot index as a `bigint`.
@@ -86,17 +59,7 @@ export function onSensorEnter(sensorId: number, callback: (entityId: bigint) => 
  * @since 1.0.0
  */
 export function onSensorExit(sensorId: number, callback: (entityId: bigint) => void): () => void {
-  const registry = sensors.use();
-  const key = sensorKey(sensorId, _getActorContext()?.entityId);
-  const existing = registry.exit.get(key) ?? [];
-  existing.push(callback);
-  registry.exit.set(key, existing);
-  return () => {
-    const cbs = registry.exit.get(key);
-    if (!cbs) return;
-    const idx = cbs.indexOf(callback);
-    if (idx !== -1) cbs.splice(idx, 1);
-  };
+  return coreOnSensorExit(sensorId, callback, _getActorContext()?.entityId);
 }
 
 /**
@@ -108,20 +71,8 @@ export function onSensorExit(sensorId: number, callback: (entityId: bigint) => v
  * @param entityId - Packed slot index of the entity that entered.
  * @internal
  */
-function fire(
-  map: Map<string, SensorCallback[]> | undefined,
-  sensorId: number,
-  entityId: bigint,
-): void {
-  if (!map) return;
-  const specific = map.get(sensorKey(sensorId, entityId));
-  const shared = map.get(sensorKey(sensorId));
-  if (specific) for (const cb of specific) cb(entityId);
-  if (shared) for (const cb of shared) cb(entityId);
-}
-
-export function _dispatchSensorEnter(sensorId: number, entityId: bigint): void {
-  fire(registryOrNull()?.enter, sensorId, entityId);
+export function _dispatchSensorEnter(sensorId: number, entityId: EntityId): void {
+  sensorRegistry()?.emit(sensorId, entityId, "enter");
 }
 
 /**
@@ -131,8 +82,8 @@ export function _dispatchSensorEnter(sensorId: number, entityId: bigint): void {
  * @param entityId - Packed slot index of the entity that exited.
  * @internal
  */
-export function _dispatchSensorExit(sensorId: number, entityId: bigint): void {
-  fire(registryOrNull()?.exit, sensorId, entityId);
+export function _dispatchSensorExit(sensorId: number, entityId: EntityId): void {
+  sensorRegistry()?.emit(sensorId, entityId, "exit");
 }
 
 /**
@@ -141,28 +92,33 @@ export function _dispatchSensorExit(sensorId: number, entityId: bigint): void {
  * A bigint plus `sensorId` clears that entity only.
  * No arguments clears every callback on this engine.
  */
-export function _clearSensorCallbacks(sensorOrEntity?: number | bigint, sensorId?: number): void {
-  const registry = registryOrNull();
-  if (!registry) return;
+export function _clearSensorCallbacks(sensorOrEntity?: number | EntityId, sensorId?: number): void {
+  const registry = sensorRegistry();
+  if (registry === undefined) return;
   if (sensorOrEntity === undefined) {
-    registry.enter.clear();
-    registry.exit.clear();
+    registry.entries.length = 0;
     return;
   }
   if (typeof sensorOrEntity === "number") {
-    registry.enter.delete(sensorKey(sensorOrEntity));
-    registry.exit.delete(sensorKey(sensorOrEntity));
+    const callbacks: Array<(entityId: EntityId) => void> = [];
+    for (const entry of registry.entries) {
+      if (entry.sensorId !== sensorOrEntity || entry.ownerEntityId !== undefined) continue;
+      callbacks.push(entry.cb);
+    }
+    registry.remove(callbacks);
     return;
   }
   if (sensorId === undefined) return;
-  registry.enter.delete(sensorKey(sensorId, sensorOrEntity));
-  registry.exit.delete(sensorKey(sensorId, sensorOrEntity));
+  registry.removeOwned(sensorOrEntity, sensorId);
 }
 
 /** Drop every sensor callback owned by `engine`. */
 export function clearEngineSensors(engine: GwenEngine): void {
-  const registry = sensors.peek(engine);
-  if (!registry) return;
-  registry.enter.clear();
-  registry.exit.clear();
+  const registry = createSensorRegistry().peek(engine);
+  if (registry === undefined) return;
+  registry.entries.length = 0;
+}
+
+function sensorRegistry(): SensorRegistry | undefined {
+  return createSensorRegistry().peek(useEngine("Physics3DPlugin"));
 }
