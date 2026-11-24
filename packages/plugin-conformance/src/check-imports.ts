@@ -1,5 +1,6 @@
 import path from "node:path";
 import { ConformanceErrorCodes } from "./error-codes.js";
+import { readExtensionManifest } from "./extension-manifest.js";
 import { FRAMEWORK_ENTRIES, FRAMEWORK_TEST_ONLY_ENTRIES } from "./framework-entries.generated.js";
 import { FRAMEWORK_PACKAGES } from "./framework-packages.js";
 import { scanImports } from "./import-sources.js";
@@ -53,15 +54,13 @@ function stringKeys(value: unknown): ReadonlySet<string> {
   return new Set(isRecord(value) ? Object.keys(value) : []);
 }
 
-function readImportManifest(manifest: unknown): ImportManifest {
-  const record = isRecord(manifest) ? manifest : {};
-  const gwen = isRecord(record.gwen) ? record.gwen : {};
-  const bases = Array.isArray(gwen.extends)
-    ? gwen.extends.filter((base): base is string => typeof base === "string")
-    : [];
+/** Validated package names of `gwen.extends`. A subpath entry is not a base. */
+function readImportManifest(context: PackageContext): ImportManifest {
+  const listing = readExtensionManifest(context);
+  const record = isRecord(context.manifest) ? context.manifest : {};
   return {
-    name: typeof record.name === "string" ? record.name : "",
-    extendsBases: new Set(bases),
+    name: listing.name,
+    extendsBases: new Set(listing.bases.map((base) => base.name)),
     peers: stringKeys(record.peerDependencies),
     devs: stringKeys(record.devDependencies),
   };
@@ -156,22 +155,93 @@ function isCommunity(manifest: ImportManifest): boolean {
 }
 
 /**
- * Rule 7: `<base>/extension` of a package `<base>` listed in `gwen.extends`, for a community
- * plugin only. A framework package or a forbidden package keeps its own rules.
+ * A community package and a base listed verbatim in `gwen.extends`.
+ * A framework package and a forbidden package keep their own rules.
+ * An official package keeps IMPORT_FOREIGN_PLUGIN.
  */
-function isListedExtension(
-  manifest: ImportManifest,
-  pkg: string,
-  rest: readonly string[],
-): boolean {
+function isListedBase(manifest: ImportManifest, pkg: string): boolean {
   return (
     isCommunity(manifest) &&
-    rest.length === 1 &&
-    rest[0] === EXTENSION_SEGMENT &&
     manifest.extendsBases.has(pkg) &&
     !FRAMEWORK_PACKAGES.has(pkg) &&
     !FORBIDDEN_PACKAGES.has(pkg)
   );
+}
+
+function isExtensionSubpath(rest: readonly string[]): boolean {
+  return rest.length === 1 && rest[0] === EXTENSION_SEGMENT;
+}
+
+/** The package root and `<base>/testing`, accepted from a test file only. */
+function isTestBaseEntry(rest: readonly string[]): boolean {
+  return rest.length === 0 || (rest.length === 1 && rest[0] === "testing");
+}
+
+function internalEntry(file: SourceFile, site: ImportSite, pkg: string): ConformanceFinding {
+  return finding(
+    ConformanceErrorCodes.IMPORT_INTERNAL,
+    `"${site.specifier}" is an internal entry of ${pkg}`,
+    `Import a public entry of ${pkg}: internal entries are not part of its API.`,
+    file.relative,
+    site.line,
+  );
+}
+
+function listedDeepFinding(
+  file: SourceFile,
+  site: ImportSite,
+  pkg: string,
+  rest: readonly string[],
+): ConformanceFinding {
+  const built = rest.some((segment) => segment === "dist");
+  const where = built ? "build output" : "source";
+  const hint = built
+    ? `Import a public entry of ${pkg}, not a file of its dist.`
+    : `Import "${pkg}/extension", not a file of its source.`;
+  return finding(
+    ConformanceErrorCodes.IMPORT_DEEP,
+    `"${site.specifier}" reaches into the ${where} of ${pkg}`,
+    hint,
+    file.relative,
+    site.line,
+  );
+}
+
+function extensionEntryFinding(
+  file: SourceFile,
+  site: ImportSite,
+  pkg: string,
+): ConformanceFinding {
+  return finding(
+    ConformanceErrorCodes.EXTENSION_ENTRY,
+    `"${site.specifier}" is not the extension entry of ${pkg}, which is listed in gwen.extends`,
+    `Import only "${pkg}/extension" from a base.`,
+    file.relative,
+    site.line,
+  );
+}
+
+/**
+ * Listed-base specifiers. An `internal` or `wasm` segment is IMPORT_INTERNAL, including in `dist`.
+ * A `dist` or `src` segment is IMPORT_DEEP. `<base>/extension` is accepted. In a test file the
+ * root and `<base>/testing` are accepted. Every other specifier is EXTENSION_ENTRY. A `dist` file
+ * reports only the internal case.
+ */
+function listedBaseFindings(
+  file: SourceFile,
+  kind: ScanKind,
+  site: ImportSite,
+  pkg: string,
+  rest: readonly string[],
+): readonly ConformanceFinding[] {
+  const listedInternal = rest.some(isInternalSegment);
+  if (listedInternal) return [internalEntry(file, site, pkg)];
+  if (kind === "dist") return [];
+  const listedDeep = rest.some((segment) => segment === "dist" || segment === "src");
+  if (listedDeep) return [listedDeepFinding(file, site, pkg, rest)];
+  if (isExtensionSubpath(rest)) return [];
+  if (kind === "test" && isTestBaseEntry(rest)) return [];
+  return [extensionEntryFinding(file, site, pkg)];
 }
 
 function leavesRoot(file: SourceFile, site: ImportSite, hint: string): ConformanceFinding {
@@ -312,19 +382,9 @@ async function checkSite(
   }
 
   const { pkg, rest } = splitSpecifier(specifier);
-  if (isListedExtension(run.manifest, pkg, rest)) return [];
+  if (isListedBase(run.manifest, pkg)) return listedBaseFindings(file, kind, site, pkg, rest);
   if (!pkg.startsWith("@gwenjs/")) return dist ? [] : checkThirdParty(run, file, site, pkg);
-  if (rest.some(isInternalSegment)) {
-    return [
-      finding(
-        ConformanceErrorCodes.IMPORT_INTERNAL,
-        `"${specifier}" is an internal entry of ${pkg}`,
-        `Import a public entry of ${pkg}: internal entries are not part of its API.`,
-        file.relative,
-        site.line,
-      ),
-    ];
-  }
+  if (rest.some(isInternalSegment)) return [internalEntry(file, site, pkg)];
   if (dist) return [];
   if (rest[0] === "dist") {
     return [
@@ -386,15 +446,17 @@ async function listScans(root: string): Promise<readonly Scan[]> {
 /**
  * Import rules: every module specifier of `src`, of the test files, and (internal entries only)
  * of `dist`. A finding per offending import line, and one IMPORT_NOT_PUBLIC per name. Self imports
- * are always accepted. A file or a directory that cannot be read (any error but a missing one)
- * rejects.
+ * are always accepted. A community package reports a base listed verbatim in `gwen.extends`:
+ * `<base>/extension` is accepted, a test file may also import the root and `<base>/testing`, and
+ * any other specifier is EXTENSION_ENTRY, IMPORT_INTERNAL or IMPORT_DEEP. A file or a directory
+ * that cannot be read (any error but an absent one) rejects.
  */
 export async function checkImports(
   context: PackageContext,
 ): Promise<readonly ConformanceFinding[]> {
   const run: ImportRun = {
     root: context.root,
-    manifest: readImportManifest(context.manifest),
+    manifest: readImportManifest(context),
     plugins: new Map(),
   };
   const findings: ConformanceFinding[] = [];
