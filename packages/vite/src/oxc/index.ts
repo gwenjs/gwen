@@ -7,7 +7,7 @@
  *
  * @example
  * ```ts
- * import { walk, parseSource, isCallTo, getCallArgs } from '../oxc/index.js';
+ * import { walk, parseModule, isCallTo, getCallArgs } from '../oxc/index.js';
  * ```
  */
 
@@ -15,4 +15,4 @@ export { walk, parseAndWalk, ScopeTracker } from "oxc-walker";
 export type { WalkOptions, WalkerEnter, WalkerThisContextEnter } from "oxc-walker";
 export type { Node } from "oxc-parser";
 export * from "./helpers.js";
-export * from "./parse.js";
+export { parseModule } from "../pipeline/parse.js";

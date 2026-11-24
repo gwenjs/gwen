@@ -38,6 +38,7 @@ const enSidebar = [
       { text: 'Nested Actor Deps', link: '/advanced/nested-actor-deps' },
       { text: 'Extending Vite', link: '/advanced/vite-config' },
       { text: 'Async Context', link: '/advanced/async-context' },
+      { text: 'Build Pipeline', link: '/advanced/build-pipeline' },
     ],
   },
   {
@@ -122,6 +123,7 @@ const frSidebar = [
       { text: 'Dépendances d\'acteurs imbriqués', link: '/fr/advanced/nested-actor-deps' },
       { text: 'Étendre Vite', link: '/fr/advanced/vite-config' },
       { text: 'Contexte asynchrone', link: '/fr/advanced/async-context' },
+      { text: 'Pipeline de build', link: '/fr/advanced/build-pipeline' },
     ],
   },
   {

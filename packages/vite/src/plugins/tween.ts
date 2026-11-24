@@ -1,7 +1,6 @@
 import type { Plugin } from "vite";
-import { walk } from "oxc-walker";
 import type { GwenViteOptions } from "../types.js";
-import { parseSource, getObjectProperties, getPropertyKeyName } from "../oxc/index.js";
+import { scanEasingNames } from "../scanners/index.js";
 
 /**
  * Options for the `gwen:tween` sub-plugin.
@@ -11,8 +10,10 @@ import { parseSource, getObjectProperties, getPropertyKeyName } from "../oxc/ind
 export interface GwenTweenOptions {
   /**
    * Disable easing tree-shake analysis.
-   * When `true`, the virtual module `virtual:gwen/used-easings` will export
-   * all easing names instead of only the ones detected in source files.
+   * When `true`, no source file is scanned and the virtual module
+   * `virtual:gwen/used-easings` exports an empty list
+   * (`packages/vite/src/plugins/tween.ts:75-77`, test
+   * `packages/vite/tests/tween-plugin.test.ts:96-103`).
    *
    * @default false
    * @since 1.0.0
@@ -27,53 +28,14 @@ const VIRTUAL_ID = "virtual:gwen/used-easings";
 const RESOLVED_ID = "\0" + VIRTUAL_ID;
 
 /**
- * Extract all easing function names used in `easing: '...'` properties within
- * the source file. Uses AST parsing to avoid false positives in comments or strings.
- *
- * @param code     - TypeScript source code to scan.
- * @param filename - File path for the parser.
- * @returns Set of easing name strings found.
- *
- * @example
- * ```ts
- * extractUsedEasings(`useTween({ duration: 1, easing: 'easeOutQuad' })`);
- * // → Set { 'easeOutQuad' }
- * ```
- *
- * @since 1.0.0
- */
-export function extractUsedEasings(code: string, filename = "tween.ts"): Set<string> {
-  const found = new Set<string>();
-  if (!code.includes("easing")) return found;
-
-  const parsed = parseSource(filename, code);
-  if (!parsed) return found;
-
-  walk(parsed.program, {
-    enter(node) {
-      if (node.type !== "ObjectExpression") return;
-      for (const prop of getObjectProperties(node)) {
-        if (getPropertyKeyName(prop) !== "easing") continue;
-        const { value } = prop;
-        // StringLiteral and NumericLiteral both have type: 'Literal'
-        // Distinguish by typeof value
-        if (value.type === "Literal" && typeof value.value === "string") {
-          found.add(value.value);
-        }
-      }
-    },
-  });
-
-  return found;
-}
-
-/**
  * GWEN sub-plugin for easing tree-shake analysis.
  *
- * Scans user source files for `useTween()` calls and detects which
- * `EasingName` string literals are used as static values on the `easing:`
- * property. It exposes a virtual module `virtual:gwen/used-easings` that
- * exports only the detected easing names so bundlers can tree-shake the rest.
+ * Scans `src/**` under the project root, when the virtual module loads, for
+ * `useTween()` calls and detects which `EasingName` string literals are used
+ * as static values on the `easing:` property of an object argument.
+ * A file that cannot be read or parsed fails the build.
+ * It exposes a virtual module `virtual:gwen/used-easings` that exports only the detected
+ * easing names so bundlers can tree-shake the rest.
  *
  * **Virtual module usage:**
  * ```ts
@@ -89,16 +51,16 @@ export function extractUsedEasings(code: string, filename = "tween.ts"): Set<str
 export function gwenTweenPlugin(options: GwenViteOptions = {}): Plugin {
   const disableEasingAnalysis = options.tween?.disableEasingAnalysis ?? false;
 
-  /** Accumulated set of easing names detected across all transformed files. */
-  const collectedEasings = new Set<string>();
+  let root = process.cwd();
+
+  /** Easing names found by the last scan, for the `buildEnd` log. */
+  let detected: readonly string[] = [];
 
   return {
     name: "gwen:tween",
 
-    buildStart() {
-      // Reset collected easings at the start of every build so incremental
-      // rebuilds don't accumulate stale entries from deleted files.
-      collectedEasings.clear();
+    configResolved(config) {
+      root = config.root;
     },
 
     resolveId(id) {
@@ -110,30 +72,17 @@ export function gwenTweenPlugin(options: GwenViteOptions = {}): Plugin {
     load(id) {
       if (id !== RESOLVED_ID) return;
 
-      const list = JSON.stringify([...collectedEasings].sort());
-      return `export const usedEasings = ${list};\n`;
-    },
-
-    transform(code, id) {
-      if (disableEasingAnalysis) return;
-      // Only process TS/JS files.
-      if (!/\.(ts|js|tsx|jsx)$/.test(id)) return;
-      // Quick bail-out — skip files that cannot contain a useTween easing.
-      if (!code.includes("useTween") && !code.includes("easing:")) return;
-
-      const found = extractUsedEasings(code);
-      for (const name of found) {
-        collectedEasings.add(name);
-      }
-      // We only collect; no source transformation needed.
+      detected = disableEasingAnalysis
+        ? []
+        : scanEasingNames(root, { autoImports: options.autoImports ?? [] });
+      return `export const usedEasings = ${JSON.stringify(detected)};\n`;
     },
 
     buildEnd() {
       if (this.environment?.mode === "dev" || process.env["NODE_ENV"] === "development") {
-        const count = collectedEasings.size;
-        const names = [...collectedEasings].sort().join(", ") || "(none)";
+        const names = detected.join(", ") || "(none)";
         // eslint-disable-next-line no-console
-        console.info(`[gwen:tween] Detected ${count} easing(s): ${names}`);
+        console.info(`[gwen:tween] Detected ${detected.length} easing(s): ${names}`);
       }
     },
   };

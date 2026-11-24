@@ -1,37 +1,8 @@
-import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { resolve, relative, join, sep } from "node:path";
 import type { Plugin } from "vite";
-import { walk } from "oxc-walker";
-import { parseSource, isCallTo } from "../oxc/index.js";
+import { scanDefineHooks } from "../scanners/index.js";
 import type { GwenViteOptions } from "../types.js";
-
-/**
- * Extract variable names bound to `defineHooks(...)` calls in the given source.
- * Uses OXC AST parsing to avoid false positives in comments or strings.
- *
- * @param code - TypeScript source code to scan.
- * @param filename - File path used by the parser for diagnostics.
- * @returns Array of variable names in declaration order.
- */
-export function extractDefineHooksExports(code: string, filename = "hooks.ts"): string[] {
-  const names: string[] = [];
-  if (!code.includes("defineHooks")) return names;
-
-  const parsed = parseSource(filename, code);
-  if (!parsed) return names;
-
-  walk(parsed.program, {
-    enter(node) {
-      if (node.type !== "VariableDeclarator") return;
-      const { id, init } = node;
-      if (id.type !== "Identifier") return;
-      if (!init || !isCallTo(init, "defineHooks")) return;
-      names.push(id.name);
-    },
-  });
-
-  return names;
-}
 
 /**
  * A single hooks source file with its resolved export names and import path.
@@ -100,7 +71,7 @@ export interface HooksPluginOptions {
  * Vite sub-plugin that auto-generates `.gwen/types/hooks.d.ts`.
  *
  * Scans `src/hooks.ts` (single file) and/or every `*.ts` file inside
- * `src/hooks/` (directory) for `const X = defineHooks(...)` declarations,
+ * `src/hooks/` (directory) for exported `const X = defineHooks(...)` declarations,
  * then writes a single `declare module '@gwenjs/schema'` augmentation so
  * users never have to write the boilerplate by hand.
  *
@@ -114,28 +85,28 @@ export function gwenHooksPlugin(options: GwenViteOptions): Plugin {
   const gwenDir = options.gwenDir ?? ".gwen";
   let root = process.cwd();
 
-  function buildSource(absPath: string, typesDir: string): HooksSource | null {
-    if (!existsSync(absPath)) return null;
-    const exportNames = extractDefineHooksExports(readFileSync(absPath, "utf-8"), absPath);
-    if (exportNames.length === 0) return null;
-    const importPath = relative(typesDir, absPath).replace(/\.ts$/, "").replace(/\\/g, "/");
-    return { exportNames, importPath };
+  function importPathOf(absPath: string, typesDir: string): string {
+    const rel = relative(typesDir, absPath).split("\\").join("/");
+    return rel.endsWith(".ts") ? rel.slice(0, -".ts".length) : rel;
   }
 
   function regenerate(): void {
     const typesDir = resolve(root, gwenDir, "types");
+    const exports = scanDefineHooks(root, {
+      file: hooksFile,
+      dir: hooksDir,
+      autoImports: options.autoImports ?? [],
+    });
+
+    const byFile = new Map<string, string[]>();
+    for (const { file, name } of exports) {
+      const names = byFile.get(file);
+      if (names) names.push(name);
+      else byFile.set(file, [name]);
+    }
     const sources: HooksSource[] = [];
-
-    const fileSource = buildSource(resolve(root, hooksFile), typesDir);
-    if (fileSource) sources.push(fileSource);
-
-    const dirAbsPath = resolve(root, hooksDir);
-    if (existsSync(dirAbsPath)) {
-      for (const name of readdirSync(dirAbsPath).sort()) {
-        if (!name.endsWith(".ts")) continue;
-        const s = buildSource(join(dirAbsPath, name), typesDir);
-        if (s) sources.push(s);
-      }
+    for (const [file, exportNames] of byFile) {
+      sources.push({ exportNames, importPath: importPathOf(file, typesDir) });
     }
 
     const content = generateHooksDts(sources);

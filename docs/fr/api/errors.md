@@ -224,7 +224,7 @@ Cause. `resolveMainScene` (`packages/vite/src/scanners/index.ts:183`) a reçu un
 
 ### VITE:TRANSFORM_PARSE_FAILED {#vite-transform-parse-failed}
 
-Cause. `parseModule` n'a pas pu analyser le module. Le message commence par l'id, la ligne et la colonne, toutes deux à base 1. `loc.column` est à base 0, comme Vite la lit. Fix. Corrigez l'erreur de syntaxe ; le build GWEN ne saute jamais un module qu'il ne peut pas analyser.
+Cause. `parseModule` n'a pas pu analyser le module. Le message commence par l'id, la ligne et la colonne, toutes deux à base 1. `loc.column` est à base 0, comme Vite la lit. Les scanners de `@gwenjs/vite/scanners` le lèvent pour un fichier qu'ils ne peuvent pas analyser (`packages/vite/src/scanners/read.ts:43`). Pour un fichier qu'ils ne peuvent pas lire, le message est `<file> could not be read.` et `cause` est l'erreur Node (`packages/vite/src/scanners/read.ts:37`). Fix. Corrigez l'erreur de syntaxe ; le build GWEN ne saute jamais un module qu'il ne peut pas analyser.
 
 ### VITE:TRANSFORM_EDIT_CONFLICT {#vite-transform-edit-conflict}
 

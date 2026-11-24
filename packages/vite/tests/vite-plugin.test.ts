@@ -3,17 +3,13 @@
  * Verifies virtual module resolution and plugin options.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import * as path from "node:path";
 import { createServer, type ConfigEnv, type Plugin, type UserConfig } from "vite";
 import { gwen, type GwenPluginOptions } from "../src/index";
-import {
-  generateEntryModule,
-  generateScenesModule,
-  extractModuleNamesFromConfig,
-} from "../src/entry-gen.js";
+import { generateEntryModule, generateScenesModule } from "../src/entry-gen.js";
 import { entryResolvedFixture } from "./entry-resolved-fixture.js";
 import { gwenVitePlugin } from "../src/plugins/index.js";
 
@@ -723,58 +719,6 @@ describe("generateEntryModule — bootstrap correctness", () => {
       expect(initCall).toContain("maxEntities: __gwenResolved.engine.maxEntities");
       expect(code).not.toContain("gwenConfig.engine");
     }
-  });
-});
-
-// ── extractModuleNamesFromConfig ──────────────────────────────────────────────
-
-describe("extractModuleNamesFromConfig", () => {
-  let tmp: string;
-  beforeEach(() => {
-    tmp = fs.mkdtempSync(path.join(os.tmpdir(), "gwen-mod-test-"));
-  });
-  afterEach(() => {
-    fs.rmSync(tmp, { recursive: true });
-  });
-
-  function writeConfig(content: string): string {
-    const p = path.join(tmp, "gwen.config.ts");
-    fs.writeFileSync(p, content, "utf-8");
-    return p;
-  }
-
-  it("returns empty array when file does not exist", () => {
-    expect(extractModuleNamesFromConfig(path.join(tmp, "nonexistent.ts"))).toEqual([]);
-  });
-
-  it("returns empty array when no modules key", () => {
-    const p = writeConfig("export default defineConfig({ engine: { targetFPS: 60 } })");
-    expect(extractModuleNamesFromConfig(p)).toEqual([]);
-  });
-
-  it("extracts scoped package names from string entries", () => {
-    const p = writeConfig(`export default defineConfig({
-      modules: ['@gwenjs/input', '@gwenjs/ui'],
-    })`);
-    expect(extractModuleNamesFromConfig(p)).toEqual(["@gwenjs/input", "@gwenjs/ui"]);
-  });
-
-  it("extracts name from tuple [name, options] entries", () => {
-    const p = writeConfig(`export default defineConfig({
-      modules: ['@gwenjs/input', ['@gwenjs/physics2d', { gravity: { y: 9.8 } }]],
-    })`);
-    const names = extractModuleNamesFromConfig(p);
-    expect(names).toContain("@gwenjs/input");
-    expect(names).toContain("@gwenjs/physics2d");
-  });
-
-  it("does not extract non-package option strings", () => {
-    const p = writeConfig(`export default defineConfig({
-      modules: [['@gwenjs/input', { mode: 'gamepad' }]],
-    })`);
-    const names = extractModuleNamesFromConfig(p);
-    expect(names).toEqual(["@gwenjs/input"]);
-    expect(names).not.toContain("gamepad");
   });
 });
 

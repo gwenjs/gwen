@@ -97,10 +97,14 @@ export function gwenPhysics3DOptimizerPlugin(options: GwenPhysics3DOptimizerOpti
      * bailout before parsing).
      *
      * Phase 1: emits Vite warnings only; source is never modified (returns `null`).
+     * A module that names a watched method and has a syntax error is the one exception: it
+     * fails the build, because the parse is strict.
      *
      * @param code - Source code of the module being transformed.
      * @param id   - Resolved module ID (file path).
      * @returns `null` — this plugin never modifies source in Phase 1.
+     * @throws {GwenError} `VITE:TRANSFORM_PARSE_FAILED` when `code` names a watched method and
+     *   cannot be parsed.
      */
     transform(code: string, id: string) {
       if (!extensions.some((ext) => id.endsWith(ext))) return null;

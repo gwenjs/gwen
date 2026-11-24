@@ -2,53 +2,16 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import * as path from "node:path";
-import {
-  extractDefineHooksExports,
-  generateHooksDts,
-  gwenHooksPlugin,
-  type HooksSource,
-} from "../../src/plugins/hooks.js";
+import { generateHooksDts, gwenHooksPlugin, type HooksSource } from "../../src/plugins/hooks.js";
+import type { GwenViteOptions } from "../../src/types.js";
 
-describe("extractDefineHooksExports()", () => {
-  it("returns empty array when no defineHooks call", () => {
-    expect(extractDefineHooksExports("const x = 1;")).toEqual([]);
+/** The sources of these tests call a bare `defineHooks`: the auto-import supplies the binding. */
+function hooksPlugin(options: GwenViteOptions = {}): ReturnType<typeof gwenHooksPlugin> {
+  return gwenHooksPlugin({
+    autoImports: [{ name: "defineHooks", from: "@gwenjs/core" }],
+    ...options,
   });
-
-  it("returns empty array fast-path when 'defineHooks' not in source text", () => {
-    expect(extractDefineHooksExports("export const x = defineEvents({})")).toEqual([]);
-  });
-
-  it("extracts a single const binding", () => {
-    const code = `const GameHooks = defineHooks({ 'enemy:died': (_id: bigint): void => undefined })`;
-    expect(extractDefineHooksExports(code)).toEqual(["GameHooks"]);
-  });
-
-  it("extracts export const binding", () => {
-    const code = `export const GameHooks = defineHooks({ 'foo:bar': (): void => undefined })`;
-    expect(extractDefineHooksExports(code)).toEqual(["GameHooks"]);
-  });
-
-  it("extracts multiple bindings in declaration order", () => {
-    const code = `
-      const GameHooks = defineHooks({ 'enemy:died': () => undefined });
-      const UIHooks = defineHooks({ 'ui:open': () => undefined });
-    `;
-    expect(extractDefineHooksExports(code)).toEqual(["GameHooks", "UIHooks"]);
-  });
-
-  it("ignores variables not bound to defineHooks", () => {
-    const code = `
-      const GameHooks = defineHooks({ 'foo:bar': () => undefined });
-      const other = somethingElse();
-    `;
-    expect(extractDefineHooksExports(code)).toEqual(["GameHooks"]);
-  });
-
-  it("ignores defineHooks in a comment", () => {
-    const code = `// const Foo = defineHooks({})`;
-    expect(extractDefineHooksExports(code)).toEqual([]);
-  });
-});
+}
 
 function src(exportNames: string[], importPath: string): HooksSource {
   return { exportNames, importPath };
@@ -137,7 +100,7 @@ describe("gwenHooksPlugin — buildStart", () => {
       `export const GameHooks = defineHooks({ 'enemy:died': (_id: bigint): void => undefined })`,
     );
 
-    const plugin = gwenHooksPlugin({});
+    const plugin = hooksPlugin();
     // Simulate configResolved
     (plugin.configResolved as Function)({ root: tmp });
     // Run buildStart
@@ -153,7 +116,7 @@ describe("gwenHooksPlugin — buildStart", () => {
   });
 
   it("does nothing when src/hooks.ts does not exist", () => {
-    const plugin = gwenHooksPlugin({});
+    const plugin = hooksPlugin();
     (plugin.configResolved as Function)({ root: tmp });
     expect(() => (plugin.buildStart as Function).call({})).not.toThrow();
 
@@ -164,7 +127,7 @@ describe("gwenHooksPlugin — buildStart", () => {
   it("does nothing when src/hooks.ts has no defineHooks calls", () => {
     fs.writeFileSync(path.join(tmp, "src", "hooks.ts"), "export const x = 1;\n");
 
-    const plugin = gwenHooksPlugin({});
+    const plugin = hooksPlugin();
     (plugin.configResolved as Function)({ root: tmp });
     (plugin.buildStart as Function).call({});
 
@@ -179,7 +142,7 @@ describe("gwenHooksPlugin — buildStart", () => {
       `export const GameHooks = defineHooks({ 'foo:bar': (): void => undefined })`,
     );
 
-    const plugin = gwenHooksPlugin({ hooks: { file: "src/game/hooks.ts" } });
+    const plugin = hooksPlugin({ hooks: { file: "src/game/hooks.ts" } });
     (plugin.configResolved as Function)({ root: tmp });
     (plugin.buildStart as Function).call({});
 
@@ -195,7 +158,7 @@ describe("gwenHooksPlugin — buildStart", () => {
       `export const GameHooks = defineHooks({ 'foo:bar': (): void => undefined })`,
     );
 
-    const plugin = gwenHooksPlugin({});
+    const plugin = hooksPlugin();
     (plugin.configResolved as Function)({ root: tmp });
     (plugin.buildStart as Function).call({});
 
@@ -252,7 +215,7 @@ describe("gwenHooksPlugin — handleHotUpdate", () => {
       `export const GameHooks = defineHooks({ 'enemy:died': (_id: bigint): void => undefined })`,
     );
 
-    const plugin = gwenHooksPlugin({});
+    const plugin = hooksPlugin();
     (plugin.configResolved as Function)({ root: tmp });
     (plugin.buildStart as Function).call({});
 
@@ -277,7 +240,7 @@ describe("gwenHooksPlugin — handleHotUpdate", () => {
       `export const GameHooks = defineHooks({ 'foo:bar': (): void => undefined })`,
     );
 
-    const plugin = gwenHooksPlugin({});
+    const plugin = hooksPlugin();
     (plugin.configResolved as Function)({ root: tmp });
     (plugin.buildStart as Function).call({});
 
@@ -316,7 +279,7 @@ describe("gwenHooksPlugin — src/hooks/ directory scanning", () => {
       `export const UIHooks = defineHooks({ 'ui:open': (): void => undefined })`,
     );
 
-    const plugin = gwenHooksPlugin({});
+    const plugin = hooksPlugin();
     (plugin.configResolved as Function)({ root: tmp });
     (plugin.buildStart as Function).call({});
 
@@ -338,7 +301,7 @@ describe("gwenHooksPlugin — src/hooks/ directory scanning", () => {
       `export const UIHooks = defineHooks({ 'ui:open': (): void => undefined })`,
     );
 
-    const plugin = gwenHooksPlugin({});
+    const plugin = hooksPlugin();
     (plugin.configResolved as Function)({ root: tmp });
     (plugin.buildStart as Function).call({});
 
@@ -356,7 +319,7 @@ describe("gwenHooksPlugin — src/hooks/ directory scanning", () => {
     );
     fs.writeFileSync(path.join(tmp, "src", "hooks", "README.md"), "# Hooks");
 
-    const plugin = gwenHooksPlugin({});
+    const plugin = hooksPlugin();
     (plugin.configResolved as Function)({ root: tmp });
     (plugin.buildStart as Function).call({});
 
@@ -371,7 +334,7 @@ describe("gwenHooksPlugin — src/hooks/ directory scanning", () => {
       `export const GameHooks = defineHooks({ 'enemy:died': (): void => undefined })`,
     );
 
-    const plugin = gwenHooksPlugin({});
+    const plugin = hooksPlugin();
     (plugin.configResolved as Function)({ root: tmp });
     (plugin.buildStart as Function).call({});
 
@@ -393,7 +356,7 @@ describe("gwenHooksPlugin — src/hooks/ directory scanning", () => {
       `export const GameHooks = defineHooks({ 'foo:bar': (): void => undefined })`,
     );
 
-    const plugin = gwenHooksPlugin({});
+    const plugin = hooksPlugin();
     (plugin.configResolved as Function)({ root: tmp });
     (plugin.buildStart as Function).call({});
 
@@ -412,7 +375,7 @@ describe("gwenHooksPlugin — src/hooks/ directory scanning", () => {
       `export const GameHooks = defineHooks({ 'foo:bar': (): void => undefined })`,
     );
 
-    const plugin = gwenHooksPlugin({ hooks: { dir: "src/events" } });
+    const plugin = hooksPlugin({ hooks: { dir: "src/events" } });
     (plugin.configResolved as Function)({ root: tmp });
     (plugin.buildStart as Function).call({});
 

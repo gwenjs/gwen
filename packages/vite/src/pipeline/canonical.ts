@@ -24,6 +24,8 @@ const CALLEE_NAMES: readonly GwenCallee[] = [
   "withAsyncContext",
   "defineLayers",
   "useMeshCollider",
+  "defineHooks",
+  "useTween",
 ];
 
 export const CANONICAL: Record<GwenCallee, readonly string[]> = {
@@ -44,6 +46,8 @@ export const CANONICAL: Record<GwenCallee, readonly string[]> = {
   withAsyncContext: ["@gwenjs/core"],
   defineLayers: ["@gwenjs/physics2d", "@gwenjs/physics3d", "@gwenjs/physics-core"],
   useMeshCollider: ["@gwenjs/physics3d"],
+  defineHooks: ["@gwenjs/core"],
+  useTween: ["@gwenjs/core/tween"],
 };
 
 /** Virtual modules that re-export the auto-import list. Not canonical sources. */

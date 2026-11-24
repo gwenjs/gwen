@@ -21,16 +21,17 @@
     "types": []
   },
   "./scanners": {
-    "values": ["resolveMainScene", "scanScenes"],
-    "types": ["SceneInfo"]
+    "values": [
+      "resolveMainScene",
+      "scanDefineHooks",
+      "scanEasingNames",
+      "scanLayoutNames",
+      "scanScenes"
+    ],
+    "types": ["HookExport", "LayoutName", "ScanOptions", "SceneInfo"]
   },
   "./internal": {
-    "values": [
-      "extractGlobalCssFromConfig",
-      "extractModuleNamesFromConfig",
-      "generateEntryModule",
-      "generateScenesModule"
-    ],
+    "values": ["generateEntryModule", "generateScenesModule"],
     "types": ["EntryResolvedConfig"]
   }
 }

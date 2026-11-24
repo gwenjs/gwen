@@ -1,6 +1,6 @@
 /**
  * One parse per module. Callers must not swallow a failure.
- * `parseSource` in `packages/vite/src/oxc/parse.ts` stays for the legacy callers.
+ * Every parse in `packages/vite/src` goes through `parseModule`, except the counts of `plugins/dev-strip.ts`.
  */
 
 import { parseSync, type Comment, type ParseResult, type Program } from "oxc-parser";

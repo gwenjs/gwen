@@ -154,14 +154,14 @@ Types: none
 
 ### `./scanners`
 
-Values: `resolveMainScene`, `scanScenes`
+Values: `resolveMainScene`, `scanDefineHooks`, `scanEasingNames`, `scanLayoutNames`, `scanScenes`
 
-Types: `SceneInfo`
+Types: `HookExport`, `LayoutName`, `ScanOptions`, `SceneInfo`
 
 ### `./internal`
 
 no semver guarantee — framework packages and generated code only
 
-Values: `extractGlobalCssFromConfig`, `extractModuleNamesFromConfig`, `generateEntryModule`, `generateScenesModule`
+Values: `generateEntryModule`, `generateScenesModule`
 
 Types: `EntryResolvedConfig`

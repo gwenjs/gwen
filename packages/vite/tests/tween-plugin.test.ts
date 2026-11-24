@@ -1,167 +1,51 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import type { Plugin } from "vite";
 import { afterEach, describe, expect, it } from "vitest";
-import { extractUsedEasings, gwenTweenPlugin } from "../src/plugins/tween.js";
+import { gwenTweenPlugin } from "../src/plugins/tween.js";
 import type { GwenViteOptions } from "../src/types.js";
-
-// ── extractUsedEasings ────────────────────────────────────────────────────────
-
-describe("extractUsedEasings()", () => {
-  it("returns an empty set for empty input", () => {
-    const result = extractUsedEasings("");
-    expect(result.size).toBe(0);
-  });
-
-  it("returns an empty set for code with no easing property", () => {
-    const code = `useTween({ duration: 1.0 })`;
-    expect(extractUsedEasings(code).size).toBe(0);
-  });
-
-  it("extracts a single easing name from single-quoted literal", () => {
-    const code = `useTween({ duration: 0.4, easing: 'easeOutQuad' })`;
-    const result = extractUsedEasings(code);
-    expect([...result]).toEqual(["easeOutQuad"]);
-  });
-
-  it("extracts a single easing name from double-quoted literal", () => {
-    const code = `useTween({ duration: 0.4, easing: "easeInCubic" })`;
-    const result = extractUsedEasings(code);
-    expect([...result]).toEqual(["easeInCubic"]);
-  });
-
-  it("extracts multiple unique easing names from multiple useTween calls", () => {
-    const code = `
-      const a = useTween({ duration: 1, easing: 'linear' });
-      const b = useTween({ duration: 2, easing: 'easeInBounce' });
-      const c = useTween({ duration: 0.5, easing: 'easeOutElastic' });
-    `;
-    const result = extractUsedEasings(code);
-    expect(result.has("linear")).toBe(true);
-    expect(result.has("easeInBounce")).toBe(true);
-    expect(result.has("easeOutElastic")).toBe(true);
-    expect(result.size).toBe(3);
-  });
-
-  it("deduplicates repeated easing names", () => {
-    const code = `
-      const a = useTween({ duration: 1, easing: 'easeOutQuad' });
-      const b = useTween({ duration: 2, easing: 'easeOutQuad' });
-    `;
-    const result = extractUsedEasings(code);
-    expect(result.size).toBe(1);
-    expect(result.has("easeOutQuad")).toBe(true);
-  });
-
-  it("still extracts an unrecognised (non-standard) easing name — validation is runtime", () => {
-    const code = `useTween({ duration: 1, easing: 'myCustomEasing' })`;
-    const result = extractUsedEasings(code);
-    expect(result.has("myCustomEasing")).toBe(true);
-  });
-
-  it("handles whitespace around the colon", () => {
-    const code = `useTween({ duration: 1, easing  :  'easeInBack' })`;
-    const result = extractUsedEasings(code);
-    expect(result.has("easeInBack")).toBe(true);
-  });
-
-  it("does not extract dynamic easing (template literal — not supported)", () => {
-    // Template literals are not matched by the static regex, which is intentional.
-    const code = "useTween({ duration: 1, easing: `easeOutQuad` })";
-    const result = extractUsedEasings(code);
-    expect(result.size).toBe(0);
-  });
-
-  it("handles all 26 named easing functions", () => {
-    const easings = [
-      "linear",
-      "easeInQuad",
-      "easeOutQuad",
-      "easeInOutQuad",
-      "easeInCubic",
-      "easeOutCubic",
-      "easeInOutCubic",
-      "easeInQuart",
-      "easeOutQuart",
-      "easeInOutQuart",
-      "easeInSine",
-      "easeOutSine",
-      "easeInOutSine",
-      "easeInExpo",
-      "easeOutExpo",
-      "easeInOutExpo",
-      "easeInBack",
-      "easeOutBack",
-      "easeInOutBack",
-      "easeInElastic",
-      "easeOutElastic",
-      "easeInOutElastic",
-      "easeInBounce",
-      "easeOutBounce",
-      "easeInOutBounce",
-      "spring",
-    ];
-    const code = easings.map((e) => `useTween({ duration: 1, easing: '${e}' })`).join("\n");
-    const result = extractUsedEasings(code);
-    for (const e of easings) {
-      expect(result.has(e)).toBe(true);
-    }
-    expect(result.size).toBe(easings.length);
-  });
-
-  it("does not extract easing from a comment", () => {
-    expect([...extractUsedEasings(`// easing: 'easeInOut'`)]).toHaveLength(0);
-  });
-
-  it("does not extract easing from a string literal", () => {
-    expect([...extractUsedEasings(`const s = "easing: 'linear'";`)]).toHaveLength(0);
-  });
-
-  it("extracts easing from a real useTween() call", () => {
-    const code = `useTween({ duration: 1, easing: 'easeOutQuad' });`;
-    expect([...extractUsedEasings(code)]).toEqual(["easeOutQuad"]);
-  });
-});
 
 // ── gwenTweenPlugin — virtual module ─────────────────────────────────────────
 
+const VIRTUAL_ID = "virtual:gwen/used-easings";
+const TWEEN_AUTO = [{ name: "useTween", from: "@gwenjs/core/tween" }];
+
+function callHook(plugin: Plugin, name: "configResolved" | "resolveId" | "load", args: unknown[]) {
+  const hook = plugin[name];
+  if (typeof hook !== "function") return undefined;
+  const result: unknown = Reflect.apply(hook, plugin, args);
+  return result;
+}
+
 describe("gwenTweenPlugin()", () => {
-  /**
-   * Helper: create a plugin instance, simulate transforms on provided code
-   * snippets, then call load() on the virtual module ID.
-   */
-  function buildVirtualModule(
-    codeSnippets: string[],
-    opts: GwenViteOptions = {},
-  ): string | null | undefined {
-    const plugin = gwenTweenPlugin(opts);
+  const roots: string[] = [];
 
-    // Simulate buildStart to reset collected easings.
-    if (typeof plugin.buildStart === "function") {
-      // Vite calls buildStart with a `this` context — use an empty object for unit tests.
-      (plugin.buildStart as Function).call({});
+  afterEach(() => {
+    for (const dir of roots) rmSync(dir, { recursive: true, force: true });
+    roots.length = 0;
+  });
+
+  /** A project root on disk holding `files` (path relative to the root to source text). */
+  function projectWith(files: Record<string, string>): string {
+    const projectRoot = mkdtempSync(join(tmpdir(), "gwen-tween-plugin-"));
+    roots.push(projectRoot);
+    for (const [rel, source] of Object.entries(files)) {
+      const full = join(projectRoot, rel);
+      mkdirSync(dirname(full), { recursive: true });
+      writeFileSync(full, source);
     }
+    return projectRoot;
+  }
 
-    // Simulate transform for each snippet.
-    if (typeof plugin.transform === "function") {
-      for (let i = 0; i < codeSnippets.length; i++) {
-        (plugin.transform as Function).call({}, codeSnippets[i], `file${i}.ts`);
-      }
-    }
-
-    // Resolve virtual ID.
-    const resolved =
-      typeof plugin.resolveId === "function"
-        ? (plugin.resolveId as Function).call({}, "virtual:gwen/used-easings", undefined)
-        : null;
-
-    if (!resolved) return null;
-
-    // Load virtual module.
-    if (typeof plugin.load === "function") {
-      return (plugin.load as Function).call({}, resolved) as string | null | undefined;
-    }
-    return null;
+  /** Create the plugin for `projectRoot` and load the virtual module. */
+  function loadVirtual(projectRoot: string, opts: GwenViteOptions = {}): string {
+    const plugin = gwenTweenPlugin({ autoImports: TWEEN_AUTO, ...opts });
+    callHook(plugin, "configResolved", [{ root: projectRoot }]);
+    const resolved = callHook(plugin, "resolveId", [VIRTUAL_ID, undefined]);
+    if (typeof resolved !== "string") return "";
+    const value = callHook(plugin, "load", [resolved]);
+    return typeof value === "string" ? value : "";
   }
 
   it("has the correct plugin name", () => {
@@ -171,41 +55,37 @@ describe("gwenTweenPlugin()", () => {
 
   it("resolves virtual:gwen/used-easings to internal ID", () => {
     const plugin = gwenTweenPlugin();
-    const resolved =
-      typeof plugin.resolveId === "function"
-        ? (plugin.resolveId as Function).call({}, "virtual:gwen/used-easings", undefined)
-        : null;
-    expect(resolved).toBe("\0virtual:gwen/used-easings");
+    expect(callHook(plugin, "resolveId", [VIRTUAL_ID, undefined])).toBe(
+      "\0virtual:gwen/used-easings",
+    );
   });
 
   it("does not resolve unknown module IDs", () => {
     const plugin = gwenTweenPlugin();
-    const resolved =
-      typeof plugin.resolveId === "function"
-        ? (plugin.resolveId as Function).call({}, "some-other-module", undefined)
-        : undefined;
     // Should be undefined / falsy for unknown IDs.
-    expect(resolved).toBeFalsy();
+    expect(callHook(plugin, "resolveId", ["some-other-module", undefined])).toBeFalsy();
   });
 
   it("virtual module exports empty array when no useTween files are processed", () => {
-    const output = buildVirtualModule([]);
+    const output = loadVirtual(projectWith({}));
     expect(output).toContain("export const usedEasings = []");
   });
 
-  it("virtual module exports detected easing names after transform", () => {
-    const code = `
-      const t = useTween({ duration: 1, easing: 'easeOutQuad' });
-    `;
-    const output = buildVirtualModule([code]);
+  it("virtual module exports detected easing names", () => {
+    const output = loadVirtual(
+      projectWith({ "src/a.ts": "const t = useTween({ duration: 1, easing: 'easeOutQuad' });\n" }),
+    );
     expect(output).toContain("easeOutQuad");
     expect(output).toContain("export const usedEasings");
   });
 
   it("virtual module exports multiple unique easing names sorted", () => {
-    const code1 = `useTween({ duration: 1, easing: 'spring' })`;
-    const code2 = `useTween({ duration: 2, easing: 'linear' })`;
-    const output = buildVirtualModule([code1, code2]) ?? "";
+    const output = loadVirtual(
+      projectWith({
+        "src/a.ts": "useTween({ duration: 1, easing: 'spring' })\n",
+        "src/b.ts": "useTween({ duration: 2, easing: 'linear' })\n",
+      }),
+    );
     // Both names must appear.
     expect(output).toContain("linear");
     expect(output).toContain("spring");
@@ -213,121 +93,41 @@ describe("gwenTweenPlugin()", () => {
     expect(output.indexOf("linear")).toBeLessThan(output.indexOf("spring"));
   });
 
-  it("skips non-TS/JS files during transform", () => {
-    const plugin = gwenTweenPlugin();
-    if (typeof plugin.buildStart === "function") {
-      (plugin.buildStart as Function).call({});
-    }
-    // Pass a .css file — should be skipped entirely.
-    let result: unknown;
-    if (typeof plugin.transform === "function") {
-      result = (plugin.transform as Function).call({}, `easing: 'easeOutQuad'`, "style.css");
-    }
-    expect(result).toBeUndefined();
-
-    // Virtual module should still export empty array (nothing collected).
-    const resolved = (plugin.resolveId as Function).call(
-      {},
-      "virtual:gwen/used-easings",
-      undefined,
-    );
-    const output = (plugin.load as Function).call({}, resolved) as string;
-    expect(output).toContain("export const usedEasings = []");
-  });
-
-  it("skips files that do not contain useTween or easing:", () => {
-    const plugin = gwenTweenPlugin();
-    if (typeof plugin.buildStart === "function") {
-      (plugin.buildStart as Function).call({});
-    }
-    let result: unknown;
-    if (typeof plugin.transform === "function") {
-      result = (plugin.transform as Function).call(
-        {},
-        `const x = 42; // no useTween here`,
-        "unrelated.ts",
-      );
-    }
-    // Nothing returned (no transform needed).
-    expect(result).toBeUndefined();
-  });
-
   it("does nothing when disableEasingAnalysis is true", () => {
-    const code = `useTween({ duration: 1, easing: 'easeOutQuad' })`;
-    const output = buildVirtualModule([code], { tween: { disableEasingAnalysis: true } });
+    const projectRoot = projectWith({
+      "src/a.ts": "useTween({ duration: 1, easing: 'easeOutQuad' })\n",
+    });
+    const output = loadVirtual(projectRoot, { tween: { disableEasingAnalysis: true } });
     // Should still return an empty array — no analysis was performed.
     expect(output).toContain("export const usedEasings = []");
   });
 
-  it("resets collected easings on buildStart", () => {
-    const plugin = gwenTweenPlugin();
+  it("load reads the project sources again on every call", () => {
+    const projectRoot = projectWith({
+      "src/a.ts": "useTween({ duration: 1, easing: 'easeOutExpo' })\n",
+    });
+    const plugin = gwenTweenPlugin({ autoImports: TWEEN_AUTO });
+    callHook(plugin, "configResolved", [{ root: projectRoot }]);
+    const resolved = callHook(plugin, "resolveId", [VIRTUAL_ID, undefined]);
+    expect(typeof resolved).toBe("string");
+    if (typeof resolved !== "string") return;
 
-    const runBuildStart = () => {
-      if (typeof plugin.buildStart === "function") {
-        (plugin.buildStart as Function).call({});
-      }
-    };
-    const runTransform = (code: string) => {
-      if (typeof plugin.transform === "function") {
-        (plugin.transform as Function).call({}, code, "file.ts");
-      }
-    };
-    const loadVirtual = (): string => {
-      const resolved = (plugin.resolveId as Function).call(
-        {},
-        "virtual:gwen/used-easings",
-        undefined,
-      );
-      return (plugin.load as Function).call({}, resolved) as string;
-    };
+    expect(callHook(plugin, "load", [resolved])).toContain("easeOutExpo");
 
-    // First build.
-    runBuildStart();
-    runTransform(`useTween({ duration: 1, easing: 'easeOutExpo' })`);
-    const firstOutput = loadVirtual();
-    expect(firstOutput).toContain("easeOutExpo");
-
-    // Second build — buildStart should reset.
-    runBuildStart();
-    const secondOutput = loadVirtual();
-    expect(secondOutput).toContain("export const usedEasings = []");
-    expect(secondOutput).not.toContain("easeOutExpo");
-  });
-
-  const roots: string[] = [];
-
-  afterEach(() => {
-    for (const dir of roots) rmSync(dir, { recursive: true, force: true });
-    roots.length = 0;
+    writeFileSync(
+      join(projectRoot, "src", "a.ts"),
+      "useTween({ duration: 1, easing: 'easeInBack' })\n",
+    );
+    const second = callHook(plugin, "load", [resolved]);
+    expect(second).toContain("easeInBack");
+    expect(second).not.toContain("easeOutExpo");
   });
 
   it("virtual module exports the easing names found under the project root", () => {
-    const projectRoot = mkdtempSync(join(tmpdir(), "gwen-tween-plugin-"));
-    roots.push(projectRoot);
-    mkdirSync(join(projectRoot, "src"), { recursive: true });
-    writeFileSync(
-      join(projectRoot, "src", "actor.ts"),
-      'useTween({ duration: 1, easing: "easeInBack" });\n',
-    );
-
-    const plugin = gwenTweenPlugin({
-      autoImports: [{ name: "useTween", from: "@gwenjs/core/tween" }],
+    const projectRoot = projectWith({
+      "src/actor.ts": 'useTween({ duration: 1, easing: "easeInBack" });\n',
     });
-    const configResolved = plugin.configResolved;
-    if (typeof configResolved === "function") {
-      Reflect.apply(configResolved, plugin, [{ root: projectRoot }]);
-    }
-    const resolveId = plugin.resolveId;
-    expect(typeof resolveId).toBe("function");
-    if (typeof resolveId !== "function") return;
-    const resolved: unknown = Reflect.apply(resolveId, plugin, ["virtual:gwen/used-easings"]);
-    expect(typeof resolved).toBe("string");
-    if (typeof resolved !== "string") return;
-    const load = plugin.load;
-    expect(typeof load).toBe("function");
-    if (typeof load !== "function") return;
-    const value: unknown = Reflect.apply(load, plugin, [resolved]);
-    const text = typeof value === "string" ? value : "";
+    const text = loadVirtual(projectRoot);
     expect(text).toContain("easeInBack");
   });
 });
