@@ -1,0 +1,9 @@
+{
+  "name": "@fixture/options-validate",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js"
+    }
+  }
+}
