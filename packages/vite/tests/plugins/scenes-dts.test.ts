@@ -201,7 +201,7 @@ describe("scenes.d.ts", () => {
     writeFileSync(join(root, "gwen.config.ts"), "export default { modules: [] };\n");
     const scenePath = join(root, "src", "scenes", "a.ts");
     writeScene(root, "a.ts", 'export const A = defineScene("a", () => {});\n');
-    const plugins = gwen({ watch: false });
+    const plugins = gwen();
     const plugin = plugins.find((item) => item.name === "gwen");
     if (plugin === undefined) throw new Error('gwen() did not return the "gwen" plugin');
 
@@ -265,7 +265,7 @@ describe("scenes.d.ts", () => {
     writeFileSync(join(root, "gwen.config.ts"), "export default { modules: [] };\n");
     const scenePath = join(root, "src", "scenes", "a.ts");
     writeScene(root, "a.ts", 'export const A = defineScene("lobby", () => {});\n');
-    const plugins = gwen({ watch: false });
+    const plugins = gwen();
     const plugin = plugins.find((item) => item.name === "gwen");
     if (plugin === undefined) throw new Error('gwen() did not return the "gwen" plugin');
 

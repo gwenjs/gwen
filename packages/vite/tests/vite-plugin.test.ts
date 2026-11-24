@@ -50,10 +50,7 @@ describe("gwen() plugin factory", () => {
   it("accepts all options without throwing", () => {
     expect(() =>
       gwen({
-        cratePath: "/tmp/crate",
-        watch: false,
-        wasmMode: "release",
-        verbose: false,
+        manifestPath: "/tmp/gwen-manifest.json",
       }),
     ).not.toThrow();
   });
@@ -198,23 +195,6 @@ describe("virtual:gwen-manifest — load", () => {
     fs.rmSync(tmp, { recursive: true });
 
     expect(result).toContain("0.2.0");
-  });
-});
-
-// ── Default options ───────────────────────────────────────────────────────────
-
-describe("plugin options defaults", () => {
-  it("wasmMode defaults to debug", () => {
-    // We can't easily test this directly, but we can verify the plugin
-    // doesn't throw and has correct structure
-    const plugin = gwenPlugin({ watch: false });
-    expect(plugin.name).toBe("gwen");
-  });
-
-  it("watch: false skips watcher setup", () => {
-    // configureServer should not start file watchers when watch: false
-    const plugin = gwenPlugin({ watch: false, verbose: false });
-    expect(plugin.configureServer).toBeDefined();
   });
 });
 
@@ -413,7 +393,7 @@ describe("generateEntryModule — bootstrap correctness", () => {
       configFile: false,
       root,
       logLevel: "silent",
-      plugins: gwen({ watch: false }),
+      plugins: gwen(),
       server: { host: "127.0.0.1", port: 0 },
     });
     try {
@@ -608,7 +588,7 @@ describe("generateEntryModule — bootstrap correctness", () => {
   });
 
   it("gwen() no longer resolves virtual:gwen/config-modules", async () => {
-    const plugin = gwenPlugin({ watch: false });
+    const plugin = gwenPlugin();
     const resolve = plugin.resolveId as Function;
     const load = plugin.load as Function;
     expect(resolve("virtual:gwen/config-modules")).toBeNull();
@@ -617,7 +597,7 @@ describe("generateEntryModule — bootstrap correctness", () => {
   });
 
   it("gwen() does not register the gwen:local-modules plugin", () => {
-    const names = gwen({ watch: false }).map((plugin) => plugin.name);
+    const names = gwen().map((plugin) => plugin.name);
     expect(names).not.toContain("gwen:local-modules");
     expect(names).toContain("gwen:local-plugins");
   });
@@ -785,118 +765,6 @@ describe("gwenVitePlugin — hooks plugin included", () => {
   });
 });
 
-// ── Dev-server WASM middleware — path containment ─────────────────────────────
-
-describe("gwen() WASM middleware — path traversal containment", () => {
-  let root: string;
-  let outsideWasm: string;
-  let outsideJs: string;
-  let handler: (
-    req: { url?: string },
-    res: { setHeader(k: string, v: string): void; end(b?: unknown): void },
-    next: () => void,
-  ) => void;
-
-  beforeEach(() => {
-    root = makeTmp();
-    const pluginWasm = path.join(root, "node_modules", "@gwenjs", "gwen-plugin-demo", "wasm");
-    fs.mkdirSync(pluginWasm, { recursive: true });
-    fs.writeFileSync(path.join(pluginWasm, "demo.wasm"), "WASM");
-    fs.writeFileSync(path.join(pluginWasm, "notes.txt"), "not servable");
-    // Servable extensions, so a missing containment check would serve these.
-    outsideWasm = path.join(root, "secret.wasm");
-    outsideJs = path.join(root, "secret.js");
-    fs.writeFileSync(outsideWasm, "SECRET_WASM");
-    fs.writeFileSync(outsideJs, "SECRET_JS");
-
-    const plugin = gwenPlugin({ watch: false });
-    const uses: Array<typeof handler> = [];
-    const fakeServer = {
-      config: { root },
-      watcher: { add() {}, on() {} },
-      moduleGraph: { getModuleById: () => null, invalidateModule() {} },
-      ws: { send() {} },
-      middlewares: { use: (fn: typeof handler) => uses.push(fn) },
-    };
-    (plugin.configureServer as (s: unknown) => void)(fakeServer);
-    const registered = uses[0];
-    if (!registered) throw new Error("configureServer did not register a middleware");
-    handler = registered;
-  });
-
-  afterEach(() => {
-    fs.rmSync(root, { recursive: true, force: true });
-  });
-
-  function request(url: string): { body: unknown; nextCalled: boolean } {
-    let body: unknown;
-    let nextCalled = false;
-    handler(
-      { url },
-      {
-        setHeader() {},
-        end(b) {
-          body = b;
-        },
-      },
-      () => {
-        nextCalled = true;
-      },
-    );
-    return { body, nextCalled };
-  }
-
-  it("serves a legitimate plugin .wasm file", () => {
-    const { body, nextCalled } = request("/wasm/demo.wasm");
-    expect(nextCalled).toBe(false);
-    expect(String(body)).toBe("WASM");
-  });
-
-  it("rejects `..` traversal to a .wasm file outside the wasm directory", () => {
-    const { body, nextCalled } = request("/wasm/../../../../secret.wasm");
-    expect(body).toBeUndefined();
-    expect(nextCalled).toBe(true);
-  });
-
-  it("rejects `..` traversal to a .js file outside the wasm directory", () => {
-    const { body, nextCalled } = request("/wasm/../../../../secret.js");
-    expect(body).toBeUndefined();
-    expect(nextCalled).toBe(true);
-  });
-
-  it("rejects fully encoded %2e%2e%2f traversal to a .wasm file", () => {
-    const encoded = "%2e%2e%2f".repeat(4) + "secret.wasm";
-    const { body, nextCalled } = request(`/wasm/${encoded}`);
-    expect(body).toBeUndefined();
-    expect(nextCalled).toBe(true);
-  });
-
-  it("rejects fully encoded %2e%2e%2f traversal to a .js file", () => {
-    const encoded = "%2e%2e%2f".repeat(4) + "secret.js";
-    const { body, nextCalled } = request(`/wasm/${encoded}`);
-    expect(body).toBeUndefined();
-    expect(nextCalled).toBe(true);
-  });
-
-  it("rejects an absolute path to a .wasm file outside the wasm directory", () => {
-    const { body, nextCalled } = request(`/wasm/${outsideWasm}`);
-    expect(body).toBeUndefined();
-    expect(nextCalled).toBe(true);
-  });
-
-  it("rejects an absolute path to a .js file outside the wasm directory", () => {
-    const { body, nextCalled } = request(`/wasm/${outsideJs}`);
-    expect(body).toBeUndefined();
-    expect(nextCalled).toBe(true);
-  });
-
-  it("rejects files with non-WASM extensions even inside the directory", () => {
-    const { body, nextCalled } = request("/wasm/notes.txt");
-    expect(body).toBeUndefined();
-    expect(nextCalled).toBe(true);
-  });
-});
-
 // ── Resolved config is the only build source ────────────────────────────────
 
 const serveEnv: ConfigEnv = { command: "serve", mode: "development" };
@@ -946,7 +814,7 @@ function applyResolvedRoot(plugin: Plugin, root: string): void {
 }
 
 function pluginNamed(name: string): Plugin {
-  const found = gwen({ watch: false }).find((plugin) => plugin.name === name);
+  const found = gwen().find((plugin) => plugin.name === name);
   if (!found) throw new Error(`missing plugin ${name}`);
   return found;
 }
@@ -1113,7 +981,7 @@ describe("resolved config is the build source", () => {
       fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(path.join(dir, "skip.ts"), "export default {};\n");
       writeConfig(root, `export default { modules: [], localPluginsDir: false };\n`);
-      const plugins = gwen({ watch: false });
+      const plugins = gwen();
       const main = plugins.find((plugin) => plugin.name === "gwen");
       const local = plugins.find((plugin) => plugin.name === "gwen:local-plugins");
       if (!main || !local) throw new Error("missing gwen plugins");
@@ -1217,7 +1085,7 @@ export default { modules: ["real-mod"], globalCss: ["./kept.css"] };
           spec.root,
           `export default { modules: ["${spec.name}"], engine: { maxEntities: ${entities} } };\n`,
         );
-        const plugins = gwen({ watch: false });
+        const plugins = gwen();
         const main = plugins.find((plugin) => plugin.name === "gwen");
         if (!main) throw new Error("missing gwen plugins");
         await configHook(main)({ root: spec.root }, serveEnv);
