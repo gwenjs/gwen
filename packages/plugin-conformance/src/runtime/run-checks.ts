@@ -1,5 +1,7 @@
+import { ConformanceErrorCodes } from "../error-codes.js";
 import { compareFindings } from "../sort-findings.js";
-import type { ConformanceFinding } from "../types.js";
+import type { ConformanceCode, ConformanceFinding } from "../types.js";
+import { thrownMessage } from "./lifecycle.js";
 import { checkComposable } from "./check-composable.js";
 import { checkFrames } from "./check-frames.js";
 import { checkHooks } from "./check-hooks.js";
@@ -65,12 +67,64 @@ function scopeToFactory(
   return scoped;
 }
 
+function codeOf(id: RuntimeCheckId): ConformanceCode {
+  switch (id) {
+    case "shape":
+      return ConformanceErrorCodes.RUNTIME_SHAPE;
+    case "requires":
+      return ConformanceErrorCodes.RUNTIME_REQUIRES;
+    case "provides":
+      return ConformanceErrorCodes.RUNTIME_PROVIDES;
+    case "frames":
+      return ConformanceErrorCodes.RUNTIME_FRAME_EVENT;
+    case "remove":
+      return ConformanceErrorCodes.RUNTIME_REMOVE_LEAK;
+    case "reentry":
+      return ConformanceErrorCodes.RUNTIME_REENTRY;
+    case "two-engines":
+      return ConformanceErrorCodes.RUNTIME_TWO_ENGINES;
+    case "stop":
+      return ConformanceErrorCodes.RUNTIME_TEARDOWN;
+    case "options":
+      return ConformanceErrorCodes.RUNTIME_OPTIONS;
+    case "module":
+      return ConformanceErrorCodes.RUNTIME_MODULE;
+    case "hooks":
+      return ConformanceErrorCodes.HOOK_UNDECLARED;
+    case "composable":
+      return ConformanceErrorCodes.RUNTIME_COMPOSABLE_CONTEXT;
+  }
+}
+
+function thrownCheck(id: RuntimeCheckId, error: unknown): ConformanceFinding {
+  return {
+    code: codeOf(id),
+    message: `${id} ${thrownMessage(error)}`,
+    hint: "The check threw. The message names the check and the thrown text.",
+  };
+}
+
 /**
  * Run `id` and append its findings.
  * Returns false when that check does not run: `options` with no `invalidOptions`,
  * or `module` when the loader did not resolve `exports["./module"]`.
+ * A throw becomes one finding in that check's code.
  */
 async function appendCheck(
+  id: RuntimeCheckId,
+  context: RuntimeCheckContext,
+  moduleFile: string | undefined,
+  findings: ConformanceFinding[],
+): Promise<boolean> {
+  try {
+    return await dispatchCheck(id, context, moduleFile, findings);
+  } catch (error: unknown) {
+    findings.push(thrownCheck(id, error));
+    return true;
+  }
+}
+
+async function dispatchCheck(
   id: RuntimeCheckId,
   context: RuntimeCheckContext,
   moduleFile: string | undefined,
@@ -154,6 +208,7 @@ export async function runRequestedChecks(
   }
   const context: RuntimeCheckContext = {
     spec: scoped,
+    packageFactories: spec.factories,
     entry: loaded.rootEntry,
     entryFile: loaded.entryFile,
   };

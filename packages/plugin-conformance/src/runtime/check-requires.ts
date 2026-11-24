@@ -1,10 +1,11 @@
-import { CoreErrorCodes } from "@gwenjs/core";
+import { CoreErrorCodes, type GwenEngine } from "@gwenjs/core";
 import type { GwenPlugin } from "@gwenjs/schema";
 import { ConformanceErrorCodes } from "../error-codes.js";
 import { isRecord } from "../json.js";
 import type { ConformanceFinding } from "../types.js";
-import { callExport, isPlugin, thrownCode } from "./call-factory.js";
+import { callExport, isPlugin, isProvideCode, thrownCode } from "./call-factory.js";
 import { FRAMEWORK_PLUGIN_NAMES } from "./framework-plugin-names.js";
+import { installProviders, sameNames, thrownMessage } from "./lifecycle.js";
 import { withEngine } from "./open-engine.js";
 import type { PluginConformanceSpec, PluginFactorySpec, RuntimeCheckContext } from "./types.js";
 
@@ -19,12 +20,6 @@ function pluginLabel(spec: PluginConformanceSpec, factory: PluginFactorySpec): s
 function isOfficial(spec: PluginConformanceSpec): boolean {
   if (spec.official !== undefined) return spec.official;
   return spec.packageName.startsWith("@gwenjs/");
-}
-
-function hasHardRequires(plugin: GwenPlugin): boolean {
-  const plugins = plugin.requires?.plugins ?? [];
-  const services = plugin.requires?.services ?? [];
-  return plugins.length > 0 || services.length > 0;
 }
 
 function requiredPluginNames(plugin: GwenPlugin): string[] {
@@ -42,7 +37,7 @@ function requiredPluginNames(plugin: GwenPlugin): string[] {
 /** Names this package's factories install, plus the framework plugin names. */
 function allowedNames(context: RuntimeCheckContext): ReadonlySet<string> {
   const allowed = new Set<string>(FRAMEWORK_PLUGIN_NAME_SET);
-  for (const factory of context.spec.factories) {
+  for (const factory of context.packageFactories) {
     const created = callExport(context.entry, factory.export, factory.options);
     if (!isPlugin(created)) continue;
     allowed.add(created.name);
@@ -119,36 +114,62 @@ function hiddenInstall(
   };
 }
 
-function sameNames(left: readonly string[], right: readonly string[]): boolean {
-  if (left.length !== right.length) return false;
-  for (let index = 0; index < left.length; index += 1) {
-    if (left[index] !== right[index]) return false;
+function useRejection(
+  spec: PluginConformanceSpec,
+  factory: PluginFactorySpec,
+  error: unknown,
+): ConformanceFinding {
+  const code = thrownCode(error);
+  const detail = code === undefined ? thrownMessage(error) : `${code}: ${thrownMessage(error)}`;
+  return {
+    code: ConformanceErrorCodes.RUNTIME_REQUIRES,
+    message: `${pluginLabel(spec, factory)} was rejected by engine.use with ${detail}`,
+    hint: REQUIRES_HINT,
+  };
+}
+
+/** Install factories of this package whose plugin name this plugin requires. */
+async function installSiblings(
+  context: RuntimeCheckContext,
+  plugin: GwenPlugin,
+  currentExport: string,
+  engine: GwenEngine,
+): Promise<void> {
+  const needed = new Set(requiredPluginNames(plugin));
+  needed.delete(plugin.name);
+  if (needed.size === 0) return;
+  for (const factory of context.packageFactories) {
+    if (factory.export === currentExport) continue;
+    const created = callExport(context.entry, factory.export, factory.options);
+    if (!isPlugin(created)) continue;
+    if (!needed.has(created.name)) continue;
+    await engine.use(created);
+    needed.delete(created.name);
   }
-  return true;
 }
 
 async function checkOne(
-  spec: PluginConformanceSpec,
+  context: RuntimeCheckContext,
   factory: PluginFactorySpec,
   plugin: GwenPlugin,
   allowed: ReadonlySet<string>,
 ): Promise<ConformanceFinding[]> {
+  const spec = context.spec;
   const foreign = foreignPluginNames(spec, plugin, allowed);
   if (foreign.length > 0) return [foreignPlugin(spec, factory, foreign)];
   return withEngine(spec, async (open) => {
-    if (hasHardRequires(plugin)) {
-      for (const provider of spec.frameworkProviders ?? []) {
-        await open.engine.use(provider());
-      }
-    }
+    await installProviders(open.engine, spec);
+    await installSiblings(context, plugin, factory.export, open.engine);
     const baseline = open.engine.getStats().plugins;
     try {
       await open.engine.use(plugin);
     } catch (error: unknown) {
       if (thrownCode(error) === CoreErrorCodes.PLUGIN_DEPENDENCY_MISSING) {
+        if (unmetEntries(error, allowed).length === 0) return [];
         return [aloneRejection(spec, factory, error, allowed)];
       }
-      return [];
+      if (isProvideCode(thrownCode(error))) return [];
+      return [useRejection(spec, factory, error)];
     }
     const installed = open.engine.getStats().plugins;
     const expected = [...baseline, plugin.name];
@@ -158,10 +179,12 @@ async function checkOne(
 }
 
 /**
- * R2. No hard `requires`: `use` alone, and the plugin list is the baseline plus the name.
- * Hard `requires`: `use` rejects until `frameworkProviders` are installed, then the list is
- * those providers' plugins plus the name. An official plugin may name only this package
- * or `FRAMEWORK_PLUGIN_NAMES`.
+ * R2. Install `frameworkProviders`, then a sibling factory of this package
+ * when `requires.plugins` names it, then `use`. The installed plugins must be
+ * that baseline plus the plugin name. An official plugin may name only this
+ * package or `FRAMEWORK_PLUGIN_NAMES`. A community plugin ignores other names.
+ * A `use` rejection that is not the dependency code and not a provide code
+ * is one finding.
  */
 export async function checkRequires(context: RuntimeCheckContext): Promise<ConformanceFinding[]> {
   const allowed = allowedNames(context);
@@ -169,7 +192,7 @@ export async function checkRequires(context: RuntimeCheckContext): Promise<Confo
   for (const factory of context.spec.factories) {
     const created = callExport(context.entry, factory.export, factory.options);
     if (!isPlugin(created)) continue;
-    findings.push(...(await checkOne(context.spec, factory, created, allowed)));
+    findings.push(...(await checkOne(context, factory, created, allowed)));
   }
   return findings;
 }

@@ -25,7 +25,8 @@ async function checkOne(
 ): Promise<ConformanceFinding[]> {
   return withEngine(context.spec, async (open) => {
     await installProviders(open.engine, context.spec);
-    await usePlugin(open.engine, plugin);
+    const installed = await usePlugin(open.engine, plugin);
+    if (!installed) return [];
     await open.engine.unuse(plugin.name);
     try {
       await open.engine.use(plugin);

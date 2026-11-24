@@ -2,6 +2,7 @@ import { ConformanceErrorCodes } from "../error-codes.js";
 import { isRecord } from "../json.js";
 import type { ConformanceFinding } from "../types.js";
 import { FRAMEWORK_PLUGIN_NAMES } from "./framework-plugin-names.js";
+import { thrownMessage } from "./lifecycle.js";
 import type { PluginConformanceSpec } from "./types.js";
 
 const FRAMEWORK_PLUGIN_NAME_SET: ReadonlySet<string> = new Set(FRAMEWORK_PLUGIN_NAMES);
@@ -86,7 +87,18 @@ export function validateSpec(spec: PluginConformanceSpec): ConformanceFinding[] 
   const providers = spec.frameworkProviders;
   if (providers !== undefined) {
     for (const provider of providers) {
-      const name = provider().name;
+      let name: string;
+      try {
+        name = provider().name;
+      } catch (error: unknown) {
+        findings.push(
+          runtimeFinding(
+            `frameworkProviders factory threw: ${thrownMessage(error)}`,
+            "Pass a factory that returns a plugin whose name is in FRAMEWORK_PLUGIN_NAMES.",
+          ),
+        );
+        continue;
+      }
       if (FRAMEWORK_PLUGIN_NAME_SET.has(name)) continue;
       findings.push(
         runtimeFinding(

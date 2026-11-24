@@ -350,13 +350,13 @@ importers:
         version: 6.0.2
     devDependencies:
       '@gwenjs/app':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../app
       '@gwenjs/camera-core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../camera-core
       '@gwenjs/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
       '@gwenjs/kit':
         specifier: workspace:^

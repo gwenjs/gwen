@@ -42,12 +42,16 @@ function listedFactories(spec: PluginConformanceSpec): readonly PluginFactorySpe
  * has an `exports["./module"]` key (`packages/plugin-conformance/src/runtime/package-manifest.ts:105`).
  */
 function moduleSubpathPresent(spec: PluginConformanceSpec): boolean {
-  const text = readFileSync(path.join(runtimeRoot(spec), "package.json"), "utf8");
-  const parsed: unknown = JSON.parse(text);
-  if (!isRecord(parsed)) return false;
-  const exportsValue: unknown = parsed.exports;
-  if (!isRecord(exportsValue)) return false;
-  return Object.hasOwn(exportsValue, "./module");
+  try {
+    const text = readFileSync(path.join(runtimeRoot(spec), "package.json"), "utf8");
+    const parsed: unknown = JSON.parse(text);
+    if (!isRecord(parsed)) return false;
+    const exportsValue: unknown = parsed.exports;
+    if (!isRecord(exportsValue)) return false;
+    return Object.hasOwn(exportsValue, "./module");
+  } catch {
+    return false;
+  }
 }
 
 /**
