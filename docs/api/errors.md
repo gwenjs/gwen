@@ -644,7 +644,7 @@ Cause. A name listed in `public-api.snap.json` (a value or a type, of any subpat
 
 ### CONFORMANCE:RUNTIME_DEV_WARNING {#conformance-runtime-dev-warning}
 
-Cause. The engine logger recorded an entry at level `warn` or `error` during the run (`packages/schema/src/logger-structured.ts:2`). The message names that entry. `debug` and `info` are not reported. Fix. Remove the `warn` or `error` call.
+Cause. The engine logger recorded an entry at level `warn` or `error` during the run (`packages/schema/src/logger-structured.ts:2`). The message names that entry. `debug` and `info` are not reported. The engine copies a bus event onto the logger (`packages/core/src/engine/engine-error-policy.ts:408`) with the same message and `payload.code` set to the event code. That copy is not a second finding. Fix. Remove the `warn` or `error` call.
 
 ### CONFORMANCE:RUNTIME_FRAME_EVENT {#conformance-runtime-frame-event}
 

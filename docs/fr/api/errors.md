@@ -644,7 +644,7 @@ Cause. Un nom listé dans `public-api.snap.json` (une valeur ou un type, de n'im
 
 ### CONFORMANCE:RUNTIME_DEV_WARNING {#conformance-runtime-dev-warning}
 
-Cause. Le journal du moteur a enregistré une entrée de niveau `warn` ou `error` pendant l'exécution (`packages/schema/src/logger-structured.ts:2`). Le message nomme cette entrée. `debug` et `info` ne sont pas signalés. Fix. Retirez l'appel `warn` ou `error`.
+Cause. Le journal du moteur a enregistré une entrée de niveau `warn` ou `error` pendant l'exécution (`packages/schema/src/logger-structured.ts:2`). Le message nomme cette entrée. `debug` et `info` ne sont pas signalés. Le moteur copie un événement du bus dans ce journal (`packages/core/src/engine/engine-error-policy.ts:408`) avec le même message et `payload.code` égal au code de l'événement. Cette copie n'est pas un second constat. Fix. Retirez l'appel `warn` ou `error`.
 
 ### CONFORMANCE:RUNTIME_FRAME_EVENT {#conformance-runtime-frame-event}
 
