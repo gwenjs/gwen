@@ -26,11 +26,11 @@ import {
   defineScene,
   onEnter,
   onExit,
+  onPreload,
   onTransitionEnter,
   onTransitionExit,
   useSystem,
 } from "../../src/scene/index.js";
-import { onPreload } from "../../src/scene/runtime/scene-context.js";
 import {
   defineSystem,
   onAfterUpdate,

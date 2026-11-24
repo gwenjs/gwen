@@ -329,7 +329,7 @@ Types: `ActorDefinition`, `ActorHandle`, `ActorInstance`, `ActorPlugin`, `ActorP
 
 ### `./scene`
 
-Values: `defineScene`, `defineSceneRouter`, `onEnter`, `onExit`, `onTransitionEnter`, `onTransitionExit`, `useSceneRouter`, `useSystem`
+Values: `defineScene`, `defineSceneRouter`, `onEnter`, `onExit`, `onPreload`, `onTransitionEnter`, `onTransitionExit`, `useSceneRouter`, `useSystem`
 
 Types: `EventsOf`, `RouteConfig`, `SceneDefinition`, `SceneFactory`, `SceneInput`, `SceneRegistry`, `SceneRouterDefinition`, `SceneRouterHandle`, `SceneRouterOptions`, `StatesOf`, `SystemHandle`, `TransitionEffect`
 

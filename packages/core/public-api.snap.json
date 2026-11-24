@@ -186,6 +186,7 @@
       "defineSceneRouter",
       "onEnter",
       "onExit",
+      "onPreload",
       "onTransitionEnter",
       "onTransitionExit",
       "useSceneRouter",

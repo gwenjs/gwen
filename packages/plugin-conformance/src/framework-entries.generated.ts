@@ -219,6 +219,7 @@ export const FRAMEWORK_ENTRIES: Readonly<Record<string, readonly string[]>> = {
     "defineSceneRouter",
     "onEnter",
     "onExit",
+    "onPreload",
     "onTransitionEnter",
     "onTransitionExit",
     "useSceneRouter",

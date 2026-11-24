@@ -8,6 +8,7 @@
  * - `useSystem(plugins)` — declare active systems
  * - `onEnter(cb)` — callback when scene is entered
  * - `onExit(cb)` — callback when scene is exited
+ * - `onPreload(cb)` — callback while this scene is the preload target
  */
 
 import type { ScenePreloadEvent } from "@gwenjs/schema";
@@ -30,6 +31,7 @@ export interface SceneSetupContext {
   onExitCb?: () => void | Promise<void>;
   onTransitionExitCb?: (payload: { from: string; to: string }) => void | Promise<void>;
   onTransitionEnterCb?: (payload: { from: string; to: string }) => void | Promise<void>;
+  onPreloadCbs: Array<(event: ScenePreloadEvent) => void | Promise<void>>;
   registrar?: SceneRegistrar;
 }
 
@@ -53,7 +55,7 @@ function _getActiveSceneContext(): SceneSetupContext | null {
  * @internal
  */
 export function _withSceneContext(factory: () => void): SceneSetupContext {
-  const ctx: SceneSetupContext = { systems: [], handles: [] };
+  const ctx: SceneSetupContext = { systems: [], handles: [], onPreloadCbs: [] };
 
   // Build an idempotent registrar and expose it via engine.provide() so that
   // useActor() / useActorPool() can read it with engine.tryInject(SCENE_REGISTRAR_KEY)
@@ -205,7 +207,31 @@ export function onExit(cb: () => void | Promise<void>): void {
   ctx.onExitCb = cb;
 }
 
-export function onPreload(_cb: (event: ScenePreloadEvent) => void | Promise<void>): void {}
+/**
+ * Register a callback to run while this scene is the preload target.
+ *
+ * Must be called inside a `defineScene()` factory.
+ * Several calls accumulate, in call order.
+ *
+ * @param cb - Called on `scene:preload` when this scene is the target.
+ * @throws {GwenContextError} If called outside a `defineScene()` factory.
+ *
+ * @example
+ * ```ts
+ * defineScene('Game', () => {
+ *   onPreload((event) => {
+ *     event.progress('level', 1, 1)
+ *   })
+ * })
+ * ```
+ */
+export function onPreload(cb: (event: ScenePreloadEvent) => void | Promise<void>): void {
+  const ctx = _getActiveSceneContext();
+  if (!ctx) {
+    throw new GwenContextError(GwenContextErrorCodes.OUTSIDE_SCENE_CONTEXT, "onPreload");
+  }
+  ctx.onPreloadCbs.push(cb);
+}
 
 /**
  * Register an async callback that runs before the leave animation for this scene.

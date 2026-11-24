@@ -8,8 +8,8 @@
  * `registerScenes` in `engine.run()`), so all engine composables are
  * available: `useEngine()`, `useActor()`, `usePrefab()`, `useSceneRouter()`.
  *
- * Scene-specific composables (`useSystem`, `onEnter`, `onExit`) are imported
- * from `@gwenjs/core/scene`.
+ * Scene-specific composables (`useSystem`, `onEnter`, `onExit`, `onPreload`) are
+ * imported from `@gwenjs/core/scene`.
  *
  * @example
  * ```typescript
@@ -68,7 +68,10 @@ export interface SceneDefinition<N extends GwenSceneName = GwenSceneName> {
     from: GwenSceneName;
     to: GwenSceneName;
   }) => void | Promise<void>;
-  /** Optional callbacks fired while this scene is the preload target. */
+  /**
+   * Callbacks registered with `onPreload`, in call order.
+   * Absent when the factory never calls `onPreload`.
+   */
   readonly onPreload?: readonly ((event: ScenePreloadEvent) => void | Promise<void>)[];
 }
 
@@ -97,13 +100,15 @@ export interface SceneFactory<N extends GwenSceneName = GwenSceneName> {
  * - `useSystem([...])` — systems active while this scene runs
  * - `onEnter(cb)` — called when the engine routes to this scene
  * - `onExit(cb)` — called when the engine routes away from this scene
+ * - `onPreload(cb)` — called while this scene is the preload target
  *
  * The factory result is **cached** — the function is only executed once
  * regardless of how many times the returned `SceneFactory` is called.
  *
  * Lifecycle wiring (decoupled from router): when an engine context is active at
- * factory call time, `onEnter` / `onExit` are wired to `scene:enter` /
- * `scene:beforeLeave` engine hooks with full async engine-context propagation.
+ * factory call time, `onEnter` / `onExit` / `onPreload` are wired to `scene:enter` /
+ * `scene:beforeLeave` / `scene:preload` engine hooks with full async engine-context
+ * propagation.
  * Calling the factory without an engine context (e.g. in tests that access
  * `SceneDefinition.onEnter` directly) still works — the callbacks remain
  * accessible on the returned definition.
@@ -189,6 +194,19 @@ export function defineScene<const N extends GwenSceneName>(
         }
       });
     }
+
+    if (def.onPreload) {
+      const cbs = def.onPreload;
+      engine.hooks.hook("scene:preload", async (event: ScenePreloadEvent) => {
+        if (event.to !== name) return;
+        const previous = pushEngine(engine);
+        try {
+          await Promise.all(cbs.map(async (cb) => cb(event)));
+        } finally {
+          popEngine(engine, previous);
+        }
+      });
+    }
   }
 
   const call = (_registry: SceneRegistry): SceneDefinition<N> => {
@@ -207,6 +225,7 @@ export function defineScene<const N extends GwenSceneName>(
         ...(ctx.onTransitionEnterCb !== undefined
           ? { onTransitionEnter: ctx.onTransitionEnterCb }
           : {}),
+        ...(ctx.onPreloadCbs.length > 0 ? { onPreload: ctx.onPreloadCbs } : {}),
       };
     }
 
