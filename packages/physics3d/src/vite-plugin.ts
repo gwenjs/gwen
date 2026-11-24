@@ -6,25 +6,14 @@ import { createHash } from "node:crypto";
 import { readFileSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import MagicString from "magic-string";
-import {
-  evalBitExpr,
-  extractLayerDefinitions,
-  inlineLayerReferences,
-} from "@gwenjs/vite/shared/layer-utils";
-
-// Re-export for backward compatibility (tests may import from here).
-export { evalBitExpr, extractLayerDefinitions, inlineLayerReferences };
+import { GwenError } from "@gwenjs/schema";
+import { layerInlineTransform } from "@gwenjs/vite/shared/layer-utils";
+import { Physics3DErrorCodes } from "./errors/codes";
 
 /**
  * Options accepted by {@link physics3dVitePlugin}.
  */
 export interface GwenPhysics3DPluginOptions {
-  /**
-   * Log inlining activity to the console when layer constants are replaced.
-   * @default false
-   */
-  debug?: boolean;
-
   /**
    * Enable BVH pre-baking for `useMeshCollider('./file.glb')` patterns.
    * Requires the `physics3d/build-tools` Node.js WASM to be built first.
@@ -177,9 +166,8 @@ export async function transformBvhReferences(
  * `gwen:physics3d` — Vite plugin for Physics 3D build-time optimizations.
  *
  * Performs the following transformations:
- * - **Layer inlining**: replaces `Layers.player` references (from a `defineLayers()`
- *   call) with their literal bitmask values, enabling dead-code elimination in
- *   optimised builds.
+ * - **Layer inlining**: registers `gwen:layer-inline` on `gwen:transform-pipeline`.
+ *   A manual Vite config must place `gwen()` from `@gwenjs/vite` before this plugin.
  * - **BVH pre-baking** (opt-in via `bvhPrebake: true`): detects `useMeshCollider('./file.glb')`
  *   patterns and replaces them with pre-baked `{ __bvhUrl: 'bvh-<hash>.bin' }` references
  *   at build time.
@@ -190,10 +178,11 @@ export async function transformBvhReferences(
  * @example
  * ```typescript
  * // vite.config.ts
+ * import { gwen } from '@gwenjs/vite'
  * import { physics3dVitePlugin } from '@gwenjs/physics3d/module'
  *
  * export default {
- *   plugins: [physics3dVitePlugin({ debug: true, bvhPrebake: true })],
+ *   plugins: [gwen(), physics3dVitePlugin({ bvhPrebake: true })],
  * }
  * ```
  *
@@ -206,7 +195,7 @@ export function physics3dVitePlugin(options: GwenPhysics3DPluginOptions = {}): P
   /** @internal Exposed for unit tests. */
   transformBvhReferences: typeof transformBvhReferences;
 } {
-  const { bvhPrebake = false, ...baseOptions } = options;
+  const { bvhPrebake = false } = options;
 
   return {
     name: "gwen:physics3d",
@@ -214,69 +203,32 @@ export function physics3dVitePlugin(options: GwenPhysics3DPluginOptions = {}): P
     // Expose for unit tests
     transformBvhReferences,
 
+    configResolved(config) {
+      const api = pipelineApi(config.plugins);
+      if (api === undefined) {
+        throw new GwenError(
+          Physics3DErrorCodes.VITE_PIPELINE_MISSING,
+          "gwen:transform-pipeline is not in the Vite config.",
+          {
+            composable: "physics3dVitePlugin",
+            hint:
+              process.env["NODE_ENV"] !== "production"
+                ? "Add gwen() from @gwenjs/vite before the physics plugin."
+                : undefined,
+          },
+        );
+      }
+      api.register(layerInlineTransform);
+    },
+
     async transform(code, id) {
       if (!/\.(ts|tsx|js|jsx)$/.test(id)) return;
-
-      let s: MagicString | null = null;
-      let layersModified = false;
-
-      // ── Layer inlining (synchronous) ──────────────────────────────────────
-      if (code.includes("defineLayers")) {
-        const layerMap = extractLayerDefinitions(code);
-        if (layerMap) {
-          const declRe = /const\s+(\w+)\s*=\s*defineLayers\s*\([^)]*\)\s*;?/;
-          const varMatch = code.match(declRe);
-          if (varMatch) {
-            const varName = varMatch[1];
-            const declStart = varMatch.index ?? 0;
-            const declEnd = declStart + varMatch[0].length;
-
-            s = new MagicString(code);
-
-            for (const [name, value] of layerMap) {
-              const refRe = new RegExp(`\\b${varName}\\.${name}\\b`, "g");
-              let count = 0;
-              for (const m of code.matchAll(refRe)) {
-                const at = m.index ?? 0;
-                s.overwrite(at, at + m[0].length, String(value));
-                layersModified = true;
-                count++;
-              }
-              if (count === 0) {
-                this.warn(
-                  `[gwen:physics3d] Layer "${name}" is defined but never referenced. Consider removing it.`,
-                );
-              }
-            }
-
-            if (layersModified) {
-              // Remove the defineLayers declaration if the variable is no longer referenced
-              // outside the declaration itself
-              const transformed = s.toString();
-              const beforeDecl = transformed.slice(0, declStart);
-              const afterDecl = transformed.slice(declEnd);
-              const varStillUsed = new RegExp(`\\b${varName}\\b`).test(beforeDecl + afterDecl);
-              if (!varStillUsed) {
-                s.remove(declStart, declEnd);
-              }
-
-              if (baseOptions.debug) {
-                // eslint-disable-next-line no-console
-                console.log(`[gwen:physics3d] Inlined ${layerMap.size} layer constants in ${id}`);
-              }
-            }
-          }
-        }
-      }
+      if (!bvhPrebake) return;
 
       // ── BVH pre-baking (async, build mode only) ────────────────────────────
-      const currentCode = s ? s.toString() : code;
       if (bvhPrebake && !id.includes("node_modules")) {
-        const bvhResult = await transformBvhReferences(currentCode, id, this.emitFile?.bind(this));
+        const bvhResult = await transformBvhReferences(code, id, this.emitFile?.bind(this));
         if (bvhResult !== null) {
-          // BVH transform happened on top of layer-inlined code; build a new MagicString
-          // for the combined result (source map will cover the BVH transform only in this case,
-          // but layer inlining map is still available from `s`).
           const combined = new MagicString(code);
           combined.overwrite(0, code.length, bvhResult);
           return {
@@ -285,15 +237,28 @@ export function physics3dVitePlugin(options: GwenPhysics3DPluginOptions = {}): P
           };
         }
       }
-
-      if (!s || !layersModified) return undefined;
-
-      return {
-        code: s.toString(),
-        map: s.generateMap({ hires: true, source: id, includeContent: true }),
-      };
     },
   };
+}
+
+function isLayerRegister(value: unknown): value is (unit: typeof layerInlineTransform) => void {
+  return typeof value === "function";
+}
+
+function pipelineApi(
+  plugins: readonly Plugin[],
+): { register: (unit: typeof layerInlineTransform) => void } | undefined {
+  for (const plugin of plugins) {
+    if (plugin.name !== "gwen:transform-pipeline") continue;
+    const candidate: unknown = plugin.api;
+    if (typeof candidate !== "object" || candidate === null || !("register" in candidate)) {
+      return undefined;
+    }
+    const register: unknown = candidate.register;
+    if (!isLayerRegister(register)) return undefined;
+    return { register };
+  }
+  return undefined;
 }
 
 /**

@@ -27,7 +27,6 @@ export default defineConfig({
     layers: { default: 0, player: 1, enemy: 2 },
     vite: {
       bvhPrebake: false,
-      debug: false,
     },
   },
 })
@@ -46,7 +45,6 @@ export default defineConfig({
 | `layers` | `Record<string, number>` | `{}` | Nom de calque vers un indice de bit, entiers `0..31`, 32 au plus |
 | `vite` | `object` | — | Options du plugin Vite au moment du build (voir ci-dessous) |
 | `vite.bvhPrebake` | `boolean` | `false` | Pré-compile le BVH pour `useMeshCollider('./x.glb')` au moment du build |
-| `vite.debug` | `boolean` | `false` | Active la journalisation du plugin Vite |
 
 ## Comportement Rapier 0.36
 
@@ -408,19 +406,14 @@ Plugin Vite au moment du build. Il est **enregistré automatiquement** par le mo
 
 ```ts
 interface GwenPhysics3DPluginOptions {
-  debug?: boolean      // défaut : false — active la journalisation du plugin Vite
   bvhPrebake?: boolean // défaut : false — pré-compile le BVH pour les chemins de collider de maillage
 }
 ```
 
-Le plugin effectue deux transformations au moment du build :
+Le plugin fait deux travaux au moment du build :
 
-1. **Intégration des calques** — remplace `Layers.player` par sa valeur de masque de bits littérale. Élimine la résolution à l'exécution et permet l'élimination du code mort.
+1. **Intégration des calques** — enregistre `gwen:layer-inline` sur `gwen:transform-pipeline`. `Layers.player` devient son masque de bits. Une config Vite manuelle exige `gwen()` avant ce plugin.
 2. **Pré-calcul BVH** (opt-in) — détecte les occurrences de `useMeshCollider('./terrain.glb')`, compile le BVH au moment du build et remplace le chemin par `{ __bvhUrl: 'bvh-<hash>.bin' }`.
-
-:::tip Avertissement pour les calques non utilisés
-Lorsque l'intégration des calques est active, le plugin Vite émet un avertissement de build pour tout calque défini dans la configuration mais jamais référencé dans le code source. Utilisez ceci pour maintenir votre liste de calques propre.
-:::
 
 :::tip Flux de travail BVH pre-bake
 Activez `bvhPrebake: true` (via `vite.bvhPrebake` dans la configuration du module) pour les grands maillages de terrain. Le BVH est compilé une seule fois au moment du build et servi sous forme d'asset binaire, de sorte que l'initialisation du raycast à l'exécution est quasi instantanée — sans coût de reconstruction BVH par frame.
@@ -440,8 +433,7 @@ interface Physics3DConfig extends PhysicsConfigBase<'3d'> {
   maxLinearVelocity?: number
   layers?: Record<string, number>
   vite?: {
-    bvhPrebake: boolean
-    debug: boolean
+    bvhPrebake?: boolean
   }
 }
 ```

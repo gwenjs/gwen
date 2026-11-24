@@ -24,16 +24,4 @@ export interface Physics2DConfig extends PhysicsConfigBase<"2d"> {
    * If omitted, the plugin derives a default from `qualityPreset`.
    */
   ccdEnabled?: boolean;
-
-  /**
-   * Build-time Vite plugin options for `gwen:physics2d`.
-   * These only affect the Vite build pipeline, not the runtime simulation.
-   */
-  vite?: {
-    /**
-     * Log layer-inlining activity to the Vite console.
-     * @default false
-     */
-    debug?: boolean;
-  };
 }

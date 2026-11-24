@@ -141,19 +141,15 @@ Prefer the integrated form for most projects. Use the standalone plugin only whe
 
 ---
 
-## `physics2dVitePlugin(options?)`
+## `physics2dVitePlugin()`
 
-Build-time Vite plugin for 2D physics support. It performs **layer inlining**: references to named layers such as `Layers.wall` are replaced with their numeric value (e.g. `4`) at build time using `MagicString`, preserving accurate source maps.
+Build-time Vite plugin for 2D physics. Layer inlining is the `gwen:layer-inline` unit, registered on `gwen:transform-pipeline` from this plugin's `configResolved`. A reference such as `Layers.wall` becomes its numeric value. The source map comes from the pipeline transform.
 
 :::tip Auto-registered
 When you use the `@gwenjs/physics2d` module in `gwen.config.ts`, this plugin is registered automatically. You do not need to add it manually in most cases.
 :::
 
-If a layer is defined via `defineLayers()` but never referenced anywhere in the transformed source, the plugin emits a Vite **build warning** so dead layer definitions do not go unnoticed.
-
-### Module config (`vite` sub-key)
-
-Options for this plugin can be passed through the module configuration in `gwen.config.ts`:
+`Physics2DConfig` has no `vite` key. The module calls `physics2dVitePlugin()` with no options.
 
 ```ts
 // gwen.config.ts
@@ -161,34 +157,24 @@ export default defineConfig({
   modules: ['@gwenjs/physics2d'],
   physics2d: {
     gravity: { y: -9.81 },
-    vite: {
-      debug: true,  // passed to physics2dVitePlugin
-    },
   },
 })
 ```
 
 ### Manual usage
 
+`gwen()` must come before the physics plugin, so `gwen:transform-pipeline` is in the Vite config. Without it, the plugin throws `PHYSICS2D:VITE_PIPELINE_MISSING`.
+
 ```ts
 // vite.config.ts
 import { defineConfig } from 'vite'
-import { gwenVitePlugin } from '@gwenjs/vite'
+import { gwen } from '@gwenjs/vite'
 import { physics2dVitePlugin } from '@gwenjs/physics2d/module'
 
 export default defineConfig({
-  plugins: [
-    gwenVitePlugin(),
-    physics2dVitePlugin({ debug: false }),
-  ],
+  plugins: [gwen(), physics2dVitePlugin()],
 })
 ```
-
-### Options
-
-| Option | Type | Default | Description |
-|---|---|---|---|
-| `debug` | `boolean` | `false` | Log each layer substitution to the console. |
 
 ---
 
@@ -196,7 +182,7 @@ export default defineConfig({
 
 Build-time Vite plugin for 3D physics support. Provides two features:
 
-1. **Layer inlining** — same as `physics2dVitePlugin`, replaces named layer references with their numeric values at build time.
+1. **Layer inlining** — the `gwen:layer-inline` unit, registered on `gwen:transform-pipeline`. Named layer references become their numeric values. Manual usage needs `gwen()` before this plugin.
 2. **BVH pre-baking** — when `bvhPrebake: true`, detects `useMeshCollider('./file.glb')` call patterns and pre-compiles the BVH acceleration structure at build time. The string argument is replaced with `{ __bvhUrl: 'bvh-<hash>.bin' }`, so the heavy BVH computation is done once during the build rather than at runtime.
 
 :::tip Auto-registered
@@ -213,7 +199,6 @@ export default defineConfig({
     gravity: { x: 0, y: -9.81, z: 0 },
     vite: {
       bvhPrebake: true,
-      debug: false,  // passed to physics3dVitePlugin
     },
   },
 })
@@ -224,22 +209,20 @@ export default defineConfig({
 ```ts
 // vite.config.ts
 import { defineConfig } from 'vite'
-import { gwenVitePlugin } from '@gwenjs/vite'
+import { gwen } from '@gwenjs/vite'
 import { physics3dVitePlugin } from '@gwenjs/physics3d/module'
 
 export default defineConfig({
-  plugins: [
-    gwenVitePlugin(),
-    physics3dVitePlugin({ bvhPrebake: true, debug: false }),
-  ],
+  plugins: [gwen(), physics3dVitePlugin({ bvhPrebake: true })],
 })
 ```
+
+`gwen()` must come before the physics plugin. Without `gwen:transform-pipeline`, the plugin throws `PHYSICS3D:VITE_PIPELINE_MISSING`.
 
 ### Options
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `debug` | `boolean` | `false` | Log each layer substitution and BVH prebake operation. |
 | `bvhPrebake` | `boolean` | `false` | Pre-compile BVH structures for mesh colliders at build time. |
 
 ---

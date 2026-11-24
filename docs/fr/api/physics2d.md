@@ -449,21 +449,19 @@ function patchTilemapPhysicsChunk(opts: {
 **Signature:**
 ```ts
 function physics2dVitePlugin(options?: Physics2DVitePluginOptions): VitePlugin
-// interface Physics2DVitePluginOptions { debug?: boolean }
 // import { physics2dVitePlugin } from '@gwenjs/physics2d/module'
 ```
 
-**Description.** Plugin Vite pour bundler Rapier2D WASM. Enregistré automatiquement quand le plugin physics2d est utilisé. Émet un avertissement au moment du build si une couche est définie avec `defineLayers()` mais jamais référencée dans le même fichier — permet de détecter les définitions de couches inutilisées tôt.
+**Description.** Enregistre l'unité `gwen:layer-inline` sur `gwen:transform-pipeline`. Enregistré automatiquement quand le module physics2d est utilisé. Une config Vite manuelle exige `gwen()` de `@gwenjs/vite` avant ce plugin. `Physics2DVitePluginOptions` est vide.
 
 **Paramètres:**
 | Paramètre | Type | Description |
 |---|---|---|
-| options | `Physics2DVitePluginOptions` | Options optionnelles du plugin au moment du build |
-| options.debug | `boolean` | Activer les logs de débogage pour l'intégration des couches (défaut: false) |
+| options | `Physics2DVitePluginOptions` | Vide. Le plugin ne prend aucune option |
 
 **Retourne:** `VitePlugin`
 
-> **Note:** Lors de l'utilisation de la config du module, passez les options du plugin Vite via la sous-clé `vite` :
+> **Note :** `Physics2DConfig` n'a pas de clé `vite`. Le module appelle `physics2dVitePlugin()` sans option.
 > ```ts
 > // gwen.config.ts
 > export default defineConfig({
@@ -471,7 +469,6 @@ function physics2dVitePlugin(options?: Physics2DVitePluginOptions): VitePlugin
 >   physics2d: {
 >     gravity: { y: -9.81 },
 >     maxLinearVelocity: 400, // mètres par seconde ; aussi le plafond Rapier après chaque sous-pas
->     vite: { debug: true },  // Options du plugin Vite (build uniquement)
 >   },
 > })
 > ```

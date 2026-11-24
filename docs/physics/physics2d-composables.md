@@ -35,10 +35,9 @@ export default defineConfig({
 | `ccdEnabled` | `boolean` | auto | Continuous collision detection (auto-enabled at `'high'`/`'esport'`) |
 | `layers` | `Record<string, number>` | `{}` | Collision layers (bit index 0–31) |
 | `debug` | `boolean` | `false` | Enable debug renderer |
-| `vite` | `{ debug?: boolean }` | `{}` | Build-time Vite plugin options (layer inlining debug logs) |
 
-:::tip Build-time layer warnings
-The `gwen:physics2d` Vite plugin emits a warning during build if a layer is defined with `defineLayers()` but never referenced in the same file. This helps catch dead layer definitions early.
+:::tip Layer inlining
+`gwen:physics2d` registers the `gwen:layer-inline` unit on the transform pipeline. A manual Vite config needs `gwen()` before the physics plugin.
 :::
 
 ## Rapier 0.36

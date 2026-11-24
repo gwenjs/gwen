@@ -141,19 +141,15 @@ Préférez la forme intégrée pour la plupart des projets. Utilisez le plugin s
 
 ---
 
-## `physics2dVitePlugin(options?)`
+## `physics2dVitePlugin()`
 
-Plugin Vite de build pour le support de la physique 2D. Il effectue l'**inlining des layers** : les références aux layers nommés comme `Layers.wall` sont remplacées par leur valeur numérique (ex. `4`) au moment du build à l'aide de `MagicString`, en préservant des source maps précises.
+Plugin Vite de build pour la physique 2D. L'inlining des layers est l'unité `gwen:layer-inline`, enregistrée sur `gwen:transform-pipeline` depuis le `configResolved` de ce plugin. Une référence comme `Layers.wall` devient sa valeur numérique. La source map vient de la transformation du pipeline.
 
 :::tip Enregistrement automatique
 Lorsque vous utilisez le module `@gwenjs/physics2d` dans `gwen.config.ts`, ce plugin est enregistré automatiquement. Vous n'avez pas besoin de l'ajouter manuellement dans la plupart des cas.
 :::
 
-Si un layer est défini via `defineLayers()` mais n'est jamais référencé dans la source transformée, le plugin émet un **avertissement de build** Vite afin que les définitions de layers mortes ne passent pas inaperçues.
-
-### Config du module (sous-clé `vite`)
-
-Les options de ce plugin peuvent être transmises via la configuration du module dans `gwen.config.ts` :
+`Physics2DConfig` n'a pas de clé `vite`. Le module appelle `physics2dVitePlugin()` sans option.
 
 ```ts
 // gwen.config.ts
@@ -161,34 +157,24 @@ export default defineConfig({
   modules: ['@gwenjs/physics2d'],
   physics2d: {
     gravity: { y: -9.81 },
-    vite: {
-      debug: true,  // transmis à physics2dVitePlugin
-    },
   },
 })
 ```
 
 ### Utilisation manuelle
 
+`gwen()` doit précéder le plugin physique, pour que `gwen:transform-pipeline` soit dans la config Vite. Sinon, le plugin lève `PHYSICS2D:VITE_PIPELINE_MISSING`.
+
 ```ts
 // vite.config.ts
 import { defineConfig } from 'vite'
-import { gwenVitePlugin } from '@gwenjs/vite'
+import { gwen } from '@gwenjs/vite'
 import { physics2dVitePlugin } from '@gwenjs/physics2d/module'
 
 export default defineConfig({
-  plugins: [
-    gwenVitePlugin(),
-    physics2dVitePlugin({ debug: false }),
-  ],
+  plugins: [gwen(), physics2dVitePlugin()],
 })
 ```
-
-### Options
-
-| Option | Type | Défaut | Description |
-|---|---|---|---|
-| `debug` | `boolean` | `false` | Journalise chaque substitution de layer dans la console. |
 
 ---
 
@@ -196,7 +182,7 @@ export default defineConfig({
 
 Plugin Vite de build pour le support de la physique 3D. Fournit deux fonctionnalités :
 
-1. **Inlining des layers** — identique à `physics2dVitePlugin`, remplace les références de layers nommés par leurs valeurs numériques au moment du build.
+1. **Inlining des layers** — l'unité `gwen:layer-inline`, enregistrée sur `gwen:transform-pipeline`. Les références de layers nommés deviennent leurs valeurs numériques. L'usage manuel exige `gwen()` avant ce plugin.
 2. **Pré-baking BVH** — lorsque `bvhPrebake: true`, détecte les patterns d'appel `useMeshCollider('./file.glb')` et pré-compile la structure d'accélération BVH au moment du build. L'argument chaîne est remplacé par `{ __bvhUrl: 'bvh-<hash>.bin' }`, de sorte que le calcul BVH coûteux est effectué une seule fois lors du build plutôt qu'à l'exécution.
 
 :::tip Enregistrement automatique
@@ -213,7 +199,6 @@ export default defineConfig({
     gravity: { x: 0, y: -9.81, z: 0 },
     vite: {
       bvhPrebake: true,
-      debug: false,  // transmis à physics3dVitePlugin
     },
   },
 })
@@ -224,22 +209,20 @@ export default defineConfig({
 ```ts
 // vite.config.ts
 import { defineConfig } from 'vite'
-import { gwenVitePlugin } from '@gwenjs/vite'
+import { gwen } from '@gwenjs/vite'
 import { physics3dVitePlugin } from '@gwenjs/physics3d/module'
 
 export default defineConfig({
-  plugins: [
-    gwenVitePlugin(),
-    physics3dVitePlugin({ bvhPrebake: true, debug: false }),
-  ],
+  plugins: [gwen(), physics3dVitePlugin({ bvhPrebake: true })],
 })
 ```
+
+`gwen()` doit précéder le plugin physique. Sans `gwen:transform-pipeline`, le plugin lève `PHYSICS3D:VITE_PIPELINE_MISSING`.
 
 ### Options
 
 | Option | Type | Défaut | Description |
 |---|---|---|---|
-| `debug` | `boolean` | `false` | Journalise chaque substitution de layer et chaque opération de pré-baking BVH. |
 | `bvhPrebake` | `boolean` | `false` | Pré-compile les structures BVH pour les mesh colliders au moment du build. |
 
 ---

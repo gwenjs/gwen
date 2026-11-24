@@ -500,21 +500,19 @@ function patchTilemapPhysicsChunk(opts: {
 **Signature:**
 ```ts
 function physics2dVitePlugin(options?: Physics2DVitePluginOptions): VitePlugin
-// interface Physics2DVitePluginOptions { debug?: boolean }
 // import { physics2dVitePlugin } from '@gwenjs/physics2d/module'
 ```
 
-**Description.** Vite plugin for bundling Rapier2D WASM. Auto-registered when physics2d plugin is used. Emits a build-time warning when a layer is defined with `defineLayers()` but never referenced in the same file — helps catch dead layer definitions early.
+**Description.** Registers the `gwen:layer-inline` unit on `gwen:transform-pipeline`. Auto-registered when the physics2d module is used. A manual Vite config needs `gwen()` from `@gwenjs/vite` before this plugin. `Physics2DVitePluginOptions` is empty.
 
 **Parameters:**
 | Param | Type | Description |
 |---|---|---|
-| options | `Physics2DVitePluginOptions` | Optional build-time plugin options |
-| options.debug | `boolean` | Enable debug logs for layer inlining (default: false) |
+| options | `Physics2DVitePluginOptions` | Empty. The plugin takes no options |
 
 **Returns:** `VitePlugin`
 
-> **Note:** When using the module config, pass Vite plugin options via the `vite` sub-key:
+> **Note:** `Physics2DConfig` has no `vite` key. The module calls `physics2dVitePlugin()` with no options.
 > ```ts
 > // gwen.config.ts
 > export default defineConfig({
@@ -522,7 +520,6 @@ function physics2dVitePlugin(options?: Physics2DVitePluginOptions): VitePlugin
 >   physics2d: {
 >     gravity: { y: -9.81 },
 >     maxLinearVelocity: 400, // metres per second; also Rapier's per-substep cap
->     vite: { debug: true },  // Vite plugin options (build-time only)
 >   },
 > })
 > ```

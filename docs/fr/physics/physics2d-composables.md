@@ -35,10 +35,9 @@ export default defineConfig({
 | `ccdEnabled` | `boolean` | auto | Détection de collision continue (activée automatiquement à `'high'`/`'esport'`) |
 | `layers` | `Record<string, number>` | `{}` | Couches de collision (index de bit 0–31) |
 | `debug` | `boolean` | `false` | Activer le renderer de débogage |
-| `vite` | `{ debug?: boolean }` | `{}` | Options du plugin Vite au moment du build (logs de débogage d'intégration des couches) |
 
-:::tip Avertissements de couches au moment du build
-Le plugin Vite `gwen:physics2d` émet un avertissement pendant le build si une couche est définie avec `defineLayers()` mais jamais référencée dans le même fichier. Cela permet de détecter les définitions de couches inutilisées tôt.
+:::tip Intégration des couches
+`gwen:physics2d` enregistre l'unité `gwen:layer-inline` sur le pipeline de transformation. Une config Vite manuelle exige `gwen()` avant le plugin physique.
 :::
 
 ## Comportement Rapier 0.36
