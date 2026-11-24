@@ -47,6 +47,7 @@ Tous les systèmes de toutes les scènes sont installés au bootstrap, mais le f
 Lors d'une navigation de la scène **A** vers la scène **B**, les callbacks se déclenchent dans cet ordre :
 
 ```
+B: onPreload(event)                              ← précharger la scène cible, attendu
 A: onTransitionExit({ from: 'A', to: 'B' })    ← jouer l'animation de sortie, attendu
 A: onExit()                                      ← despawner les acteurs, disposer les layouts
    scene:leave
@@ -56,6 +57,20 @@ B: onTransitionEnter({ from: 'A', to: 'B' })    ← jouer l'animation d'entrée,
 ```
 
 Le préchargement est un point d'extension du cœur (`onPreload`, #116) ; les chargeurs vivent dans `@gwenjs/assets`. Voir [ADR-0005](https://github.com/gwenjs/gwen/blob/v1-alpha/internals-docs/adr/0005-asset-management.md).
+
+## Préchargement
+
+Enregistrez le travail de préchargement avec `onPreload` dans la factory de la scène. Les appels s'accumulent dans l'ordre d'appel. Le callback reçoit l'événement de préchargement de la scène cible et peut signaler l'avancement avec `event.progress`. Les chargeurs vivent dans `@gwenjs/assets`.
+
+```ts check
+import { defineScene, onPreload } from "@gwenjs/core/scene";
+
+export const GameScene = defineScene("game", () => {
+  onPreload(async (event) => {
+    event.progress("level", 1, 1);
+  });
+});
+```
 
 ## Déclarer des acteurs
 
@@ -155,6 +170,7 @@ export const GameScene = defineScene('game', () => {
 | `defineScene(name, factory)` | Déclare une scène |
 | `useSystem(plugin)` | Enregistre un système → `SystemHandle` |
 | `useActor(def)` | Enregistre un acteur pour cette scène → `ActorHandle` |
+| `onPreload(cb)` | S'exécute pendant le préchargement de cette scène ; reçoit l'événement |
 | `onEnter(cb)` | S'exécute à l'activation de la scène ; reçoit des paramètres optionnels |
 | `onExit(cb)` | S'exécute à la désactivation de la scène |
 | `onTransitionExit(cb)` | Avant l'animation de sortie ; reçoit `{ from, to }` |

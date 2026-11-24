@@ -47,6 +47,7 @@ All scene systems are installed at bootstrap time, but the framework automatical
 When navigating from scene **A** to scene **B**, callbacks fire in this order:
 
 ```
+B: onPreload(event)                              ← preload the target, awaited
 A: onTransitionExit({ from: 'A', to: 'B' })    ← play leave animation, awaited
 A: onExit()                                      ← despawn actors, dispose layouts
    scene:leave
@@ -56,6 +57,20 @@ B: onTransitionEnter({ from: 'A', to: 'B' })    ← play enter animation, awaite
 ```
 
 Preloading is a core seam (`onPreload`, #116); loaders live in `@gwenjs/assets`. See [ADR-0005](https://github.com/gwenjs/gwen/blob/v1-alpha/internals-docs/adr/0005-asset-management.md).
+
+## Preloading
+
+Register preload work with `onPreload` inside the scene factory. Calls accumulate in call order. The callback receives the preload event for the target scene and can report progress with `event.progress`. Loaders live in `@gwenjs/assets`.
+
+```ts check
+import { defineScene, onPreload } from "@gwenjs/core/scene";
+
+export const GameScene = defineScene("game", () => {
+  onPreload(async (event) => {
+    event.progress("level", 1, 1);
+  });
+});
+```
 
 ## Declaring Actors
 
@@ -155,6 +170,7 @@ export const GameScene = defineScene('game', () => {
 | `defineScene(name, factory)` | Declare a scene |
 | `useSystem(plugin)` | Register a system → `SystemHandle` |
 | `useActor(def)` | Register actor for this scene → `ActorHandle` |
+| `onPreload(cb)` | Run while this scene is the preload target; receives the preload event |
 | `onEnter(cb)` | Run when scene activates; receives optional params |
 | `onExit(cb)` | Run when scene deactivates |
 | `onTransitionExit(cb)` | Before leave animation; receives `{ from, to }` |

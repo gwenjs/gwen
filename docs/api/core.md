@@ -841,11 +841,11 @@ transform.x += 10;
 
 Scene and router definition.
 
-**Exports:** `defineScene`, `useSystem`, `onEnter`, `onExit`, `onTransitionEnter`, `onTransitionExit`, `defineSceneRouter`, `useSceneRouter`
+**Exports:** `defineScene`, `useSystem`, `onEnter`, `onExit`, `onPreload`, `onTransitionEnter`, `onTransitionExit`, `defineSceneRouter`, `useSceneRouter`
 
 **Usage:**
 ```ts
-import { defineScene, useSystem, onEnter, onExit } from '@gwenjs/core/scene'
+import { defineScene, useSystem, onEnter, onExit, onPreload } from '@gwenjs/core/scene'
 import { onTransitionEnter, onTransitionExit } from '@gwenjs/core/scene'
 import { defineSceneRouter, useSceneRouter } from '@gwenjs/core/scene'
 ```
@@ -936,6 +936,26 @@ function onExit(cb: () => void | Promise<void>): void
 defineScene('game', () => {
   const player = useActor(PlayerActor)
   onExit(() => player.despawnAll())
+})
+```
+
+#### onPreload(cb)
+
+**Signature:**
+```ts
+function onPreload(cb: (event: ScenePreloadEvent) => void | Promise<void>): void
+```
+
+**Description.** Registers a callback fired on `scene:preload` while this scene is the target. Calls accumulate in call order. Must be called inside a `defineScene()` factory.
+
+**Throws:** `GwenContextError` with code `CORE:OUTSIDE_SCENE_CONTEXT` if called outside a `defineScene()` factory.
+
+**Example:**
+```ts
+defineScene('game', () => {
+  onPreload(async (event) => {
+    event.progress('level', 1, 1)
+  })
 })
 ```
 
