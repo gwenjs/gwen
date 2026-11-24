@@ -1,0 +1,13 @@
+{
+  "name": "@fixture/hooks-declared",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js"
+    }
+  },
+  "gwen": {
+    "type": "plugin",
+    "hookNamespace": "myplug"
+  }
+}

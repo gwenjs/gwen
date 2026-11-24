@@ -584,7 +584,7 @@ Cause. An emit call (`emit`, `callHook`, `callHookParallel`, `callHookWith`) use
 
 ### CONFORMANCE:HOOK_UNDECLARED {#conformance-hook-undeclared}
 
-Cause. An emit call uses a name in the package namespace that no file of the package declares, neither with `defineHooks` nor in a `GwenRuntimeHooks` augmentation of `@gwenjs/schema`. The check is skipped when `gwen.hookNamespace` is missing or invalid. Fix. Declare the hook with `defineHooks`, or add it to a `GwenRuntimeHooks` augmentation.
+Cause. An emit call uses a name in the package namespace that no file of the package declares, neither with `defineHooks` nor in a `GwenRuntimeHooks` augmentation of `@gwenjs/schema`. The check is skipped when `gwen.hookNamespace` is missing or invalid. `runPluginConformance` also returns this code when a plugin emits at runtime a name it did not declare with `defineHooks` or a `GwenRuntimeHooks` augmentation (`packages/plugin-conformance/src/hook-sources.ts:247`). Names in the `engine`, `entity`, `scene`, `plugin`, `actor`, `prefab`, and `service` namespaces (`packages/schema/src/runtime-hooks.ts:234`) and the framework namespaces (`packages/schema/src/runtime-hooks.ts:251`) are ignored here, because the static check owns them (`packages/plugin-conformance/src/check-hooks.ts:22`). A runtime undeclared emit into a framework namespace is a static finding only. Fix. Declare the hook with `defineHooks`, or add it to a `GwenRuntimeHooks` augmentation.
 
 ### CONFORMANCE:IMPORT_DEEP {#conformance-import-deep}
 

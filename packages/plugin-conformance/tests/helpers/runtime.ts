@@ -95,6 +95,7 @@ export function spec(overrides: SpecOverrides = {}): PluginConformanceSpec {
  * remove, reentry, two-engines, stop.
  * `options` follows `stop` when `options.options` is true.
  * `module` follows that when `options.module` is true.
+ * `hooks` is always present, once per run.
  * `composable` is always last.
  */
 export function ranChecks(options?: {
@@ -113,6 +114,7 @@ export function ranChecks(options?: {
   ];
   if (options?.options === true) checks.push("options");
   if (options?.module === true) checks.push("module");
+  checks.push("hooks");
   checks.push("composable");
   return checks;
 }
