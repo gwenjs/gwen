@@ -1,0 +1,16 @@
+{
+  "name": "fixture-base",
+  "version": "1.0.0",
+  "license": "MPL-2.0",
+  "type": "module",
+  "exports": {
+    "./extension": {
+      "types": "./dist/extension.d.ts",
+      "import": "./dist/extension.js"
+    }
+  },
+  "gwen": {
+    "type": "plugin",
+    "hookNamespace": "fixture-base"
+  }
+}

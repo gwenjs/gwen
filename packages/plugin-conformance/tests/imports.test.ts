@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { checkPluginPackage, ConformanceErrorCodes } from "@gwenjs/plugin-conformance";
 import type { ConformanceFinding, ConformanceReport } from "@gwenjs/plugin-conformance";
 import { indexJson } from "../src/json.js";
+import { installBase } from "./helpers/extension.js";
 import {
   declarePeers,
   editManifest,
@@ -155,6 +156,7 @@ describe("imports check", () => {
           manifest.peerDependencies = { "@gwenjs/camera2d": "^1.0.0" };
           manifest.devDependencies = { "@gwenjs/camera2d": "1.0.0" };
         });
+        await installBase(root, "fixture-base", "@gwenjs/camera2d");
         await writeSource(
           root,
           "src/a.ts",
