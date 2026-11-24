@@ -74,12 +74,17 @@ function factoriesNotExported(
   return findings;
 }
 
+/** Package root the loader uses. An absent `root` is the process working directory. */
+export function runtimeRoot(spec: PluginConformanceSpec): string {
+  return path.resolve(spec.root ?? process.cwd());
+}
+
 /**
  * Load the built root entry of `spec.root` (or the process working directory).
  * Never reads `<root>/src`. Any problem is an `INVALID_SPEC` finding.
  */
 export async function loadRuntimePackage(spec: PluginConformanceSpec): Promise<LoadedPackage> {
-  const root = path.resolve(spec.root ?? process.cwd());
+  const root = runtimeRoot(spec);
   const loaded = await readRuntimeManifest(root);
   if (!loaded.ok) return report([runtimeFinding(loaded.message, loaded.hint)]);
   const manifest = loaded.manifest;

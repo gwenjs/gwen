@@ -1,5 +1,6 @@
 import type { GwenEngine } from "@gwenjs/core";
 import type { GwenPlugin, GwenPluginServiceKey } from "@gwenjs/schema";
+import type { OpenedEngine } from "./open-engine.js";
 import type { PluginConformanceSpec } from "./types.js";
 
 /** `hookListeners` and `plugins` from one `getStats()` call (`packages/core/src/engine/gwen-engine.ts:566`). */
@@ -12,6 +13,15 @@ export interface EngineBaseline {
 export function baselineOf(engine: GwenEngine): EngineBaseline {
   const stats = engine.getStats();
   return { hookListeners: stats.hookListeners, plugins: stats.plugins };
+}
+
+/** Advance `spec.frames` frames (default 3) at `1/60`. */
+export async function advanceFrames(
+  open: OpenedEngine,
+  spec: PluginConformanceSpec,
+): Promise<void> {
+  const frames = spec.frames ?? 3;
+  await open.advance(frames, 1 / 60);
 }
 
 /** Install `frameworkProviders` in order. Each call builds a new plugin. */
