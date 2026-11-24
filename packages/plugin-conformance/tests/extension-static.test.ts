@@ -739,7 +739,7 @@ describe("EXTENSION_ENTRY", () => {
 const PEER = "CONFORMANCE:EXTENSION_PEER";
 const UNUSED = "CONFORMANCE:PEER_UNUSED";
 
-/** Same sentences as `unusedFindings` (src/check-peers.ts:248-249). */
+/** Same sentences as `unusedFindings` in src/check-peers.ts. */
 function unusedMessage(base: string): string {
   return `peer ${JSON.stringify(base)} is declared but src never uses it`;
 }
