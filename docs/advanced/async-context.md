@@ -24,10 +24,10 @@ GWEN solves this automatically for `onEnter` and `onExit` via a Vite build trans
 
 ## Automatic fix — `onEnter` and `onExit`
 
-When `@gwenjs/vite` is in your Vite config (via `gwenVitePlugin()`), GWEN instruments every `await` inside `onEnter` and `onExit` callbacks at build time. The engine context is saved before each suspension point and restored after it resolves.
+`gwen dev` and `gwen build` already instrument every `await` inside `onEnter` and `onExit`. A hand-written Vite config gets the same transform through `gwenVitePlugin()`. The engine context is saved before each suspension point and restored after it resolves.
 
 ```ts
-// vite.config.ts
+// vite.config.ts — a hand-written config gets the transform through gwenVitePlugin()
 import { defineConfig } from 'vite'
 import { gwenVitePlugin } from '@gwenjs/vite'
 
@@ -52,7 +52,7 @@ const GameScene = defineScene('game', () => {
 })
 ```
 
-No imports, no wrappers, no configuration beyond `gwenVitePlugin()`.
+`gwen dev` and `gwen build` already do it. A hand-written config needs no imports, no wrappers, and no configuration beyond `gwenVitePlugin()`.
 
 ---
 
@@ -98,7 +98,7 @@ const EnemyActor = defineActor(EnemyPrefab, () => {
 ```
 
 `withAsyncContext` requires:
-1. **`@gwenjs/vite` in your Vite config** — the transform instruments the `await` calls
+1. **`gwen dev` and `gwen build` already do it.** A hand-written Vite config gets the same transform through `gwenVitePlugin()`.
 2. **Called from within an active engine context** — must be defined inside a factory (`defineActor`, `defineSystem`, `defineScene`), not at module top-level
 
 ::: warning Performance — avoid in high-frequency paths
@@ -151,7 +151,7 @@ try {
 
 If you see `GwenContextError` thrown from code that is inside an `onEnter` or `onExit`:
 
-1. **Check that `gwenVitePlugin()` is in your `vite.config.ts`** — without the plugin, the transform does not run and contexts are not propagated.
+1. **`gwen dev` and `gwen build` already instrument awaits.** A hand-written config gets the transform through `gwenVitePlugin()`. Without that plugin, the transform does not run and contexts are not propagated.
 2. **Check that the function is directly passed to `onEnter`/`onExit`** — the transform looks for `onEnter(async () => {...})`. Assigning the function to a variable first defeats the transform.
 3. **For `onStart` and custom callbacks**, use `withAsyncContext()` or the capture pattern.
 

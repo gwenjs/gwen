@@ -24,10 +24,10 @@ GWEN résout cela automatiquement pour `onEnter` et `onExit` via un transform Vi
 
 ## Correction automatique — `onEnter` et `onExit`
 
-Quand `@gwenjs/vite` est dans votre config Vite (via `gwenVitePlugin()`), GWEN instrumente chaque `await` dans les callbacks `onEnter` et `onExit` au moment du build. Le contexte moteur est sauvegardé avant chaque point de suspension et restauré après sa résolution.
+`gwen dev` et `gwen build` instrumentent déjà chaque `await` dans `onEnter` et `onExit`. Une config Vite écrite à la main reçoit le même transform par `gwenVitePlugin()`. Le contexte moteur est sauvegardé avant chaque point de suspension et restauré après sa résolution.
 
 ```ts
-// vite.config.ts
+// vite.config.ts — une config écrite à la main reçoit le transform par gwenVitePlugin()
 import { defineConfig } from 'vite'
 import { gwenVitePlugin } from '@gwenjs/vite'
 
@@ -52,7 +52,7 @@ const GameScene = defineScene('game', () => {
 })
 ```
 
-Aucun import, aucun wrapper, aucune configuration au-delà de `gwenVitePlugin()`.
+`gwen dev` et `gwen build` le font déjà. Une config écrite à la main n'a besoin d'aucun import, d'aucun wrapper, ni d'aucune configuration au-delà de `gwenVitePlugin()`.
 
 ---
 
@@ -98,7 +98,7 @@ const EnemyActor = defineActor(EnemyPrefab, () => {
 ```
 
 `withAsyncContext` nécessite :
-1. **`@gwenjs/vite` dans votre config Vite** — le transform instrumente les appels `await`
+1. **`gwen dev` et `gwen build` le font déjà.** Une config Vite écrite à la main reçoit le même transform par `gwenVitePlugin()`.
 2. **Appelé depuis un contexte moteur actif** — doit être défini dans une factory (`defineActor`, `defineSystem`, `defineScene`), pas au niveau module
 
 ::: warning Performance — à éviter dans les chemins haute fréquence
@@ -151,7 +151,7 @@ try {
 
 Si vous voyez `GwenContextError` levée depuis du code dans un `onEnter` ou `onExit` :
 
-1. **Vérifiez que `gwenVitePlugin()` est dans votre `vite.config.ts`** — sans le plugin, le transform ne s'exécute pas et les contextes ne sont pas propagés.
+1. **`gwen dev` et `gwen build` instrumentent déjà les awaits.** Une config écrite à la main reçoit le transform par `gwenVitePlugin()`. Sans ce plugin, le transform ne s'exécute pas et les contextes ne sont pas propagés.
 2. **Vérifiez que la fonction est passée directement à `onEnter`/`onExit`** — le transform cherche `onEnter(async () => {...})`. Assigner la fonction à une variable au préalable désactive le transform.
 3. **Pour `onStart` et les callbacks personnalisés**, utilisez `withAsyncContext()` ou le pattern de capture.
 
