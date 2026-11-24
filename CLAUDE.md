@@ -36,7 +36,7 @@ packages/           @gwenjs/* TypeScript packages
   math/             Vec2, Vec3, Quat, Color, Spring — pure, allocation-free
   physics2d/        Rapier 2D WASM wrapper + actor composables
   physics3d/        Rapier 3D WASM wrapper + actor composables
-  vite/             Vite plugin — WASM, transforms, auto-imports, virtual modules
+  vite/             Vite plugin — transforms, auto-imports, virtual modules
 crates/             Rust source
   gwen-core/        ECS engine in Rust
   gwen-wasm-utils/  WASM build utilities
@@ -67,7 +67,7 @@ Game code (TypeScript)
   └─ @gwenjs/core    Components, Systems, Actors, Scenes, Router
   └─ @gwenjs/kit     Plugin + Module authoring
   └─ @gwenjs/app     defineConfig() — build-time framework config
-  └─ @gwenjs/vite    Vite plugin: WASM, code transforms, virtual modules
+  └─ @gwenjs/vite    Vite plugin: code transforms, virtual modules
        ↕ WASM bridge (typed-array views over WebAssembly.Memory)
 gwen_core.wasm       SoA linear memory, ECS kernel, Rapier physics
 ```
@@ -190,7 +190,6 @@ The Vite plugin performs source-level transforms that would be impossible at run
 - Injects readable system/actor names from exported variable names (devtools, debugging)
 - Auto-discovers `src/actors/` and `src/scenes/` and wires them into virtual modules
 - Propagates engine context across `await` in `onEnter` / `onExit` callbacks
-- Bundles and serves the WASM binary
 
 Virtual modules (`virtual:gwen/actors`, `virtual:gwen/scenes`, …) are consumed internally
 by the framework bootstrap — users rarely import them directly.

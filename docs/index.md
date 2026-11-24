@@ -24,7 +24,7 @@ features:
     details: Build your game engine incrementally. Add physics, routing, and rendering as plugins.
   - icon: 🔧
     title: Vite-Native
-    details: First-class Vite integration with auto-imports, scene routing, and WASM bundling.
+    details: First-class Vite integration with auto-imports and scene routing.
   - icon: 📦
     title: Zero Config
     details: A single `pnpm create @gwenjs/create my-game` gets you a working game in minutes.
