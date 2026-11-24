@@ -21,7 +21,7 @@
 
 import type { GwenSceneName } from "@gwenjs/schema";
 import { useEngine } from "../../engine/context";
-import { GwenSceneRouterError } from "../../engine/engine-errors";
+import { CoreErrorCodes, GwenSceneRouterError } from "../../engine/engine-errors";
 import type {
   RouteConfig,
   SceneRouterDefinition,
@@ -31,6 +31,8 @@ import type {
 } from "../router-types";
 import type { SceneDefinition, SceneFactory } from "../../scene/runtime/define-scene";
 import { reportRejectedHook } from "../../hooks/report-rejected-hook.js";
+import { GwenScenePreloadError } from "../../scene/scene-preload-error.js";
+import { runScenePreload } from "../../scene/run-scene-preload.js";
 import { deleteCachedRouter, getCachedRouter, setCachedRouter } from "./router-cache.js";
 
 type TransitionListener<TRoutes extends Record<string, RouteConfig<TRoutes>>> = (
@@ -115,6 +117,7 @@ export function useSceneRouter<TRoutes extends Record<string, RouteConfig<TRoute
   const initial = options.initial;
   let currentState: StatesOf<TRoutes> =
     typeof initial === "string" ? initial : requireState(routes, String(initial));
+  let pending: StatesOf<TRoutes> | null = null;
   let currentParams: Record<string, unknown> = {};
   const overlayStack: StatesOf<TRoutes>[] = [];
   const listeners: TransitionListener<TRoutes>[] = [];
@@ -160,16 +163,48 @@ export function useSceneRouter<TRoutes extends Record<string, RouteConfig<TRoute
         return;
       }
 
+      if (pending !== null) {
+        engine.logger.warn(
+          `useSceneRouter: send("${String(event)}") ignored while a transition to "${String(pending)}" is pending.`,
+        );
+        return;
+      }
+
       const fromState = currentState;
       const fromName = requireSceneName(sceneNameByRoute, String(fromState));
       const target = requireState(routes, String(rawTarget));
       const toName = requireSceneName(sceneNameByRoute, target);
       const toConfig = routes[target];
 
+      const isPop =
+        !toConfig?.overlay &&
+        overlayStack.length > 0 &&
+        target === overlayStack[overlayStack.length - 1];
+      if (!isPop) {
+        pending = target;
+        try {
+          await runScenePreload(engine, fromName, toName);
+        } catch (err) {
+          if (err instanceof GwenScenePreloadError) {
+            engine.errors.emit({
+              level: "warning",
+              code: CoreErrorCodes.SCENE_PRELOAD_FAILED,
+              message: err.message,
+              source: `scene:${toName}`,
+              error: err,
+              context: { frame: engine.frameCount, from: fromName, to: toName },
+            });
+          }
+          throw err;
+        } finally {
+          pending = null;
+        }
+      }
+
       if (toConfig?.overlay) {
         // Push onto overlay stack — do NOT exit current scene
         overlayStack.push(fromState);
-      } else if (overlayStack.length > 0 && target === overlayStack[overlayStack.length - 1]) {
+      } else if (isPop) {
         // Popping back to underlying scene — run overlay exit lifecycle, skip underlying onEnter.
         // The underlying scene was never paused (scene:beforeLeave was not fired on enter),
         // so we must not fire scene:enter either — it would double-resume its systems.
