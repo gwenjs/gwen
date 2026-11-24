@@ -137,4 +137,4 @@ Values: `GwenModuleDefinitionError`, `defineGwenModule`, `validateGwenModule`
 
 `defineGwenModule` and `validateGwenModule` throw `GwenModuleDefinitionError` (`KIT:MODULE_INVALID`, `fields` lists every invalid path).
 
-Types: `GwenBaseConfig`, `GwenBuildHooks`, `GwenKit`, `GwenModule`, `GwenModuleDefinition`, `PluginDeclaration`
+Types: `GwenAstArgument`, `GwenAstNode`, `GwenBaseConfig`, `GwenBuildHooks`, `GwenCallSite`, `GwenErrorCodeString`, `GwenImportBinding`, `GwenKit`, `GwenModule`, `GwenModuleDefinition`, `GwenSourceRange`, `GwenSourceTransform`, `GwenTransformContext`, `GwenTransformEdit`, `PluginDeclaration`

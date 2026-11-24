@@ -29,10 +29,19 @@ type _1 = [
   T_plugin.PluginErrorContext,
 ];
 type _2 = [
+  T_module.GwenAstArgument,
+  T_module.GwenAstNode,
   T_module.GwenBaseConfig,
   T_module.GwenBuildHooks,
+  T_module.GwenCallSite,
+  T_module.GwenErrorCodeString,
+  T_module.GwenImportBinding,
   T_module.GwenKit,
   T_module.GwenModule,
   T_module.GwenModuleDefinition,
+  T_module.GwenSourceRange,
+  T_module.GwenSourceTransform,
+  T_module.GwenTransformContext,
+  T_module.GwenTransformEdit,
   T_module.PluginDeclaration,
 ];

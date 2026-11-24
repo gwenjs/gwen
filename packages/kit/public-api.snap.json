@@ -55,11 +55,20 @@
   "./module": {
     "values": ["GwenModuleDefinitionError", "defineGwenModule", "validateGwenModule"],
     "types": [
+      "GwenAstArgument",
+      "GwenAstNode",
       "GwenBaseConfig",
       "GwenBuildHooks",
+      "GwenCallSite",
+      "GwenErrorCodeString",
+      "GwenImportBinding",
       "GwenKit",
       "GwenModule",
       "GwenModuleDefinition",
+      "GwenSourceRange",
+      "GwenSourceTransform",
+      "GwenTransformContext",
+      "GwenTransformEdit",
       "PluginDeclaration"
     ]
   }
