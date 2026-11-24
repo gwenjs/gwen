@@ -1,0 +1,21 @@
+{
+  "name": "fixture-base-in-dependencies",
+  "version": "0.0.0",
+  "license": "MPL-2.0",
+  "type": "module",
+  "dependencies": {
+    "fixture-base": "^1.0.0"
+  },
+  "devDependencies": {
+    "fixture-base": "1.0.0"
+  },
+  "peerDependencies": {
+    "fixture-base": "^1.0.0"
+  },
+  "gwen": {
+    "type": "plugin",
+    "extends": [
+      "fixture-base"
+    ]
+  }
+}

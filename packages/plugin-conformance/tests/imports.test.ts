@@ -1,8 +1,9 @@
-import { chmod, rm } from "node:fs/promises";
+import { chmod, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { checkPluginPackage, ConformanceErrorCodes } from "@gwenjs/plugin-conformance";
 import type { ConformanceFinding, ConformanceReport } from "@gwenjs/plugin-conformance";
+import { indexJson } from "../src/json.js";
 import {
   declarePeers,
   editManifest,
@@ -145,12 +146,14 @@ describe("imports check", () => {
 
   it(
     "accepts <base>/extension of a package listed in gwen.extends",
-    { timeout: SLOW_TEST_MS },
+    { timeout: SLOW_TEST_MS * 2 },
     async () => {
       const report = await checkCopy(async (root) => {
         await editManifest(root, (manifest) => {
           manifest.name = "community-plugin";
           manifest.gwen = { type: "plugin", extends: ["@gwenjs/camera2d"] };
+          manifest.peerDependencies = { "@gwenjs/camera2d": "^1.0.0" };
+          manifest.devDependencies = { "@gwenjs/camera2d": "1.0.0" };
         });
         await writeSource(
           root,
@@ -160,6 +163,51 @@ describe("imports check", () => {
       });
       expect(report.checks).toEqual(ALL_CHECKS);
       expect(report.findings).toEqual([]);
+      let bareExtendsLine = 1;
+      const bare = await checkCopy(async (root) => {
+        await editManifest(root, (manifest) => {
+          manifest.name = "community-plugin";
+          manifest.gwen = { type: "plugin", extends: ["@gwenjs/camera2d"] };
+        });
+        await writeSource(
+          root,
+          "src/a.ts",
+          'export { cameraExtension } from "@gwenjs/camera2d/extension";\n',
+        );
+        const text = await readFile(path.join(root, "package.json"), "utf8");
+        const line = indexJson(text).valueLine(["gwen", "extends", "0"]);
+        if (line === undefined) {
+          throw new Error("gwen.extends[0] has no value line");
+        }
+        bareExtendsLine = line;
+      });
+      const extensionPeers = bare.findings.filter((finding) => {
+        const code: string = finding.code;
+        return code === "CONFORMANCE:EXTENSION_PEER";
+      });
+      expect(
+        extensionPeers.map((finding) => {
+          const code: string = finding.code;
+          return {
+            code,
+            file: finding.file,
+            line: finding.line,
+            message: finding.message,
+          };
+        }),
+      ).toEqual([
+        {
+          code: "CONFORMANCE:EXTENSION_PEER",
+          file: "package.json",
+          line: bareExtendsLine,
+          message: 'base "@gwenjs/camera2d" is listed in gwen.extends but not in peerDependencies',
+        },
+      ]);
+      const peerFinding = extensionPeers[0];
+      if (peerFinding === undefined) {
+        throw new Error("expected one CONFORMANCE:EXTENSION_PEER finding");
+      }
+      expect(peerFinding.hint.length).toBeGreaterThan(0);
     },
   );
 
