@@ -584,7 +584,7 @@ Cause. An emit call (`emit`, `callHook`, `callHookParallel`, `callHookWith`) use
 
 ### CONFORMANCE:HOOK_UNDECLARED {#conformance-hook-undeclared}
 
-Cause. An emit call uses a name in the package namespace that no file of the package declares, neither with `defineHooks` nor in a `GwenRuntimeHooks` augmentation of `@gwenjs/schema`. The check is skipped when `gwen.hookNamespace` is missing or invalid. `runPluginConformance` also returns this code when a plugin emits at runtime a name it did not declare with `defineHooks` or a `GwenRuntimeHooks` augmentation. The same name from one factory is one finding. Names in the `engine`, `entity`, `scene`, `plugin`, `actor`, `prefab`, and `service` namespaces (`packages/schema/src/runtime-hooks.ts:234`) and the framework namespaces (`packages/schema/src/runtime-hooks.ts:251`) are ignored here, because the static check owns them. A runtime undeclared emit into a framework namespace is a static finding only. Fix. Declare the hook with `defineHooks`, or add it to a `GwenRuntimeHooks` augmentation.
+Cause. An emit call uses a name in the package namespace that no file of the package declares, neither with `defineHooks` nor in a `GwenRuntimeHooks` augmentation of `@gwenjs/schema`. The check is skipped when `gwen.hookNamespace` is missing or invalid. `runPluginConformance` also returns this code when a plugin emits at runtime a name it did not declare with `defineHooks` or a `GwenRuntimeHooks` augmentation. The same name from one factory is one finding. Names in the `engine`, `entity`, `scene`, `plugin`, `actor`, `prefab`, and `service` namespaces (`packages/schema/src/runtime-hooks.ts:234`) and the framework namespaces (`packages/schema/src/runtime-hooks.ts:251`) are ignored here, because the static check owns them. A runtime undeclared emit into a framework namespace is a static finding only. An unexpected throw of the hooks check is also reported under this code, because the dispatch wrapper uses each check's own code (`packages/plugin-conformance/src/runtime/run-checks.ts:121`). Fix. Declare the hook with `defineHooks`, or add it to a `GwenRuntimeHooks` augmentation.
 
 ### CONFORMANCE:IMPORT_DEEP {#conformance-import-deep}
 
@@ -660,7 +660,7 @@ Cause. The check runs only when `package.json` `exports` has `"./module"`. A `./
 
 ### CONFORMANCE:RUNTIME_OPTIONS {#conformance-runtime-options}
 
-Cause. A factory sets `invalidOptions`. `frameworkProviders` are installed first. `engine.use` must reject with `CORE:PLUGIN_OPTIONS_INVALID`. An install that resolves is one finding. A rejection with another code is one finding, and the message names that code and the thrown text. The check does not run when `invalidOptions` is absent. Fix. Reject those options from `definePlugin`'s `options.validate` before `setup`.
+Cause. A factory sets `invalidOptions`. `frameworkProviders` are installed first. `engine.use` must reject with `CORE:PLUGIN_OPTIONS_INVALID`. An install that resolves is one finding. A rejection with another code is one finding, and the message names that code and the thrown text. A throw while the factory is built with those options is one finding. The message names the export and the thrown text. The check does not run when `invalidOptions` is absent. Fix. Reject those options from `definePlugin`'s `options.validate` before `setup`.
 
 ### CONFORMANCE:RUNTIME_PER_ENTITY_PATH {#conformance-runtime-per-entity-path}
 
@@ -672,7 +672,7 @@ Cause. `frameworkProviders` are installed, then `engine.use`, on one engine per 
 
 ### CONFORMANCE:RUNTIME_REENTRY {#conformance-runtime-reentry}
 
-Cause. `use`, then `unuse`, then `use` again does not resolve, or a declared `provides` key is not injectable after the second `use`. The message includes the text thrown by that `setup`. When the first `use` rejects, this check stays silent. Fix. Make `setup` succeed on a second install after `unuse`.
+Cause. `use`, then `unuse`, then `use` again does not resolve. The message includes the text thrown by that second `use`. When the first `use` rejects, this check stays silent. Fix. Make `setup` succeed on a second install after `unuse`.
 
 ### CONFORMANCE:RUNTIME_REMOVE_LEAK {#conformance-runtime-remove-leak}
 
@@ -692,7 +692,7 @@ Cause. After `engine.stop()` (`packages/core/src/engine/gwen-engine.ts:247`), `h
 
 ### CONFORMANCE:RUNTIME_TWO_ENGINES {#conformance-runtime-two-engines}
 
-Cause. Two engines each install a new factory instance, and `tryInject` returns the same object for a `provides` key, or `unuse` on the first engine drops a key or the plugin of the second engine. The second engine then advances one frame. A shared service message names the key. A plugin that did not stay uses `lost "<name>" on the other engine`, and that message does not name a service key. When the first `use` rejects, this check stays silent. This check does not report bus events from that frame. Fix. Create the service inside `setup`, so each engine holds its own object.
+Cause. Two engines each install a new factory instance, and `tryInject` returns the same object for a `provides` key, or `unuse` on the first engine drops a key or the plugin of the second engine. The second engine then advances one frame. A shared service message names the key. A plugin that did not stay uses `lost "<name>" on the other engine`, and that message does not name a service key. When the first `use` rejects, this check stays silent. A hook that throws on that frame is one finding (`CORE:PLUGIN_RUNTIME_ERROR`), and the message includes the thrown text. Other events on that frame stay with the frames check. A logger copy of that event is not a second finding (`packages/core/src/engine/engine-error-policy.ts:407`). Fix. Create the service inside `setup`, so each engine holds its own object.
 
 ### CONFORMANCE:SNAPSHOT_MISMATCH {#conformance-snapshot-mismatch}
 
