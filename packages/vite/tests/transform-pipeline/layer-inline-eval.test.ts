@@ -1,7 +1,6 @@
 /**
  * `evalConstInt` on one oxc expression.
  * `0,` keeps the expression out of statement position.
- * The helper is absent on the base, so each `toBe` sees `undefined`.
  */
 
 import {
@@ -11,7 +10,7 @@ import {
   type SequenceExpression,
 } from "oxc-parser";
 import { describe, expect, it } from "vitest";
-import * as layerUtils from "../../src/shared/layer-utils.js";
+import { evalConstInt as evaluateConst } from "../../src/shared/layer-utils.js";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -25,10 +24,6 @@ function isSequenceExpression(value: unknown): value is SequenceExpression {
   return isRecord(value) && value["type"] === "SequenceExpression";
 }
 
-function isEvalConstInt(value: unknown): value is (node: Expression) => number | null {
-  return typeof value === "function";
-}
-
 function expressionOf(source: string): Expression {
   const parsed = parseSync("expr.ts", `0, ${source};\n`);
   const statement = parsed.program.body[0];
@@ -40,10 +35,8 @@ function expressionOf(source: string): Expression {
   return node;
 }
 
-function evalConstInt(source: string): number | null | undefined {
-  const found: unknown = Reflect.get(layerUtils, "evalConstInt");
-  if (!isEvalConstInt(found)) return undefined;
-  return found(expressionOf(source));
+function evalConstInt(source: string): number | null {
+  return evaluateConst(expressionOf(source));
 }
 
 describe("evalConstInt", () => {

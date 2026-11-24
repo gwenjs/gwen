@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
 import { BUILT_IN_UNITS } from "../../src/pipeline/registry.js";
 import type { GwenSourceTransform } from "../../src/pipeline/types.js";
-import * as layerUtils from "../../src/shared/layer-utils.js";
+import { layerInlineTransform } from "../../src/shared/layer-utils.js";
 import { fixtureCase, mapCheck, resolveRelativeId, runPipeline } from "./helpers.js";
 
 const packageRoot = fileURLToPath(new URL("../../", import.meta.url));
@@ -61,22 +61,9 @@ if (cases.length === 0) {
   throw new Error(`No transform-pipeline fixture cases under ${fixturesRoot}`);
 }
 
-function isTransformName(value: unknown): value is `gwen:${string}` {
-  return typeof value === "string" && value.startsWith("gwen:");
-}
-
-/** Absent on the base: the guard fails and the layer cases run built-ins only. */
-function isSourceTransform(value: unknown): value is GwenSourceTransform {
-  if (typeof value !== "object" || value === null) return false;
-  if (!("name" in value) || !("run" in value)) return false;
-  return isTransformName(value.name) && typeof value.run === "function";
-}
-
 function extraUnits(unit: string): readonly GwenSourceTransform[] {
   if (unit !== "layer-inline") return [];
-  const found: unknown = Reflect.get(layerUtils, "layerInlineTransform");
-  if (!isSourceTransform(found)) return [];
-  return [found];
+  return [layerInlineTransform];
 }
 
 function runCase(dir: string, code: string, unit: string) {
@@ -189,7 +176,7 @@ it("async-context/nested-await raises with the exact message, hint and position"
   // Same condition as devHint (`packages/vite/src/pipeline/dev-hint.ts:7`).
   const message =
     process.env["NODE_ENV"] !== "production" ? `${what}\n${fix}\n${see}` : `${what}\n${see}`;
-  await expect(runCase(dir, fixture.input)).rejects.toMatchObject({
+  await expect(runCase(dir, fixture.input, "async-context")).rejects.toMatchObject({
     message,
     loc: { file: caseId(dir), line: place.line, column: place.column },
   });
