@@ -508,9 +508,8 @@ export class GwenEngineImpl extends EngineCollaborators implements GwenEngine {
    * iterated — no stale cache is exposed to the caller.
    *
    * @param components - Array of component definitions all matched entities must have
-   * @param precomputedKey - Optional cache key pre-computed by the Vite transform.
-   *   When provided, `normalizeComponentTypesForQuery` is skipped.
-   *   Do not pass manually; this parameter is injected by `gwenQueryHoistPlugin`.
+   * @param precomputedKey - Optional cache key. It is no longer injected by any plugin.
+   *   The key replaces the computed cache key; a wrong key returns another query's cached ids.
    * @returns A live {@link LiveQuery} of {@link EntityAccessor} objects
    */
   createQuery<const C extends readonly ComponentDef[]>(
