@@ -27,7 +27,7 @@ describe("@gwenjs/physics2d module", () => {
     const calls: string[] = [];
     const loaded = await import("@gwenjs/physics2d/module");
     await loaded.default.setup({}, recordingKit(calls));
-    expect(calls).toEqual(["addPlugin", "addVitePlugin", "addAutoImports"]);
+    expect(calls).toEqual(["addPlugin", "addAutoImports", "addVitePlugin"]);
   });
 
   it("validate reports a bad layer bit as physics2d.layers.player", async () => {
