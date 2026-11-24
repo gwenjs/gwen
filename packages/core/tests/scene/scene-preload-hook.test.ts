@@ -143,16 +143,24 @@ describe("onPreload scene:preload", () => {
   it("without SceneEnginePlugin the direct fallback runs onPreload", async () => {
     const engine = await loadEngine();
     let runs = 0;
+    let other = 0;
     const Scene = defineScene("FallbackPreload", () => {
       onPreload(() => {
         runs += 1;
       });
     });
+    const Other = defineScene("FallbackOther", () => {
+      onPreload(() => {
+        other += 1;
+      });
+    });
     engine.run(() => {
       Scene(REGISTRY);
+      Other(REGISTRY);
     });
     await runScenePreload(engine, null, "FallbackPreload");
     expect(runs).toBe(1);
+    expect(other).toBe(0);
   });
 
   it("two engines run a shared scene definition once each", async () => {
