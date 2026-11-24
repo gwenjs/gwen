@@ -508,7 +508,7 @@ function sameBytes(source: Uint8Array | string | undefined, expected: Uint8Array
   return true;
 }
 
-function causeReaches(error: unknown, target: Error): boolean {
+function causeReaches(error: unknown, target: unknown): boolean {
   const seen = new Set<unknown>();
   let current: unknown = error;
   while (typeof current === "object" && current !== null && !seen.has(current)) {
@@ -517,7 +517,7 @@ function causeReaches(error: unknown, target: Error): boolean {
     if (!("cause" in current)) return false;
     current = current.cause;
   }
-  return false;
+  return current === target;
 }
 
 it("a unit sees ctx.emitFile in a build and not in serve", async () => {
@@ -627,4 +627,43 @@ it("raise keeps the cause on the thrown error", async () => {
     await server?.close();
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+it("a built-in unit throwing a plain value fails with VITE:TRANSFORM_UNIT_FAILED naming the unit and the id", async () => {
+  const id = "/src/x.ts";
+  const origin = new Error("plain-error");
+  const asString: GwenSourceTransform = {
+    name: "gwen:boom",
+    run() {
+      throw "plain-boom";
+    },
+  };
+  const asError: GwenSourceTransform = {
+    name: "gwen:boom",
+    run() {
+      throw origin;
+    },
+  };
+  const stringThrown: unknown = await runPipeline("export const value = 1;\n", {
+    id,
+    units: [asString],
+  }).then(
+    () => undefined,
+    (error: unknown) => error,
+  );
+  const errorThrown: unknown = await runPipeline("export const value = 1;\n", {
+    id,
+    units: [asError],
+  }).then(
+    () => undefined,
+    (error: unknown) => error,
+  );
+  const stringMessage = stringThrown instanceof Error ? stringThrown.message : "";
+  const errorMessage = errorThrown instanceof Error ? errorThrown.message : "";
+  expect(readString(stringThrown, "code")).toBe(ViteErrorCodes.TRANSFORM_UNIT_FAILED);
+  expect(stringMessage).toContain(`Transform "gwen:boom" failed on ${id}.`);
+  expect(causeReaches(stringThrown, "plain-boom")).toBe(true);
+  expect(readString(errorThrown, "code")).toBe(ViteErrorCodes.TRANSFORM_UNIT_FAILED);
+  expect(errorMessage).toContain(`Transform "gwen:boom" failed on ${id}.`);
+  expect(causeReaches(errorThrown, origin)).toBe(true);
 });
