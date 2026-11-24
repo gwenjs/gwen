@@ -81,7 +81,7 @@ export async function checkManifest(
 /**
  * One `BASE_NOT_EXTENSIBLE` per problem of a validated base.
  * A base that is absent or whose `package.json` cannot be parsed stops there.
- * A framework package name is checked the same way as any other base.
+ * A framework package name is checked the same way as every other base.
  */
 async function baseExtensibleFindings(
   root: string,

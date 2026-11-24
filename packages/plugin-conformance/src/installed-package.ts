@@ -6,12 +6,12 @@ import { readTextIfPresent } from "./source-files.js";
  * One `node_modules/<pkg>/package.json` lookup.
  * `"absent"` — the file is not there.
  * `"unparsed"` — the file is there and `JSON.parse` rejects it.
- * `"found"` — the parsed JSON value.
+ * `"found"` — the parsed JSON value, and the directory that holds that `package.json`.
  */
 export type InstalledPackage =
   | { readonly kind: "absent" }
   | { readonly kind: "unparsed" }
-  | { readonly kind: "found"; readonly manifest: unknown };
+  | { readonly kind: "found"; readonly manifest: unknown; readonly directory: string };
 
 /** Non-empty `gwen.hookNamespace` string of an installed manifest, or `undefined`. */
 export function installedHookNamespace(manifest: unknown): string | undefined {
@@ -25,11 +25,12 @@ export function installedHookNamespace(manifest: unknown): string | undefined {
 
 /** Read `node_modules/<pkg>/package.json` in `directory` only. Ancestors are not walked. */
 async function readInstalledPackage(directory: string, pkg: string): Promise<InstalledPackage> {
-  const text = await readTextIfPresent(path.join(directory, "node_modules", pkg, "package.json"));
+  const pkgDir = path.join(directory, "node_modules", pkg);
+  const text = await readTextIfPresent(path.join(pkgDir, "package.json"));
   if (text === undefined) return { kind: "absent" };
   try {
     const manifest: unknown = JSON.parse(text);
-    return { kind: "found", manifest };
+    return { kind: "found", manifest, directory: pkgDir };
   } catch {
     return { kind: "unparsed" };
   }

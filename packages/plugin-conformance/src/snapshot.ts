@@ -1,6 +1,7 @@
 import { readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
-import ts from "typescript";
+import { declaredTypes, readBuilt } from "./built-exports.js";
+import type { BuiltModuleFile } from "./built-exports.js";
 import { ConformanceErrorCodes } from "./error-codes.js";
 import { isRecord } from "./json.js";
 import { packageReadFinding } from "./manifest-finding.js";
@@ -30,9 +31,7 @@ type SnapshotRead =
     };
 
 /** One subpath read from its built types file. */
-interface BuiltEntry extends SnapEntry {
-  readonly file: string;
-}
+type BuiltEntry = BuiltModuleFile;
 
 /** The snapshot findings, split by the check that reports them. */
 export interface SnapshotFindings {
@@ -110,15 +109,6 @@ function exportsOf(manifest: unknown): Record<string, unknown> {
   return Object.keys(value).some((key) => key.startsWith(".")) ? value : { ".": value };
 }
 
-/** The types file a target declares: `types`, `types.import`, then `import`. */
-function declaredTypes(target: unknown): string | undefined {
-  if (typeof target === "string") return target;
-  if (!isRecord(target)) return undefined;
-  if (typeof target.types === "string") return target.types;
-  if (isRecord(target.types) && typeof target.types.import === "string") return target.types.import;
-  return typeof target.import === "string" ? target.import : undefined;
-}
-
 /** True for .d.ts, .d.mts, .ts, .tsx, .js and .mjs. */
 function isModuleEntry(file: string): boolean {
   return [".d.mts", ".ts", ".tsx", ".js", ".mjs"].some((extension) => file.endsWith(extension));
@@ -157,54 +147,6 @@ async function declaredFiles(
     else missing.set(subpath, declared);
   }
   return { files, missing, undeclared };
-}
-
-/** Names exported by `file`, split into values and types. `__`-prefixed names are skipped. */
-function exportNames(program: ts.Program, file: string): SnapEntry {
-  const source = program.getSourceFile(file);
-  const checker = program.getTypeChecker();
-  const moduleSymbol = source === undefined ? undefined : checker.getSymbolAtLocation(source);
-  const values: string[] = [];
-  const types: string[] = [];
-  if (moduleSymbol === undefined) return { values, types };
-  for (const symbol of checker.getExportsOfModule(moduleSymbol)) {
-    const name = symbol.getName();
-    if (name.startsWith("__")) continue;
-    const alias = symbol.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(symbol) : symbol;
-    const isValue = (alias.flags & ts.SymbolFlags.Value) !== 0;
-    const declaration = symbol.declarations?.[0];
-    const typeOnly =
-      (declaration !== undefined &&
-        ts.isExportSpecifier(declaration) &&
-        (declaration.isTypeOnly || declaration.parent.parent.isTypeOnly)) ||
-      (declaration !== undefined && ts.isExportDeclaration(declaration) && declaration.isTypeOnly);
-    (typeOnly || !isValue ? types : values).push(name);
-  }
-  return { values: values.sort(), types: types.sort() };
-}
-
-/** Read the exports of every built subpath. */
-function readBuilt(root: string, files: ReadonlyMap<string, string>): Map<string, BuiltEntry> {
-  const program = ts.createProgram({
-    rootNames: [...new Set(files.values())],
-    options: {
-      target: ts.ScriptTarget.ES2022,
-      module: ts.ModuleKind.ESNext,
-      moduleResolution: ts.ModuleResolutionKind.Bundler,
-      allowJs: true,
-      skipLibCheck: true,
-      noEmit: true,
-      noLib: true,
-      types: [],
-      strict: false,
-    },
-  });
-  const built = new Map<string, BuiltEntry>();
-  for (const [subpath, file] of files) {
-    const relative = path.relative(root, file).split(path.sep).join("/");
-    built.set(subpath, { ...exportNames(program, file), file: relative });
-  }
-  return built;
 }
 
 function sameSnapshot(left: Snapshot, right: Snapshot): boolean {
