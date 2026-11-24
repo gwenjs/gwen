@@ -1,7 +1,7 @@
 // packages/core/src/scene/engine-plugin.ts
 import { createDisposable } from "../disposable.js";
 import { popEngine, pushEngine } from "../engine/engine-local.js";
-import type { GwenPlugin, GwenEngineBase, GwenSceneName } from "@gwenjs/schema";
+import type { GwenPlugin, GwenEngineBase, GwenSceneName, ScenePreloadEvent } from "@gwenjs/schema";
 import type { SceneDefinition } from "./runtime/define-scene.js";
 
 // ── GwenProvides augmentation ─────────────────────────────────────────────────
@@ -90,6 +90,21 @@ export class SceneHookRegistry {
       };
       engine.hooks.hook("scene:transition:enter", handler);
       this._cleanups.push(() => engine.hooks.removeHook("scene:transition:enter", handler));
+    }
+
+    if (def.onPreload) {
+      const cbs = def.onPreload;
+      const handler = async (event: ScenePreloadEvent) => {
+        if (event.to !== name) return;
+        const previous = pushEngine(engine);
+        try {
+          await Promise.all(cbs.map(async (cb) => cb(event)));
+        } finally {
+          popEngine(engine, previous);
+        }
+      };
+      engine.hooks.hook("scene:preload", handler);
+      this._cleanups.push(() => engine.hooks.removeHook("scene:preload", handler));
     }
   }
 

@@ -20,6 +20,7 @@ export {
   useSystem,
   onEnter,
   onExit,
+  onPreload,
   onTransitionExit,
   onTransitionEnter,
 } from "./runtime/scene-context";
