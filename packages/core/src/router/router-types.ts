@@ -73,7 +73,7 @@ export interface SceneRouterHandle<TRoutes extends Record<string, RouteConfig<TR
    * Send an FSM event. If the event has no transition in the current state,
    * it is silently ignored (+ console.warn in dev).
    * Rejects with `GwenScenePreloadError` when the target preload fails.
-   * Ignored, with a warning, while a transition is pending.
+   * Ignored, with a warning, while a preload is pending.
    * Dismissing an overlay runs no preload.
    */
   send(event: EventsOf<TRoutes>, params?: Record<string, unknown>): Promise<void>;
