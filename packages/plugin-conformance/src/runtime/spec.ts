@@ -84,9 +84,16 @@ export function validateSpec(spec: PluginConformanceSpec): ConformanceFinding[] 
       ),
     );
   }
-  const providers = spec.frameworkProviders;
-  if (providers !== undefined) {
-    for (const provider of providers) {
+  const providers: unknown = spec.frameworkProviders;
+  if (providers !== undefined && !Array.isArray(providers)) {
+    findings.push(
+      runtimeFinding(
+        "frameworkProviders must be a list",
+        "Pass frameworkProviders as a list of plugin factories.",
+      ),
+    );
+  } else if (spec.frameworkProviders !== undefined) {
+    for (const provider of spec.frameworkProviders) {
       let name: string;
       try {
         name = provider().name;

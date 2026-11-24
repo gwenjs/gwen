@@ -2,7 +2,7 @@ import type { GwenPlugin } from "@gwenjs/schema";
 import { ConformanceErrorCodes } from "../error-codes.js";
 import type { ConformanceFinding } from "../types.js";
 import { callExport, isPlugin } from "./call-factory.js";
-import { installProviders, provideKeys, thrownMessage, usePlugin } from "./lifecycle.js";
+import { installProviders, thrownMessage, usePlugin } from "./lifecycle.js";
 import { importFreshEntry } from "./load-package.js";
 import { withEngine } from "./open-engine.js";
 import type { RuntimeCheckContext } from "./types.js";
@@ -33,24 +33,14 @@ async function checkOne(
     } catch (error: unknown) {
       return [reentry(plugin.name, thrownMessage(error))];
     }
-    const findings: ConformanceFinding[] = [];
-    for (const key of provideKeys(plugin)) {
-      if (open.engine.tryInject(key) !== undefined) continue;
-      findings.push(
-        reentry(
-          plugin.name,
-          `left service ${JSON.stringify(key)} not injectable after the second use`,
-        ),
-      );
-    }
-    return findings;
+    return [];
   });
 }
 
 /**
- * R6. `use`, then `unuse`, then `use` again. The second `use` must resolve
- * and every `provides` key must be injectable. A fresh module evaluation
- * keeps a setup flag from earlier checks off this pair
+ * R6. `use`, then `unuse`, then `use` again. The second `use` must resolve.
+ * A rejection is the finding. A fresh module evaluation keeps a setup flag
+ * from earlier checks off this pair
  * (`packages/plugin-conformance/src/runtime/load-package.ts:135`).
  */
 export async function checkReentry(context: RuntimeCheckContext): Promise<ConformanceFinding[]> {

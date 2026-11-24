@@ -1,7 +1,7 @@
 import { CoreErrorCodes } from "@gwenjs/core";
 import { ConformanceErrorCodes } from "../error-codes.js";
 import type { ConformanceFinding } from "../types.js";
-import { callExport, isPlugin, thrownCode } from "./call-factory.js";
+import { isPlugin, thrownCode } from "./call-factory.js";
 import { installProviders, thrownMessage } from "./lifecycle.js";
 import { withEngine } from "./open-engine.js";
 import type { PluginConformanceSpec, PluginFactorySpec, RuntimeCheckContext } from "./types.js";
@@ -23,6 +23,22 @@ function optionsFinding(
   };
 }
 
+function isFactoryExport(value: unknown): value is (options: unknown) => unknown {
+  return typeof value === "function";
+}
+
+function threwFinding(
+  spec: PluginConformanceSpec,
+  factory: PluginFactorySpec,
+  error: unknown,
+): ConformanceFinding {
+  return {
+    code: ConformanceErrorCodes.RUNTIME_OPTIONS,
+    message: `${label(spec, factory)} threw: ${thrownMessage(error)}`,
+    hint: OPTIONS_HINT,
+  };
+}
+
 function rejectedFinding(
   spec: PluginConformanceSpec,
   factory: PluginFactorySpec,
@@ -39,7 +55,8 @@ function rejectedFinding(
 
 /**
  * R9. Each factory in `factories` was built with `invalidOptions`.
- * `engine.use` must reject with `CORE:PLUGIN_OPTIONS_INVALID`.
+ * A throw while building the plugin is one finding.
+ * Otherwise `engine.use` must reject with `CORE:PLUGIN_OPTIONS_INVALID`.
  */
 export async function checkOptions(
   context: RuntimeCheckContext,
@@ -49,7 +66,15 @@ export async function checkOptions(
     await installProviders(open.engine, context.spec);
     const findings: ConformanceFinding[] = [];
     for (const factory of factories) {
-      const created = callExport(context.entry, factory.export, factory.invalidOptions);
+      const exported: unknown = context.entry[factory.export];
+      if (!isFactoryExport(exported)) continue;
+      let created: unknown;
+      try {
+        created = exported(factory.invalidOptions);
+      } catch (error: unknown) {
+        findings.push(threwFinding(context.spec, factory, error));
+        continue;
+      }
       if (!isPlugin(created)) continue;
       try {
         await open.engine.use(created);

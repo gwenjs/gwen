@@ -1,13 +1,19 @@
-import type { GwenEngine } from "@gwenjs/core";
+import { CoreErrorCodes, type GwenEngine } from "@gwenjs/core";
 import type { GwenPlugin } from "@gwenjs/schema";
 import { ConformanceErrorCodes } from "../error-codes.js";
 import type { ConformanceFinding } from "../types.js";
 import { callExport, isPlugin } from "./call-factory.js";
+import { quietWindowFindings } from "./check-frames.js";
 import { installProviders, provideKeys, usePlugin } from "./lifecycle.js";
 import { withEngine } from "./open-engine.js";
 import type { PluginConformanceSpec, RuntimeCheckContext } from "./types.js";
 
 const HINT = "Create the service inside setup.";
+
+/** A hook throw on the frame after `unuse`. Other frame emits stay with R4. */
+function isHookFault(message: string): boolean {
+  return message.startsWith(`${CoreErrorCodes.PLUGIN_RUNTIME_ERROR} `);
+}
 
 function twoEngines(name: string, message: string): ConformanceFinding {
   return {
@@ -46,8 +52,8 @@ async function checkPair(
       }
       // `unuse` on the first engine leaves the second engine's keys and its plugin,
       // then one frame (`packages/core/src/engine/gwen-engine.ts:128`).
-      // The second engine still runs the plugin, so this frame's own emits stay
-      // with the frames check.
+      const eventFrom = second.events.length;
+      const logFrom = second.logs.length;
       let survived = false;
       await first.engine.unuse(left.name);
       await second.advance(1, 1 / 60);
@@ -57,6 +63,16 @@ async function checkPair(
           twoEngines(right.name, `lost ${JSON.stringify(right.name)} on the other engine`),
         );
       }
+      // One hook throw. A dev isolation warning sits beside it
+      // (`packages/core/src/engine/engine-error-policy.ts:346`) and is not this finding.
+      const windowFindings = quietWindowFindings(
+        ConformanceErrorCodes.RUNTIME_TWO_ENGINES,
+        HINT,
+        second.events.slice(eventFrom),
+        second.logs.slice(logFrom),
+      );
+      const reported = windowFindings.find((finding) => isHookFault(finding.message));
+      if (reported !== undefined) findings.push(reported);
       return findings;
     });
   });
@@ -64,7 +80,8 @@ async function checkPair(
 
 /**
  * R7. Two engines, a new factory instance each. `tryInject` objects differ
- * for every `provides` key. `unuse` on the first leaves the second intact.
+ * for every `provides` key. `unuse` on the first leaves the second intact,
+ * then one frame. A hook throw on that frame is one finding.
  */
 export async function checkTwoEngines(context: RuntimeCheckContext): Promise<ConformanceFinding[]> {
   const findings: ConformanceFinding[] = [];

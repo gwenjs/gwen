@@ -584,7 +584,7 @@ Cause. Un appel d'émission (`emit`, `callHook`, `callHookParallel`, `callHookWi
 
 ### CONFORMANCE:HOOK_UNDECLARED {#conformance-hook-undeclared}
 
-Cause. Un appel d'émission utilise un nom de l'espace de noms du paquet qu'aucun fichier du paquet ne déclare, ni avec `defineHooks`, ni dans une augmentation `GwenRuntimeHooks` de `@gwenjs/schema`. La vérification est ignorée quand `gwen.hookNamespace` est absent ou invalide. `runPluginConformance` renvoie aussi ce code quand un plugin émet à l'exécution un nom qu'il n'a pas déclaré avec `defineHooks` ni dans une augmentation `GwenRuntimeHooks`. Le même nom, pour une fabrique, donne un seul constat. Les noms des espaces `engine`, `entity`, `scene`, `plugin`, `actor`, `prefab` et `service` (`packages/schema/src/runtime-hooks.ts:234`) et des espaces du framework (`packages/schema/src/runtime-hooks.ts:251`) sont ignorés ici, parce que la vérification statique en est responsable. Une émission non déclarée vers un espace du framework, à l'exécution, est seulement un constat statique. Fix. Déclarez le hook avec `defineHooks`, ou ajoutez-le à une augmentation `GwenRuntimeHooks`.
+Cause. Un appel d'émission utilise un nom de l'espace de noms du paquet qu'aucun fichier du paquet ne déclare, ni avec `defineHooks`, ni dans une augmentation `GwenRuntimeHooks` de `@gwenjs/schema`. La vérification est ignorée quand `gwen.hookNamespace` est absent ou invalide. `runPluginConformance` renvoie aussi ce code quand un plugin émet à l'exécution un nom qu'il n'a pas déclaré avec `defineHooks` ni dans une augmentation `GwenRuntimeHooks`. Le même nom, pour une fabrique, donne un seul constat. Les noms des espaces `engine`, `entity`, `scene`, `plugin`, `actor`, `prefab` et `service` (`packages/schema/src/runtime-hooks.ts:234`) et des espaces du framework (`packages/schema/src/runtime-hooks.ts:251`) sont ignorés ici, parce que la vérification statique en est responsable. Une émission non déclarée vers un espace du framework, à l'exécution, est seulement un constat statique. Une exception inattendue de la vérification `hooks` est aussi signalée sous ce code, parce que l'enveloppe d'appel utilise le code de chaque vérification (`packages/plugin-conformance/src/runtime/run-checks.ts:121`). Fix. Déclarez le hook avec `defineHooks`, ou ajoutez-le à une augmentation `GwenRuntimeHooks`.
 
 ### CONFORMANCE:IMPORT_DEEP {#conformance-import-deep}
 
@@ -660,7 +660,7 @@ Cause. La vérification ne s'exécute que si `package.json` `exports` a `"./modu
 
 ### CONFORMANCE:RUNTIME_OPTIONS {#conformance-runtime-options}
 
-Cause. Une fabrique fixe `invalidOptions`. `frameworkProviders` sont installés d'abord. `engine.use` doit rejeter avec `CORE:PLUGIN_OPTIONS_INVALID`. Une installation qui se résout donne un constat. Un rejet avec un autre code donne un constat, et le message nomme ce code et le texte levé. La vérification ne s'exécute pas quand `invalidOptions` est absent. Fix. Rejetez ces options depuis `options.validate` de `definePlugin`, avant `setup`.
+Cause. Une fabrique fixe `invalidOptions`. `frameworkProviders` sont installés d'abord. `engine.use` doit rejeter avec `CORE:PLUGIN_OPTIONS_INVALID`. Une installation qui se résout donne un constat. Un rejet avec un autre code donne un constat, et le message nomme ce code et le texte levé. Une fabrique qui lève pendant sa construction avec ces options donne un constat. Le message nomme l'export et le texte levé. La vérification ne s'exécute pas quand `invalidOptions` est absent. Fix. Rejetez ces options depuis `options.validate` de `definePlugin`, avant `setup`.
 
 ### CONFORMANCE:RUNTIME_PER_ENTITY_PATH {#conformance-runtime-per-entity-path}
 
@@ -672,7 +672,7 @@ Cause. `frameworkProviders` sont installés, puis `engine.use`, sur un moteur pa
 
 ### CONFORMANCE:RUNTIME_REENTRY {#conformance-runtime-reentry}
 
-Cause. `use`, puis `unuse`, puis `use` à nouveau ne se résout pas, ou une clé déclarée dans `provides` n'est plus injectable après le second `use`. Le message contient le texte levé par ce `setup`. Quand le premier `use` rejette, cette vérification reste silencieuse. Fix. Faites réussir `setup` lors d'une seconde installation après `unuse`.
+Cause. `use`, puis `unuse`, puis `use` à nouveau ne se résout pas. Le message contient le texte levé par ce second `use`. Quand le premier `use` rejette, cette vérification reste silencieuse. Fix. Faites réussir `setup` lors d'une seconde installation après `unuse`.
 
 ### CONFORMANCE:RUNTIME_REMOVE_LEAK {#conformance-runtime-remove-leak}
 
@@ -692,7 +692,7 @@ Cause. Après `engine.stop()` (`packages/core/src/engine/gwen-engine.ts:247`), `
 
 ### CONFORMANCE:RUNTIME_TWO_ENGINES {#conformance-runtime-two-engines}
 
-Cause. Deux moteurs installent chacun une nouvelle instance de fabrique, et `tryInject` renvoie le même objet pour une clé de `provides`, ou `unuse` sur le premier moteur retire une clé ou le plugin du second. Le second moteur avance ensuite une frame. Le message d'un service partagé nomme la clé. Un plugin qui n'est pas resté utilise `lost "<name>" on the other engine`, et ce message ne nomme pas une clé de service. Quand le premier `use` rejette, cette vérification reste silencieuse. Cette vérification ne signale pas les événements du bus de cette frame. Fix. Créez le service dans `setup`, pour que chaque moteur ait son propre objet.
+Cause. Deux moteurs installent chacun une nouvelle instance de fabrique, et `tryInject` renvoie le même objet pour une clé de `provides`, ou `unuse` sur le premier moteur retire une clé ou le plugin du second. Le second moteur avance ensuite une frame. Le message d'un service partagé nomme la clé. Un plugin qui n'est pas resté utilise `lost "<name>" on the other engine`, et ce message ne nomme pas une clé de service. Quand le premier `use` rejette, cette vérification reste silencieuse. Un hook qui lève sur cette frame donne un constat (`CORE:PLUGIN_RUNTIME_ERROR`), et le message contient le texte levé. Les autres événements de cette frame restent à la vérification des frames. Une copie de journal de cet événement n'est pas un second constat (`packages/core/src/engine/engine-error-policy.ts:407`). Fix. Créez le service dans `setup`, pour que chaque moteur ait son propre objet.
 
 ### CONFORMANCE:SNAPSHOT_MISMATCH {#conformance-snapshot-mismatch}
 
