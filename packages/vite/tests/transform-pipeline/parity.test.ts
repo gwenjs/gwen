@@ -204,7 +204,55 @@ describe("gwen:transform-pipeline parity", () => {
       await server.close();
     }
   });
+
+  it("gwen() and gwenVitePlugin() list gwen:async-context first and no other plugin has that name", () => {
+    const cli = findPipeline(gwen());
+    const vite = findPipeline(gwenVitePlugin());
+    expect(cli?.api.names[0]).toBe("gwen:async-context");
+    expect(vite?.api.names[0]).toBe("gwen:async-context");
+    expect(cli?.api.names.filter((name: string) => name === "gwen:async-context")).toEqual([
+      "gwen:async-context",
+    ]);
+    expect(vite?.api.names.filter((name: string) => name === "gwen:async-context")).toEqual([
+      "gwen:async-context",
+    ]);
+    expect(pluginNames(gwen()).filter((name) => name === "gwen:async-context")).toEqual([]);
+    expect(pluginNames(gwenVitePlugin()).filter((name) => name === "gwen:async-context")).toEqual(
+      [],
+    );
+  });
+
+  it("the CLI plugin list keeps the engine context across an await in a scene", async () => {
+    const server = await createServer({
+      configFile: false,
+      root: fixtureRoot,
+      plugins: [gwen()],
+      optimizeDeps: { holdUntilCrawlEnd: false },
+      server: { middlewareMode: true, hmr: false, preTransformRequests: false },
+      logLevel: "silent",
+    });
+    try {
+      const result = await server.transformRequest("/src/scenes/main.ts");
+      expect(result?.code).toContain("__executeAsync(");
+    } finally {
+      await server.close();
+    }
+  });
 });
+
+function pluginNames(option: PluginOption): string[] {
+  if (option === null || option === undefined || option === false) return [];
+  if (option instanceof Promise) return [];
+  if (Array.isArray(option)) {
+    const names: string[] = [];
+    for (const item of option) {
+      for (const name of pluginNames(item)) names.push(name);
+    }
+    return names;
+  }
+  if (option.name === undefined) return [];
+  return [option.name];
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
