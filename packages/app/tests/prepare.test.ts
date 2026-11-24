@@ -97,6 +97,18 @@ describe("GwenApp.prepare()", () => {
     expect(content).toContain('/// <reference types="vite/client" />');
   });
 
+  it("writes .gwen/types/env.d.ts without virtual:gwen/wasm and without GWEN_WASM_VARIANT", async () => {
+    const app = new GwenApp();
+    await app.setupModules(makeConfig());
+    await app.prepare(tmpRoot);
+
+    const content = readFileSync(join(tmpRoot, ".gwen", "types", "env.d.ts"), "utf8");
+    expect(content).not.toContain("virtual:gwen/wasm");
+    expect(content).not.toContain("GWEN_WASM_VARIANT");
+    expect(content).toContain("GWEN_VERSION");
+    expect(content).toContain("GWEN_DEV");
+  });
+
   it("writes .gwen/tsconfig.json with correct include paths", async () => {
     const app = new GwenApp();
     await app.setupModules(makeConfig());
