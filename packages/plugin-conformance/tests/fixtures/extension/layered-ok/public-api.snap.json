@@ -1,0 +1,10 @@
+{
+  ".": {
+    "values": ["ready"],
+    "types": []
+  },
+  "./module": {
+    "values": ["default"],
+    "types": []
+  }
+}

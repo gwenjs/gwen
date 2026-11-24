@@ -6,6 +6,16 @@ import { afterEach } from "vitest";
 import { checkPluginPackage } from "@gwenjs/plugin-conformance";
 import type { ConformanceFinding } from "@gwenjs/plugin-conformance";
 
+/** Temp package roots and copy parents removed after each test. */
+const tempRoots: string[] = [];
+
+afterEach(async () => {
+  const pending = tempRoots.splice(0);
+  for (const root of pending) {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 const extensionFixturesDir = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../fixtures/extension",
@@ -44,6 +54,18 @@ export async function installBase(root: string, name: string, installedAs?: stri
   if (packageName !== name) await rewriteInstalledName(destination, packageName);
 }
 
+/**
+ * Copy `tests/fixtures/extension/<name>` to a fresh package root, including `dist`.
+ * The temp parent is removed by the same `afterEach` list as `openExtensionFixture`.
+ */
+export async function copyExtensionPackage(name: string): Promise<string> {
+  const parent = await mkdtemp(path.join(tmpdir(), "gwen-extension-"));
+  tempRoots.push(parent);
+  const root = path.join(parent, "pkg");
+  await cp(extensionFixtureRoot(name), root, { recursive: true });
+  return root;
+}
+
 /** Manifest object written as `package.json`. Key order is the object's order. */
 export type ExtensionManifest = Readonly<Record<string, unknown>>;
 
@@ -68,24 +90,17 @@ export async function extensionFindings(
 }
 
 /**
- * Register an `afterEach` that removes every temp package the returned opener made, and return
- * that opener. `package.json` is 2-space JSON plus a final newline. Each `sources` path is
- * written under the temp root.
+ * Return an opener of temp packages. The module `afterEach` removes every root it creates.
+ * `package.json` is 2-space JSON plus a final newline. Each `sources` path is written under the
+ * temp root.
  */
 export function openExtensionFixture(): (
   manifest: ExtensionManifest,
   sources?: Readonly<Record<string, string>>,
 ) => Promise<ExtensionFixture> {
-  const roots: string[] = [];
-  afterEach(async () => {
-    const pending = roots.splice(0);
-    for (const root of pending) {
-      await rm(root, { recursive: true, force: true });
-    }
-  });
   return async (manifest, sources) => {
     const root = await mkdtemp(path.join(tmpdir(), "gwen-extension-"));
-    roots.push(root);
+    tempRoots.push(root);
     const text = `${JSON.stringify(manifest, null, 2)}\n`;
     await writeFile(path.join(root, "package.json"), text);
     if (sources !== undefined) {
@@ -104,8 +119,8 @@ export function openExtensionFixture(): (
       async cleanup() {
         if (removed) return;
         removed = true;
-        const index = roots.indexOf(root);
-        if (index >= 0) roots.splice(index, 1);
+        const index = tempRoots.indexOf(root);
+        if (index >= 0) tempRoots.splice(index, 1);
         await rm(root, { recursive: true, force: true });
       },
     };

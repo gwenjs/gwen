@@ -1,17 +1,20 @@
-import { readFile } from "node:fs/promises";
+import { readFile, rm } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import { checkPluginPackage } from "@gwenjs/plugin-conformance";
 import type { ConformanceFinding } from "@gwenjs/plugin-conformance";
 import { indexJson } from "../src/json.js";
 import {
+  copyExtensionPackage,
   extensionFindings,
   extensionFixtureRoot,
   installBase,
   openExtensionFixture,
 } from "./helpers/extension.js";
-import type { ExtensionManifest } from "./helpers/extension.js";
-import { writeDeep, writeInstalledPackage } from "./helpers/fixture.js";
+import type { ExtensionFixture, ExtensionManifest } from "./helpers/extension.js";
+import { SLOW_TEST_MS, writeDeep, writeInstalledPackage, writeSource } from "./helpers/fixture.js";
 
 const open = openExtensionFixture();
 
@@ -1398,4 +1401,311 @@ describe("BASE_NOT_EXTENSIBLE", () => {
     const findings = await sibling.checkOf(HOOK_INVALID);
     expectBaseAt(findings, sharedNamespaceMessage("fixture-base", RENAMED_BASE), 1, HOOK_INVALID);
   });
+});
+
+const NOT_PUBLIC = "CONFORMANCE:IMPORT_NOT_PUBLIC";
+const AUGMENT = "CONFORMANCE:AUGMENT_TARGET";
+const EXTENSION_SPECIFIER = "fixture-base/extension";
+const SCHEMA_TYPES = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../../schema/dist/index.d.ts",
+);
+const SERVICE_HINT = 'Pick a service key of your own, for example "<plugin>:<service>".';
+const HOOK_KEY_HINT = 'Pick a hook key of your own, for example "<plugin>:<event>".';
+const REGISTRY_HINT = "Pick a registry key of your own.";
+const NEGATIVE_SURFACE = [
+  'import "fixture-base/extension";',
+  'import type { GwenProvides } from "@gwenjs/schema";',
+  "",
+  'export type Bad = GwenProvides["fixture-base:nope"];',
+  "",
+].join("\n");
+
+function publicHint(specifier: string): string {
+  return `Use a name listed in the public API of ${specifier}.`;
+}
+
+function notExported(name: string): string {
+  return `"${name}" is not exported by "${EXTENSION_SPECIFIER}"`;
+}
+
+function schemaMember(interfaceName: string, member: string): string {
+  return [
+    "export {};",
+    'declare module "@gwenjs/schema" {',
+    `  interface ${interfaceName} {`,
+    `    ${member}`,
+    "  }",
+    "}",
+    "",
+  ].join("\n");
+}
+
+function augmentMessage(interfaceName: string, key: string): string {
+  return `${interfaceName} key "${key}" is already declared by fixture-base`;
+}
+
+async function openWithBase(name: string, source: string): Promise<ExtensionFixture> {
+  const fixture = await open(await readFixtureManifest(name), { "src/index.ts": source });
+  await installBase(fixture.root, "fixture-base");
+  return fixture;
+}
+
+function expectCodeAt(
+  findings: readonly ConformanceFinding[],
+  code: string,
+  message: string,
+  line: number,
+  hint?: string,
+): void {
+  expect(findings.map(baseShape)).toEqual([{ code, file: "src/index.ts", line, message }]);
+  const finding = findings[0];
+  if (finding === undefined) {
+    throw new Error(`expected one finding: ${message}`);
+  }
+  if (hint === undefined) expect(finding.hint.length).toBeGreaterThan(0);
+  else expect(finding.hint).toBe(hint);
+}
+
+async function rewriteExtensionTarget(root: string, entry: unknown): Promise<void> {
+  const relative = path.join("node_modules", "fixture-base", "package.json");
+  const text = await readFile(path.join(root, relative), "utf8");
+  const parsed: unknown = JSON.parse(text);
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    throw new Error("base package.json is not an object");
+  }
+  const next: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(parsed)) next[key] = value;
+  const exportsValue = next.exports;
+  if (typeof exportsValue !== "object" || exportsValue === null || Array.isArray(exportsValue)) {
+    throw new Error("base exports is not an object");
+  }
+  const exportsNext: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(exportsValue)) exportsNext[key] = value;
+  exportsNext["./extension"] = entry;
+  next.exports = exportsNext;
+  await writeSource(root, relative, `${JSON.stringify(next, null, 2)}\n`);
+}
+
+async function extensionTypeDiagnostics(root: string): Promise<readonly ts.Diagnostic[]> {
+  const parsed = ts.parseJsonConfigFileContent(
+    {
+      compilerOptions: {
+        strict: true,
+        noEmit: true,
+        target: "ES2022",
+        module: "ESNext",
+        moduleResolution: "Bundler",
+        types: [],
+        lib: ["ES2022", "DOM", "DOM.Iterable", "esnext.disposable"],
+        skipLibCheck: false,
+        paths: { "@gwenjs/schema": [SCHEMA_TYPES] },
+      },
+      files: [
+        path.join(root, "tests/extension-surface.test-d.ts"),
+        path.join(root, "src/index.ts"),
+      ],
+    },
+    ts.sys,
+    root,
+  );
+  const program = ts.createProgram(parsed.fileNames, parsed.options);
+  return [...parsed.errors, ...ts.getPreEmitDiagnostics(program)];
+}
+
+describe("IMPORT_NOT_PUBLIC from ./extension", () => {
+  it("not-extension-point reports IMPORT_NOT_PUBLIC for a name the base does not export from ./extension", async () => {
+    const fixture = await openCopied("not-extension-point");
+    await installBase(fixture.root, "fixture-base");
+    const findings = await fixture.checkOf(NOT_PUBLIC);
+    expectCodeAt(findings, NOT_PUBLIC, notExported("nope"), 1, publicHint(EXTENSION_SPECIFIER));
+  });
+
+  it("not-extension-point accepts a type and a value exported by ./extension", async () => {
+    const accepted = await openWithBase(
+      "not-extension-point",
+      [
+        'import { marker } from "fixture-base/extension";',
+        'import type { Marker } from "fixture-base/extension";',
+        "export { marker };",
+        "export type { Marker };",
+        "",
+      ].join("\n"),
+    );
+    expect(await accepted.checkOf(NOT_PUBLIC)).toEqual([]);
+    const sibling = await openCopied("not-extension-point");
+    await installBase(sibling.root, "fixture-base");
+    const findings = await sibling.checkOf(NOT_PUBLIC);
+    expectCodeAt(findings, NOT_PUBLIC, notExported("nope"), 1, publicHint(EXTENSION_SPECIFIER));
+  });
+
+  it("reports IMPORT_NOT_PUBLIC for a default import of ./extension", async () => {
+    const imported = await openWithBase(
+      "not-extension-point",
+      'import base from "fixture-base/extension";\n',
+    );
+    const findings = await imported.checkOf(NOT_PUBLIC);
+    expectCodeAt(
+      findings,
+      NOT_PUBLIC,
+      `"${EXTENSION_SPECIFIER}" has no default export`,
+      1,
+      publicHint(EXTENSION_SPECIFIER),
+    );
+    const sibling = await openWithBase("not-extension-point", extensionSource("fixture-base"));
+    expect(await sibling.checkOf(NOT_PUBLIC)).toEqual([]);
+  });
+
+  it("reports IMPORT_NOT_PUBLIC for a property read on a namespace import of ./extension", async () => {
+    const imported = await openWithBase(
+      "not-extension-point",
+      ['import * as ns from "fixture-base/extension";', "export const bad = ns.nope;", ""].join(
+        "\n",
+      ),
+    );
+    const findings = await imported.checkOf(NOT_PUBLIC);
+    expectCodeAt(findings, NOT_PUBLIC, notExported("nope"), 2, publicHint(EXTENSION_SPECIFIER));
+    const sibling = await openWithBase(
+      "not-extension-point",
+      ['import * as ns from "fixture-base/extension";', "export const fine = ns.marker;", ""].join(
+        "\n",
+      ),
+    );
+    expect(await sibling.checkOf(NOT_PUBLIC)).toEqual([]);
+  });
+
+  it("reports IMPORT_NOT_PUBLIC when the base ./extension types file is not built", async () => {
+    const fixture = await openWithBase("not-extension-point", extensionSource("fixture-base"));
+    await rm(path.join(fixture.root, "node_modules", "fixture-base", "dist", "extension.d.ts"));
+    const findings = await fixture.checkOf(NOT_PUBLIC);
+    expectCodeAt(
+      findings,
+      NOT_PUBLIC,
+      `"${EXTENSION_SPECIFIER}" declares "./dist/extension.d.ts", which is not built`,
+      1,
+    );
+  });
+
+  it("reports IMPORT_NOT_PUBLIC when ./extension declares no types or import file", async () => {
+    const fixture = await openWithBase("not-extension-point", extensionSource("fixture-base"));
+    await rewriteExtensionTarget(fixture.root, { default: "./dist/extension.js" });
+    const findings = await fixture.checkOf(NOT_PUBLIC);
+    expectCodeAt(
+      findings,
+      NOT_PUBLIC,
+      `"${EXTENSION_SPECIFIER}" declares no types or import file`,
+      1,
+    );
+  });
+});
+
+describe("AUGMENT_TARGET against a base", () => {
+  it('redeclares-base-key reports AUGMENT_TARGET for GwenProvides["fixture-base:extension"]', async () => {
+    const fixture = await openWithBase(
+      "redeclares-base-key",
+      schemaMember("GwenProvides", '"fixture-base:extension": { readonly marker: 1 };'),
+    );
+    const findings = await fixture.checkOf(AUGMENT);
+    expectCodeAt(
+      findings,
+      AUGMENT,
+      augmentMessage("GwenProvides", "fixture-base:extension"),
+      4,
+      SERVICE_HINT,
+    );
+  });
+
+  it('redeclares-base-key reports AUGMENT_TARGET for GwenRuntimeHooks["fixture-base:ready"]', async () => {
+    const fixture = await openWithBase(
+      "redeclares-base-key",
+      schemaMember("GwenRuntimeHooks", '"fixture-base:ready": () => void;'),
+    );
+    const findings = await fixture.checkOf(AUGMENT);
+    expectCodeAt(
+      findings,
+      AUGMENT,
+      augmentMessage("GwenRuntimeHooks", "fixture-base:ready"),
+      4,
+      HOOK_KEY_HINT,
+    );
+  });
+
+  it('redeclares-base-key reports AUGMENT_TARGET for GwenPluginRegistry["fixture-base"]', async () => {
+    const fixture = await openWithBase(
+      "redeclares-base-key",
+      schemaMember(
+        "GwenPluginRegistry",
+        '"fixture-base": { readonly extensionApi: { readonly major: 1; readonly minor: 0 } };',
+      ),
+    );
+    const findings = await fixture.checkOf(AUGMENT);
+    expectCodeAt(
+      findings,
+      AUGMENT,
+      augmentMessage("GwenPluginRegistry", "fixture-base"),
+      4,
+      REGISTRY_HINT,
+    );
+  });
+
+  it("redeclares-base-key reports nothing for a key of its own", async () => {
+    const fixture = await openCopied("redeclares-base-key");
+    await installBase(fixture.root, "fixture-base");
+    expect(await fixture.checkOf(AUGMENT)).toEqual([]);
+    const sibling = await openWithBase(
+      "redeclares-base-key",
+      schemaMember("GwenProvides", '"fixture-base:extension": { readonly marker: 1 };'),
+    );
+    const findings = await sibling.checkOf(AUGMENT);
+    expectCodeAt(
+      findings,
+      AUGMENT,
+      augmentMessage("GwenProvides", "fixture-base:extension"),
+      4,
+      SERVICE_HINT,
+    );
+  });
+});
+
+describe("layered-ok extension surface", () => {
+  it("layered-ok runs every check and reports nothing", { timeout: SLOW_TEST_MS * 2 }, async () => {
+    const root = await copyExtensionPackage("layered-ok");
+    await installBase(root, "fixture-base");
+    expect((await checkPluginPackage({ root, profile: "plugin" })).findings).toEqual([]);
+    const sibling = await copyExtensionPackage("layered-ok");
+    await installBase(sibling, "fixture-base");
+    await writeSource(
+      sibling,
+      "src/index.ts",
+      'import { nope } from "fixture-base/extension";\nexport { nope };\n',
+    );
+    const findings = await extensionFindings(sibling, NOT_PUBLIC);
+    expectCodeAt(findings, NOT_PUBLIC, notExported("nope"), 1, publicHint(EXTENSION_SPECIFIER));
+  });
+
+  it(
+    "layered-ok types see the base registry, service and hooks through ./extension only",
+    { timeout: SLOW_TEST_MS * 2 },
+    async () => {
+      const root = await copyExtensionPackage("layered-ok");
+      try {
+        await installBase(root, "fixture-base");
+        const diagnostics = await extensionTypeDiagnostics(root);
+        expect(diagnostics).toEqual([]);
+        await writeSource(root, "tests/extension-surface.test-d.ts", NEGATIVE_SURFACE);
+        const negative = await extensionTypeDiagnostics(root);
+        expect(negative).toHaveLength(1);
+        const diagnostic = negative[0];
+        if (diagnostic === undefined) {
+          throw new Error("expected one diagnostic");
+        }
+        expect(diagnostic.code).toBe(2339);
+        expect(ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n")).toBe(
+          "Property 'fixture-base:nope' does not exist on type 'GwenProvides'.",
+        );
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    },
+  );
 });
