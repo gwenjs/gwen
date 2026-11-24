@@ -13,7 +13,7 @@ Intégration Vite pour GWEN. Fournit le plugin composite principal, un optimiseu
 
 ## `gwenVitePlugin(options?)`
 
-Le point d'entrée principal. Un plugin Vite composite qui configure le bundling WASM, le hot-reload des acteurs et scènes, les auto-imports, les déclarations TypeScript, le support des layouts, les helpers tween, et l'optimiseur ECS optionnel — le tout en une seule registration.
+Le point d'entrée principal. Un plugin Vite composite qui configure le hot-reload des acteurs et scènes, les auto-imports, les déclarations TypeScript, le support des layouts, les helpers tween, et l'optimiseur ECS optionnel — le tout en une seule registration.
 
 Les noms sont injectés par `gwen:transform-pipeline` dans `gwen()` comme dans `gwenVitePlugin()`, selon la liaison d'import.
 
@@ -25,7 +25,6 @@ import { gwenVitePlugin } from '@gwenjs/vite'
 export default defineConfig({
   plugins: [
     gwenVitePlugin({
-      wasm: { variant: 'auto', hmr: true },
       dts: true,
       actors: { dir: 'src/actors', hmr: true },
       optimizer: {
@@ -42,9 +41,6 @@ export default defineConfig({
 
 | Option | Type | Défaut | Description |
 |---|---|---|---|
-| `wasm.variant` | `'debug' \| 'release' \| 'auto'` | `'auto'` | Variante du build WASM à charger. `'auto'` choisit `release` en production et `debug` en développement. |
-| `wasm.wasmPath` | `string` | — | Surcharge le chemin résolu du fichier WASM. |
-| `wasm.hmr` | `boolean` | `true` | Active le hot-module replacement WASM en développement. |
 | `autoImports` | `AutoImport[]` | `[]` | Entrées d'auto-import supplémentaires injectées dans le module virtuel. |
 | `gwenDir` | `string` | `'.gwen'` | Répertoire où les fichiers générés (dts, modules virtuels) sont écrits. |
 | `dts` | `boolean` | `true` | Émet un fichier de déclaration de types `gwen.d.ts`. |
@@ -237,14 +233,13 @@ Exporté par `@gwenjs/vite`.
 
 | Clé | Code |
 |---|---|
-| `WASM_NOT_FOUND` | `VITE:WASM_NOT_FOUND` |
 | `OPTIMIZER_UNKNOWN_COMPONENT` | `VITE:OPTIMIZER_UNKNOWN_COMPONENT` |
 | `OPTIMIZER_UNKNOWN_FIELD` | `VITE:OPTIMIZER_UNKNOWN_FIELD` |
 | `SCENE_NAME_UNRESOLVED` | `VITE:SCENE_NAME_UNRESOLVED` |
 | `SCENE_NAME_DUPLICATE` | `VITE:SCENE_NAME_DUPLICATE` |
 | `MAIN_SCENE_UNKNOWN` | `VITE:MAIN_SCENE_UNKNOWN` |
 
-`gwenWasmPlugin` lève `VITE:WASM_NOT_FOUND` quand le fichier WASM résolu est absent. L'indice de développement dit de lancer d'abord `cargo build --target wasm32-unknown-unknown`. Le générateur de code lève `VITE:OPTIMIZER_UNKNOWN_COMPONENT` pour un composant absent du manifeste, et `VITE:OPTIMIZER_UNKNOWN_FIELD` pour un champ que le manifeste ne liste pas. Ces levées sont des `GwenError`, sans étiquette `[gwen:wasm]` ni `[gwen:optimizer]`. L'indice est présent quand `NODE_ENV` n'est pas `production`. `scanScenes` lève `VITE:SCENE_NAME_UNRESOLVED` et `VITE:SCENE_NAME_DUPLICATE`. `resolveMainScene` lève `VITE:MAIN_SCENE_UNKNOWN`. Ces trois indices sont présents quand `process.env["NODE_ENV"]` n'est pas `"production"` (`packages/vite/src/scanners/index.ts:142`, `packages/vite/src/scanners/index.ts:157`, `packages/vite/src/scanners/index.ts:196`).
+Le générateur de code lève `VITE:OPTIMIZER_UNKNOWN_COMPONENT` pour un composant absent du manifeste, et `VITE:OPTIMIZER_UNKNOWN_FIELD` pour un champ que le manifeste ne liste pas. Ces levées sont des `GwenError`, sans étiquette `[gwen:optimizer]`. L'indice est présent quand `NODE_ENV` n'est pas `production`. `scanScenes` lève `VITE:SCENE_NAME_UNRESOLVED` et `VITE:SCENE_NAME_DUPLICATE`. `resolveMainScene` lève `VITE:MAIN_SCENE_UNKNOWN`. Ces trois indices sont présents quand `process.env["NODE_ENV"]` n'est pas `"production"` (`packages/vite/src/scanners/index.ts:142`, `packages/vite/src/scanners/index.ts:157`, `packages/vite/src/scanners/index.ts:196`).
 
 ## Définitions de types
 
@@ -252,11 +247,6 @@ Exporté par `@gwenjs/vite`.
 
 ```ts
 interface GwenViteOptions {
-  wasm?: {
-    variant?: 'debug' | 'release' | 'auto'
-    wasmPath?: string
-    hmr?: boolean
-  }
   autoImports?: AutoImport[]
   gwenDir?: string
   dts?: boolean

@@ -24,7 +24,7 @@ features:
     details: Construisez votre moteur de jeu progressivement. Ajoutez la physique, le routage et le rendu en tant que plugins.
   - icon: 🔧
     title: Vite-Native
-    details: Intégration Vite native avec auto-imports, routage de scènes et bundling WASM.
+    details: Intégration Vite native avec auto-imports et routage de scènes.
   - icon: 📦
     title: Configuration zéro
     details: Un simple `pnpm create @gwenjs/create my-game` vous donne un jeu fonctionnel en quelques minutes.

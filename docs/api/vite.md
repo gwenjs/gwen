@@ -13,7 +13,7 @@ Vite integration for GWEN. Provides the composite main plugin, an opt-in ECS opt
 
 ## `gwenVitePlugin(options?)`
 
-The main entry point. A composite Vite plugin that wires up WASM bundling, actor/scene hot-reload, auto-imports, TypeScript declarations, layout support, tween helpers, and the optional ECS optimizer — all from a single registration.
+The main entry point. A composite Vite plugin that wires up actor/scene hot-reload, auto-imports, TypeScript declarations, layout support, tween helpers, and the optional ECS optimizer — all from a single registration.
 
 Names are injected by `gwen:transform-pipeline` in both `gwen()` and `gwenVitePlugin()`, matched by import binding.
 
@@ -25,7 +25,6 @@ import { gwenVitePlugin } from '@gwenjs/vite'
 export default defineConfig({
   plugins: [
     gwenVitePlugin({
-      wasm: { variant: 'auto', hmr: true },
       dts: true,
       actors: { dir: 'src/actors', hmr: true },
       optimizer: {
@@ -42,9 +41,6 @@ export default defineConfig({
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `wasm.variant` | `'debug' \| 'release' \| 'auto'` | `'auto'` | WASM build variant to load. `'auto'` picks `release` in production and `debug` in dev. |
-| `wasm.wasmPath` | `string` | — | Override the resolved WASM file path. |
-| `wasm.hmr` | `boolean` | `true` | Enable WASM hot-module replacement in dev. |
 | `autoImports` | `AutoImport[]` | `[]` | Additional auto-import entries injected into the virtual module. |
 | `gwenDir` | `string` | `'.gwen'` | Directory where generated files (dts, virtual modules) are written. |
 | `dts` | `boolean` | `true` | Emit a `gwen.d.ts` type declaration file. |
@@ -237,14 +233,13 @@ Exported from `@gwenjs/vite`.
 
 | Key | Code |
 |---|---|
-| `WASM_NOT_FOUND` | `VITE:WASM_NOT_FOUND` |
 | `OPTIMIZER_UNKNOWN_COMPONENT` | `VITE:OPTIMIZER_UNKNOWN_COMPONENT` |
 | `OPTIMIZER_UNKNOWN_FIELD` | `VITE:OPTIMIZER_UNKNOWN_FIELD` |
 | `SCENE_NAME_UNRESOLVED` | `VITE:SCENE_NAME_UNRESOLVED` |
 | `SCENE_NAME_DUPLICATE` | `VITE:SCENE_NAME_DUPLICATE` |
 | `MAIN_SCENE_UNKNOWN` | `VITE:MAIN_SCENE_UNKNOWN` |
 
-`gwenWasmPlugin` throws `VITE:WASM_NOT_FOUND` when the resolved WASM file is missing. The dev hint says to run `cargo build --target wasm32-unknown-unknown` first. The code generator throws `VITE:OPTIMIZER_UNKNOWN_COMPONENT` for a component missing from the manifest, and `VITE:OPTIMIZER_UNKNOWN_FIELD` for a field the manifest does not list. These throws are `GwenError` values with no `[gwen:wasm]` or `[gwen:optimizer]` tag. The hint is present when `NODE_ENV` is not `production`. `scanScenes` throws `VITE:SCENE_NAME_UNRESOLVED` and `VITE:SCENE_NAME_DUPLICATE`. `resolveMainScene` throws `VITE:MAIN_SCENE_UNKNOWN`. Those three hints are present when `process.env["NODE_ENV"]` is not `"production"` (`packages/vite/src/scanners/index.ts:142`, `packages/vite/src/scanners/index.ts:157`, `packages/vite/src/scanners/index.ts:196`).
+The code generator throws `VITE:OPTIMIZER_UNKNOWN_COMPONENT` for a component missing from the manifest, and `VITE:OPTIMIZER_UNKNOWN_FIELD` for a field the manifest does not list. These throws are `GwenError` values with no `[gwen:optimizer]` tag. The hint is present when `NODE_ENV` is not `production`. `scanScenes` throws `VITE:SCENE_NAME_UNRESOLVED` and `VITE:SCENE_NAME_DUPLICATE`. `resolveMainScene` throws `VITE:MAIN_SCENE_UNKNOWN`. Those three hints are present when `process.env["NODE_ENV"]` is not `"production"` (`packages/vite/src/scanners/index.ts:142`, `packages/vite/src/scanners/index.ts:157`, `packages/vite/src/scanners/index.ts:196`).
 
 ## Type Definitions
 
@@ -252,11 +247,6 @@ Exported from `@gwenjs/vite`.
 
 ```ts
 interface GwenViteOptions {
-  wasm?: {
-    variant?: 'debug' | 'release' | 'auto'
-    wasmPath?: string
-    hmr?: boolean
-  }
   autoImports?: AutoImport[]
   gwenDir?: string
   dts?: boolean
