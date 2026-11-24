@@ -5,7 +5,7 @@ import { isRecord } from "../json.js";
 import type { ConformanceFinding } from "../types.js";
 import { callExport, isPlugin, isProvideCode, thrownCode } from "./call-factory.js";
 import { FRAMEWORK_PLUGIN_NAMES } from "./framework-plugin-names.js";
-import { installProviders, sameNames, thrownMessage } from "./lifecycle.js";
+import { installPrerequisites, installProviders, sameNames, thrownMessage } from "./lifecycle.js";
 import { withEngine } from "./open-engine.js";
 import type { PluginConformanceSpec, PluginFactorySpec, RuntimeCheckContext } from "./types.js";
 
@@ -45,6 +45,23 @@ function allowedNames(context: RuntimeCheckContext): ReadonlySet<string> {
   return allowed;
 }
 
+/** Object entries `{ name, extensionApi }`, by `name`. Strings stay in {@link requiredPluginNames}. */
+function objectRequirementNames(plugin: GwenPlugin): string[] {
+  const requires: unknown = plugin.requires;
+  if (!isRecord(requires)) return [];
+  const plugins: unknown = requires.plugins;
+  if (!Array.isArray(plugins)) return [];
+  const names: string[] = [];
+  for (const entry of plugins) {
+    if (!isRecord(entry)) continue;
+    if (!Object.hasOwn(entry, "extensionApi")) continue;
+    const name: unknown = entry.name;
+    if (typeof name !== "string" || name.length === 0) continue;
+    names.push(name);
+  }
+  return names;
+}
+
 function foreignPluginNames(
   spec: PluginConformanceSpec,
   plugin: GwenPlugin,
@@ -55,7 +72,21 @@ function foreignPluginNames(
   for (const name of requiredPluginNames(plugin)) {
     if (!allowed.has(name)) foreign.push(name);
   }
+  for (const name of objectRequirementNames(plugin)) {
+    if (allowed.has(name) || foreign.includes(name)) continue;
+    foreign.push(name);
+  }
   return foreign;
+}
+
+/** R2 does not install bases. A second use of an installed name would be a no-op. */
+function r2InstallsBases(): boolean {
+  return false;
+}
+
+async function installForRequires(engine: GwenEngine, context: RuntimeCheckContext): Promise<void> {
+  await installProviders(engine, context.spec);
+  if (r2InstallsBases()) await installPrerequisites(engine, context);
 }
 
 /** A plugin name outside `allowed` is left out: the official rule names it. */
@@ -158,7 +189,7 @@ async function checkOne(
   const foreign = foreignPluginNames(spec, plugin, allowed);
   if (foreign.length > 0) return [foreignPlugin(spec, factory, foreign)];
   return withEngine(spec, async (open) => {
-    await installProviders(open.engine, spec);
+    await installForRequires(open.engine, context);
     await installSiblings(context, plugin, factory.export, open.engine);
     const baseline = open.engine.getStats().plugins;
     try {
@@ -182,7 +213,9 @@ async function checkOne(
  * R2. Install `frameworkProviders`, then a sibling factory of this package
  * when `requires.plugins` names it, then `use`. The installed plugins must be
  * that baseline plus the plugin name. An official plugin may name only this
- * package or `FRAMEWORK_PLUGIN_NAMES`. A community plugin ignores other names.
+ * package or `FRAMEWORK_PLUGIN_NAMES`. An object entry `{ name, extensionApi }`
+ * counts by `name` for that rule. `requiredPluginNames` still keeps only strings.
+ * A community plugin ignores other names.
  * A `use` rejection that is not the dependency code and not a provide code
  * is one finding.
  */
