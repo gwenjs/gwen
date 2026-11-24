@@ -2,6 +2,7 @@ import { compareFindings } from "../sort-findings.js";
 import type { ConformanceFinding } from "../types.js";
 import { checkComposable } from "./check-composable.js";
 import { checkFrames } from "./check-frames.js";
+import { checkHooks } from "./check-hooks.js";
 import { checkModule } from "./check-module.js";
 import { checkOptions } from "./check-options.js";
 import { checkProvides } from "./check-provides.js";
@@ -19,12 +20,17 @@ function sorted(findings: readonly ConformanceFinding[]): ConformanceFinding[] {
   return [...findings].sort(compareFindings);
 }
 
+/** A fresh findings list for one run. */
+function newFindings(): ConformanceFinding[] {
+  return [];
+}
+
 /**
  * Validate `spec`, load the built package, then run shape, requires, provides,
- * frames, remove, reentry, two-engines, stop, options, module, and composable.
+ * frames, remove, reentry, two-engines, stop, options, module, hooks, and composable.
  * Options runs only when a factory sets `invalidOptions`.
  * Module runs only when the loader resolved `exports["./module"]`.
- * Composable runs once per package.
+ * Hooks runs once per factory. Composable runs once per package.
  * An invalid spec, or a package that cannot be loaded, returns no checks.
  */
 export async function runPluginConformance(
@@ -49,7 +55,8 @@ export async function runPluginConformance(
     "two-engines",
     "stop",
   ];
-  const findings: ConformanceFinding[] = [
+  const findings = newFindings();
+  findings.push(
     ...(await checkShape(context)),
     ...(await checkRequires(context)),
     ...(await checkProvides(context)),
@@ -58,7 +65,7 @@ export async function runPluginConformance(
     ...(await checkReentry(context)),
     ...(await checkTwoEngines(context)),
     ...(await checkStop(context)),
-  ];
+  );
   const withInvalidOptions = spec.factories.filter(
     (factory) => factory.invalidOptions !== undefined,
   );
@@ -70,7 +77,10 @@ export async function runPluginConformance(
     findings.push(...(await checkModule(context, loaded.moduleFile)));
     checks.push("module");
   }
+  await checkHooks(context, findings);
+  checks.push("hooks");
   findings.push(...(await checkComposable(context)));
   checks.push("composable");
-  return { checks, findings: sorted(findings) };
+  findings.sort(compareFindings);
+  return { checks, findings };
 }

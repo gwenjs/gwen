@@ -4,6 +4,7 @@ import { ConformanceErrorCodes } from "../error-codes.js";
 import { isRecord } from "../json.js";
 import type { ConformanceFinding } from "../types.js";
 import { callExport, isPlugin } from "./call-factory.js";
+import { advanceFrames } from "./lifecycle.js";
 import { withEngine } from "./open-engine.js";
 import { runtimeFinding } from "./spec.js";
 import type { PluginConformanceSpec, RuntimeCheckContext } from "./types.js";
@@ -139,8 +140,7 @@ async function checkOne(
         ];
       }
     }
-    const frames = spec.frames ?? 3;
-    await open.advance(frames, 1 / 60);
+    await advanceFrames(open, spec);
     return collect(stamped, open.logs);
   });
 }
