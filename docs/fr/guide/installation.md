@@ -50,7 +50,7 @@ import { gwen } from '@gwenjs/vite'
 
 export default defineConfig({
   plugins: [
-    gwen({ cratePath: '../crates/gwen-core' }),
+    gwen(),
   ],
 })
 ```

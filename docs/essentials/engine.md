@@ -79,7 +79,7 @@ Vite is a separate stack. The GWEN base comes first, then extenders registered b
 | `APP:CONFIG_LOAD_FAILED` | `[GWEN] No gwen.config.ts (or .js / .mjs / .cjs) found in <cwd>.` and `See https://gwenjs.github.io/gwen/api/errors#app-config-load-failed (APP:CONFIG_LOAD_FAILED)` |
 | `CORE:INVALID_CONFIG` | `Invalid config "maxEntities": -1.` |
 
-Sources: `packages/app/src/app.ts:459`, `packages/app/src/config.ts:79-91`, `packages/app/src/config.ts:93-99`, `packages/vite/src/index.ts:491-513`, `packages/app/src/app.ts:200-202`, `packages/app/src/app.ts:257`, `packages/app/src/merge.ts:21-22`, `packages/app/src/config-error.ts:14-22`, `packages/app/tests/config-layering.test.ts:128-130`, `packages/app/tests/config-layering.test.ts:133-138`, `packages/app/tests/config-layering.test.ts:541-549`, `packages/app/tests/config-layering.test.ts:154-157`, `packages/app/src/config-loader.ts:118`, `packages/app/tests/config-loader.test.ts:123-126`, `packages/core/src/engine/config-error.ts:30`, `packages/core/tests/engine/config-validator.test.ts:33`.
+Sources: `packages/app/src/app.ts:459`, `packages/app/src/config.ts:79-91`, `packages/app/src/config.ts:93-99`, `packages/vite/src/index.ts:134-166`, `packages/app/src/app.ts:200-202`, `packages/app/src/app.ts:257`, `packages/app/src/merge.ts:21-22`, `packages/app/src/config-error.ts:14-22`, `packages/app/tests/config-layering.test.ts:128-130`, `packages/app/tests/config-layering.test.ts:133-138`, `packages/app/tests/config-layering.test.ts:541-549`, `packages/app/tests/config-layering.test.ts:154-157`, `packages/app/src/config-loader.ts:118`, `packages/app/tests/config-loader.test.ts:123-126`, `packages/core/src/engine/config-error.ts:30`, `packages/core/tests/engine/config-validator.test.ts:33`.
 
 ## Extending Vite
 
@@ -409,7 +409,7 @@ The `GwenCoreGlueFactoryModule` import only types the helper. Real code passes `
 
 `wasmInstance: "isolated"` gives each engine its own WASM instance and linear memory. To compile once and share the result, pass `wasmModule: await WebAssembly.compile(wasmBytes)` instead of `wasmBytes`. Use `variant: "physics2d"` or `"physics3d"` with the matching `@gwenjs/core/wasm/<variant>/factory` import.
 
-`engine.loadWasmModule({ name, bytes })` loads a community module in a server with no fetch. Pass `module` for a compiled `WebAssembly.Module`. Pass exactly one of `url`, `bytes` or `module`. Zero or several, or invalid bytes, reject with `CORE:WASM_LOAD_ERROR`.
+`engine.loadWasmModule({ name, bytes })` loads a community module in a server with no fetch. Pass `module` for a compiled `WebAssembly.Module`. Pass exactly one of `url`, `bytes` or `module`. Zero or several, or invalid bytes, reject with `CORE:WASM_LOAD_ERROR`. A `url` source is yours to serve: the Vite plugin no longer serves `/wasm/` and no longer copies plugin wasm. Point `url` at `new URL("./x.wasm", import.meta.url)`.
 
 ### Many rooms on worker threads
 
