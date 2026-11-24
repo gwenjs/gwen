@@ -71,7 +71,7 @@ const SENTINELS = [
   "isolated after",
   "is ignored.",
   "__routerName__",
-  // The injector writes single quotes. Oxc reprints them as double quotes.
+  // The name unit writes double quotes.
   '__layoutName__: "Level1"',
   "__GWEN_DEV__",
   "import.meta.env",
@@ -191,11 +191,11 @@ console.log(devHints());
   );
   writeFileSync(
     join(dir, "src", "layouts", "level.ts"),
-    `export const Level1 = defineLayout(() => {});\n`,
+    `import { defineLayout } from "@gwenjs/core/actor";\nexport const Level1 = defineLayout(() => {});\n`,
   );
   writeFileSync(
     join(dir, "src", "router.ts"),
-    `export const AppRouter = defineSceneRouter({ initial: "menu" });\n`,
+    `import { defineSceneRouter } from "@gwenjs/core/scene";\nexport const AppRouter = defineSceneRouter({ initial: "menu" });\n`,
   );
 }
 

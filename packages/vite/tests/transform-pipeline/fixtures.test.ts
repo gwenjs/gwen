@@ -105,6 +105,73 @@ it("idempotent", async () => {
   }
 });
 
+function indentWidth(line: string): number {
+  let index = 0;
+  while (index < line.length) {
+    const char = line.charCodeAt(index);
+    if (char !== 32 && char !== 9) break;
+    index += 1;
+  }
+  return index;
+}
+
+function objectAssignLines(code: string): string[] {
+  const lines: string[] = [];
+  for (const line of code.split("\n")) {
+    if (line.includes("Object.assign(")) lines.push(line);
+  }
+  return lines;
+}
+
+const NAME_CALLEES = [
+  "defineLayout",
+  "defineSceneRouter",
+  "make",
+  "real",
+  "G.defineLayout",
+  "G.defineSceneRouter",
+];
+
+function followedByCallee(line: string): boolean {
+  const at = line.indexOf("Object.assign(");
+  if (at < 0) return false;
+  const after = line.slice(at + "Object.assign(".length);
+  for (const callee of NAME_CALLEES) {
+    if (after.startsWith(callee)) return true;
+  }
+  return false;
+}
+
+it("layout-name and scene-router-name append one guarded statement per name and never wrap the call", async () => {
+  const units = ["layout-name", "scene-router-name"];
+  let checked = 0;
+  for (const unit of units) {
+    const root = join(fixturesRoot, unit);
+    const dirs = readdirSync(root, { withFileTypes: true }).filter((entry) => entry.isDirectory());
+    for (const entry of dirs) {
+      const dir = join(root, entry.name);
+      if (!isFixtureCase(dir)) continue;
+      const fixture = fixtureCase(dir);
+      const output = fixture.output;
+      if (typeof output !== "string") continue;
+      checked += 1;
+      const settled = await runCase(dir, fixture.input, unit);
+      const label = `${unit}/${entry.name}`;
+      expect(settled?.code, label).toBe(output);
+      const code = settled?.code ?? "";
+      const lines = objectAssignLines(code);
+      for (const line of lines) {
+        const body = line.slice(indentWidth(line));
+        expect(body.startsWith("__GWEN_DEV__ && Object.assign("), label).toBe(true);
+        expect(body.endsWith("});"), label).toBe(true);
+        expect(followedByCallee(line), label).toBe(false);
+      }
+      expect(lines.length, label).toBe(objectAssignLines(output).length);
+    }
+  }
+  expect(checked).toBe(28);
+});
+
 /**
  * 1-based line, 0-based column. `lineColumn` is 1-based
  * (`packages/vite/src/pipeline/parse.ts:29-42`); `loc.column` subtracts 1
