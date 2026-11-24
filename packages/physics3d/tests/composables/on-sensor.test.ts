@@ -3,6 +3,7 @@ import { createEngine } from "@gwenjs/core/node";
 import { defineComponent, GwenContextError, Types, type GwenEngine } from "@gwenjs/core";
 import { defineActor, definePrefab } from "@gwenjs/core/actor";
 import { createRealEngine } from "../../../core/src/testing/create-real-engine.ts";
+import { createSensorRegistry } from "@gwenjs/physics-core";
 import { Physics3DPlugin } from "../../src/plugin/index";
 import "../../src/augment";
 import {
@@ -141,6 +142,63 @@ describe("onSensorEnter / onSensorExit", () => {
     const unregister = onSensorExit(99, () => {});
     unregister();
     expect(() => unregister()).not.toThrow();
+  });
+
+  it("onSensorEnter receives an enter emitted through the physics-core sensor registry", () => {
+    const entity = engine.createEntity();
+    const received: bigint[] = [];
+    onSensorEnter(10, (id) => {
+      received.push(id);
+    });
+    createSensorRegistry().get(engine).emit(10, entity, "enter");
+    expect(received).toHaveLength(1);
+    expect(received[0]).toBe(entity);
+  });
+
+  it("onSensorExit receives an exit emitted through the physics-core sensor registry", () => {
+    const entity = engine.createEntity();
+    const received: bigint[] = [];
+    onSensorExit(20, (id) => {
+      received.push(id);
+    });
+    createSensorRegistry().get(engine).emit(20, entity, "exit");
+    expect(received).toHaveLength(1);
+    expect(received[0]).toBe(entity);
+  });
+
+  it("a sensor callback that unsubscribes itself during dispatch does not skip the next callback", () => {
+    const entity = engine.createEntity();
+    const order: string[] = [];
+    let dropA: () => void = () => undefined;
+    dropA = onSensorEnter(11, () => {
+      order.push("A");
+      dropA();
+    });
+    onSensorEnter(11, () => {
+      order.push("B");
+    });
+    _dispatchSensorEnter(11, entity);
+    expect(order).toEqual(["A", "B"]);
+    _dispatchSensorEnter(11, entity);
+    expect(order).toEqual(["A", "B", "B"]);
+  });
+
+  it("scoped and unscoped callbacks of one sensor run in registration order", async () => {
+    const order: string[] = [];
+    const Tag = defineComponent({ name: "P3SensorOrderG1", schema: { x: Types.f32 } });
+    const Prefab = definePrefab([{ def: Tag, defaults: { x: 0 } }]);
+    const Actor = defineActor(Prefab, () => {
+      onSensorEnter(8, () => {
+        order.push("scoped");
+      });
+    });
+    onSensorEnter(8, () => {
+      order.push("unscoped");
+    });
+    await engine.use(Actor._plugin);
+    const id = engine.run(() => Actor._plugin.spawn());
+    _dispatchSensorEnter(8, id);
+    expect(order).toEqual(["unscoped", "scoped"]);
   });
 });
 
