@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import type { PluginConformanceSpec } from "@gwenjs/plugin-conformance/runtime";
 import { describe, expect, it } from "vitest";
 import { registerPluginConformance } from "../../src/run-plugin-conformance-suite.js";
+import { writeBasePackage, writeExtensionPackage } from "../helpers/extension-runtime.js";
 import { withPrivateTmpdir } from "../helpers/fixture.js";
 import { factorySource, spec, writePluginPackage } from "../helpers/runtime.js";
 
@@ -239,6 +240,117 @@ describe("registerPluginConformance", () => {
       const messages: string[] = [];
       for (const row of rows) messages.push((await thrownMessage(row)) ?? "");
       expect(messages.every((message) => message.includes("CONFORMANCE:INVALID_SPEC"))).toBe(true);
+    });
+  });
+
+  it("registers the extension rows for a package with spec.bases", async () => {
+    const plainNames = [
+      "R1 shape (Alpha)",
+      "R1 shape (Beta)",
+      "R2 installs alone (Alpha)",
+      "R2 installs alone (Beta)",
+      "R3 provides (Alpha)",
+      "R3 provides (Beta)",
+      "R4 quiet frames (Alpha)",
+      "R4 quiet frames (Beta)",
+      "R5 remove (Alpha)",
+      "R5 remove (Beta)",
+      "R6 re-entry (Alpha)",
+      "R6 re-entry (Beta)",
+      "R7 two engines (Alpha)",
+      "R7 two engines (Beta)",
+      "R8 stop (Alpha)",
+      "R8 stop (Beta)",
+      "R9 options (Beta)",
+      "R10 module",
+      "R11 hooks (Alpha)",
+      "R11 hooks (Beta)",
+      "R12 composable surface",
+    ];
+    const extensionNames = [
+      ...plainNames.slice(0, 18),
+      "RX1-RX5 extension (Alpha)",
+      "RX1-RX5 extension (Beta)",
+      "RX6 requirement form (Alpha)",
+      "RX6 requirement form (Beta)",
+      "RB1 base surface (Alpha)",
+      "RB1 base surface (Beta)",
+      ...plainNames.slice(18),
+    ];
+
+    await withPrivateTmpdir(async (dir) => {
+      const packageName = "@fixture/extension-rows";
+      await writePluginPackage(dir, {
+        name: packageName,
+        exports: {
+          ".": { import: "./dist/index.js" },
+          "./module": { import: "./dist/module.js" },
+          "./extension": { import: "./dist/extension.js" },
+        },
+        files: {
+          "dist/index.js": `${factorySource("Alpha")}${factorySource("Beta")}`,
+          "dist/module.js": 'export default { meta: { name: "pkg" }, defaults: {}, setup() {} };\n',
+          "dist/extension.js": "export const ready = true;\n",
+        },
+      });
+      const { rows } = record(
+        spec({
+          root: dir,
+          packageName,
+          factories: [{ export: "Alpha" }, { export: "Beta", invalidOptions: { speed: -1 } }],
+          bases: [{ packageName: "fixture-base", export: "Base" }],
+        }),
+      );
+      expect(rows.map((row) => row.name)).toEqual(extensionNames);
+    });
+
+    await withPrivateTmpdir(async (dir) => {
+      const packageName = "@fixture/plain-rows";
+      await writePluginPackage(dir, {
+        name: packageName,
+        exports: {
+          ".": { import: "./dist/index.js" },
+          "./module": { import: "./dist/module.js" },
+        },
+        files: {
+          "dist/index.js": `${factorySource("Alpha")}${factorySource("Beta")}`,
+          "dist/module.js": 'export default { meta: { name: "pkg" }, defaults: {}, setup() {} };\n',
+        },
+      });
+      const { rows } = record(
+        spec({
+          root: dir,
+          packageName,
+          factories: [{ export: "Alpha" }, { export: "Beta", invalidOptions: { speed: -1 } }],
+        }),
+      );
+      expect(rows.map((row) => row.name)).toEqual(plainNames);
+    });
+  });
+
+  it("a finding of an extension check fails its own row only", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      await writeBasePackage(dir, { name: "fixture-base" });
+      await writeExtensionPackage(dir, {
+        name: "fixture-ext",
+        gwen: { extends: ["fixture-base"] },
+        sourceOptions: { requiresPlugins: "object", setup: "leak" },
+      });
+      const { rows } = record(
+        spec({
+          root: dir,
+          packageName: "fixture-ext",
+          bases: [{ packageName: "fixture-base", export: "Base" }],
+        }),
+      );
+      const thrown: { readonly name: string; readonly message: string }[] = [];
+      for (const row of rows) {
+        const message = await thrownMessage(row);
+        if (message !== undefined) thrown.push({ name: row.name, message });
+      }
+      expect(thrown.map((entry) => entry.name)).toEqual(["RX1-RX5 extension (Plugin)"]);
+      const extension = thrown.find((entry) => entry.name === "RX1-RX5 extension (Plugin)");
+      expect(extension?.message).toContain("CONFORMANCE:RUNTIME_EXTENSION");
     });
   });
 });
