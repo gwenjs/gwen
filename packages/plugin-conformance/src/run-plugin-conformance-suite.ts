@@ -17,7 +17,7 @@ interface FactoryRow {
   readonly title: string;
 }
 
-/** Per-factory rows, in check order. Options, module, hooks, and composable follow. */
+/** Per-factory rows, in check order. Options, module, extension rows, hooks, and composable follow. */
 const FACTORY_ROWS: readonly FactoryRow[] = [
   { id: "shape", title: "R1 shape" },
   { id: "requires", title: "R2 installs alone" },
@@ -30,6 +30,9 @@ const FACTORY_ROWS: readonly FactoryRow[] = [
 ];
 
 const OPTIONS_ROW: FactoryRow = { id: "options", title: "R9 options" };
+const EXTENSION_ROW: FactoryRow = { id: "extension", title: "RX1-RX5 extension" };
+const REQUIREMENT_FORM_ROW: FactoryRow = { id: "requirement-form", title: "RX6 requirement form" };
+const BASE_SURFACE_ROW: FactoryRow = { id: "base-surface", title: "RB1 base surface" };
 const HOOKS_ROW: FactoryRow = { id: "hooks", title: "R11 hooks" };
 
 /** Factories the rows walk. One place, so a registration change hits every row. */
@@ -55,9 +58,32 @@ function moduleSubpathPresent(spec: PluginConformanceSpec): boolean {
 }
 
 /**
+ * True when `package.json` at `spec.root` (or the process working directory)
+ * has an `exports["./extension"]` key (`packages/plugin-conformance/src/runtime/package-manifest.ts:138`).
+ */
+function extensionSubpathPresent(spec: PluginConformanceSpec): boolean {
+  try {
+    const text = readFileSync(path.join(runtimeRoot(spec), "package.json"), "utf8");
+    const parsed: unknown = JSON.parse(text);
+    if (!isRecord(parsed)) return false;
+    const exportsValue: unknown = parsed.exports;
+    if (!isRecord(exportsValue)) return false;
+    return Object.hasOwn(exportsValue, "./extension");
+  } catch {
+    return false;
+  }
+}
+
+/** `extension` and `requirement-form` run only when `spec.bases` is non-empty. */
+function basesListed(spec: PluginConformanceSpec): boolean {
+  const bases = spec.bases;
+  return bases !== undefined && bases.length > 0;
+}
+
+/**
  * One check. `messages` are `code: message` lines.
  * The expect message is those lines, so a thrown failure names them
- * (`packages/plugin-conformance/tests/runtime/vitest.test.ts:37`).
+ * (`packages/plugin-conformance/tests/runtime/vitest.test.ts:38`).
  */
 async function assertCheck(
   spec: PluginConformanceSpec,
@@ -97,6 +123,20 @@ export function registerPluginConformance(spec: PluginConformanceSpec, api: RowA
     }
     if (moduleSubpathPresent(spec)) {
       api.it("R10 module", () => assertCheck(spec, "module"));
+    }
+    // Brief row order: RX1-RX5, then RX6, then RB1.
+    if (basesListed(spec)) {
+      for (const factory of listedFactories(spec)) {
+        registerFactoryRow(api, spec, EXTENSION_ROW, factory);
+      }
+      for (const factory of listedFactories(spec)) {
+        registerFactoryRow(api, spec, REQUIREMENT_FORM_ROW, factory);
+      }
+    }
+    if (extensionSubpathPresent(spec)) {
+      for (const factory of listedFactories(spec)) {
+        registerFactoryRow(api, spec, BASE_SURFACE_ROW, factory);
+      }
     }
     for (const factory of listedFactories(spec)) {
       registerFactoryRow(api, spec, HOOKS_ROW, factory);
