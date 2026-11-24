@@ -169,11 +169,82 @@ describe("runPluginConformance requires", () => {
           official: false,
         }),
       );
-      const named = findingsWithCode(report, ConformanceErrorCodes.RUNTIME_REQUIRES).filter(
-        (finding) => finding.message.includes("@other/plugin"),
-      );
-      expect(named).toEqual([]);
+      expect(report.findings).toEqual([]);
       expect(report.checks).toEqual(ranChecks());
+    });
+  });
+
+  it("reports a plugin whose setup throws when installed alone", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      await writePluginPackage(dir, {
+        name: "@fixture/setup-throws",
+        files: {
+          "dist/index.js":
+            'export function Plugin() {\n  return { name: "setup-throws", setup() { throw new Error("boom"); } };\n}\n',
+        },
+      });
+      const report = await runPluginConformance(
+        spec({ root: dir, packageName: "@fixture/setup-throws" }),
+      );
+      expect(report.findings).toEqual([
+        expect.objectContaining({
+          code: ConformanceErrorCodes.RUNTIME_REQUIRES,
+          message: expect.stringContaining("boom"),
+        }),
+      ]);
+    });
+  });
+
+  it("treats an @gwenjs/ package without official as official", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      await writePluginPackage(dir, {
+        name: "@gwenjs/x",
+        files: {
+          "dist/index.js":
+            'export function Plugin() {\n  return { name: "x", requires: { plugins: ["@other/plugin"] }, setup() {} };\n}\n',
+        },
+      });
+      const report = await runPluginConformance(spec({ root: dir, packageName: "@gwenjs/x" }));
+      const findings = findingsWithCode(report, ConformanceErrorCodes.RUNTIME_REQUIRES);
+      expect(findings).toHaveLength(1);
+      expect(findings[0]?.message).toContain("@other/plugin");
+      expect(report.checks).toContain("requires");
+    });
+  });
+
+  it("treats a non-@gwenjs package without official as community", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      await writePluginPackage(dir, {
+        name: "@fixture/x",
+        files: {
+          "dist/index.js":
+            'export function Plugin() {\n  return { name: "x", requires: { plugins: ["@other/plugin"] }, setup() {} };\n}\n',
+        },
+      });
+      const report = await runPluginConformance(spec({ root: dir, packageName: "@fixture/x" }));
+      expect(report.findings).toEqual([]);
+      expect(report.checks).toContain("requires");
+    });
+  });
+
+  it("accepts an official plugin that requires a plugin of the same package", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      await writePluginPackage(dir, {
+        name: "@fixture/siblings",
+        files: {
+          "dist/index.js":
+            'export function A() {\n  return { name: "a", setup() {} };\n}\nexport function B() {\n  return { name: "b", requires: { plugins: ["a"] }, setup() {} };\n}\n',
+        },
+      });
+      const report = await runPluginConformance(
+        spec({
+          root: dir,
+          packageName: "@fixture/siblings",
+          official: true,
+          factories: [{ export: "A" }, { export: "B" }],
+        }),
+      );
+      expect(report.findings).toEqual([]);
     });
   });
 });

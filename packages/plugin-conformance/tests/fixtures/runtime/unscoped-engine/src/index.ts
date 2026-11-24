@@ -12,6 +12,10 @@ declare module "@gwenjs/schema" {
 // packages/core/src/engine/hook-tracker.ts:27,
 // packages/core/src/engine/gwen-engine.ts:237).
 
+export function Good() {
+  return { name: "good", setup() {} };
+}
+
 export function LeakHook() {
   return {
     name: "unscoped-hook",

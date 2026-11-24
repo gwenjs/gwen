@@ -50,4 +50,33 @@ describe("runPluginConformance load", () => {
       expect(findings[0]?.message).toContain("Good");
     });
   });
+
+  it("rejects an import target under src", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      await writePluginPackage(dir, {
+        name: "@fixture/plugin",
+        exports: { ".": { import: "./src/index.js" } },
+        files: { "src/index.js": factorySource("Plugin") },
+      });
+      const report = await runPluginConformance(spec({ root: dir }));
+      const findings = findingsWithCode(report, ConformanceErrorCodes.INVALID_SPEC);
+      expect(report.checks).toEqual([]);
+      expect(findings).toHaveLength(1);
+      expect(findings[0]?.message).toContain("is under src");
+    });
+  });
+
+  it("reports an entry that fails to import", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      await writePluginPackage(dir, {
+        name: "@fixture/plugin",
+        files: { "dist/index.js": "export function Plugin(\n" },
+      });
+      const report = await runPluginConformance(spec({ root: dir }));
+      const findings = findingsWithCode(report, ConformanceErrorCodes.INVALID_SPEC);
+      expect(report.checks).toEqual([]);
+      expect(findings).toHaveLength(1);
+      expect(findings[0]?.message).toContain("could not be loaded");
+    });
+  });
 });

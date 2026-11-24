@@ -1,6 +1,9 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { createViewportsPlugin } from "@gwenjs/app";
+import { CameraCorePlugin } from "@gwenjs/camera-core";
+import { CoreErrorCodes } from "@gwenjs/core";
 import { ConformanceErrorCodes } from "@gwenjs/plugin-conformance";
 import { runPluginConformance } from "@gwenjs/plugin-conformance/runtime";
 import { withPrivateTmpdir } from "../helpers/fixture.js";
@@ -31,6 +34,9 @@ describe("runPluginConformance options", () => {
       );
       const findings = findingsWithCode(report, ConformanceErrorCodes.RUNTIME_OPTIONS);
       expect(findings).toHaveLength(1);
+      expect(findings[0]?.message).toBe(
+        `"@fixture/open-options" export "Plugin" installed instead of rejecting with ${CoreErrorCodes.PLUGIN_OPTIONS_INVALID}`,
+      );
       expect(report.checks).toEqual(ranChecks({ options: true }));
     });
   });
@@ -61,6 +67,84 @@ describe("runPluginConformance options", () => {
         spec({ root: dir, packageName: "@fixture/no-invalid-options" }),
       );
       expect(report.checks).toEqual(ranChecks());
+      expect(report.findings).toEqual([]);
+    });
+  });
+
+  it("passes factory options to every check", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      await writePluginPackage(dir, {
+        name: "@fixture/reads-options",
+        files: {
+          "dist/index.js":
+            'export function Plugin(options) {\n  if (options === undefined || options.k !== 1) throw new Error("options");\n  return { name: "reads-options", setup() {} };\n}\n',
+        },
+      });
+      const report = await runPluginConformance(
+        spec({
+          root: dir,
+          packageName: "@fixture/reads-options",
+          factories: [{ export: "Plugin", options: { k: 1 } }],
+        }),
+      );
+      expect(report.findings).toEqual([]);
+    });
+  });
+
+  it("reports invalid options rejected with another code", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      await writePluginPackage(dir, {
+        name: "@fixture/bad-options",
+        files: {
+          "dist/index.js":
+            'export function Plugin() {\n  return { name: "bad-options", setup() { throw new Error("options-rejected"); } };\n}\n',
+        },
+      });
+      const report = await runPluginConformance(
+        spec({
+          root: dir,
+          packageName: "@fixture/bad-options",
+          factories: [{ export: "Plugin", invalidOptions: { speed: -1 } }],
+        }),
+      );
+      const findings = findingsWithCode(report, ConformanceErrorCodes.RUNTIME_OPTIONS);
+      expect(findings).toHaveLength(1);
+      expect(findings[0]?.message).toContain("Plugin");
+      expect(findings[0]?.message).toContain("options-rejected");
+      expect(findings[0]?.message).not.toContain("installed instead of rejecting");
+    });
+  });
+
+  it("installs frameworkProviders before the options check", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      await writePluginPackage(dir, {
+        name: "@fixture/camera-options",
+        files: {
+          "dist/index.js": `export function Plugin(options) {
+  return {
+    name: "camera-options",
+    requires: { plugins: ["camera-core"] },
+    validateOptions() {
+      const speed = options === undefined || options === null ? 0 : options.speed;
+      if (typeof speed === "number" && speed < 0) {
+        return [{ path: "speed", expected: "a number greater than or equal to 0", received: String(speed), owner: "camera-options" }];
+      }
+      return [];
+    },
+    setup() {},
+  };
+}
+`,
+        },
+      });
+      const report = await runPluginConformance(
+        spec({
+          root: dir,
+          packageName: "@fixture/camera-options",
+          factories: [{ export: "Plugin", invalidOptions: { speed: -1 } }],
+          frameworkProviders: [createViewportsPlugin, CameraCorePlugin],
+        }),
+      );
       expect(report.findings).toEqual([]);
     });
   });

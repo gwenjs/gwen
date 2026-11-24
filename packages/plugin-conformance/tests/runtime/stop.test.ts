@@ -31,8 +31,34 @@ describe("runPluginConformance stop", () => {
       }),
     );
     const findings = findingsWithCode(report, ConformanceErrorCodes.RUNTIME_TEARDOWN);
-    expect(findings).toHaveLength(1);
+    const message = findings[0]?.message ?? "";
+    const matched =
+      /^plugin "unscoped-hook" left 1 hook listeners after stop \(baseline (\d+), after (\d+)\)$/.exec(
+        message,
+      );
+    const baseline = matched?.[1];
+    const after = matched?.[2];
+    expect(baseline).toBeDefined();
+    expect(after).toBeDefined();
+    expect(Number(after)).toBe(Number(baseline) + 1);
+    expect(message).toBe(
+      `plugin "unscoped-hook" left 1 hook listeners after stop (baseline ${baseline}, after ${after})`,
+    );
     expect(report.checks).toEqual(ranChecks());
+  });
+
+  it("reports a service provided on a captured unscoped engine that survives stop", async () => {
+    const report = await runPluginConformance(
+      spec({
+        root: unscopedRoot,
+        packageName: "@fixture/unscoped-engine",
+        factories: [{ export: "LeakProvide" }],
+      }),
+    );
+    const findings = findingsWithCode(report, ConformanceErrorCodes.RUNTIME_TEARDOWN);
+    expect(findings.map((finding) => finding.message)).toEqual([
+      'plugin "unscoped-provide" left service "leakKey" injectable after stop',
+    ]);
   });
 
   it("accepts a plugin that releases its hooks on stop", async () => {

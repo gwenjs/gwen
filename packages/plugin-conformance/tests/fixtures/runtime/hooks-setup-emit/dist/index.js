@@ -10,3 +10,15 @@ export function Plugin() {
     },
   };
 }
+
+// Twin of src/index.ts. EachFrame emits myplug:each on every engine:update.
+export function EachFrame() {
+  return {
+    name: "each-frame",
+    setup(engine) {
+      engine.hooks.hook("engine:update", () => {
+        emit("myplug:each");
+      });
+    },
+  };
+}

@@ -90,4 +90,59 @@ describe("runPluginConformance shape", () => {
       expect(report.checks).toEqual(ranChecks());
     });
   });
+
+  it("reports a factory export that is not a function", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      await writePluginPackage(dir, {
+        name: "@fixture/not-fn",
+        files: { "dist/index.js": "export const Plugin = 42;\n" },
+      });
+      const report = await runPluginConformance(
+        spec({ root: dir, packageName: "@fixture/not-fn" }),
+      );
+      expect(report.findings.map((finding) => finding.code)).toEqual([
+        ConformanceErrorCodes.RUNTIME_SHAPE,
+      ]);
+      expect(report.findings[0]?.message).toContain("Plugin");
+    });
+  });
+
+  it("reports a factory that returns a non-plugin value", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      await writePluginPackage(dir, {
+        name: "@fixture/not-plugin",
+        files: { "dist/index.js": "export function Plugin() {\n  return null;\n}\n" },
+      });
+      const report = await runPluginConformance(
+        spec({ root: dir, packageName: "@fixture/not-plugin" }),
+      );
+      expect(report.findings.map((finding) => finding.code)).toEqual([
+        ConformanceErrorCodes.RUNTIME_SHAPE,
+      ]);
+      expect(report.findings[0]?.message).toContain("Plugin");
+    });
+  });
+
+  it("reports a factory that throws", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      await writePluginPackage(dir, {
+        name: "@fixture/factory-throws",
+        files: {
+          "dist/index.js": 'export function Plugin() {\n  throw new Error("factory boom");\n}\n',
+        },
+      });
+      await expect(
+        runPluginConformance(spec({ root: dir, packageName: "@fixture/factory-throws" })),
+      ).resolves.toEqual(
+        expect.objectContaining({
+          findings: [
+            expect.objectContaining({
+              code: ConformanceErrorCodes.RUNTIME_SHAPE,
+              message: expect.stringMatching(/Plugin[\s\S]*factory boom/),
+            }),
+          ],
+        }),
+      );
+    });
+  });
 });

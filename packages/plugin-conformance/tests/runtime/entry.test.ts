@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const runtimeEntry = path.join(packageRoot, "src/runtime.ts");
-const runtimeDir = path.join(packageRoot, "src/runtime");
+const srcDir = path.join(packageRoot, "src");
 
 const SPECIFIER = /(?:from|import)\s*(?:\(\s*)?["']([^"']+)["']/g;
 
@@ -21,7 +21,7 @@ function resolveSpecifier(fromFile: string, specifier: string): string | undefin
   return candidates.find((candidate) => existsSync(candidate));
 }
 
-/** `src/runtime.ts` plus every file it reaches under `src/runtime/`, and their specifiers. */
+/** `src/runtime.ts` plus every relative import it reaches under `src`, and their specifiers. */
 function scanRuntimeEntry(): {
   readonly files: readonly string[];
   readonly specifiers: readonly string[];
@@ -34,17 +34,39 @@ function scanRuntimeEntry(): {
     const file = queue.pop();
     if (file === undefined || visited.has(file)) continue;
     visited.add(file);
-    if (isUnder(file, runtimeDir)) files.push(file);
+    if (isUnder(file, srcDir)) files.push(file);
     const text = readFileSync(file, "utf8");
     for (const match of text.matchAll(SPECIFIER)) {
       const specifier = match[1];
       if (specifier === undefined) continue;
       specifiers.push(specifier);
       const resolved = resolveSpecifier(file, specifier);
-      if (resolved !== undefined && isUnder(resolved, runtimeDir)) queue.push(resolved);
+      if (resolved !== undefined && isUnder(resolved, srcDir)) queue.push(resolved);
     }
   }
   return { files, specifiers };
+}
+
+/** Specifiers of `entry` and of the relative chunks it imports. */
+function scanBuilt(entry: string): string[] {
+  const specifiers: string[] = [];
+  const visited = new Set<string>();
+  const queue = [entry];
+  while (queue.length > 0) {
+    const file = queue.pop();
+    if (file === undefined || visited.has(file)) continue;
+    visited.add(file);
+    const text = readFileSync(file, "utf8");
+    for (const match of text.matchAll(SPECIFIER)) {
+      const specifier = match[1];
+      if (specifier === undefined) continue;
+      specifiers.push(specifier);
+      if (!specifier.startsWith(".")) continue;
+      const resolved = path.resolve(path.dirname(file), specifier);
+      if (existsSync(resolved)) queue.push(resolved);
+    }
+  }
+  return specifiers;
 }
 
 describe("runtime entry", () => {
@@ -59,5 +81,17 @@ describe("runtime entry", () => {
     expect(vitest).toEqual([]);
     expect(rootEntry).toEqual([]);
     expect(scanned.files.length).toBeGreaterThanOrEqual(5);
+    expect(scanned.files.some((file) => file.endsWith(`${path.sep}composable-surface.ts`))).toBe(
+      true,
+    );
+  });
+
+  it("the built runtime entry imports no vitest", () => {
+    const built = path.join(packageRoot, "dist/runtime.js");
+    expect(existsSync(built), "dist/runtime.js is absent").toBe(true);
+    const vitest = scanBuilt(built).filter(
+      (specifier) => specifier === "vitest" || specifier.startsWith("vitest/"),
+    );
+    expect(vitest).toEqual([]);
   });
 });

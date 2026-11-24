@@ -132,6 +132,8 @@ describe("runPluginConformance hooks", () => {
     expect(clean.checks).toEqual(ranChecks());
   });
 
+  // Relies on report.findings being the array checkHooks pushes into
+  // (packages/plugin-conformance/src/runtime/run-checks.ts:161). A copy would hide a late emit.
   it("stops recording when the run ends", async () => {
     const first = await runPluginConformance(
       spec({
@@ -153,5 +155,18 @@ describe("runPluginConformance hooks", () => {
     expect(mentions(second, "myplug:late")).toBe(false);
     expect(first.checks).toEqual(ranChecks());
     expect(second.checks).toEqual(ranChecks());
+  });
+
+  it("reports an undeclared hook emitted on every frame once", async () => {
+    const report = await runPluginConformance(
+      spec({
+        root: setupRoot,
+        packageName: "@fixture/hooks-setup-emit",
+        factories: [{ export: "EachFrame" }],
+      }),
+    );
+    const findings = findingsWithCode(report, ConformanceErrorCodes.HOOK_UNDECLARED);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.message ?? "").toContain("myplug:each");
   });
 });
