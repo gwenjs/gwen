@@ -232,7 +232,11 @@ Cause. Two units edit overlapping ranges in one module. The message names both u
 
 ### VITE:TRANSFORM_UNSUPPORTED {#vite-transform-unsupported}
 
-Cause. Thrown from four sites. `register()` was called after `gwen:transform-pipeline`'s `buildStart`. `register()` was called with a different unit under a taken name. The message is `register() was called with a different unit named …`. `useActor(Y)` inside an actor factory, when `Y` is not a module-scope binding or when `Y` is a `const`, `let`, `var`, or `class` declared after that actor. A nested `await` inside an await argument of `onEnter`, `onExit`, `onPreload`, or `withAsyncContext`. Fix. `register()` is accepted until `buildStart`, for example from any plugin's `configResolved`. Register one unit object per name. Declare `Y` at module scope, before the actor, or pass it through the factory arguments. Assign the inner await to a const first.
+Cause. Thrown from these sites. `register()` and `registerKit()` were called after `gwen:transform-pipeline`'s `buildStart`. `register()` and `registerKit()` were called with a different unit under a taken name. The message is `register() was called with a different unit named …`. `useActor(Y)` inside an actor factory, when `Y` is not a module-scope binding or when `Y` is a `const`, `let`, `var`, or `class` declared after that actor. A nested `await` inside an await argument of `onEnter`, `onExit`, `onPreload`, or `withAsyncContext`. A kit source transform raised, warned, or threw a code whose prefix is reserved for the framework, or whose text is not `NAMESPACE:REASON`. `emitAsset` during serve. The message is `emitAsset is only available in a build.` (`packages/vite/src/pipeline/kit-transform.ts:266`). Fix. `register()` and `registerKit()` are accepted until `buildStart`, for example from any plugin's `configResolved`. Register one unit object per name. Declare `Y` at module scope, before the actor, or pass it through the factory arguments. Assign the inner await to a const first. Use a code such as `TINT:UNKNOWN_COLOR` from a kit transform. `emitAsset` is build-only; skip it when serving.
+
+### VITE:TRANSFORM_UNIT_FAILED {#vite-transform-unit-failed}
+
+Cause. A pipeline unit threw a value that was not raised with `ctx.raise`. The message is `Transform "<name>" failed on <id>.` (`packages/vite/src/pipeline/kit-transform.ts`). `cause` is the thrown value. The wrap covers built-in units and kit transforms. Fix. Raise a `GwenError` from the unit, or fix the throw.
 
 ### VITE:BVH_PREBAKE_FAILED {#vite-bvh-prebake-failed}
 

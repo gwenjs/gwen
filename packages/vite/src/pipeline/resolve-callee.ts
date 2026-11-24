@@ -38,7 +38,17 @@ interface NamedStart {
   readonly start: number;
 }
 
+/** True when `value` has the public node fields. No cast: the predicate is the narrowing. */
+export function isAstNode(value: unknown): value is GwenAstNode {
+  if (typeof value !== "object" || value === null) return false;
+  if (!("type" in value) || typeof value.type !== "string") return false;
+  if (!("start" in value) || typeof value.start !== "number") return false;
+  if (!("end" in value) || typeof value.end !== "number") return false;
+  return true;
+}
+
 function astNode(node: Node): GwenAstNode {
+  if (isAstNode(node)) return node;
   return { type: node.type, start: node.start, end: node.end };
 }
 

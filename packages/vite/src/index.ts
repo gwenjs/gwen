@@ -87,6 +87,10 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
   let _loadPromise: Promise<void> | undefined;
   const localPluginsScan: LocalPluginsDirOption = { root: process.cwd() };
   const _sharedAutoImports: AutoImport[] = [];
+  const pipeline = createTransformPipeline({
+    units: BUILT_IN_UNITS,
+    autoImports: _sharedAutoImports,
+  });
 
   function loadManifest(): string {
     if (manifestPath && fs.existsSync(manifestPath)) {
@@ -121,6 +125,9 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
     };
 
     await app.setupModules(gwenConfig, moduleLoader, { root });
+    for (const transform of app.sourceTransforms) {
+      pipeline.api.registerKit(transform);
+    }
     _app = app;
     _declarations = app.pluginDeclarations;
     _sharedAutoImports.push(...app.autoImports);
@@ -175,7 +182,8 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
     },
 
     async buildStart() {
-      // Ensure modules are loaded (fallback if config hook didn't run)
+      // Fallback when `config` did not run. Kit transforms need that hook:
+      // this `buildStart` runs after the pipeline froze, so `registerKit` throws.
       await _loadModules(projectRoot);
       const scenes = scanScenes(projectRoot);
       writeScenesDts(
@@ -313,7 +321,7 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
 
   return [
     mainPlugin,
-    createTransformPipeline({ units: BUILT_IN_UNITS, autoImports: _sharedAutoImports }),
+    pipeline,
     gwenDevStripPlugin(),
     gwenAutoImportsPlugin({ autoImports: _sharedAutoImports }),
     gwenLocalPluginsPlugin(localPluginsScan),

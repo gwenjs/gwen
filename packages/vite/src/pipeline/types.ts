@@ -1,11 +1,20 @@
 /**
  * Internal types for the one-pass source transform pipeline.
- * Public schema types are a later PR. Only oxc `Program`, `CallExpression`,
- * `Comment` and `Node` are imported here.
+ * The five structural types are the public contract from `@gwenjs/schema`.
+ * Only oxc `Program`, `CallExpression`, `Comment` and `Node` are imported here.
  */
 
 import type { CallExpression, Comment, Node, Program } from "oxc-parser";
+import type {
+  GwenAstArgument,
+  GwenAstNode,
+  GwenCallSite,
+  GwenImportBinding,
+  GwenSourceRange,
+} from "@gwenjs/schema";
 import { ViteErrorCodes } from "../error-codes.js";
+
+export type { GwenAstArgument, GwenAstNode, GwenCallSite, GwenImportBinding, GwenSourceRange };
 
 /** One value of {@link ViteErrorCodes}. */
 export type ViteErrorCode = (typeof ViteErrorCodes)[keyof typeof ViteErrorCodes];
@@ -39,44 +48,6 @@ export type TransformEdit =
   | { kind: "insert"; at: number; text: string }
   | { kind: "overwrite"; start: number; end: number; text: string }
   | { kind: "remove"; start: number; end: number };
-
-/** Offsets in the original source. */
-export interface GwenSourceRange {
-  readonly start: number;
-  readonly end: number;
-}
-
-/**
- * One AST node in the call-site contract.
- * vite-internal projection: type, start and end only; the full-node contract is decided with the schema types in P-66-6.
- * An oxc node has no string index signature, so `resolveImport` takes `Node`.
- */
-export interface GwenAstNode extends GwenSourceRange {
-  readonly type: string;
-  readonly [field: string]: unknown;
-}
-
-/** Origin of an import binding: source and imported name; a default import uses `default`. */
-export interface GwenImportBinding {
-  readonly source: string;
-  readonly imported: string;
-}
-
-/** One argument of a call. Anything except a string or number literal is `other`. */
-export type GwenAstArgument =
-  | ({ readonly kind: "string"; readonly value: string } & GwenSourceRange)
-  | ({ readonly kind: "number"; readonly value: number } & GwenSourceRange)
-  | ({ readonly kind: "other"; readonly node: GwenAstNode } & GwenSourceRange);
-
-/**
- * One call in source order. `binding` is null when the callee is unresolved.
- * vite-internal projection: type, start and end only; the full-node contract is decided with the schema types in P-66-6.
- */
-export interface GwenCallSite extends GwenSourceRange {
-  readonly binding: GwenImportBinding | null;
-  readonly arguments: readonly GwenAstArgument[];
-  readonly node: GwenAstNode;
-}
 
 /**
  * Per-module context shared by every unit.

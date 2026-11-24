@@ -5,17 +5,24 @@
  * Project barrels are followed before units run. The cache lives on this plugin.
  */
 
-import type { Program } from "oxc-parser";
 import type { Alias, Plugin } from "vite";
 import type { AutoImport } from "@gwenjs/kit";
-import { GwenError } from "@gwenjs/schema";
+import { GwenError, type GwenSourceTransform as KitSourceTransform } from "@gwenjs/schema";
 import { ViteErrorCodes } from "../error-codes.js";
 import { applyEdits } from "./apply-edits.js";
 import { followBarrels, type Barrels } from "./barrel.js";
 import { devHint } from "./dev-hint.js";
 import { buildImportTable } from "./import-table.js";
+import {
+  createKitContext,
+  indexAstNodes,
+  programNode,
+  rethrowKitFailure,
+  rethrowUnitFailure,
+  toInternalEdit,
+} from "./kit-transform.js";
 import { isScriptModule, lineColumn, parseModule } from "./parse.js";
-import { createModuleResolver } from "./resolve-callee.js";
+import { createModuleResolver, type ModuleResolver } from "./resolve-callee.js";
 import type {
   GwenImportBinding,
   GwenSourceTransform,
@@ -23,9 +30,10 @@ import type {
   TransformEdit,
 } from "./types.js";
 
-/** In-plugin handle. `register` is refused after `buildStart`. */
+/** In-plugin handle. `register` and `registerKit` are refused after `buildStart`. */
 export interface GwenTransformPipelineApi {
   register(t: GwenSourceTransform): void;
+  registerKit(t: KitSourceTransform): void;
   readonly names: readonly string[];
 }
 
@@ -33,12 +41,6 @@ interface SourceLoc {
   readonly file: string;
   readonly line: number;
   readonly column: number;
-}
-
-function acceptsModule(id: string): boolean {
-  if (id.startsWith("\0")) return false;
-  if (id.includes("/node_modules/")) return false;
-  return isScriptModule(id);
 }
 
 function isSourceLoc(value: unknown): value is SourceLoc {
@@ -57,6 +59,12 @@ function readOwnLoc(err: GwenError): SourceLoc | undefined {
   return loc;
 }
 
+function acceptsModule(id: string): boolean {
+  if (id.startsWith("\0")) return false;
+  if (id.includes("/node_modules/")) return false;
+  return isScriptModule(id);
+}
+
 function tagEdit(edit: TransformEdit, unit: string): TransformEdit & { unit: string } {
   if (edit.kind === "insert") return { kind: "insert", at: edit.at, text: edit.text, unit };
   if (edit.kind === "overwrite") {
@@ -68,13 +76,10 @@ function tagEdit(edit: TransformEdit, unit: string): TransformEdit & { unit: str
 function createContext(
   id: string,
   code: string,
-  program: Program,
   comments: TransformContext["comments"],
-  autoImports: readonly AutoImport[],
-  followed: ReadonlyMap<string, GwenImportBinding>,
+  resolver: ModuleResolver,
   emitFile: TransformContext["emitFile"],
 ): TransformContext {
-  const resolver = createModuleResolver({ program, code, autoImports, followed });
   const context: TransformContext = {
     id,
     code,
@@ -107,60 +112,80 @@ export function createTransformPipeline(options: {
 }): Plugin & { api: GwenTransformPipelineApi } {
   const autoImports = options.autoImports ?? [];
   const builtIns = [...options.units];
+  const kitUnits: KitSourceTransform[] = [];
   const registered: GwenSourceTransform[] = [];
-  let ordered: readonly GwenSourceTransform[] = builtIns;
+  let ordered: readonly { readonly name: string }[] = builtIns;
+  let frozenBuiltIns: readonly GwenSourceTransform[] = builtIns;
+  let frozenKit: readonly KitSourceTransform[] = [];
+  let frozenRegistered: readonly GwenSourceTransform[] = [];
   let frozen = false;
   let projectRoot = "";
   let projectAliases: readonly Alias[] = [];
   let command = "serve";
   const barrelCache = new Map<string, Barrels>();
 
-  function orderUnits(
-    builtIns: readonly GwenSourceTransform[],
-    registered: readonly GwenSourceTransform[],
-  ): GwenSourceTransform[] {
-    return [...builtIns, ...registered];
+  function liveNames(): readonly { readonly name: string }[] {
+    return [...builtIns, ...kitUnits, ...registered];
   }
 
-  function currentUnits(): readonly GwenSourceTransform[] {
+  function currentNames(): readonly { readonly name: string }[] {
     if (frozen) return ordered;
-    return orderUnits(builtIns, registered);
+    return liveNames();
+  }
+
+  function findNamed(name: string): { readonly name: string } | undefined {
+    for (const unit of builtIns) {
+      if (unit.name === name) return unit;
+    }
+    for (const unit of kitUnits) {
+      if (unit.name === name) return unit;
+    }
+    for (const unit of registered) {
+      if (unit.name === name) return unit;
+    }
+    return undefined;
+  }
+
+  function refuseFrozen(): void {
+    if (!frozen) return;
+    throw new GwenError(
+      ViteErrorCodes.TRANSFORM_UNSUPPORTED,
+      "register() was called after buildStart.",
+      { composable: "gwen" },
+    );
+  }
+
+  function refuseDuplicate(
+    name: string,
+    seen: { readonly name: string } | undefined,
+    unit: object,
+  ): void {
+    if (seen === undefined) return;
+    if (seen === unit) return;
+    throw new GwenError(
+      ViteErrorCodes.TRANSFORM_UNSUPPORTED,
+      `register() was called with a different unit named ${name}.`,
+      { composable: "gwen" },
+    );
   }
 
   const api: GwenTransformPipelineApi = {
     register(unit): void {
-      if (frozen) {
-        throw new GwenError(
-          ViteErrorCodes.TRANSFORM_UNSUPPORTED,
-          "register() was called after buildStart.",
-          { composable: "gwen" },
-        );
-      }
-      let seen: GwenSourceTransform | undefined;
-      for (const existing of builtIns) {
-        if (existing.name !== unit.name) continue;
-        seen = existing;
-        break;
-      }
-      if (seen === undefined) {
-        for (const existing of registered) {
-          if (existing.name !== unit.name) continue;
-          seen = existing;
-          break;
-        }
-      }
-      if (seen !== undefined && seen !== unit) {
-        throw new GwenError(
-          ViteErrorCodes.TRANSFORM_UNSUPPORTED,
-          `register() was called with a different unit named ${unit.name}.`,
-          { composable: "gwen" },
-        );
-      }
+      refuseFrozen();
+      const seen = findNamed(unit.name);
+      refuseDuplicate(unit.name, seen, unit);
       if (seen === unit) return;
       registered.push(unit);
     },
+    registerKit(transform): void {
+      refuseFrozen();
+      const seen = findNamed(transform.name);
+      refuseDuplicate(transform.name, seen, transform);
+      if (seen === transform) return;
+      kitUnits.push(transform);
+    },
     get names(): readonly string[] {
-      return currentUnits().map((unit) => unit.name);
+      return currentNames().map((unit) => unit.name);
     },
   };
 
@@ -173,14 +198,17 @@ export function createTransformPipeline(options: {
       command = config.command;
     },
     buildStart() {
-      ordered = orderUnits(builtIns, registered);
+      frozenBuiltIns = [...builtIns];
+      frozenKit = [...kitUnits];
+      frozenRegistered = [...registered];
+      ordered = [...frozenBuiltIns, ...frozenKit, ...frozenRegistered];
       frozen = true;
     },
     async transform(code, id) {
       if (!acceptsModule(id)) return null;
       try {
         const parsed = parseModule(id, code);
-        const units = currentUnits();
+        const units = currentNames();
         const followed =
           units.length === 0
             ? new Map<string, GwenImportBinding>()
@@ -196,18 +224,69 @@ export function createTransformPipeline(options: {
             ? (asset: { type: "asset"; fileName: string; source: Uint8Array }): string =>
                 this.emitFile({ type: "asset", fileName: asset.fileName, source: asset.source })
             : undefined;
-        const context = createContext(
-          id,
+        const activeBuiltIns = frozen ? frozenBuiltIns : builtIns;
+        const activeKit = frozen ? frozenKit : kitUnits;
+        const activeRegistered = frozen ? frozenRegistered : registered;
+        const resolver = createModuleResolver({
+          program: parsed.program,
           code,
-          parsed.program,
-          parsed.comments,
           autoImports,
           followed,
-          emitFile,
-        );
+        });
+        const context = createContext(id, code, parsed.comments, resolver, emitFile);
         const tagged: Array<TransformEdit & { unit: string }> = [];
-        for (const unit of units) {
-          const produced = await unit.run(parsed.program, context);
+        for (const unit of activeBuiltIns) {
+          let produced: readonly TransformEdit[];
+          try {
+            produced = await unit.run(parsed.program, context);
+          } catch (caught) {
+            rethrowUnitFailure(unit.name, id, caught);
+          }
+          for (const edit of produced) tagged.push(tagEdit(edit, unit.name));
+        }
+        if (activeKit.length > 0) {
+          const ast = programNode(parsed.program);
+          let nodes: ReturnType<typeof indexAstNodes> | undefined;
+          const nodeIndex = (): ReturnType<typeof indexAstNodes> => {
+            const cached = nodes;
+            if (cached !== undefined) return cached;
+            const built = indexAstNodes(parsed.program);
+            nodes = built;
+            return built;
+          };
+          for (const kit of activeKit) {
+            const sourceText = code;
+            const publicContext = createKitContext({
+              id,
+              code: sourceText,
+              program: parsed.program,
+              resolver,
+              nodes: nodeIndex,
+              unitName: kit.name,
+              emitFile,
+              warn: (log) => {
+                this.warn(log);
+              },
+            });
+            let produced: readonly ReturnType<typeof toInternalEdit>[];
+            try {
+              const edits = await kit.run(ast, publicContext);
+              const copied: ReturnType<typeof toInternalEdit>[] = [];
+              for (const edit of edits) copied.push(toInternalEdit(edit, sourceText.length));
+              produced = copied;
+            } catch (caught) {
+              rethrowKitFailure(kit.name, id, caught);
+            }
+            for (const edit of produced) tagged.push(tagEdit(edit, kit.name));
+          }
+        }
+        for (const unit of activeRegistered) {
+          let produced: readonly TransformEdit[];
+          try {
+            produced = await unit.run(parsed.program, context);
+          } catch (caught) {
+            rethrowUnitFailure(unit.name, id, caught);
+          }
           for (const edit of produced) tagged.push(tagEdit(edit, unit.name));
         }
         const applied = applyEdits(id, code, tagged);
