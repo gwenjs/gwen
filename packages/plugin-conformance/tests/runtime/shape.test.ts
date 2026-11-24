@@ -43,7 +43,7 @@ describe("runPluginConformance shape", () => {
       expect(findings[0]?.message).toContain("@fixture/on-update");
       expect(findings[0]?.message).toContain("Plugin");
       expect(findings[0]?.message).toContain("onUpdate");
-      expect(report.checks).toEqual(["shape", "provides"]);
+      expect(report.checks).toEqual(["shape", "requires", "provides"]);
     });
   });
 
@@ -57,7 +57,7 @@ describe("runPluginConformance shape", () => {
       const report = await runPluginConformance(
         spec({ root: dir, packageName: "@fixture/all-keys" }),
       );
-      expect(report.checks).toEqual(["shape", "provides"]);
+      expect(report.checks).toEqual(["shape", "requires", "provides"]);
       expect(report.findings).toEqual([]);
     });
   });
@@ -81,7 +81,7 @@ describe("runPluginConformance shape", () => {
       const findings = findingsWithCode(report, ConformanceErrorCodes.RUNTIME_SHAPE);
       expect(findings).toHaveLength(1);
       expect(findings[0]?.message).toContain("Second");
-      expect(report.checks).toEqual(["shape", "provides"]);
+      expect(report.checks).toEqual(["shape", "requires", "provides"]);
     });
   });
 });

@@ -2,6 +2,7 @@
 export { checkPluginPackage } from "./check-plugin-package.js";
 export { ConformanceErrorCodes } from "./error-codes.js";
 export { FRAMEWORK_ENTRIES } from "./framework-entries.generated.js";
+export { FRAMEWORK_PLUGIN_NAMES } from "./runtime/framework-plugin-names.js";
 export { runComposableSurfaceSuite } from "./run-composable-surface-suite.js";
 export { checkSnapshot } from "./snapshot.js";
 export type { ComposableSurfaceOptions } from "./run-composable-surface-suite.js";

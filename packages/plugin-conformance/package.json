@@ -42,6 +42,8 @@
     "typescript": "^6.0.2"
   },
   "devDependencies": {
+    "@gwenjs/app": "workspace:*",
+    "@gwenjs/camera-core": "workspace:*",
     "@gwenjs/core": "workspace:*",
     "@gwenjs/kit": "workspace:^",
     "@gwenjs/schema": "workspace:^",

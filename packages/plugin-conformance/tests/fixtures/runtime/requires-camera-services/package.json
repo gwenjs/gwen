@@ -1,0 +1,9 @@
+{
+  "name": "@fixture/requires-camera-services",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js"
+    }
+  }
+}
