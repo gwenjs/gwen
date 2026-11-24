@@ -13,7 +13,7 @@ const system = defineSystem("EmptySystem", () => {
     if (query.count !== 0) return;
     useEngine().errors.emit({
       level: "warning",
-      code: "FIXTURE:EMPTY",
+      code: "fixture-empty-query",
       message: "empty",
     });
   });
