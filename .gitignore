@@ -88,3 +88,9 @@ packages/core/playwright-report/
 !packages/plugin-conformance/tests/fixtures/extension/layered-ok/dist/
 !packages/plugin-conformance/tests/fixtures/extension/layered-ok/dist/*
 !packages/plugin-conformance/tests/fixtures/extension/layered-ok/dist/**/*
+!packages/plugin-conformance/tests/fixtures/extension/bases/fixture-mid/dist/
+!packages/plugin-conformance/tests/fixtures/extension/bases/fixture-mid/dist/*
+!packages/plugin-conformance/tests/fixtures/extension/bases/fixture-mid/dist/**/*
+!packages/plugin-conformance/tests/fixtures/extension/ext-of-ext/fixture-top/dist/
+!packages/plugin-conformance/tests/fixtures/extension/ext-of-ext/fixture-top/dist/*
+!packages/plugin-conformance/tests/fixtures/extension/ext-of-ext/fixture-top/dist/**/*
