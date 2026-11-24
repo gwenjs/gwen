@@ -330,6 +330,8 @@ export const MyPlugin = definePlugin(() => ({
 }))
 ```
 
+Un plugin participe au préchargement d'une scène à travers `scene:preload`. Enregistrez le handler dans `setup()` avec `engine.hooks.hook`. Le routeur attend ces handlers avant que la scène courante ne parte. Fermer une superposition ne lance aucun préchargement.
+
 ## Les callbacks de frame sont des hooks
 
 `engine.use()` rejette un plugin qui déclare un callback de frame. Le code est `CORE:PLUGIN_INVALID_SHAPE`. Enregistrez le hook dans `setup()`. Seules les clés propres sont vérifiées.

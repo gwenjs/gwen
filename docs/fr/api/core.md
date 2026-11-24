@@ -516,7 +516,7 @@ export const AppRouter = defineSceneRouter({
 function useSceneRouter<TRoutes>(routerDef: SceneRouterDef<TRoutes>): SceneRouterHandle<TRoutes>
 ```
 
-**Description.** Retourne le handle runtime pour un routeur de scènes. Appelez `.send()` pour déclencher des transitions.
+**Description.** Retourne le handle runtime pour un routeur de scènes. Appelez `.send()` pour déclencher des transitions. `.send()` attend le préchargement de la cible avant que la scène courante parte. Il rejette avec `GwenScenePreloadError` si ce préchargement échoue. Un appel pendant un préchargement en cours est ignoré. Fermer une superposition ne lance aucun préchargement.
 
 **Retourne:** `SceneRouterHandle` — `{ send, can, current, params }`.
 
