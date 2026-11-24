@@ -1,6 +1,9 @@
 /**
  * Per-engine contact and sensor callbacks.
  * Each engine's list dies with that engine's `stop()`.
+ * A removal during `emit` waits until the outermost `emit` returns.
+ * The entry stays in `entries` for that walk. Outside `emit` it drops at once.
+ * `clearEngineContacts` and `stop()` empty the lists at once, even during a walk.
  */
 
 import { createEngineLocal, useEngine } from "@gwenjs/core";
@@ -20,6 +23,13 @@ interface ContactEntry {
 export interface ContactRegistry {
   readonly entries: ContactEntry[];
   emit(contact: CollisionContact): void;
+  /**
+   * Drop every entry whose `entityId` equals `entityId`.
+   * During `emit` those entries stay until the outermost `emit` returns.
+   *
+   * @param entityId - Entity whose callbacks should leave the list.
+   */
+  removeEntity(entityId: EntityId): void;
 }
 
 interface SensorEntry {
@@ -32,6 +42,63 @@ interface SensorEntry {
 export interface SensorRegistry {
   readonly entries: SensorEntry[];
   emit(sensorId: number, entityId: EntityId, phase: "enter" | "exit"): void;
+  /**
+   * Drop every entry whose callback is in `callbacks`.
+   * An empty list drops nothing.
+   * During `emit` those entries stay until the outermost `emit` returns.
+   *
+   * @param callbacks - Callbacks to drop. Identity is the function reference.
+   */
+  remove(callbacks: readonly ((entityId: EntityId) => void)[]): void;
+}
+
+interface RemovalGate {
+  depth: number;
+  pending: Array<() => void>;
+}
+
+function schedule(gate: RemovalGate, apply: () => void): void {
+  if (gate.depth > 0) {
+    gate.pending.push(apply);
+    return;
+  }
+  apply();
+}
+
+function finishEmit(gate: RemovalGate): void {
+  gate.depth -= 1;
+  if (gate.depth > 0) return;
+  const pending = gate.pending.splice(0, gate.pending.length);
+  for (const apply of pending) apply();
+}
+
+const contactGates = new WeakMap<ContactRegistry, RemovalGate>();
+const sensorGates = new WeakMap<SensorRegistry, RemovalGate>();
+
+function removalGate<T extends object>(gates: WeakMap<T, RemovalGate>, registry: T): RemovalGate {
+  const found = gates.get(registry);
+  if (found !== undefined) return found;
+  const created: RemovalGate = { depth: 0, pending: [] };
+  gates.set(registry, created);
+  return created;
+}
+
+function dropEntityFrom(entries: ContactEntry[], entityId: EntityId): void {
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index];
+    if (entry !== undefined && entry.entityId === entityId) entries.splice(index, 1);
+  }
+}
+
+function dropSensorCallbacks(
+  entries: SensorEntry[],
+  callbacks: readonly ((entityId: EntityId) => void)[],
+): void {
+  const owned = new Set(callbacks);
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index];
+    if (entry !== undefined && owned.has(entry.cb)) entries.splice(index, 1);
+  }
 }
 
 /** Drop contact and sensor callbacks that belong to `engine`. */
@@ -42,31 +109,37 @@ export function clearEngineContacts(engine: GwenEngine): void {
   if (sensors !== undefined) sensors.entries.length = 0;
 }
 
-function removeOnce<T>(list: T[], entry: T): () => void {
-  return () => {
-    const index = list.indexOf(entry);
-    if (index >= 0) list.splice(index, 1);
-  };
-}
-
 const contactLocals = createEngineLocal<ContactRegistry>(
   () => {
     const entries: ContactEntry[] = [];
-    return {
+    const registry: ContactRegistry = {
       entries,
       emit(contact: CollisionContact): void {
-        for (const entry of entries) {
-          if (
-            entry.entityId !== undefined &&
-            entry.entityId !== contact.entityA &&
-            entry.entityId !== contact.entityB
-          ) {
-            continue;
+        const gate = removalGate(contactGates, registry);
+        gate.depth += 1;
+        try {
+          for (const entry of entries) {
+            if (
+              entry.entityId !== undefined &&
+              entry.entityId !== contact.entityA &&
+              entry.entityId !== contact.entityB
+            ) {
+              continue;
+            }
+            entry.cb(contact);
           }
-          entry.cb(contact);
+        } finally {
+          finishEmit(gate);
         }
       },
+      removeEntity(entityId: EntityId): void {
+        const gate = removalGate(contactGates, registry);
+        schedule(gate, () => {
+          dropEntityFrom(entries, entityId);
+        });
+      },
     };
+    return registry;
   },
   (registry) => {
     registry.entries.length = 0;
@@ -76,15 +149,29 @@ const contactLocals = createEngineLocal<ContactRegistry>(
 const sensorLocals = createEngineLocal<SensorRegistry>(
   () => {
     const entries: SensorEntry[] = [];
-    return {
+    const registry: SensorRegistry = {
       entries,
       emit(sensorId: number, entityId: EntityId, phase: "enter" | "exit"): void {
-        for (const entry of entries) {
-          if (entry.sensorId !== sensorId || entry.phase !== phase) continue;
-          entry.cb(entityId);
+        const gate = removalGate(sensorGates, registry);
+        gate.depth += 1;
+        try {
+          for (const entry of entries) {
+            if (entry.sensorId !== sensorId || entry.phase !== phase) continue;
+            entry.cb(entityId);
+          }
+        } finally {
+          finishEmit(gate);
         }
       },
+      remove(callbacks: readonly ((entityId: EntityId) => void)[]): void {
+        if (callbacks.length === 0) return;
+        const gate = removalGate(sensorGates, registry);
+        schedule(gate, () => {
+          dropSensorCallbacks(entries, callbacks);
+        });
+      },
     };
+    return registry;
   },
   (registry) => {
     registry.entries.length = 0;
@@ -106,6 +193,7 @@ export function createSensorRegistry(): EngineLocal<SensorRegistry> {
  * `entityId` limits the callback to contacts that include that entity.
  * Without `entityId` the callback receives every contact of the engine.
  * Unlike today's `@gwenjs/physics2d` `onContact`, it does not default to the current actor.
+ * The returned function drops this callback. During `emit` that drop waits until the outermost `emit` returns.
  *
  * @throws {GwenContextError} `CORE:OUTSIDE_ENGINE_CONTEXT` when no engine is current.
  */
@@ -117,11 +205,18 @@ export function onContact(
   const registry = contactLocals.get(engine);
   const entry: ContactEntry = { cb, entityId };
   registry.entries.push(entry);
-  return removeOnce(registry.entries, entry);
+  const gate = removalGate(contactGates, registry);
+  return () => {
+    schedule(gate, () => {
+      const index = registry.entries.indexOf(entry);
+      if (index >= 0) registry.entries.splice(index, 1);
+    });
+  };
 }
 
 /**
  * Subscribe to a sensor becoming active on the current engine.
+ * The returned function drops this callback. During `emit` that drop waits until the outermost `emit` returns.
  *
  * @throws {GwenContextError} `CORE:OUTSIDE_ENGINE_CONTEXT` when no engine is current.
  */
@@ -132,6 +227,7 @@ export function onSensorEnter(sensorId: number, cb: (entityId: EntityId) => void
 
 /**
  * Subscribe to a sensor becoming inactive on the current engine.
+ * The returned function drops this callback. During `emit` that drop waits until the outermost `emit` returns.
  *
  * @throws {GwenContextError} `CORE:OUTSIDE_ENGINE_CONTEXT` when no engine is current.
  */
@@ -149,5 +245,11 @@ function addSensor(
   const registry = sensorLocals.get(engine);
   const entry: SensorEntry = { sensorId, phase, cb };
   registry.entries.push(entry);
-  return removeOnce(registry.entries, entry);
+  const gate = removalGate(sensorGates, registry);
+  return () => {
+    schedule(gate, () => {
+      const index = registry.entries.indexOf(entry);
+      if (index >= 0) registry.entries.splice(index, 1);
+    });
+  };
 }
