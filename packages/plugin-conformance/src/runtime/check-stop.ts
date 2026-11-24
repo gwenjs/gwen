@@ -2,7 +2,13 @@ import type { GwenPlugin } from "@gwenjs/schema";
 import { ConformanceErrorCodes } from "../error-codes.js";
 import type { ConformanceFinding } from "../types.js";
 import { callExport, isPlugin } from "./call-factory.js";
-import { baselineOf, extraNames, installProviders, provideKeys, usePlugin } from "./lifecycle.js";
+import {
+  baselineOf,
+  extraNames,
+  installPrerequisites,
+  provideKeys,
+  usePlugin,
+} from "./lifecycle.js";
 import { withEngine } from "./open-engine.js";
 import type { RuntimeCheckContext } from "./types.js";
 
@@ -17,7 +23,7 @@ async function checkOne(
   plugin: GwenPlugin,
 ): Promise<ConformanceFinding[]> {
   return withEngine(context.spec, async (open) => {
-    await installProviders(open.engine, context.spec);
+    await installPrerequisites(open.engine, context);
     const baseline = baselineOf(open.engine);
     await usePlugin(open.engine, plugin);
     // `stop` tears every plugin down, including `frameworkProviders`, and does

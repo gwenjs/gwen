@@ -2,9 +2,10 @@ import { stat } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { isRecord } from "../json.js";
+import { loadSpecBases } from "./base-packages.js";
 import { locateBuiltFile, readRuntimeManifest } from "./package-manifest.js";
 import { runtimeFinding } from "./spec.js";
-import type { PluginConformanceSpec, PluginFactorySpec } from "./types.js";
+import type { PluginConformanceSpec, PluginFactorySpec, RuntimeCheckContext } from "./types.js";
 import type { ConformanceFinding } from "../types.js";
 
 /** Built package view. `rootEntry` is set only when every load rule passed. */
@@ -14,6 +15,9 @@ export interface LoadedPackage {
   readonly moduleFile: string | undefined;
   /** Absolute path of the root entry. Set only when `rootEntry` is set. */
   readonly entryFile: string | undefined;
+  readonly bases: RuntimeCheckContext["bases"];
+  /** True when `exports` has `"./extension"`. */
+  readonly extensionExport: boolean;
 }
 
 function report(
@@ -21,8 +25,10 @@ function report(
   rootEntry: Record<string, unknown> | undefined = undefined,
   moduleFile: string | undefined = undefined,
   entryFile: string | undefined = undefined,
+  bases: RuntimeCheckContext["bases"] = [],
+  extensionExport = false,
 ): LoadedPackage {
-  return { findings, rootEntry, moduleFile, entryFile };
+  return { findings, rootEntry, moduleFile, entryFile, bases, extensionExport };
 }
 
 async function isFile(file: string): Promise<boolean> {
@@ -118,18 +124,31 @@ export async function loadRuntimePackage(spec: PluginConformanceSpec): Promise<L
   }
   const exportFindings = factoriesNotExported(spec.factories, entry);
   if (exportFindings.length > 0) return report(exportFindings);
-  if (manifest.moduleTarget === undefined) return report([], entry, undefined, entryFile);
-  const moduleLocated = locateBuiltFile(root, "./module", manifest.moduleTarget);
-  if (!moduleLocated.ok) return report([runtimeFinding(moduleLocated.message, moduleLocated.hint)]);
-  if (!(await isFile(moduleLocated.file))) {
-    return report([
-      runtimeFinding(
-        `exports["./module"].import ${JSON.stringify(manifest.moduleTarget)} is not a file`,
-        'Build the module entry, or omit exports["./module"] until that file exists.',
-      ),
-    ]);
+  let moduleFile: string | undefined;
+  if (manifest.moduleTarget !== undefined) {
+    const moduleLocated = locateBuiltFile(root, "./module", manifest.moduleTarget);
+    if (!moduleLocated.ok)
+      return report([runtimeFinding(moduleLocated.message, moduleLocated.hint)]);
+    if (!(await isFile(moduleLocated.file))) {
+      return report([
+        runtimeFinding(
+          `exports["./module"].import ${JSON.stringify(manifest.moduleTarget)} is not a file`,
+          'Build the module entry, or omit exports["./module"] until that file exists.',
+        ),
+      ]);
+    }
+    moduleFile = moduleLocated.file;
   }
-  return report([], entry, moduleLocated.file, entryFile);
+  const basesLoaded = await loadSpecBases(root, spec, manifest.gwenExtends);
+  if (!basesLoaded.ok) return report(basesLoaded.findings);
+  return report(
+    [],
+    entry,
+    moduleFile,
+    entryFile,
+    basesLoaded.bases,
+    manifest.extensionTarget !== undefined,
+  );
 }
 
 /**

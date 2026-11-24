@@ -4,9 +4,9 @@ import { ConformanceErrorCodes } from "../error-codes.js";
 import type { ConformanceFinding } from "../types.js";
 import { callExport, isPlugin } from "./call-factory.js";
 import { quietWindowFindings } from "./check-frames.js";
-import { installProviders, provideKeys, usePlugin } from "./lifecycle.js";
+import { installPrerequisites, provideKeys, usePlugin } from "./lifecycle.js";
 import { withEngine } from "./open-engine.js";
-import type { PluginConformanceSpec, RuntimeCheckContext } from "./types.js";
+import type { RuntimeCheckContext } from "./types.js";
 
 const HINT = "Create the service inside setup.";
 
@@ -33,14 +33,15 @@ function engineKeeps(engine: GwenEngine, plugin: GwenPlugin): boolean {
 }
 
 async function checkPair(
-  spec: PluginConformanceSpec,
+  context: RuntimeCheckContext,
   left: GwenPlugin,
   right: GwenPlugin,
 ): Promise<ConformanceFinding[]> {
+  const spec = context.spec;
   return withEngine(spec, async (first) => {
     return withEngine(spec, async (second) => {
-      await installProviders(first.engine, spec);
-      await installProviders(second.engine, spec);
+      await installPrerequisites(first.engine, context);
+      await installPrerequisites(second.engine, context);
       const installed = await usePlugin(first.engine, left);
       if (!installed) return [];
       await usePlugin(second.engine, right);
@@ -90,7 +91,7 @@ export async function checkTwoEngines(context: RuntimeCheckContext): Promise<Con
     const left = callExport(context.entry, factory.export, factory.options);
     const right = callExport(context.entry, factory.export, factory.options);
     if (!isPlugin(left) || !isPlugin(right)) continue;
-    findings.push(...(await checkPair(context.spec, left, right)));
+    findings.push(...(await checkPair(context, left, right)));
   }
   return findings;
 }

@@ -1,12 +1,39 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { installedHookNamespace } from "../installed-package.js";
 import { isRecord } from "../json.js";
 
-/** Parsed `package.json` fields the loader needs. `moduleTarget` is set only when `./module` is present. */
+/**
+ * Parsed `package.json` fields the loader needs.
+ * `moduleTarget` is set only when `./module` is present.
+ * `extensionTarget` is set only when `./extension` is present.
+ * `gwenExtends` is the non-empty strings of `gwen.extends`, in order, without duplicates.
+ */
 export interface RuntimeManifest {
   readonly name: string;
   readonly rootTarget: string;
   readonly moduleTarget: string | undefined;
+  readonly extensionTarget: string | undefined;
+  readonly gwenExtends: readonly string[];
+  readonly hookNamespace: string | undefined;
+}
+
+/** Non-empty strings of `gwen.extends`, in order, without duplicates. An absent field is `[]`. */
+export function readGwenExtends(manifest: unknown): readonly string[] {
+  if (!isRecord(manifest)) return [];
+  const gwen = manifest.gwen;
+  if (!isRecord(gwen)) return [];
+  const value = gwen.extends;
+  if (!Array.isArray(value)) return [];
+  const names: string[] = [];
+  const seen = new Set<string>();
+  for (const entry of value) {
+    if (typeof entry !== "string" || entry.length === 0) continue;
+    if (seen.has(entry)) continue;
+    seen.add(entry);
+    names.push(entry);
+  }
+  return names;
 }
 
 export type ManifestLoad =
@@ -107,7 +134,23 @@ function readTargets(file: string, name: string, manifest: Record<string, unknow
     if (typeof read !== "string") return read;
     moduleTarget = read;
   }
-  return { ok: true, manifest: { name, rootTarget, moduleTarget } };
+  let extensionTarget: string | undefined;
+  if (Object.hasOwn(exportsValue, "./extension")) {
+    const read = readImport(file, exportsValue, "./extension");
+    if (typeof read !== "string") return read;
+    extensionTarget = read;
+  }
+  return {
+    ok: true,
+    manifest: {
+      name,
+      rootTarget,
+      moduleTarget,
+      extensionTarget,
+      gwenExtends: readGwenExtends(manifest),
+      hookNamespace: installedHookNamespace(manifest),
+    },
+  };
 }
 
 /** Read `<root>/package.json`. A bad file is a result, not a throw. */

@@ -2,7 +2,7 @@ import type { GwenPlugin } from "@gwenjs/schema";
 import { ConformanceErrorCodes } from "../error-codes.js";
 import type { ConformanceFinding } from "../types.js";
 import { callExport, isPlugin } from "./call-factory.js";
-import { installProviders, thrownMessage, usePlugin } from "./lifecycle.js";
+import { installPrerequisites, thrownMessage, usePlugin } from "./lifecycle.js";
 import { importFreshEntry } from "./load-package.js";
 import { withEngine } from "./open-engine.js";
 import type { RuntimeCheckContext } from "./types.js";
@@ -24,7 +24,7 @@ async function checkOne(
   plugin: GwenPlugin,
 ): Promise<ConformanceFinding[]> {
   return withEngine(context.spec, async (open) => {
-    await installProviders(open.engine, context.spec);
+    await installPrerequisites(open.engine, context);
     const installed = await usePlugin(open.engine, plugin);
     if (!installed) return [];
     await open.engine.unuse(plugin.name);

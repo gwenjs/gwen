@@ -2,7 +2,7 @@ import { CoreErrorCodes } from "@gwenjs/core";
 import { ConformanceErrorCodes } from "../error-codes.js";
 import type { ConformanceFinding } from "../types.js";
 import { isPlugin, thrownCode } from "./call-factory.js";
-import { installProviders, thrownMessage } from "./lifecycle.js";
+import { installPrerequisites, thrownMessage } from "./lifecycle.js";
 import { withEngine } from "./open-engine.js";
 import type { PluginConformanceSpec, PluginFactorySpec, RuntimeCheckContext } from "./types.js";
 
@@ -63,7 +63,7 @@ export async function checkOptions(
   factories: readonly PluginFactorySpec[],
 ): Promise<ConformanceFinding[]> {
   return withEngine(context.spec, async (open) => {
-    await installProviders(open.engine, context.spec);
+    await installPrerequisites(open.engine, context);
     const findings: ConformanceFinding[] = [];
     for (const factory of factories) {
       const exported: unknown = context.entry[factory.export];
