@@ -2,6 +2,7 @@ import { compareFindings } from "../sort-findings.js";
 import type { ConformanceFinding } from "../types.js";
 import { checkOptions } from "./check-options.js";
 import { checkProvides } from "./check-provides.js";
+import { checkRequires } from "./check-requires.js";
 import { checkShape } from "./check-shape.js";
 import { loadRuntimePackage } from "./load-package.js";
 import { validateSpec } from "./spec.js";
@@ -12,7 +13,7 @@ function sorted(findings: readonly ConformanceFinding[]): ConformanceFinding[] {
 }
 
 /**
- * Validate `spec`, load the built package, then run shape, provides, and options.
+ * Validate `spec`, load the built package, then run shape, requires, provides, and options.
  * Options runs only when a factory sets `invalidOptions`.
  * An invalid spec, or a package that cannot be loaded, returns no checks.
  */
@@ -28,9 +29,10 @@ export async function runPluginConformance(
     return { checks: [], findings: sorted(loaded.findings) };
   }
   const context = { spec, entry: loaded.rootEntry };
-  const checks: RuntimeCheckId[] = ["shape", "provides"];
+  const checks: RuntimeCheckId[] = ["shape", "requires", "provides"];
   const findings: ConformanceFinding[] = [
     ...(await checkShape(context)),
+    ...(await checkRequires(context)),
     ...(await checkProvides(context)),
   ];
   const withInvalidOptions = spec.factories.filter(
