@@ -94,6 +94,13 @@ function holdPhysicsGlue(bridge: WasmBridgeImpl): WeakRef<object> {
   return new WeakRef(glue);
 }
 
+/** The linear-memory buffer dies with this call. The test keeps only the WeakRef. */
+function holdLinearBuffer(bridge: WasmBridgeImpl): WeakRef<ArrayBuffer> | undefined {
+  const memory = bridge.getLinearMemory();
+  if (memory === null) return undefined;
+  return new WeakRef(memory.buffer);
+}
+
 /** Label is `variant#` plus a per-process counter. The counter is not fixed. */
 function leakWarning(variant: string): RegExp {
   return new RegExp(
@@ -556,12 +563,26 @@ describe("bridge dispose", () => {
       await engine.use(Physics2DPlugin({ gravity: { x: 0, y: 0 } }));
       const physics = engine.inject("physics2d");
       const id = engine.createEntity();
-      physics.addRigidBody(id, "dynamic", 1, 2);
+      const other = engine.createEntity();
+      physics.addRigidBody(id, "dynamic", 0, 0, { gravityScale: 0 });
+      physics.addBoxCollider(id, 0.5, 0.5);
+      physics.addRigidBody(other, "dynamic", 0, 0, { gravityScale: 0 });
+      physics.addBoxCollider(other, 0.5, 0.5);
+      let bufferRef: WeakRef<ArrayBuffer> | undefined;
+      engine.hooks.hook("physics:collision", () => {
+        bufferRef = holdLinearBuffer(bridge);
+      });
+      for (let frame = 0; frame < 8; frame += 1) {
+        await engine.advance(1 / 60);
+      }
+      expect(bufferRef).toBeDefined();
+      if (bufferRef === undefined) return;
       const glueRef = holdPhysicsGlue(bridge);
       await engine.stop();
       await forceGc();
       const collected = glueRef.deref() === undefined;
       expect(collected).toBe(true);
+      expect(bufferRef.deref()).toBeUndefined();
       expect(typeof id).toBe("bigint");
       expect(typeof physics.addRigidBody).toBe("function");
     } finally {

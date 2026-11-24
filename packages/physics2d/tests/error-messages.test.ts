@@ -130,7 +130,6 @@ describe("physics2d error messages", () => {
   it.each([
     ["usePhysics2D", () => usePhysics2D()],
     ["useStaticBody", () => useStaticBody()],
-    ["Physics2DPlugin.teardown", () => Physics2DPlugin().teardown()],
     ["Physics2DPlugin", () => sensor._dispatchSensorEnter(1, 1n)],
     ["Physics2DPlugin", () => sensor._dispatchSensorExit(1, 1n)],
     ["Physics2DPlugin", () => sensor._clearSensorCallbacks(1)],

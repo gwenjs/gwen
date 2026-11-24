@@ -21,74 +21,28 @@ interface SensorOwner {
 
 const sensorOwners = createEngineLocal<SensorOwner[]>(() => []);
 
-let sensorEmitDepth = 0;
-const pendingSensorClears: Array<{ engine: GwenEngine; callbacks: SensorCallback[] }> = [];
-
-function flushSensorClears(): void {
-  const pending = pendingSensorClears.splice(0, pendingSensorClears.length);
-  for (const item of pending) {
-    const entries = createSensorRegistry().peek(item.engine)?.entries;
-    if (entries === undefined) continue;
-    const owned = new Set(item.callbacks);
-    for (let index = entries.length - 1; index >= 0; index -= 1) {
-      const entry = entries[index];
-      if (entry !== undefined && owned.has(entry.cb)) entries.splice(index, 1);
-    }
-  }
-}
-
-function runSensorEmit(run: () => void): void {
-  sensorEmitDepth += 1;
-  try {
-    run();
-  } finally {
-    sensorEmitDepth -= 1;
-    if (sensorEmitDepth === 0) flushSensorClears();
-  }
-}
-
-/** @internal Called by the physics2d plugin for sensor enter events on this engine. */
+/** @internal Called by tests for sensor enter events on this engine. */
 export function _dispatchSensorEnter(sensorId: number, entityId: EntityId): void {
-  runSensorEmit(() => {
-    createSensorRegistry().peek(useEngine("Physics2DPlugin"))?.emit(sensorId, entityId, "enter");
-  });
+  createSensorRegistry().peek(useEngine("Physics2DPlugin"))?.emit(sensorId, entityId, "enter");
 }
 
-/** @internal Called by the physics2d plugin for sensor exit events on this engine. */
+/** @internal Called by tests for sensor exit events on this engine. */
 export function _dispatchSensorExit(sensorId: number, entityId: EntityId): void {
-  runSensorEmit(() => {
-    createSensorRegistry().peek(useEngine("Physics2DPlugin"))?.emit(sensorId, entityId, "exit");
-  });
-}
-
-function queueOrDropSensorEntries(
-  engine: GwenEngine,
-  entries: Array<{ readonly cb: SensorCallback }>,
-  callbacks: SensorCallback[],
-): void {
-  if (callbacks.length === 0) return;
-  if (sensorEmitDepth > 0) {
-    pendingSensorClears.push({ engine, callbacks });
-    return;
-  }
-  const owned = new Set(callbacks);
-  for (let index = entries.length - 1; index >= 0; index -= 1) {
-    const entry = entries[index];
-    if (entry !== undefined && owned.has(entry.cb)) entries.splice(index, 1);
-  }
+  createSensorRegistry().peek(useEngine("Physics2DPlugin"))?.emit(sensorId, entityId, "exit");
 }
 
 /**
  * Remove callbacks for one sensor.
  * A number clears callbacks registered outside an actor.
  * A bigint plus `sensorId` clears that entity only.
- * Removals requested during `emit` wait until the walk finishes.
+ * The registry defers a removal requested during `emit`.
  */
 export function _clearSensorCallbacks(sensorOrEntity: number | bigint, sensorId?: number): void {
   const engine = useEngine("Physics2DPlugin");
-  const entries = createSensorRegistry().peek(engine)?.entries;
+  const registry = createSensorRegistry().peek(engine);
   const owners = sensorOwners.peek(engine);
-  if (entries === undefined) return;
+  if (registry === undefined) return;
+  const entries = registry.entries;
   if (typeof sensorOrEntity === "number") {
     const owned = new Set<SensorCallback>();
     if (owners !== undefined) {
@@ -101,7 +55,7 @@ export function _clearSensorCallbacks(sensorOrEntity: number | bigint, sensorId?
       if (entry.sensorId !== sensorOrEntity || owned.has(entry.cb)) continue;
       callbacks.push(entry.cb);
     }
-    queueOrDropSensorEntries(engine, entries, callbacks);
+    registry.remove(callbacks);
     return;
   }
   if (sensorId === undefined) return;
@@ -115,7 +69,7 @@ export function _clearSensorCallbacks(sensorOrEntity: number | bigint, sensorId?
       owners.splice(index, 1);
     }
   }
-  queueOrDropSensorEntries(engine, entries, [...owned]);
+  registry.remove([...owned]);
 }
 
 /** @internal Drop every sensor callback owned by `engine`. */

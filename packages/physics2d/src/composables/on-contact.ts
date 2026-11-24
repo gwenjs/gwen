@@ -13,41 +13,12 @@ import {
 } from "@gwenjs/physics-core";
 import type { CollisionContact } from "../types";
 
-let contactEmitDepth = 0;
-const pendingContactClears: Array<{ engine: GwenEngine; entityId: bigint }> = [];
-
-function dropContactEntries(
-  entries: Array<{ readonly entityId: EntityId | undefined }>,
-  entityId: bigint,
-): void {
-  for (let index = entries.length - 1; index >= 0; index -= 1) {
-    const entry = entries[index];
-    if (entry !== undefined && entry.entityId === entityId) entries.splice(index, 1);
-  }
-}
-
-function flushContactClears(): void {
-  const pending = pendingContactClears.splice(0, pendingContactClears.length);
-  for (const item of pending) {
-    const entries = createContactRegistry().peek(item.engine)?.entries;
-    if (entries === undefined) continue;
-    dropContactEntries(entries, item.entityId);
-  }
-}
-
 /**
- * @internal Called by the physics2d plugin per contact to emit into the shared registry.
- * Removals requested during `emit` wait until the walk finishes, so a callback that
- * destroys its entity does not splice the list the iterator is walking.
+ * @internal Called by tests to emit one contact into the shared registry.
+ * The registry defers a removal requested during `emit`.
  */
 export function _dispatchContactEvent(event: CollisionContact): void {
-  contactEmitDepth += 1;
-  try {
-    createContactRegistry().peek(useEngine("Physics2DPlugin"))?.emit(event);
-  } finally {
-    contactEmitDepth -= 1;
-    if (contactEmitDepth === 0) flushContactClears();
-  }
+  createContactRegistry().peek(useEngine("Physics2DPlugin"))?.emit(event);
 }
 
 /**
@@ -78,15 +49,11 @@ export function onContact(
 }
 
 /** @internal Remove this engine's contact callbacks for one entity. */
-export function _clearContactCallbacks(entityId: bigint): void {
+export function _clearContactCallbacks(entityId: EntityId): void {
   const engine = useEngine("Physics2DPlugin");
-  const entries = createContactRegistry().peek(engine)?.entries;
-  if (entries === undefined) return;
-  if (contactEmitDepth > 0) {
-    pendingContactClears.push({ engine, entityId });
-    return;
-  }
-  dropContactEntries(entries, entityId);
+  const registry = createContactRegistry().peek(engine);
+  if (registry === undefined) return;
+  registry.removeEntity(entityId);
 }
 
 /** @internal Drop contact and sensor callbacks owned by `engine`. */
