@@ -1,0 +1,9 @@
+{
+  "name": "@fixture/unscoped-engine",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js"
+    }
+  }
+}
