@@ -1,14 +1,13 @@
 /**
- * gwenVitePlugin installs no optimizer; optimizer: true is a no-op;
- * gwenOptimizerPlugin throws until #69/P-66-5a2.
+ * gwenVitePlugin installs no optimizer; optimizer: true is a no-op until #69.
+ * gwenOptimizerPlugin and gwenTransform are not exported.
  */
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer, type Logger, type Plugin } from "vite";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { GwenError } from "@gwenjs/schema";
-import { gwenOptimizerPlugin } from "../../src/index.js";
+import * as entry from "../../src/index.js";
 import { gwenVitePlugin } from "../../src/plugins/index.js";
 import type { GwenViteOptions } from "../../src/types.js";
 
@@ -101,24 +100,6 @@ async function transformMover(
   }
 }
 
-function thrownBy(run: () => void): unknown {
-  try {
-    run();
-    return undefined;
-  } catch (err) {
-    return err;
-  }
-}
-
-function expectOptimizerRemoved(thrown: unknown): void {
-  expect(thrown).toBeInstanceOf(GwenError);
-  if (!(thrown instanceof GwenError)) return;
-  expect(thrown.code).toBe("VITE:TRANSFORM_UNSUPPORTED");
-  expect(thrown.message.split("\n")[0]).toBe(
-    "[gwenOptimizerPlugin()] gwenOptimizerPlugin was removed; use the optimizer option.",
-  );
-}
-
 describe("optimizer is a no-op until #69", () => {
   it("optimizer: true is a no-op until #69", async () => {
     const on = await transformMover({ optimizer: true });
@@ -143,16 +124,9 @@ describe("optimizer is a no-op until #69", () => {
     expect(tagged).toEqual([]);
   });
 
-  it("gwenOptimizerPlugin throws VITE:TRANSFORM_UNSUPPORTED naming the optimizer option", () => {
-    expectOptimizerRemoved(
-      thrownBy(() => {
-        gwenOptimizerPlugin();
-      }),
-    );
-    expectOptimizerRemoved(
-      thrownBy(() => {
-        gwenOptimizerPlugin({ debug: true });
-      }),
-    );
+  it("gwenOptimizerPlugin and gwenTransform are not exported", () => {
+    expect("gwenOptimizerPlugin" in entry).toBe(false);
+    expect("gwenTransform" in entry).toBe(false);
+    expect("gwenPhysics3DOptimizerPlugin" in entry).toBe(true);
   });
 });

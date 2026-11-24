@@ -8,8 +8,6 @@ describe("ViteErrorCodes", () => {
   it("holds exactly the codes @gwenjs/vite throws", async () => {
     const entry: Record<string, unknown> = await import("@gwenjs/vite");
     expect(entry["ViteErrorCodes"]).toEqual({
-      OPTIMIZER_UNKNOWN_COMPONENT: "VITE:OPTIMIZER_UNKNOWN_COMPONENT",
-      OPTIMIZER_UNKNOWN_FIELD: "VITE:OPTIMIZER_UNKNOWN_FIELD",
       SCENE_NAME_UNRESOLVED: "VITE:SCENE_NAME_UNRESOLVED",
       SCENE_NAME_DUPLICATE: "VITE:SCENE_NAME_DUPLICATE",
       MAIN_SCENE_UNKNOWN: "VITE:MAIN_SCENE_UNKNOWN",
