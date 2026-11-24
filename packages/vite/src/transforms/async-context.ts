@@ -1,6 +1,6 @@
 /**
  * `gwen:async-context` wraps each `await` inside an inline async handler
- * passed to `onEnter`, `onExit`, or `withAsyncContext`.
+ * passed to `onEnter`, `onExit`, `onPreload`, or `withAsyncContext`.
  * The callee is the import binding from `ctx.resolveCallee`.
  * A nested `await` in an await argument raises `VITE:TRANSFORM_UNSUPPORTED`.
  */
@@ -36,7 +36,12 @@ interface AwaitSite {
 
 function isAsyncCallee(call: CallExpression, ctx: TransformContext): boolean {
   const bound = ctx.resolveCallee(call);
-  return bound === "onEnter" || bound === "onExit" || bound === "withAsyncContext";
+  return (
+    bound === "onEnter" ||
+    bound === "onExit" ||
+    bound === "withAsyncContext" ||
+    bound === "onPreload"
+  );
 }
 
 function isAsyncHandler(node: Node): node is ArrowFunctionExpression | Function {

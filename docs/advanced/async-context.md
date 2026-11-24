@@ -18,13 +18,13 @@ const GameScene = defineScene('game', () => {
 })
 ```
 
-GWEN solves this automatically for `onEnter` and `onExit` via a Vite build transform. For other cases, an explicit escape hatch is available.
+GWEN solves this automatically for `onEnter`, `onExit` and `onPreload` via a Vite build transform. For other cases, an explicit escape hatch is available.
 
 ---
 
-## Automatic fix — `onEnter` and `onExit`
+## Automatic fix — `onEnter`, `onExit` and `onPreload`
 
-`gwen dev` and `gwen build` already instrument every `await` inside `onEnter` and `onExit`. A hand-written Vite config gets the same transform through `gwenVitePlugin()`. The engine context is saved before each suspension point and restored after it resolves.
+`gwen dev` and `gwen build` already instrument every `await` inside `onEnter`, `onExit` and `onPreload`. A hand-written Vite config gets the same transform through `gwenVitePlugin()`. The engine context is saved before each suspension point and restored after it resolves.
 
 ```ts
 // vite.config.ts — a hand-written config gets the transform through gwenVitePlugin()
@@ -36,7 +36,7 @@ export default defineConfig({
 })
 ```
 
-With the plugin configured, async `onEnter` and `onExit` work transparently:
+With the plugin configured, async `onEnter`, `onExit` and `onPreload` work transparently:
 
 ```ts
 const GameScene = defineScene('game', () => {
@@ -48,6 +48,11 @@ const GameScene = defineScene('game', () => {
   onExit(async () => {
     await saveProgress()
     useHTML().unmount()        // ✅
+  })
+
+  onPreload(async (event) => {
+    await loadAssets(event)       // ← transform instruments this await
+    event.progress('level', 1, 1) // ✅ context restored automatically
   })
 })
 ```
@@ -149,10 +154,10 @@ try {
 
 ### Diagnosing "context lost after await"
 
-If you see `GwenContextError` thrown from code that is inside an `onEnter` or `onExit`:
+If you see `GwenContextError` thrown from code that is inside an `onEnter`, `onExit` or `onPreload`:
 
 1. **`gwen dev` and `gwen build` already instrument awaits.** A hand-written config gets the transform through `gwenVitePlugin()`. Without that plugin, the transform does not run and contexts are not propagated.
-2. **Check that the function is directly passed to `onEnter`/`onExit`** — the transform looks for `onEnter(async () => {...})`. Assigning the function to a variable first defeats the transform.
+2. **Check that the function is directly passed to `onEnter`/`onExit`/`onPreload`** — the transform looks for `onEnter(async () => {...})` or `onPreload(async (event) => {...})`. Assigning the function to a variable first defeats the transform.
 3. **For `onStart` and custom callbacks**, use `withAsyncContext()` or the capture pattern.
 
 ### Diagnosing "called outside engine context"
@@ -184,7 +189,7 @@ engine.run(() => {
 | `defineScene()` factory | ✅ Yes (sync) | Engine context active |
 | `defineActor()` factory | ✅ Yes (sync) | Engine context active |
 | `onUpdate` / `onRender` | ✅ Yes (sync) | Frame loop context |
-| `onEnter` / `onExit` | ✅ Yes (async) | Vite transform + `executeAsync` |
+| `onEnter` / `onExit` / `onPreload` | ✅ Yes (async) | Vite transform + `executeAsync` |
 | `onStart` async after `await` | ⚠️ Opt-in | `withAsyncContext()` or capture pattern |
 | Module top-level | ❌ Never | Use `engine.run()` |
 

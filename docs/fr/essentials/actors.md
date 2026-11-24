@@ -378,8 +378,8 @@ const PlayerActor = defineActor(PlayerPrefab, () => {
 })
 ```
 
-::: info `onEnter` / `onExit` sont gérés automatiquement
-Le plugin Vite instrumente automatiquement les `await` dans les callbacks `onEnter` et `onExit` — pas besoin de `withAsyncContext` ici. Utilisez `withAsyncContext` pour `onStart` et tous les autres callbacks asynchrones personnalisés.
+::: info `onEnter` / `onExit` / `onPreload` sont gérés automatiquement
+Le plugin Vite instrumente automatiquement les `await` dans les callbacks `onEnter`, `onExit` et `onPreload` — pas besoin de `withAsyncContext` ici. Utilisez `withAsyncContext` pour `onStart` et tous les autres callbacks asynchrones personnalisés.
 :::
 
 ::: warning Non valide dans les acteurs

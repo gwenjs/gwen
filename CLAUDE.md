@@ -99,7 +99,7 @@ active. The context is active inside:
 - `engine.run(() => { ... })` — explicit context block
 
 Outside these boundaries, composables throw `GwenContextError` from `@gwenjs/core` (re-export) or `@gwenjs/kit`. The message is `[where] what`, then `Fix:` when a dev hint is set, then `See <docsUrl> (<code>)`. `where` is the composable, or `GWEN`. Branch on `e.code`. The Vite plugin propagates
-context across `await` boundaries automatically for `onEnter`/`onExit`. For other async
+context across `await` boundaries automatically for `onEnter`/`onExit`/`onPreload`. For other async
 contexts, the **capture pattern** is required:
 
 ```ts
@@ -189,7 +189,7 @@ template; an actor wraps a prefab with lifecycle hooks and a public API. Entity 
 The Vite plugin performs source-level transforms that would be impossible at runtime:
 - Injects readable system/actor names from exported variable names (devtools, debugging)
 - Auto-discovers `src/actors/` and `src/scenes/` and wires them into virtual modules
-- Propagates engine context across `await` in `onEnter` / `onExit` callbacks
+- Propagates engine context across `await` in `onEnter` / `onExit` / `onPreload` callbacks
 
 Virtual modules (`virtual:gwen/actors`, `virtual:gwen/scenes`, …) are consumed internally
 by the framework bootstrap — users rarely import them directly.

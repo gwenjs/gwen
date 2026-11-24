@@ -18,13 +18,13 @@ const GameScene = defineScene('game', () => {
 })
 ```
 
-GWEN résout cela automatiquement pour `onEnter` et `onExit` via un transform Vite au build. Pour les autres cas, une trappe d'échappement explicite est disponible.
+GWEN résout cela automatiquement pour `onEnter`, `onExit` et `onPreload` via un transform Vite au build. Pour les autres cas, une trappe d'échappement explicite est disponible.
 
 ---
 
-## Correction automatique — `onEnter` et `onExit`
+## Correction automatique — `onEnter`, `onExit` et `onPreload`
 
-`gwen dev` et `gwen build` instrumentent déjà chaque `await` dans `onEnter` et `onExit`. Une config Vite écrite à la main reçoit le même transform par `gwenVitePlugin()`. Le contexte moteur est sauvegardé avant chaque point de suspension et restauré après sa résolution.
+`gwen dev` et `gwen build` instrumentent déjà chaque `await` dans `onEnter`, `onExit` et `onPreload`. Une config Vite écrite à la main reçoit le même transform par `gwenVitePlugin()`. Le contexte moteur est sauvegardé avant chaque point de suspension et restauré après sa résolution.
 
 ```ts
 // vite.config.ts — une config écrite à la main reçoit le transform par gwenVitePlugin()
@@ -36,7 +36,7 @@ export default defineConfig({
 })
 ```
 
-Avec le plugin configuré, `onEnter` et `onExit` asynchrones fonctionnent de façon transparente :
+Avec le plugin configuré, `onEnter`, `onExit` et `onPreload` asynchrones fonctionnent de façon transparente :
 
 ```ts
 const GameScene = defineScene('game', () => {
@@ -48,6 +48,11 @@ const GameScene = defineScene('game', () => {
   onExit(async () => {
     await saveProgress()
     useHTML().unmount()        // ✅
+  })
+
+  onPreload(async (event) => {
+    await loadAssets(event)       // ← le transform instrumente ce await
+    event.progress('level', 1, 1) // ✅ contexte restauré automatiquement
   })
 })
 ```
@@ -149,10 +154,10 @@ try {
 
 ### Diagnostiquer "contexte perdu après await"
 
-Si vous voyez `GwenContextError` levée depuis du code dans un `onEnter` ou `onExit` :
+Si vous voyez `GwenContextError` levée depuis du code dans un `onEnter`, un `onExit` ou un `onPreload` :
 
 1. **`gwen dev` et `gwen build` instrumentent déjà les awaits.** Une config écrite à la main reçoit le transform par `gwenVitePlugin()`. Sans ce plugin, le transform ne s'exécute pas et les contextes ne sont pas propagés.
-2. **Vérifiez que la fonction est passée directement à `onEnter`/`onExit`** — le transform cherche `onEnter(async () => {...})`. Assigner la fonction à une variable au préalable désactive le transform.
+2. **Vérifiez que la fonction est passée directement à `onEnter`/`onExit`/`onPreload`** — le transform cherche `onEnter(async () => {...})` ou `onPreload(async (event) => {...})`. Assigner la fonction à une variable au préalable désactive le transform.
 3. **Pour `onStart` et les callbacks personnalisés**, utilisez `withAsyncContext()` ou le pattern de capture.
 
 ### Diagnostiquer "appelé hors contexte moteur"
@@ -184,7 +189,7 @@ engine.run(() => {
 | Factory `defineScene()` | ✅ Oui (sync) | Contexte moteur actif |
 | Factory `defineActor()` | ✅ Oui (sync) | Contexte moteur actif |
 | `onUpdate` / `onRender` | ✅ Oui (sync) | Contexte de boucle de frame |
-| `onEnter` / `onExit` | ✅ Oui (async) | Transform Vite + `executeAsync` |
+| `onEnter` / `onExit` / `onPreload` | ✅ Oui (async) | Transform Vite + `executeAsync` |
 | `onStart` async après `await` | ⚠️ Opt-in | `withAsyncContext()` ou pattern de capture |
 | Niveau module | ❌ Jamais | Utiliser `engine.run()` |
 

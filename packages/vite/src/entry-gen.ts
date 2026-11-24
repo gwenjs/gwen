@@ -237,7 +237,9 @@ export function generateEntryModule(
 
   lines.push(
     'import { createEngine } from "@gwenjs/core";',
-    'import { WasmBridgeImpl } from "@gwenjs/core/internal";',
+    hasScenesDir
+      ? 'import { WasmBridgeImpl, runScenePreload } from "@gwenjs/core/internal";'
+      : 'import { WasmBridgeImpl } from "@gwenjs/core/internal";',
     'import { createViewportsPlugin, createScreenPlugin } from "@gwenjs/app";',
     `import * as __gwenGlue from ${JSON.stringify(`@gwenjs/core/wasm/${variant}/factory`)};`,
     'import gwenConfig from "/gwen.config.ts";',
@@ -301,6 +303,7 @@ export function generateEntryModule(
       "  engine.hooks.hook('scene:enter', (_name) => { for (const _h of _sceneHandleMap.get(_name) ?? []) _h._sceneResume(); });",
       "  engine.hooks.hook('scene:beforeLeave', (_name) => { for (const _h of _sceneHandleMap.get(_name) ?? []) _h._scenePause(); });",
       "",
+      "  if (mainScene) await runScenePreload(engine, null, mainScene);",
       '  if (mainScene) await engine.hooks.callHook("scene:enter", mainScene, undefined);',
     );
   }
