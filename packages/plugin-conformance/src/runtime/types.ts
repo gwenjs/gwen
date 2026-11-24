@@ -48,3 +48,9 @@ export interface RuntimeConformanceReport {
   readonly checks: readonly RuntimeCheckId[];
   readonly findings: readonly ConformanceFinding[];
 }
+
+/** A loaded spec. Not part of the public runtime entry. */
+export interface RuntimeCheckContext {
+  readonly spec: PluginConformanceSpec;
+  readonly entry: Record<string, unknown>;
+}
