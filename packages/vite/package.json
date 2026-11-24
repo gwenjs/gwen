@@ -34,6 +34,7 @@
     "postbuild": "node ../../scripts/fix-dts-extensions.mjs .",
     "dev": "vite build --watch",
     "test": "vitest run",
+    "test:bundle": "vitest run --config vitest.bundle.config.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

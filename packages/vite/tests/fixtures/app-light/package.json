@@ -1,0 +1,10 @@
+{
+  "name": "@gwenjs/fixture-app-light",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@gwenjs/app": "workspace:*",
+    "@gwenjs/core": "workspace:*",
+    "@gwenjs/vite": "workspace:*"
+  }
+}

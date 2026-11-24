@@ -1,4 +1,5 @@
 packages:
   - 'packages/*'
+  - 'packages/vite/tests/fixtures/app-*'
 allowBuilds:
   esbuild: true
