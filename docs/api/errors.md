@@ -556,7 +556,7 @@ Cause. A string `exports` target must start with `./` and be a file inside the p
 
 ### CONFORMANCE:EXTENSION_OFFICIAL {#conformance-extension-official}
 
-Cause. An official package (its name starts with `@gwenjs/` and it is not a framework package) lists at least one string in `gwen.extends`. One finding, on the `package.json` line of the `gwen.extends` key. The message names the package and each listed string base. A community package, a framework package, an absent `gwen.extends`, an empty array, and a value that is not an array are accepted. An entry that is not a string is ignored. The check runs for both profiles. Fix. Remove `gwen.extends`. An official package names only plugins of its own package and framework plugins: use `requires.services` or `requires.optional` on schema contracts.
+Cause. An official package (its name starts with `@gwenjs/` and it is not a framework package) lists at least one valid, unique package name other than its own in `gwen.extends`. One finding, on the `package.json` line of the `gwen.extends` key. The message names the package and each listed base. A community package, a framework package, an absent `gwen.extends`, an empty array, and a value that is not an array are accepted. An entry that is not a string, a repeated name, the package's own name, and a value that is not a package name are left out of that message. The check runs for both profiles. Fix. Remove `gwen.extends`. An official package names only plugins of its own package and framework plugins: use `requires.services` or `requires.optional` on schema contracts.
 
 ### CONFORMANCE:HOOK_DYNAMIC_NAME {#conformance-hook-dynamic-name}
 
@@ -612,7 +612,7 @@ Cause. With `lockfileBase` set, a third-party package in `pnpm-lock.yaml` (a nam
 
 ### CONFORMANCE:MANIFEST {#conformance-manifest}
 
-Cause. Profile `plugin` does not set `gwen.type` to `"plugin"`, `license` is empty or missing, no LICENSE file is at the root, or `package.json` is missing, unreadable, or not valid JSON. Fix. Set `gwen.type` and a non-empty `license`, add `LICENSE`, `LICENSE.md`, or `LICENSE.txt`, and write valid JSON.
+Cause. Profile `plugin` does not set `gwen.type` to `"plugin"`, `license` is empty or missing, no LICENSE file is at the root, or `package.json` is missing, unreadable, or not valid JSON. A malformed `gwen.extends` is the same code, for both profiles: the value is not an array (line of the key), an entry is not a string (line of that entry), a package name is listed twice (line of the later entry), the package lists its own name (line of that entry), or an entry is not a package name (line of that entry). A package name is an optional `@scope/` plus one segment, with no further `/`, no space and no uppercase. An absent field and an empty array are not findings. One finding per problem. Fix. Set `gwen.type` and a non-empty `license`, add `LICENSE`, `LICENSE.md`, or `LICENSE.txt`, and write valid JSON. Write `gwen.extends` as an array of package names, for example `["fixture-base"]`.
 
 ### CONFORMANCE:PEER_RANGE {#conformance-peer-range}
 

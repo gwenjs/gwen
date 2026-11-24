@@ -556,7 +556,7 @@ Cause. Une cible `exports` qui est une chaîne doit commencer par `./` et être 
 
 ### CONFORMANCE:EXTENSION_OFFICIAL {#conformance-extension-official}
 
-Cause. Un paquet officiel (son nom commence par `@gwenjs/` et ce n'est pas un paquet du framework) liste au moins une chaîne dans `gwen.extends`. Un constat, sur la ligne de la clé `gwen.extends` dans `package.json`. Le message nomme le paquet et chaque base qui est une chaîne. Un paquet communautaire, un paquet du framework, un `gwen.extends` absent, un tableau vide, et une valeur qui n'est pas un tableau sont acceptés. Une entrée qui n'est pas une chaîne est ignorée. La vérification s'exécute pour les deux profils. Fix. Retirez `gwen.extends`. Un paquet officiel ne nomme que les plugins de son propre paquet et les plugins du framework : utilisez `requires.services` ou `requires.optional` sur les contrats de schéma.
+Cause. Un paquet officiel (son nom commence par `@gwenjs/` et ce n'est pas un paquet du framework) liste au moins un nom de paquet valide, unique, et autre que le sien dans `gwen.extends`. Un constat, sur la ligne de la clé `gwen.extends` dans `package.json`. Le message nomme le paquet et chaque base listée. Un paquet communautaire, un paquet du framework, un `gwen.extends` absent, un tableau vide, et une valeur qui n'est pas un tableau sont acceptés. Une entrée qui n'est pas une chaîne, un nom répété, le nom du paquet lui-même, et une valeur qui n'est pas un nom de paquet sont laissés hors de ce message. La vérification s'exécute pour les deux profils. Fix. Retirez `gwen.extends`. Un paquet officiel ne nomme que les plugins de son propre paquet et les plugins du framework : utilisez `requires.services` ou `requires.optional` sur les contrats de schéma.
 
 ### CONFORMANCE:HOOK_DYNAMIC_NAME {#conformance-hook-dynamic-name}
 
@@ -612,7 +612,7 @@ Cause. Quand `lockfileBase` est donné, un paquet tiers de `pnpm-lock.yaml` (un 
 
 ### CONFORMANCE:MANIFEST {#conformance-manifest}
 
-Cause. Le profil `plugin` ne met pas `gwen.type` à `"plugin"`, `license` est vide ou absent, aucun fichier LICENSE n'est à la racine, ou `package.json` manque, est illisible, ou n'est pas du JSON valide. Fix. Réglez `gwen.type` et un `license` non vide, ajoutez `LICENSE`, `LICENSE.md` ou `LICENSE.txt`, et écrivez du JSON valide.
+Cause. Le profil `plugin` ne met pas `gwen.type` à `"plugin"`, `license` est vide ou absent, aucun fichier LICENSE n'est à la racine, ou `package.json` manque, est illisible, ou n'est pas du JSON valide. Un `gwen.extends` mal formé est le même code, pour les deux profils : la valeur n'est pas un tableau (ligne de la clé), une entrée n'est pas une chaîne (ligne de cette entrée), un nom de paquet est listé deux fois (ligne de l'entrée suivante), le paquet liste son propre nom (ligne de cette entrée), ou une entrée n'est pas un nom de paquet (ligne de cette entrée). Un nom de paquet est un `@scope/` facultatif plus un segment, sans `/` supplémentaire, sans espace et sans majuscule. Un champ absent et un tableau vide ne sont pas des constats. Un constat par problème. Fix. Réglez `gwen.type` et un `license` non vide, ajoutez `LICENSE`, `LICENSE.md` ou `LICENSE.txt`, et écrivez du JSON valide. Écrivez `gwen.extends` comme un tableau de noms de paquets, par exemple `["fixture-base"]`.
 
 ### CONFORMANCE:PEER_RANGE {#conformance-peer-range}
 
