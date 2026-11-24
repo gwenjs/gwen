@@ -372,10 +372,10 @@ function onDestroy(cb: () => void): void
 
 ## Scènes
 
-**Exports :** `defineScene`, `useSystem`, `onEnter`, `onExit`, `onTransitionEnter`, `onTransitionExit`, `defineSceneRouter`, `useSceneRouter`
+**Exports :** `defineScene`, `useSystem`, `onEnter`, `onExit`, `onPreload`, `onTransitionEnter`, `onTransitionExit`, `defineSceneRouter`, `useSceneRouter`
 
 ```ts
-import { onTransitionEnter, onTransitionExit } from '@gwenjs/core/scene'
+import { onPreload, onTransitionEnter, onTransitionExit } from '@gwenjs/core/scene'
 ```
 
 `onTransitionExit(cb)` s'exécute sur `scene:transition:leave` et `onTransitionEnter(cb)` sur `scene:transition:enter`. Chaque callback reçoit `{ from, to }`, est attendu, et doit être appelé dans la factory d'un `defineScene()` ; `GwenContextError` sinon.
@@ -461,6 +461,26 @@ function onExit(cb: () => void | Promise<void>): void
 defineScene('game', () => {
   const player = useActor(PlayerActor)
   onExit(() => player.despawnAll())
+})
+```
+
+### onPreload(cb)
+
+**Signature:**
+```ts
+function onPreload(cb: (event: ScenePreloadEvent) => void | Promise<void>): void
+```
+
+**Description.** Enregistre un callback déclenché sur `scene:preload` pendant que cette scène est la cible. Les appels s'accumulent dans l'ordre. Doit être appelé dans la factory d'un `defineScene()`.
+
+**Lève:** `GwenContextError` avec le code `CORE:OUTSIDE_SCENE_CONTEXT` si appelé hors d'une factory `defineScene()`.
+
+**Exemple:**
+```ts
+defineScene('game', () => {
+  onPreload(async (event) => {
+    event.progress('level', 1, 1)
+  })
 })
 ```
 
