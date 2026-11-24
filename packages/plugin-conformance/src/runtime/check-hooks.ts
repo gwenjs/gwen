@@ -8,7 +8,7 @@ import { scanHookSources } from "../hook-sources.js";
 import type { ConformanceFinding } from "../types.js";
 import { callExport, isPlugin } from "./call-factory.js";
 import { startHookRecording } from "./hook-recorder.js";
-import { advanceFrames, installProviders, usePlugin } from "./lifecycle.js";
+import { advanceFrames, installPrerequisites, usePlugin } from "./lifecycle.js";
 import { runtimeRoot } from "./load-package.js";
 import { withEngine } from "./open-engine.js";
 import type { RuntimeCheckContext } from "./types.js";
@@ -67,7 +67,7 @@ async function checkOne(
   sink: ConformanceFinding[],
 ): Promise<void> {
   await withEngine(context.spec, async (open) => {
-    await installProviders(open.engine, context.spec);
+    await installPrerequisites(open.engine, context);
     const seen = new Set<string>();
     const recording = startHookRecording(open.engine, (name) => {
       note(sink, declared, seen, context.spec.packageName, factory, name);

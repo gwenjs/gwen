@@ -4,10 +4,10 @@ import { ConformanceErrorCodes } from "../error-codes.js";
 import { isRecord } from "../json.js";
 import type { ConformanceFinding } from "../types.js";
 import { callExport, isPlugin } from "./call-factory.js";
-import { advanceFrames, installProviders, thrownMessage } from "./lifecycle.js";
+import { advanceFrames, installPrerequisites, thrownMessage } from "./lifecycle.js";
 import { withEngine } from "./open-engine.js";
 import { runtimeFinding } from "./spec.js";
-import type { PluginConformanceSpec, RuntimeCheckContext } from "./types.js";
+import type { RuntimeCheckContext } from "./types.js";
 
 interface StampedEvent {
   readonly event: GwenErrorPayload;
@@ -123,9 +123,10 @@ export function quietWindowFindings(
 }
 
 async function checkOne(
-  spec: PluginConformanceSpec,
+  context: RuntimeCheckContext,
   plugin: GwenPlugin,
 ): Promise<ConformanceFinding[]> {
+  const spec = context.spec;
   return withEngine(spec, async (open) => {
     // hookable calls hooks in registration order
     // (`node_modules/.pnpm/hookable@6.1.0/node_modules/hookable/dist/index.mjs:102`, `:41`).
@@ -140,7 +141,7 @@ async function checkOne(
     open.engine.errors.on((event) => {
       stamped.push({ event, frame });
     });
-    await installProviders(open.engine, spec);
+    await installPrerequisites(open.engine, context);
     try {
       await open.engine.use(plugin);
     } catch {
@@ -178,7 +179,7 @@ export async function checkFrames(context: RuntimeCheckContext): Promise<Conform
   for (const factory of context.spec.factories) {
     const created = callExport(context.entry, factory.export, factory.options);
     if (!isPlugin(created)) continue;
-    findings.push(...(await checkOne(context.spec, created)));
+    findings.push(...(await checkOne(context, created)));
   }
   return findings;
 }

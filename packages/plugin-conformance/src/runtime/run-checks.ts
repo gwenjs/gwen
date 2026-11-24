@@ -36,6 +36,9 @@ export const RUNTIME_CHECK_ORDER: readonly RuntimeCheckId[] = [
   "stop",
   "options",
   "module",
+  "requirement-form",
+  "extension",
+  "base-surface",
   "hooks",
   "composable",
 ];
@@ -64,6 +67,7 @@ function scopeToFactory(
   if (spec.fixture !== undefined) scoped = { ...scoped, fixture: spec.fixture };
   if (spec.frames !== undefined) scoped = { ...scoped, frames: spec.frames };
   if (spec.variant !== undefined) scoped = { ...scoped, variant: spec.variant };
+  if (spec.bases !== undefined) scoped = { ...scoped, bases: spec.bases };
   return scoped;
 }
 
@@ -93,6 +97,11 @@ function codeOf(id: RuntimeCheckId): ConformanceCode {
       return ConformanceErrorCodes.HOOK_UNDECLARED;
     case "composable":
       return ConformanceErrorCodes.RUNTIME_COMPOSABLE_CONTEXT;
+    case "requirement-form":
+    case "extension":
+    case "base-surface":
+      // The check body lands in a later pair. A throw until then uses this code.
+      return ConformanceErrorCodes.INVALID_SPEC;
   }
 }
 
@@ -168,6 +177,17 @@ async function dispatchCheck(
       findings.push(...(await checkModule(context, moduleFile)));
       return true;
     }
+    case "requirement-form":
+    case "extension": {
+      const bases = context.spec.bases;
+      if (bases === undefined || bases.length === 0) return false;
+      // The check lands in a later pair. The id stays out of `checks` until then.
+      return false;
+    }
+    case "base-surface":
+      if (!context.extensionExport) return false;
+      // The check lands in a later pair. The id stays out of `checks` until then.
+      return false;
     case "hooks":
       await checkHooks(context, findings);
       return true;
@@ -211,6 +231,8 @@ export async function runRequestedChecks(
     packageFactories: spec.factories,
     entry: loaded.rootEntry,
     entryFile: loaded.entryFile,
+    bases: loaded.bases,
+    extensionExport: loaded.extensionExport,
   };
   const checks: RuntimeCheckId[] = [];
   const findings: ConformanceFinding[] = [];

@@ -3,7 +3,13 @@ import { ConformanceErrorCodes } from "../error-codes.js";
 import type { ConformanceFinding } from "../types.js";
 import { callExport, isPlugin } from "./call-factory.js";
 import { quietWindowFindings } from "./check-frames.js";
-import { baselineOf, installProviders, provideKeys, sameNames, usePlugin } from "./lifecycle.js";
+import {
+  baselineOf,
+  installPrerequisites,
+  provideKeys,
+  sameNames,
+  usePlugin,
+} from "./lifecycle.js";
 import { withEngine } from "./open-engine.js";
 import type { RuntimeCheckContext } from "./types.js";
 
@@ -19,7 +25,7 @@ async function checkOne(
   plugin: GwenPlugin,
 ): Promise<ConformanceFinding[]> {
   return withEngine(context.spec, async (open) => {
-    await installProviders(open.engine, context.spec);
+    await installPrerequisites(open.engine, context);
     // After providers, before use (`packages/core/src/engine/gwen-engine.ts:566`).
     const baseline = baselineOf(open.engine);
     await usePlugin(open.engine, plugin);

@@ -1,7 +1,8 @@
 import type { GwenEngine } from "@gwenjs/core";
 import type { GwenPlugin, GwenPluginServiceKey } from "@gwenjs/schema";
+import { buildBases } from "./base-packages.js";
 import type { OpenedEngine } from "./open-engine.js";
-import type { PluginConformanceSpec } from "./types.js";
+import type { PluginConformanceSpec, RuntimeCheckContext } from "./types.js";
 
 /** `hookListeners` and `plugins` from one `getStats()` call (`packages/core/src/engine/gwen-engine.ts:566`). */
 export interface EngineBaseline {
@@ -31,6 +32,20 @@ export async function installProviders(
 ): Promise<void> {
   for (const provider of spec.frameworkProviders ?? []) {
     await engine.use(provider());
+  }
+}
+
+/**
+ * Providers, then one new instance of each base, in `spec.bases` order.
+ * R2 stays on `installProviders` and does not install bases.
+ */
+export async function installPrerequisites(
+  engine: GwenEngine,
+  context: RuntimeCheckContext,
+): Promise<void> {
+  await installProviders(engine, context.spec);
+  for (const plugin of buildBases(context)) {
+    await engine.use(plugin);
   }
 }
 

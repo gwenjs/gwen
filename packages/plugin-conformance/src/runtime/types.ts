@@ -14,6 +14,9 @@ export type RuntimeCheckId =
   | "stop"
   | "options"
   | "module"
+  | "requirement-form"
+  | "extension"
+  | "base-surface"
   | "hooks"
   | "composable";
 
@@ -42,6 +45,15 @@ export interface PluginConformanceSpec {
   /** How many frames to advance. Default 3, minimum 1. */
   readonly frames?: number;
   readonly variant?: "light" | "physics2d" | "physics3d";
+  /**
+   * Built bases, installed in this order before the package.
+   * Each `packageName` is resolved from `node_modules` under `root`.
+   */
+  readonly bases?: readonly {
+    readonly packageName: string;
+    readonly export: string;
+    readonly options?: unknown;
+  }[];
 }
 
 /** Checks that ran, then the findings they produced. */
@@ -62,4 +74,13 @@ export interface RuntimeCheckContext {
   readonly entry: Record<string, unknown>;
   /** Absolute path of `entry`, used to evaluate the module again. */
   readonly entryFile: string;
+  /** Base factories loaded once. `create` returns a new plugin each call. */
+  readonly bases: readonly {
+    readonly packageName: string;
+    readonly exportName: string;
+    readonly options: unknown;
+    readonly create: () => unknown;
+  }[];
+  /** True when `package.json` `exports` has `"./extension"`. */
+  readonly extensionExport: boolean;
 }

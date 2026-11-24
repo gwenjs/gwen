@@ -19,6 +19,37 @@ function isList(value: unknown): value is readonly unknown[] {
   return Array.isArray(value);
 }
 
+function isBaseEntry(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  const packageName = value.packageName;
+  const exportName = value.export;
+  if (typeof packageName !== "string" || packageName.length === 0) return false;
+  return typeof exportName === "string" && exportName.length > 0;
+}
+
+/** Shape of `spec.bases`. Does not read the package. */
+function basesFindings(bases: unknown): ConformanceFinding[] {
+  if (!isList(bases)) {
+    return [
+      runtimeFinding(
+        "bases must be a list of packageName and export",
+        "Pass bases as a list of { packageName, export }.",
+      ),
+    ];
+  }
+  const findings: ConformanceFinding[] = [];
+  for (const entry of bases) {
+    if (isBaseEntry(entry)) continue;
+    findings.push(
+      runtimeFinding(
+        "bases entry must be an object with non-empty packageName and export",
+        "Each bases entry names an installed package and a function export.",
+      ),
+    );
+  }
+  return findings;
+}
+
 /** One `INVALID_SPEC` finding. The hint is always set. */
 export function runtimeFinding(message: string, hint: string): ConformanceFinding {
   return { code: ConformanceErrorCodes.INVALID_SPEC, message, hint };
@@ -115,5 +146,7 @@ export function validateSpec(spec: PluginConformanceSpec): ConformanceFinding[] 
       );
     }
   }
+  const bases: unknown = spec.bases;
+  if (bases !== undefined) findings.push(...basesFindings(bases));
   return findings;
 }

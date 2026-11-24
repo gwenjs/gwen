@@ -2,7 +2,7 @@ import type { GwenPlugin } from "@gwenjs/schema";
 import { ConformanceErrorCodes } from "../error-codes.js";
 import type { ConformanceFinding } from "../types.js";
 import { callExport, isPlugin, isProvideCode, thrownCode } from "./call-factory.js";
-import { installProviders } from "./lifecycle.js";
+import { installPrerequisites } from "./lifecycle.js";
 import { withEngine } from "./open-engine.js";
 import type { PluginConformanceSpec, PluginFactorySpec, RuntimeCheckContext } from "./types.js";
 
@@ -19,12 +19,13 @@ function providesFinding(
 }
 
 async function checkOne(
-  spec: PluginConformanceSpec,
+  context: RuntimeCheckContext,
   factory: PluginFactorySpec,
   plugin: GwenPlugin,
 ): Promise<ConformanceFinding[]> {
+  const spec = context.spec;
   return withEngine(spec, async (open) => {
-    await installProviders(open.engine, spec);
+    await installPrerequisites(open.engine, context);
     try {
       await open.engine.use(plugin);
     } catch (error: unknown) {
@@ -42,7 +43,7 @@ export async function checkProvides(context: RuntimeCheckContext): Promise<Confo
   for (const factory of context.spec.factories) {
     const created = callExport(context.entry, factory.export, factory.options);
     if (!isPlugin(created)) continue;
-    findings.push(...(await checkOne(context.spec, factory, created)));
+    findings.push(...(await checkOne(context, factory, created)));
   }
   return findings;
 }
