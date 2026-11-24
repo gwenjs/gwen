@@ -3,7 +3,7 @@
  */
 
 import type { GwenEngine } from "@gwenjs/core";
-import { reportRejectedHook } from "@gwenjs/core/internal";
+import { engineContext, reportRejectedHook } from "@gwenjs/core/internal";
 import { definePlugin } from "@gwenjs/kit/plugin";
 import type { GwenConfigIssue, GwenPluginServiceKey, GwenProvides } from "@gwenjs/schema";
 import type { PhysicsAdapter } from "./adapter.js";
@@ -30,7 +30,11 @@ import type { CollisionContact, Dim } from "./types.js";
  * `onContact`, then `onContacts`.
  * A rejected `physics:collision` or `physics:sensor:changed` handler is reported.
  * `entity:destroy` forgets that entity's sensor counts and does not fire an exit.
- * `teardown` clears the setup engine's contact and sensor callbacks, then calls `dispose`.
+ * `teardown` clears that engine's contact and sensor callbacks, then calls `dispose`.
+ * One plugin object installed on two engines keeps one adapter per engine.
+ * Stopping one engine disposes only that engine's adapter.
+ * A second call, or a call with no current engine, does not clear callbacks registered
+ * after the first, and does not call `dispose` again.
  * A throw from `makeAdapter` is the error `engine.use` rejects with.
  *
  * @typeParam D - Physics dimension.
@@ -70,14 +74,16 @@ export function createPhysicsPlugin<
   if (validate !== undefined) options.validate = validate;
 
   return definePlugin({ provides: [serviceKey], options }, (config) => {
-    let adapter: PhysicsAdapter<D, Api> | undefined;
-    let releaseContacts: () => void = () => {};
+    const adapters = new WeakMap<GwenEngine, PhysicsAdapter<D, Api>>();
+    const releases = new WeakMap<GwenEngine, () => void>();
     return {
       name,
       setup(engine: GwenEngine) {
-        releaseContacts = () => {
-          clearEngineContacts(engine);
+        const host = engineContext.tryUse() ?? engine;
+        const release = (): void => {
+          clearEngineContacts(host);
         };
+        releases.set(host, release);
         const tracker = createSensorTracker();
         const created = makeAdapter(engine, config, { sensors: tracker.sensors });
         const pool: InternalCollisionEvent[] = [];
@@ -136,7 +142,7 @@ export function createPhysicsPlugin<
           }
           created.onContacts?.(contacts);
         });
-        adapter = created;
+        adapters.set(host, created);
 
         function noteSide(slot: number, reportedId: number | undefined, started: boolean): void {
           const sensorId = created.resolveSensorId(slot, reportedId);
@@ -157,8 +163,14 @@ export function createPhysicsPlugin<
         }
       },
       teardown() {
-        releaseContacts();
-        adapter?.dispose();
+        const host = engineContext.tryUse();
+        if (host === undefined) return;
+        const release = releases.get(host);
+        const current = adapters.get(host);
+        releases.delete(host);
+        adapters.delete(host);
+        release?.();
+        current?.dispose();
       },
     };
   });
