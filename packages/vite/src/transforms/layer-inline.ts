@@ -28,6 +28,7 @@ export function evalConstInt(node: Expression): number | null {
   if (node.type === "ParenthesizedExpression") return evalConstInt(node.expression);
   if (node.type === "Literal") {
     if (typeof node.value !== "number" || !Number.isInteger(node.value)) return null;
+    if (node.value < 0 || node.value > 4294967295) return null;
     return node.value >>> 0;
   }
   if (node.type === "UnaryExpression") {
@@ -105,6 +106,57 @@ function isWriteTarget(member: Node, parent: Node | null): boolean {
   );
 }
 
+/**
+ * The walker only yields the immediate parent. A member inside `{ p: L.a }` is a
+ * read, while the same shape under an assignment pattern or a `for` left is a write.
+ * Those write targets are collected by start offset before the rewrite walk.
+ */
+function collectPatternMembers(node: Node, starts: Set<number>): void {
+  if (node.type === "MemberExpression") {
+    starts.add(node.start);
+    return;
+  }
+  if (node.type === "AssignmentPattern") {
+    collectPatternMembers(node.left, starts);
+    return;
+  }
+  if (node.type === "RestElement") {
+    collectPatternMembers(node.argument, starts);
+    return;
+  }
+  if (node.type === "ObjectPattern") {
+    for (const property of node.properties) {
+      if (property.type === "RestElement") {
+        collectPatternMembers(property.argument, starts);
+        continue;
+      }
+      collectPatternMembers(property.value, starts);
+    }
+    return;
+  }
+  if (node.type !== "ArrayPattern") return;
+  for (const element of node.elements) {
+    if (element === null) continue;
+    collectPatternMembers(element, starts);
+  }
+}
+
+function patternMemberStarts(program: Program): Set<number> {
+  const starts = new Set<number>();
+  walk(program, {
+    enter(node) {
+      if (node.type === "AssignmentExpression") {
+        collectPatternMembers(node.left, starts);
+        return;
+      }
+      if (node.type !== "ForInStatement" && node.type !== "ForOfStatement") return;
+      if (node.left.type === "VariableDeclaration") return;
+      collectPatternMembers(node.left, starts);
+    },
+  });
+  return starts;
+}
+
 /** Property names, non-shorthand keys, labels, and the declarator id are not references. */
 function isSkippedIdentifier(node: Node, parent: Node | null): boolean {
   if (parent === null) return false;
@@ -121,6 +173,8 @@ function isSkippedIdentifier(node: Node, parent: Node | null): boolean {
     return true;
   }
   if (parent.type === "LabeledStatement" && parent.label === node) return true;
+  if (parent.type === "BreakStatement" && parent.label === node) return true;
+  if (parent.type === "ContinueStatement" && parent.label === node) return true;
   return false;
 }
 
@@ -145,6 +199,7 @@ function layerEdits(program: Program, ctx: TransformContext): TransformEdit[] {
 
   const edits: TransformEdit[] = [];
   const consumed = new Set<number>();
+  const patternMembers = patternMemberStarts(program);
   walk(program, {
     enter(node, parent) {
       if (node.type === "MemberExpression") {
@@ -157,14 +212,19 @@ function layerEdits(program: Program, ctx: TransformContext): TransformEdit[] {
         if (!resolvesBinding(object.name, object.start)) return;
         const value = binding.values.get(node.property.name);
         if (value === undefined) return;
+        if (patternMembers.has(node.start)) return;
         if (isWriteTarget(node, parent)) return;
         consumed.add(object.start);
         binding.rewrites += 1;
+        const text =
+          parent !== null && parent.type === "MemberExpression" && parent.object === node
+            ? `(${String(value)})`
+            : String(value);
         edits.push({
           kind: "overwrite",
           start: node.start,
           end: node.end,
-          text: String(value),
+          text,
         });
         return;
       }

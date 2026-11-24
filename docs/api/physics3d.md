@@ -412,7 +412,7 @@ interface GwenPhysics3DPluginOptions {
 
 The plugin does two build-time jobs:
 
-1. **Layer inlining** — registers `gwen:layer-inline` on `gwen:transform-pipeline`. `Layers.player` becomes its bitmask. A manual Vite config needs `gwen()` before this plugin.
+1. **Layer inlining** — registers `gwen:layer-inline` on `gwen:transform-pipeline`. `Layers.player` becomes its bitmask. A manual Vite config needs `gwen()` in the Vite config.
 2. **BVH pre-baking** (opt-in) — detects `useMeshCollider('./terrain.glb')` patterns, compiles the BVH at build time, and replaces the path with `{ __bvhUrl: 'bvh-<hash>.bin' }`.
 
 :::tip BVH pre-bake workflow

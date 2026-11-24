@@ -412,7 +412,7 @@ interface GwenPhysics3DPluginOptions {
 
 Le plugin fait deux travaux au moment du build :
 
-1. **Intégration des calques** — enregistre `gwen:layer-inline` sur `gwen:transform-pipeline`. `Layers.player` devient son masque de bits. Une config Vite manuelle exige `gwen()` avant ce plugin.
+1. **Intégration des calques** — enregistre `gwen:layer-inline` sur `gwen:transform-pipeline`. `Layers.player` devient son masque de bits. Une config Vite manuelle exige `gwen()` dans la config Vite.
 2. **Pré-calcul BVH** (opt-in) — détecte les occurrences de `useMeshCollider('./terrain.glb')`, compile le BVH au moment du build et remplace le chemin par `{ __bvhUrl: 'bvh-<hash>.bin' }`.
 
 :::tip Flux de travail BVH pre-bake

@@ -37,7 +37,7 @@ export default defineConfig({
 | `debug` | `boolean` | `false` | Enable debug renderer |
 
 :::tip Layer inlining
-`gwen:physics2d` registers the `gwen:layer-inline` unit on the transform pipeline. A manual Vite config needs `gwen()` before the physics plugin.
+`gwen:physics2d` registers the `gwen:layer-inline` unit on the transform pipeline. A manual Vite config needs `gwen()` in the Vite config.
 :::
 
 ## Rapier 0.36

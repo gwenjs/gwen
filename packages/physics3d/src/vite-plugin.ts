@@ -167,7 +167,7 @@ export async function transformBvhReferences(
  *
  * Performs the following transformations:
  * - **Layer inlining**: registers `gwen:layer-inline` on `gwen:transform-pipeline`.
- *   A manual Vite config must place `gwen()` from `@gwenjs/vite` before this plugin.
+ *   `gwen()` must be in the Vite config.
  * - **BVH pre-baking** (opt-in via `bvhPrebake: true`): detects `useMeshCollider('./file.glb')`
  *   patterns and replaces them with pre-baked `{ __bvhUrl: 'bvh-<hash>.bin' }` references
  *   at build time.
