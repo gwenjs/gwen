@@ -1706,6 +1706,72 @@ describe("AUGMENT_TARGET against a base", () => {
     await installReexportedAugmentation(sibling.root);
     expect(await sibling.checkOf(AUGMENT)).toEqual([]);
   });
+
+  it("does not follow a declaration file that ./extension imports from outside the base directory", async () => {
+    const outsideMember = '"fixture-base:outside": { readonly marker: 1 };';
+    const outside = await openWithBase(
+      "redeclares-base-key",
+      schemaMember("GwenProvides", outsideMember),
+    );
+    await installReferencedAugmentation(
+      outside.root,
+      "../../../outside-registry.js",
+      "outside-registry.d.ts",
+      outsideMember,
+    );
+    expect(await outside.checkOf(AUGMENT)).toEqual([]);
+    const sibling = await openWithBase(
+      "redeclares-base-key",
+      schemaMember("GwenProvides", outsideMember),
+    );
+    await installReferencedAugmentation(
+      sibling.root,
+      "./inside-registry.js",
+      path.join("node_modules", "fixture-base", "dist", "inside-registry.d.ts"),
+      outsideMember,
+    );
+    const findings = await sibling.checkOf(AUGMENT);
+    expectCodeAt(
+      findings,
+      AUGMENT,
+      augmentMessage("GwenProvides", "fixture-base:outside"),
+      4,
+      SERVICE_HINT,
+    );
+  });
+
+  it("does not follow a declaration file reached through a nested node_modules of the base", async () => {
+    const nestedMember = '"fixture-base:nested": { readonly marker: 1 };';
+    const nested = await openWithBase(
+      "redeclares-base-key",
+      schemaMember("GwenProvides", nestedMember),
+    );
+    await installReferencedAugmentation(
+      nested.root,
+      "../node_modules/x/index.js",
+      path.join("node_modules", "fixture-base", "node_modules", "x", "index.d.ts"),
+      nestedMember,
+    );
+    expect(await nested.checkOf(AUGMENT)).toEqual([]);
+    const sibling = await openWithBase(
+      "redeclares-base-key",
+      schemaMember("GwenProvides", nestedMember),
+    );
+    await installReferencedAugmentation(
+      sibling.root,
+      "../x/index.js",
+      path.join("node_modules", "fixture-base", "x", "index.d.ts"),
+      nestedMember,
+    );
+    const findings = await sibling.checkOf(AUGMENT);
+    expectCodeAt(
+      findings,
+      AUGMENT,
+      augmentMessage("GwenProvides", "fixture-base:nested"),
+      4,
+      SERVICE_HINT,
+    );
+  });
 });
 
 /** `./extension` only re-exports the file that declares the schema augmentation. */
@@ -1730,6 +1796,27 @@ async function installReexportedAugmentation(root: string): Promise<void> {
       "",
     ].join("\n"),
   );
+}
+
+/**
+ * `./extension` imports `specifier`, and that import's declaration file holds one
+ * `GwenProvides` member. `dist` is three directories under the extension root, so
+ * `../../../outside-registry.js` lands on the root, outside `node_modules/fixture-base`.
+ * `../node_modules/x/index.js` lands in the base's nested `node_modules`.
+ * `../x/index.js` declares the same key one directory up, still inside the base.
+ */
+async function installReferencedAugmentation(
+  root: string,
+  specifier: string,
+  relativeFile: string,
+  member: string,
+): Promise<void> {
+  await writeSource(
+    root,
+    path.join("node_modules", "fixture-base", "dist", "extension.d.ts"),
+    `import ${JSON.stringify(specifier)};\n`,
+  );
+  await writeDeep(root, relativeFile, schemaMember("GwenProvides", member));
 }
 
 describe("layered-ok extension surface", () => {
