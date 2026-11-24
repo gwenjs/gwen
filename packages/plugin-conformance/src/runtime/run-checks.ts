@@ -3,6 +3,7 @@ import { compareFindings } from "../sort-findings.js";
 import type { ConformanceCode, ConformanceFinding } from "../types.js";
 import { thrownMessage } from "./lifecycle.js";
 import { checkComposable } from "./check-composable.js";
+import { checkExtension } from "./check-extension.js";
 import { checkFrames } from "./check-frames.js";
 import { checkHooks } from "./check-hooks.js";
 import { checkModule } from "./check-module.js";
@@ -98,10 +99,11 @@ function codeOf(id: RuntimeCheckId): ConformanceCode {
     case "composable":
       return ConformanceErrorCodes.RUNTIME_COMPOSABLE_CONTEXT;
     case "requirement-form":
-    case "extension":
     case "base-surface":
       // The check body lands in a later pair. A throw until then uses this code.
       return ConformanceErrorCodes.INVALID_SPEC;
+    case "extension":
+      return ConformanceErrorCodes.RUNTIME_EXTENSION;
   }
 }
 
@@ -116,7 +118,8 @@ function thrownCheck(id: RuntimeCheckId, error: unknown): ConformanceFinding {
 /**
  * Run `id` and append its findings.
  * Returns false when that check does not run: `options` with no `invalidOptions`,
- * or `module` when the loader did not resolve `exports["./module"]`.
+ * `module` when the loader did not resolve `exports["./module"]`,
+ * `extension` when `spec.bases` is empty, or `requirement-form` and `base-surface`.
  * A throw becomes one finding in that check's code.
  */
 async function appendCheck(
@@ -178,11 +181,12 @@ async function dispatchCheck(
       return true;
     }
     case "requirement-form":
+      return false;
     case "extension": {
       const bases = context.spec.bases;
       if (bases === undefined || bases.length === 0) return false;
-      // The check lands in a later pair. The id stays out of `checks` until then.
-      return false;
+      findings.push(...(await checkExtension(context)));
+      return true;
     }
     case "base-surface":
       if (!context.extensionExport) return false;
