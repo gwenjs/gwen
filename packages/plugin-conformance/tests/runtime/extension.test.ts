@@ -211,6 +211,8 @@ describe("runPluginConformance extension", () => {
         }),
       );
       expect(report.findings).toEqual([]);
+      expect(report.checks).toContain("extension");
+      expect(report.checks).toContain("requirement-form");
       expect(report.checks).toEqual(ranChecks({ extension: true, requirementForm: true }));
     });
   });
@@ -549,6 +551,8 @@ describe("runPluginConformance extension", () => {
         }),
       );
       expect(report.findings).toEqual([]);
+      expect(report.checks).toContain("extension");
+      expect(report.checks).toContain("requirement-form");
       expect(report.checks).toEqual(ranChecks({ extension: true, requirementForm: true }));
     });
   });
@@ -643,6 +647,8 @@ describe("runPluginConformance extension", () => {
         }),
       );
       expect(report.findings).toEqual([]);
+      expect(report.checks).toContain("extension");
+      expect(report.checks).toContain("requirement-form");
       expect(report.checks).toEqual(
         ranChecks({ module: true, extension: true, requirementForm: true }),
       );
@@ -819,6 +825,7 @@ describe("runPluginConformance extension", () => {
   it("RB1 accepts a base that declares everything", async () => {
     await withPrivateTmpdir(async (dir) => {
       const report = await surfaceReport(dir);
+      expect(report.checks).toContain("base-surface");
       expect(report.checks).toEqual(ranChecks({ extensionExport: true }));
       expect(report.findings).toEqual([]);
     });
