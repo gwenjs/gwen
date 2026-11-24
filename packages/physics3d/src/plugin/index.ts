@@ -22,8 +22,6 @@ import {
   readGravityAxis,
 } from "../config";
 
-import { _clearSensorCallbacks } from "../composables/on-sensor";
-
 import type { Physics3DBridgeRuntime, Physics3DWasmBridge } from "./bridge";
 import { clearOwnerChanges, entitySlot, guardOwned, ownerEntityId } from "./entity-owner";
 import { createPluginContext, type PluginContext } from "./plugin-context";
@@ -116,7 +114,7 @@ const physics3dDefaults: Physics3DConfig = DEFAULT_PHYSICS3D_CONFIG;
 
 /**
  * One engine's 3D adapter.
- * The shared plugin owns the engine hooks (`packages/physics-core/src/plugin.ts:91`).
+ * The shared plugin owns the engine hooks (`packages/physics-core/src/plugin.ts:92`).
  */
 function makeAdapter(
   engine: GwenEngine,
@@ -145,7 +143,9 @@ function makeAdapter(
     const layerRegistry = buildLayerRegistry(cfg.layers);
     return createPluginContext(cfg, layerRegistry);
   });
-  // Weak: this plugin object may outlive the engines it was installed on.
+  // One adapter per engine (`packages/physics-core/src/plugin.ts:89`). Weak so this
+  // lookup does not keep that engine after teardown drops the adapter
+  // (`packages/physics-core/src/plugin.ts:173`).
   let cachedEngine: WeakRef<GwenEngine> | null = null;
   let cachedContext: WeakRef<PluginContext> | null = null;
   function contextNow(): PluginContext {
@@ -507,10 +507,6 @@ function makeAdapter(
       // Another live id already owns the slot. Leave its callbacks and body alone.
       if (owner !== undefined && owner !== entityId) return;
       ctx.entityCollisionCallbacks.delete(slot);
-      const dyingSensors = ctx.activeSensors.get(slot);
-      if (dyingSensors) {
-        for (const sensorId of dyingSensors) _clearSensorCallbacks(entityId, sensorId);
-      }
       ctx.activeSensors.delete(slot);
       if (owner === entityId) _removeBody(entityId);
     },

@@ -190,6 +190,22 @@ function runFrame(hookMap: Map<string, (...args: unknown[]) => unknown>, dt: num
   hookMap.get("engine:update")?.();
 }
 
+/** Runs `read` when the mock `callHook` emits `physics:collision`. */
+function onPhysicsCollision(callHook: unknown, read: () => number, seen: number[]): void {
+  if (typeof callHook !== "function" || !("mockImplementation" in callHook)) {
+    throw new Error("physics:collision hook is not a mock");
+  }
+  const install = callHook.mockImplementation;
+  if (typeof install !== "function") {
+    throw new Error("physics:collision hook is not a mock");
+  }
+  install.call(callHook, (name: unknown) => {
+    if (name !== "physics:collision") return undefined;
+    seen.push(read());
+    return undefined;
+  });
+}
+
 describe("Physics3D collision events — WASM backend mode", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -262,6 +278,37 @@ describe("Physics3D collision events — WASM backend mode", () => {
     mockEventCount = 0;
     runFrame(hookMap, 1 / 60);
     expect(service.getCollisionContacts()).toHaveLength(0);
+  });
+
+  it("getCollisionContacts is empty inside physics:collision handlers and full after the frame", () => {
+    const { service, engine, hookMap } = setup();
+    service.createBody(10n);
+    service.createBody(20n);
+    const during: number[] = [];
+    onPhysicsCollision(engine.hooks.callHook, () => service.getCollisionContacts().length, during);
+
+    const buf = buildEventBuffer([{ slotA: 10, slotB: 20, started: true }]);
+    mockMemoryBuffer = buf;
+    mockEventCount = 1;
+    try {
+      // A frame that stores contacts, then a second frame whose handler must still see [].
+      // `eventView` clears the list before dispatch (`packages/physics3d/src/plugin/index.ts:467`).
+      // `onContacts` fills it after `physics:collision` (`packages/physics-core/src/plugin.ts:145`).
+      runFrame(hookMap, 1 / 60);
+      expect(service.getCollisionContacts()).toHaveLength(1);
+      runFrame(hookMap, 1 / 60);
+      expect(during).toEqual([0, 0]);
+      const contacts = service.getCollisionContacts();
+      expect(contacts).toHaveLength(1);
+      expect(contacts[0]?.started).toBe(true);
+    } finally {
+      if (
+        "mockReset" in engine.hooks.callHook &&
+        typeof engine.hooks.callHook.mockReset === "function"
+      ) {
+        engine.hooks.callHook.mockReset();
+      }
+    }
   });
 
   it("does not dispatch hook when contact list is empty", () => {
@@ -599,6 +646,7 @@ describe("Physics3D collision events — local mode", () => {
 
     expect(service.getCollisionContacts()).toHaveLength(0);
 
+    // Checks the encoder and the shared decode, not the local frame (packages/physics3d/tests/fallback.test.ts:118, :184, :464).
     // The public collider path always stores a numeric id
     // (`packages/physics3d/src/plugin/collider-management.ts:387`).
     // An absent id is what `encodeLocalEvents` writes as 0xffff
