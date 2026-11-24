@@ -1,17 +1,20 @@
 import { compareFindings } from "../sort-findings.js";
 import type { ConformanceFinding } from "../types.js";
+import { checkOptions } from "./check-options.js";
+import { checkProvides } from "./check-provides.js";
+import { checkShape } from "./check-shape.js";
 import { loadRuntimePackage } from "./load-package.js";
 import { validateSpec } from "./spec.js";
-import type { PluginConformanceSpec, RuntimeConformanceReport } from "./types.js";
+import type { PluginConformanceSpec, RuntimeCheckId, RuntimeConformanceReport } from "./types.js";
 
 function sorted(findings: readonly ConformanceFinding[]): ConformanceFinding[] {
   return [...findings].sort(compareFindings);
 }
 
 /**
- * Validate `spec`, then load the built package.
- * No runtime check runs yet, so `checks` stays empty.
- * An invalid spec is returned without loading the package.
+ * Validate `spec`, load the built package, then run shape, provides, and options.
+ * Options runs only when a factory sets `invalidOptions`.
+ * An invalid spec, or a package that cannot be loaded, returns no checks.
  */
 export async function runPluginConformance(
   spec: PluginConformanceSpec,
@@ -21,5 +24,21 @@ export async function runPluginConformance(
     return { checks: [], findings: sorted(specFindings) };
   }
   const loaded = await loadRuntimePackage(spec);
-  return { checks: [], findings: sorted(loaded.findings) };
+  if (loaded.rootEntry === undefined) {
+    return { checks: [], findings: sorted(loaded.findings) };
+  }
+  const context = { spec, entry: loaded.rootEntry };
+  const checks: RuntimeCheckId[] = ["shape", "provides"];
+  const findings: ConformanceFinding[] = [
+    ...(await checkShape(context)),
+    ...(await checkProvides(context)),
+  ];
+  const withInvalidOptions = spec.factories.filter(
+    (factory) => factory.invalidOptions !== undefined,
+  );
+  if (withInvalidOptions.length > 0) {
+    findings.push(...(await checkOptions(context, withInvalidOptions)));
+    checks.push("options");
+  }
+  return { checks, findings: sorted(findings) };
 }
