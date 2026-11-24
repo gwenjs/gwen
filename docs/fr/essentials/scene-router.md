@@ -126,13 +126,14 @@ export const GameScene = defineScene('game', () => {
 
 ### Précharger avant de quitter
 
-`send()` attend le travail `onPreload` de la scène cible avant `scene:transition:leave`. La scène courante continue de tourner jusqu'à la fin de ce travail. L'avancement commence à `0` et finit à `1`. Écoutez-le avec `useHook("scene:preload:progress", …)`.
+`send()` attend le travail `onPreload` de la scène cible avant `scene:transition:leave`. La scène courante continue de tourner jusqu'à la fin de ce travail. L'avancement commence à `0` et, en cas de succès du préchargement, finit à `1`. Écoutez-le avec `useHook("scene:preload:progress", …)`.
 
 Un préchargement rejeté fait rejeter `send()` avec `GwenScenePreloadError`. La scène courante, ses paramètres et la pile de superpositions restent inchangés. Un `send()` pendant qu'un préchargement est en cours est ignoré, avec un avertissement.
 
 ```ts check
 import { GwenScenePreloadError, useHook } from "@gwenjs/core";
 import { defineScene, defineSceneRouter, onPreload, useSceneRouter } from "@gwenjs/core/scene";
+import { defineSystem, onUpdate } from "@gwenjs/core/system";
 
 const Level = defineScene("level", () => {
   onPreload((event) => {
@@ -150,20 +151,27 @@ const AppRouter = defineSceneRouter({
   },
 });
 
-const nav = useSceneRouter(AppRouter);
+export const LoadingSystem = defineSystem(() => {
+  const nav = useSceneRouter(AppRouter);
+  let progress = 0;
 
-useHook("scene:preload:progress", (payload) => {
-  if (payload.progress === 1) return;
+  useHook("scene:preload:progress", (payload) => {
+    progress = payload.progress;
+  });
+
+  onUpdate(async () => {
+    if (progress > 0 && progress < 1) {
+      // Dessinez une barre de chargement ici : la scène courante continue de tourner pendant le préchargement.
+      return;
+    }
+    try {
+      await nav.send("START");
+    } catch (error) {
+      if (error instanceof GwenScenePreloadError) return;
+      throw error;
+    }
+  });
 });
-
-export async function startLevel(): Promise<void> {
-  try {
-    await nav.send("START");
-  } catch (error) {
-    if (error instanceof GwenScenePreloadError) return;
-    throw error;
-  }
-}
 ```
 
 ## API du handle

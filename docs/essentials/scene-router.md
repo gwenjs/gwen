@@ -126,13 +126,14 @@ export const GameScene = defineScene('game', () => {
 
 ### Preload before leaving
 
-`send()` awaits the target scene's `onPreload` work before `scene:transition:leave`. The current scene keeps running until that work finishes. Progress starts at `0` and ends at `1`. Listen with `useHook("scene:preload:progress", …)`.
+`send()` awaits the target scene's `onPreload` work before `scene:transition:leave`. The current scene keeps running until that work finishes. Progress starts at `0` and, when the preload succeeds, ends at `1`. Listen with `useHook("scene:preload:progress", …)`.
 
 A rejected preload rejects `send()` with `GwenScenePreloadError`. The current scene, its params, and the overlay stack stay as they were. A `send()` while a preload is still running is ignored, with a warning.
 
 ```ts check
 import { GwenScenePreloadError, useHook } from "@gwenjs/core";
 import { defineScene, defineSceneRouter, onPreload, useSceneRouter } from "@gwenjs/core/scene";
+import { defineSystem, onUpdate } from "@gwenjs/core/system";
 
 const Level = defineScene("level", () => {
   onPreload((event) => {
@@ -150,20 +151,27 @@ const AppRouter = defineSceneRouter({
   },
 });
 
-const nav = useSceneRouter(AppRouter);
+export const LoadingSystem = defineSystem(() => {
+  const nav = useSceneRouter(AppRouter);
+  let progress = 0;
 
-useHook("scene:preload:progress", (payload) => {
-  if (payload.progress === 1) return;
+  useHook("scene:preload:progress", (payload) => {
+    progress = payload.progress;
+  });
+
+  onUpdate(async () => {
+    if (progress > 0 && progress < 1) {
+      // Draw a loading bar here: the current scene keeps running during the preload.
+      return;
+    }
+    try {
+      await nav.send("START");
+    } catch (error) {
+      if (error instanceof GwenScenePreloadError) return;
+      throw error;
+    }
+  });
 });
-
-export async function startLevel(): Promise<void> {
-  try {
-    await nav.send("START");
-  } catch (error) {
-    if (error instanceof GwenScenePreloadError) return;
-    throw error;
-  }
-}
 ```
 
 ## Handle API
