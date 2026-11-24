@@ -66,11 +66,6 @@ function recordingKit(recorded: unknown[]): GwenKit {
   };
 }
 
-/**
- * One problem for one recorded value.
- * A function value is the instance case (`packages/app/src/app.ts:357`).
- * `src` and `export` are checked only after that (`packages/app/src/app.ts:433`).
- */
 /** Deep equality. Object key order does not count. */
 function sameValue(left: unknown, right: unknown): boolean {
   if (Object.is(left, right)) return true;
@@ -141,6 +136,11 @@ function declarationRequiresProblem(
   return `module ${JSON.stringify(spec.packageName)} declaration requires ${JSON.stringify(value.requires)} differs from the instance ${JSON.stringify(plugin.requires)}`;
 }
 
+/**
+ * One problem for one recorded value.
+ * A function value is the instance case (`packages/app/src/app.ts:357`).
+ * `src` and `export` are checked only after that (`packages/app/src/app.ts:433`).
+ */
 function declarationProblem(
   value: unknown,
   spec: PluginConformanceSpec,
