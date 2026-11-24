@@ -44,6 +44,17 @@ Exports of `@gwenjs/plugin-conformance`:
 - `ConformanceFinding` is one problem: `code`, `message`, `hint`, and an optional `file` and `line`.
 - `ConformanceReport` is the result: `checks` (the checks that ran) and `findings`.
 - `runPluginConformance(spec)` on `@gwenjs/plugin-conformance/runtime` takes a `PluginConformanceSpec` and returns a `RuntimeConformanceReport` whose `checks` are `RuntimeCheckId` values. The spec fields and the `INVALID_SPEC` rules are under Runtime. The runtime checks are listed there too.
+- `describePluginConformance(spec)` from `@gwenjs/plugin-conformance/vitest` registers one row per runtime check in the current vitest suite.
+
+## Quick start
+
+A plugin repository adds one test file:
+
+```ts
+import { describePluginConformance } from "@gwenjs/plugin-conformance/vitest";
+
+describePluginConformance({ packageName: "@scope/plugin", factories: [{ export: "Plugin" }] });
+```
 
 ## Runtime
 

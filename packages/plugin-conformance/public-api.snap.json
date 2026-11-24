@@ -25,5 +25,9 @@
       "RuntimeCheckId",
       "RuntimeConformanceReport"
     ]
+  },
+  "./vitest": {
+    "values": ["describePluginConformance"],
+    "types": []
   }
 }
