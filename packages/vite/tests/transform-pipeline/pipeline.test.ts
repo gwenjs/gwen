@@ -8,6 +8,7 @@
 import { describe, expect, it } from "vitest";
 import { resolveConfig, type Plugin } from "vite";
 import { ViteErrorCodes } from "../../src/error-codes.js";
+import { BUILT_IN_UNITS } from "../../src/pipeline/registry.js";
 import { createTransformPipeline } from "../../src/pipeline/transform-pipeline.js";
 import type { GwenSourceTransform, TransformEdit } from "../../src/pipeline/types.js";
 import { applyTransform, mapCheck, preparePipeline, runPipeline, testInsert } from "./helpers.js";
@@ -412,5 +413,27 @@ export const marked = tag();
     }).rejects.toSatisfy(
       (error: unknown) => readString(error, "code") === "VITE:TRANSFORM_UNSUPPORTED",
     );
+  });
+
+  it("registering a different unit under a built-in name raises VITE:TRANSFORM_UNSUPPORTED", async () => {
+    const plugin = createTransformPipeline({ units: [...BUILT_IN_UNITS] });
+    const builtInNames = BUILT_IN_UNITS.map((unit) => unit.name);
+    for (const builtIn of BUILT_IN_UNITS) {
+      const impostor: GwenSourceTransform = {
+        name: builtIn.name,
+        run: () => [],
+      };
+      await expect(async () => {
+        plugin.api.register(impostor);
+      }).rejects.toSatisfy((error: unknown) => {
+        const message = readString(error, "message");
+        return (
+          readString(error, "code") === "VITE:TRANSFORM_UNSUPPORTED" &&
+          message !== undefined &&
+          message.includes(builtIn.name)
+        );
+      });
+    }
+    expect(plugin.api.names).toEqual(builtInNames);
   });
 });
