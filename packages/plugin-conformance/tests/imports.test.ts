@@ -688,7 +688,20 @@ describe("imports check", () => {
         });
         await writeSource(root, "src/a.ts", 'export { x } from "@gwenjs/camera2d/other";\n');
       });
-      expect(sites(report)).toEqual(["IMPORT_FOREIGN_PLUGIN src/a.ts:1"]);
+      const atSource = report.findings.filter((finding) => finding.file === "src/a.ts");
+      expect(atSource).toHaveLength(1);
+      const finding = atSource[0];
+      if (finding === undefined) {
+        throw new Error("expected one finding at src/a.ts");
+      }
+      const code: string = finding.code;
+      expect(code).toBe("CONFORMANCE:EXTENSION_ENTRY");
+      expect(finding.line).toBe(1);
+      expect(finding.message).toContain('"@gwenjs/camera2d/other"');
+      expect(finding.message).toContain(
+        "is not the extension entry of @gwenjs/camera2d, which is listed in gwen.extends",
+      );
+      expect(finding.hint).toBe('Import only "@gwenjs/camera2d/extension" from a base.');
     },
   );
 

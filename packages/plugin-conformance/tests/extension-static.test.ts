@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { checkPluginPackage } from "@gwenjs/plugin-conformance";
 import type { ConformanceFinding } from "@gwenjs/plugin-conformance";
 import { indexJson } from "../src/json.js";
 import {
@@ -9,6 +10,7 @@ import {
   openExtensionFixture,
 } from "./helpers/extension.js";
 import type { ExtensionManifest } from "./helpers/extension.js";
+import { writeInstalledPackage } from "./helpers/fixture.js";
 
 const open = openExtensionFixture();
 
@@ -326,5 +328,406 @@ describe("gwen.extends shape", () => {
     expectNoExtends(await sibling.checkOf(MANIFEST));
     const siblingOfficial = await sibling.checkOf(OFFICIAL);
     expectOfficial(siblingOfficial, OFFICIAL_NAME, [BASE], await extendsKeyLine(sibling.root));
+  });
+});
+
+const ENTRY = "CONFORMANCE:EXTENSION_ENTRY";
+const IMPORT_INTERNAL = "CONFORMANCE:IMPORT_INTERNAL";
+const IMPORT_DEEP = "CONFORMANCE:IMPORT_DEEP";
+const IMPORT_FOREIGN = "CONFORMANCE:IMPORT_FOREIGN_PLUGIN";
+const SCOPED_BASE = "@acme/fx-base";
+const CAMERA = "@gwenjs/camera2d";
+
+/**
+ * Community package whose `gwen.extends` names a base.
+ * Only `<base>/extension` is accepted today (check-imports.ts:162-174).
+ * `internal` and `wasm` stay an internal entry (check-imports.ts:317-326).
+ * `dist` and `src` are deep; `src` is not deep for `@gwenjs/*` (check-imports.ts:329).
+ * A test file is `*.test.*` or a file under `tests` (source-files.ts:68-74).
+ * An official name keeps the foreign-plugin code (check-imports.ts:155-156).
+ */
+interface ExpectedSite {
+  readonly code: string;
+  readonly file: string;
+  readonly line: number;
+  readonly specifier: string;
+  /** Substring the message must contain, besides the quoted specifier. */
+  readonly detail: string;
+  /** Exact hint. When omitted, the hint only has to be non-empty. */
+  readonly hint?: string;
+}
+
+function entryDetail(base: string): string {
+  return `is not the extension entry of ${base}, which is listed in gwen.extends`;
+}
+
+function entryHint(base: string): string {
+  return `Import only "${base}/extension" from a base.`;
+}
+
+function entrySite(file: string, line: number, specifier: string, base: string): ExpectedSite {
+  return {
+    code: ENTRY,
+    file,
+    line,
+    specifier,
+    detail: entryDetail(base),
+    hint: entryHint(base),
+  };
+}
+
+function sitesOf(findings: readonly ConformanceFinding[]): string[] {
+  return findings.map((finding) => {
+    const code: string = finding.code;
+    return `${code} ${finding.file}:${finding.line}`;
+  });
+}
+
+function expectSites(findings: readonly ConformanceFinding[], rows: readonly ExpectedSite[]): void {
+  expect(sitesOf(findings)).toEqual(rows.map((row) => `${row.code} ${row.file}:${row.line}`));
+  for (const [index, row] of rows.entries()) {
+    const finding = findings[index];
+    if (finding === undefined) {
+      throw new Error(`expected a finding at index ${index}`);
+    }
+    expect(finding.message).toContain(`"${row.specifier}"`);
+    expect(finding.message).toContain(row.detail);
+    if (row.hint === undefined) {
+      expect(finding.hint.length).toBeGreaterThan(0);
+    } else {
+      expect(finding.hint).toBe(row.hint);
+    }
+  }
+}
+
+function inFiles(
+  findings: readonly ConformanceFinding[],
+  files: readonly string[],
+): ConformanceFinding[] {
+  const wanted = new Set(files);
+  return findings.filter((finding) => {
+    const file = finding.file;
+    return file !== undefined && wanted.has(file);
+  });
+}
+
+async function listedFindings(
+  manifest: ExtensionManifest,
+  sources: Readonly<Record<string, string>>,
+  files: readonly string[],
+  installed: readonly string[] = [],
+): Promise<ConformanceFinding[]> {
+  const fixture = await open(manifest, sources);
+  for (const name of installed) {
+    await writeInstalledPackage(fixture.root, name, { gwen: { type: "plugin" } });
+  }
+  const report = await checkPluginPackage({ root: fixture.root, profile: "plugin" });
+  return inFiles(report.findings, files);
+}
+
+function lines(rows: readonly string[]): string {
+  return `${rows.join("\n")}\n`;
+}
+
+describe("EXTENSION_ENTRY", () => {
+  it("root-import reports EXTENSION_ENTRY at src/index.ts:1", async () => {
+    const findings = await extensionFindings(extensionFixtureRoot("root-import"), ENTRY);
+    expectSites(findings, [entrySite("src/index.ts", 1, BASE, BASE)]);
+  });
+
+  it("reports EXTENSION_ENTRY for module, testing, any other subpath, extension/sub and extension.js", async () => {
+    const findings = await listedFindings(
+      pluginManifest(COMMUNITY_NAME, [BASE]),
+      {
+        "src/index.ts": lines([
+          'import { fromModule } from "fixture-base/module";',
+          'import { fromTesting } from "fixture-base/testing";',
+          'import { fromOther } from "fixture-base/other";',
+          'import { fromSub } from "fixture-base/extension/sub";',
+          'import { fromFile } from "fixture-base/extension.js";',
+          "export { fromModule, fromTesting, fromOther, fromSub, fromFile };",
+        ]),
+      },
+      ["src/index.ts"],
+    );
+    expectSites(findings, [
+      entrySite("src/index.ts", 1, `${BASE}/module`, BASE),
+      entrySite("src/index.ts", 2, `${BASE}/testing`, BASE),
+      entrySite("src/index.ts", 3, `${BASE}/other`, BASE),
+      entrySite("src/index.ts", 4, `${BASE}/extension/sub`, BASE),
+      entrySite("src/index.ts", 5, `${BASE}/extension.js`, BASE),
+    ]);
+  });
+
+  it("reports EXTENSION_ENTRY for import, export from, import(), require and import type", async () => {
+    const findings = await listedFindings(
+      pluginManifest(COMMUNITY_NAME, [BASE]),
+      {
+        "src/forms.ts": lines([
+          'import { value } from "fixture-base";',
+          'export { renamed } from "fixture-base";',
+          'export const loaded = import("fixture-base");',
+          'export const required = require("fixture-base");',
+          'import type { Kind } from "fixture-base";',
+          "export { value };",
+          "export type { Kind };",
+        ]),
+      },
+      ["src/forms.ts"],
+    );
+    expectSites(findings, [
+      entrySite("src/forms.ts", 1, BASE, BASE),
+      entrySite("src/forms.ts", 2, BASE, BASE),
+      entrySite("src/forms.ts", 3, BASE, BASE),
+      entrySite("src/forms.ts", 4, BASE, BASE),
+      entrySite("src/forms.ts", 5, BASE, BASE),
+    ]);
+  });
+
+  it("internal-import reports IMPORT_INTERNAL for fixture-base/internal and fixture-base/wasm", async () => {
+    const findings = await extensionFindings(
+      extensionFixtureRoot("internal-import"),
+      IMPORT_INTERNAL,
+    );
+    expectSites(findings, [
+      {
+        code: IMPORT_INTERNAL,
+        file: "src/index.ts",
+        line: 1,
+        specifier: `${BASE}/internal`,
+        detail: `is an internal entry of ${BASE}`,
+      },
+      {
+        code: IMPORT_INTERNAL,
+        file: "src/index.ts",
+        line: 2,
+        specifier: `${BASE}/wasm`,
+        detail: `is an internal entry of ${BASE}`,
+      },
+    ]);
+  });
+
+  it("deep-import reports IMPORT_DEEP for fixture-base/dist/extension.js and fixture-base/src/extension.ts", async () => {
+    const findings = await extensionFindings(extensionFixtureRoot("deep-import"), IMPORT_DEEP);
+    expectSites(findings, [
+      {
+        code: IMPORT_DEEP,
+        file: "src/index.ts",
+        line: 1,
+        specifier: `${BASE}/dist/extension.js`,
+        detail: BASE,
+      },
+      {
+        code: IMPORT_DEEP,
+        file: "src/index.ts",
+        line: 2,
+        specifier: `${BASE}/src/extension.ts`,
+        detail: BASE,
+      },
+    ]);
+  });
+
+  it("reports a listed base internal specifier bundled into dist and ignores its other dist imports", async () => {
+    const findings = await listedFindings(
+      pluginManifest(COMMUNITY_NAME, [BASE]),
+      {
+        "dist/index.js": lines([
+          'import { hidden } from "fixture-base/internal";',
+          'import { root } from "fixture-base";',
+          "export { hidden, root };",
+        ]),
+      },
+      ["dist/index.js"],
+    );
+    expectSites(findings, [
+      {
+        code: IMPORT_INTERNAL,
+        file: "dist/index.js",
+        line: 1,
+        specifier: `${BASE}/internal`,
+        detail: `is an internal entry of ${BASE}`,
+      },
+    ]);
+  });
+
+  it("accepts fixture-base/extension and reports the root in the same file", async () => {
+    const findings = await listedFindings(
+      pluginManifest(COMMUNITY_NAME, [BASE]),
+      {
+        "src/index.ts": lines([
+          'import { allowed } from "fixture-base/extension";',
+          'import { root } from "fixture-base";',
+          "export { allowed, root };",
+        ]),
+      },
+      ["src/index.ts"],
+    );
+    expectSites(findings, [entrySite("src/index.ts", 2, BASE, BASE)]);
+  });
+
+  it("treats a scoped base the same", async () => {
+    const findings = await listedFindings(
+      pluginManifest(COMMUNITY_NAME, [SCOPED_BASE]),
+      {
+        "src/index.ts": lines([
+          'import { allowed } from "@acme/fx-base/extension";',
+          'import { root } from "@acme/fx-base";',
+          "export { allowed, root };",
+        ]),
+      },
+      ["src/index.ts"],
+    );
+    expectSites(findings, [entrySite("src/index.ts", 2, SCOPED_BASE, SCOPED_BASE)]);
+  });
+
+  it("does not take fixture-base-extra for the listed base", async () => {
+    const findings = await listedFindings(
+      pluginManifest(COMMUNITY_NAME, [BASE]),
+      {
+        "src/index.ts": lines([
+          'import { extra } from "fixture-base-extra/extension";',
+          'import { marker } from "fixture-base";',
+          "export { extra, marker };",
+        ]),
+      },
+      ["src/index.ts"],
+      ["fixture-base-extra"],
+    );
+    expectSites(findings, [
+      {
+        code: IMPORT_FOREIGN,
+        file: "src/index.ts",
+        line: 1,
+        specifier: "fixture-base-extra/extension",
+        detail: "another plugin package",
+      },
+      entrySite("src/index.ts", 2, BASE, BASE),
+    ]);
+  });
+
+  it("without gwen.extends the same imports stay IMPORT_FOREIGN_PLUGIN", async () => {
+    const source = {
+      "src/index.ts": lines(['import { marker } from "fixture-base";', "export { marker };"]),
+    };
+    const declared = await listedFindings(
+      pluginManifest(COMMUNITY_NAME, [BASE]),
+      source,
+      ["src/index.ts"],
+      [BASE],
+    );
+    const undeclared = await listedFindings(
+      { name: COMMUNITY_NAME, gwen: { type: "plugin" } },
+      source,
+      ["src/index.ts"],
+      [BASE],
+    );
+    expectSites(declared, [entrySite("src/index.ts", 1, BASE, BASE)]);
+    expectSites(undeclared, [
+      {
+        code: IMPORT_FOREIGN,
+        file: "src/index.ts",
+        line: 1,
+        specifier: BASE,
+        detail: "another plugin package",
+      },
+    ]);
+  });
+
+  it("an official package keeps IMPORT_FOREIGN_PLUGIN for a listed base", async () => {
+    const source = {
+      "src/a.ts": lines(['import { shot } from "@gwenjs/camera2d/other";', "export { shot };"]),
+    };
+    const community = await listedFindings(pluginManifest(COMMUNITY_NAME, [CAMERA]), source, [
+      "src/a.ts",
+    ]);
+    const official = await listedFindings(pluginManifest(RENAMED_OFFICIAL, [CAMERA]), source, [
+      "src/a.ts",
+    ]);
+    expectSites(community, [entrySite("src/a.ts", 1, `${CAMERA}/other`, CAMERA)]);
+    expectSites(official, [
+      {
+        code: IMPORT_FOREIGN,
+        file: "src/a.ts",
+        line: 1,
+        specifier: `${CAMERA}/other`,
+        detail: "another plugin package",
+      },
+    ]);
+  });
+
+  it("accepts the root and testing of a listed base in test files only", async () => {
+    const findings = await listedFindings(
+      pluginManifest(COMMUNITY_NAME, [BASE]),
+      {
+        "src/app.ts": lines([
+          'import { root } from "fixture-base";',
+          'import { testing } from "fixture-base/testing";',
+          "export { root, testing };",
+        ]),
+        "tests/a.test.ts": lines([
+          'import { root } from "fixture-base";',
+          'import { testing } from "fixture-base/testing";',
+          'import { extension } from "fixture-base/extension";',
+          'import { fromModule } from "fixture-base/module";',
+          'import { fromOther } from "fixture-base/other";',
+          'import { fromSub } from "fixture-base/extension/sub";',
+          'import { fromFile } from "fixture-base/extension.js";',
+          'import { fromInternal } from "fixture-base/internal";',
+          'import { fromWasm } from "fixture-base/wasm";',
+          'import { fromDist } from "fixture-base/dist/extension.js";',
+          'import { fromSrc } from "fixture-base/src/extension.ts";',
+          "export {",
+          "  root,",
+          "  testing,",
+          "  extension,",
+          "  fromModule,",
+          "  fromOther,",
+          "  fromSub,",
+          "  fromFile,",
+          "  fromInternal,",
+          "  fromWasm,",
+          "  fromDist,",
+          "  fromSrc,",
+          "};",
+        ]),
+      },
+      ["src/app.ts", "tests/a.test.ts"],
+    );
+    expectSites(findings, [
+      entrySite("src/app.ts", 1, BASE, BASE),
+      entrySite("src/app.ts", 2, `${BASE}/testing`, BASE),
+      entrySite("tests/a.test.ts", 4, `${BASE}/module`, BASE),
+      entrySite("tests/a.test.ts", 5, `${BASE}/other`, BASE),
+      entrySite("tests/a.test.ts", 6, `${BASE}/extension/sub`, BASE),
+      entrySite("tests/a.test.ts", 7, `${BASE}/extension.js`, BASE),
+      {
+        code: IMPORT_INTERNAL,
+        file: "tests/a.test.ts",
+        line: 8,
+        specifier: `${BASE}/internal`,
+        detail: `is an internal entry of ${BASE}`,
+      },
+      {
+        code: IMPORT_INTERNAL,
+        file: "tests/a.test.ts",
+        line: 9,
+        specifier: `${BASE}/wasm`,
+        detail: `is an internal entry of ${BASE}`,
+      },
+      {
+        code: IMPORT_DEEP,
+        file: "tests/a.test.ts",
+        line: 10,
+        specifier: `${BASE}/dist/extension.js`,
+        detail: BASE,
+      },
+      {
+        code: IMPORT_DEEP,
+        file: "tests/a.test.ts",
+        line: 11,
+        specifier: `${BASE}/src/extension.ts`,
+        detail: BASE,
+      },
+    ]);
   });
 });
