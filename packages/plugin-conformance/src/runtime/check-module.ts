@@ -1,7 +1,8 @@
-import type { GwenBuildHooks, GwenKit, PluginDeclaration } from "@gwenjs/schema";
+import type { GwenBuildHooks, GwenKit, GwenPlugin, PluginDeclaration } from "@gwenjs/schema";
 import { ConformanceErrorCodes } from "../error-codes.js";
 import { isRecord } from "../json.js";
 import type { ConformanceFinding } from "../types.js";
+import { callExport, isPlugin } from "./call-factory.js";
 import { importFreshEntry } from "./load-package.js";
 import type { PluginConformanceSpec, RuntimeCheckContext } from "./types.js";
 
@@ -10,6 +11,14 @@ const MODULE_HINT =
 
 function moduleFinding(message: string): ConformanceFinding {
   return { code: ConformanceErrorCodes.RUNTIME_MODULE, message, hint: MODULE_HINT };
+}
+
+function requiresFinding(message: string): ConformanceFinding {
+  return {
+    code: ConformanceErrorCodes.RUNTIME_REQUIRES,
+    message,
+    hint: "Pass addPlugin a requires value equal to the factory instance.",
+  };
 }
 
 /**
@@ -62,7 +71,64 @@ function recordingKit(recorded: unknown[]): GwenKit {
  * A function value is the instance case (`packages/app/src/app.ts:357`).
  * `src` and `export` are checked only after that (`packages/app/src/app.ts:433`).
  */
-function declarationProblem(value: unknown, spec: PluginConformanceSpec): string | undefined {
+function sameJson(left: unknown, right: unknown): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+/** The factory named by `export`, when that export is one plugin instance. */
+function instancePlugin(
+  value: Record<string, unknown>,
+  spec: PluginConformanceSpec,
+  entry: Record<string, unknown>,
+): GwenPlugin | undefined {
+  const exportName = value.export;
+  if (typeof exportName !== "string") return undefined;
+  const factory = spec.factories.find((item) => item.export === exportName);
+  if (factory === undefined) return undefined;
+  const created = callExport(entry, factory.export, factory.options);
+  if (!isPlugin(created)) return undefined;
+  return created;
+}
+
+/**
+ * `name` on a declaration, compared only when the key is present.
+ * The value must equal the instance plugin name.
+ */
+function declarationNameProblem(
+  value: Record<string, unknown>,
+  spec: PluginConformanceSpec,
+  entry: Record<string, unknown>,
+): string | undefined {
+  if (!Object.hasOwn(value, "name")) return undefined;
+  const plugin = instancePlugin(value, spec, entry);
+  if (plugin === undefined) return undefined;
+  if (value.name === plugin.name) return undefined;
+  return `module ${JSON.stringify(spec.packageName)} declaration name ${JSON.stringify(value.name)} differs from the instance name ${JSON.stringify(plugin.name)}`;
+}
+
+/**
+ * `requires` on a declaration, compared only when the key is present.
+ * A function-valued record is an instance, not a declaration.
+ */
+function declarationRequiresProblem(
+  value: unknown,
+  spec: PluginConformanceSpec,
+  entry: Record<string, unknown>,
+): string | undefined {
+  if (!isRecord(value)) return undefined;
+  if (hasFunctionValue(value)) return undefined;
+  if (!Object.hasOwn(value, "requires")) return undefined;
+  const plugin = instancePlugin(value, spec, entry);
+  if (plugin === undefined) return undefined;
+  if (sameJson(value.requires, plugin.requires)) return undefined;
+  return `module ${JSON.stringify(spec.packageName)} declaration requires ${JSON.stringify(value.requires)} differs from the instance ${JSON.stringify(plugin.requires)}`;
+}
+
+function declarationProblem(
+  value: unknown,
+  spec: PluginConformanceSpec,
+  entry: Record<string, unknown>,
+): string | undefined {
   if (!isRecord(value)) return undefined;
   if (hasFunctionValue(value)) {
     return `module ${JSON.stringify(spec.packageName)} called addPlugin with ${Object.keys(value).join(", ")}`;
@@ -73,7 +139,7 @@ function declarationProblem(value: unknown, spec: PluginConformanceSpec): string
   if (!spec.factories.some((factory) => factory.export === value.export)) {
     return `module declaration export ${JSON.stringify(value.export)} is not a spec factory`;
   }
-  return undefined;
+  return declarationNameProblem(value, spec, entry);
 }
 
 /** R10. Built `./module`: `meta.name`, then each value `addPlugin` recorded. */
@@ -110,8 +176,10 @@ export async function checkModule(
     await setup(moduleOptions(mod), recordingKit(recorded));
   }
   for (const value of recorded) {
-    const problem = declarationProblem(value, context.spec);
+    const problem = declarationProblem(value, context.spec, context.entry);
     if (problem !== undefined) findings.push(moduleFinding(problem));
+    const requiresProblem = declarationRequiresProblem(value, context.spec, context.entry);
+    if (requiresProblem !== undefined) findings.push(requiresFinding(requiresProblem));
   }
   return findings;
 }
