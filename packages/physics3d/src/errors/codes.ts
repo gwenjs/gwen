@@ -61,6 +61,8 @@ export const Physics3DErrorCodes = {
   INVALID_QUERY: "PHYSICS3D:INVALID_QUERY",
   /** A step delta is not finite, or sits outside 0 to 1. */
   INVALID_STEP_DELTA: "PHYSICS3D:INVALID_STEP_DELTA",
+  /** `gwen:transform-pipeline` is not in the Vite config. */
+  VITE_PIPELINE_MISSING: "PHYSICS3D:VITE_PIPELINE_MISSING",
 } as const;
 
 /** Type of a Physics3D error code string. */

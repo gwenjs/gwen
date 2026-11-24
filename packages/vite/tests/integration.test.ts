@@ -6,10 +6,6 @@
  *   transform) using a temporary component directory with real TypeScript source.
  *   Verifies that the transformed output contains `queryReadBulk` / `queryWriteBulk`
  *   and that a valid source map is returned.
- *
- * Step 10 — Error handling:
- *   Verifies that `evalBitExpr` returns `null` gracefully for unsupported input
- *   (addition, identifiers, empty strings) rather than throwing or returning garbage.
  */
 
 import { describe, it, expect, afterEach } from "vitest";
@@ -17,7 +13,6 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { gwenOptimizerPlugin } from "../src/plugins/optimizer.js";
-import { evalBitExpr } from "../src/shared/layer-utils.js";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -229,53 +224,5 @@ describe("gwenOptimizerPlugin — E2E pipeline (buildStart → transform)", () =
 
     // detect mode always returns null
     expect(result).toBeNull();
-  });
-});
-
-// ─── Step 10 — evalBitExpr error handling ─────────────────────────────────────
-
-describe("evalBitExpr — unsupported inputs return null without throwing", () => {
-  it("returns null for an empty string", () => {
-    expect(evalBitExpr("")).toBeNull();
-  });
-
-  it("returns null for an identifier token (not a numeric literal)", () => {
-    expect(evalBitExpr("someVariable")).toBeNull();
-  });
-
-  it("returns null for an expression using addition (unsupported operator)", () => {
-    expect(evalBitExpr("1 + 2")).toBeNull();
-  });
-
-  it("returns null for an expression using subtraction", () => {
-    expect(evalBitExpr("4 - 1")).toBeNull();
-  });
-
-  it("returns null for an expression using multiplication", () => {
-    expect(evalBitExpr("2 * 3")).toBeNull();
-  });
-
-  it("returns null for an expression mixing identifiers and operators", () => {
-    expect(evalBitExpr("flags | SOME_CONST")).toBeNull();
-  });
-
-  it("returns null for a string literal", () => {
-    expect(evalBitExpr('"hello"')).toBeNull();
-  });
-
-  it("returns null for mismatched parentheses", () => {
-    expect(evalBitExpr("(1 | 2")).toBeNull();
-  });
-
-  it("returns null for trailing garbage after a valid expression", () => {
-    expect(evalBitExpr("1 | 2 garbage")).toBeNull();
-  });
-
-  it("correctly evaluates valid bit expressions (sanity check)", () => {
-    expect(evalBitExpr("1 << 0")).toBe(1);
-    expect(evalBitExpr("1 << 3")).toBe(8);
-    expect(evalBitExpr("0x0F & 0xFF")).toBe(15);
-    expect(evalBitExpr("~1")).toBe(4294967294); // ~1 = 4294967294 (>>> 0 applied internally)
-    expect(evalBitExpr("(1 | 2) ^ 3")).toBe(0);
   });
 });

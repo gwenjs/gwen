@@ -36,12 +36,7 @@ export default definePhysicsModule<Physics2DConfig>({
   defaults: PHYSICS2D_DEFAULTS,
   validate: checkPhysics2DConfig,
   plugin: { src: "@gwenjs/physics2d", export: "Physics2DPlugin" },
-  vitePlugin: (options) => {
-    const viteDebug = options.vite?.debug;
-    return {
-      ...physics2dVitePlugin(viteDebug === undefined ? {} : { debug: viteDebug }),
-    };
-  },
+  vitePlugin: () => ({ ...physics2dVitePlugin() }),
   autoImports: [
     { name: "usePhysics2D", from: "@gwenjs/physics2d" },
     { name: "useRigidBody", from: "@gwenjs/physics2d" },

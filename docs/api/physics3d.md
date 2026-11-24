@@ -27,7 +27,6 @@ export default defineConfig({
     layers: { default: 0, player: 1, enemy: 2 },
     vite: {
       bvhPrebake: false,
-      debug: false,
     },
   },
 })
@@ -46,7 +45,6 @@ export default defineConfig({
 | `layers` | `Record<string, number>` | `{}` | Layer name to bit index, integers `0..31`, at most 32 |
 | `vite` | `object` | — | Build-time Vite plugin options (see below) |
 | `vite.bvhPrebake` | `boolean` | `false` | Pre-bake BVH for `useMeshCollider('./x.glb')` at build time |
-| `vite.debug` | `boolean` | `false` | Enable Vite plugin logging |
 
 ## Rapier 0.36
 
@@ -408,19 +406,14 @@ Build-time Vite plugin. It is **auto-registered** by the `@gwenjs/physics3d` mod
 
 ```ts
 interface GwenPhysics3DPluginOptions {
-  debug?: boolean      // default: false — enable Vite plugin logging
   bvhPrebake?: boolean // default: false — pre-bake BVH for mesh collider paths
 }
 ```
 
-The plugin performs two build-time transformations:
+The plugin does two build-time jobs:
 
-1. **Layer inlining** — replaces `Layers.player` with its literal bitmask value. Eliminates the runtime lookup and enables dead-code elimination.
+1. **Layer inlining** — registers `gwen:layer-inline` on `gwen:transform-pipeline`. `Layers.player` becomes its bitmask. A manual Vite config needs `gwen()` before this plugin.
 2. **BVH pre-baking** (opt-in) — detects `useMeshCollider('./terrain.glb')` patterns, compiles the BVH at build time, and replaces the path with `{ __bvhUrl: 'bvh-<hash>.bin' }`.
-
-:::tip Unused-layer warning
-When layer inlining is active, the Vite plugin emits a build warning for any layer that is defined in the config but never referenced in source code. Use this to keep your layer list tidy.
-:::
 
 :::tip BVH pre-bake workflow
 Enable `bvhPrebake: true` (via `vite.bvhPrebake` in module config) for large terrain meshes. The BVH is compiled once at build time and served as a binary asset, so raycast initialisation at runtime is nearly instant — no per-frame BVH rebuild cost.
@@ -440,8 +433,7 @@ interface Physics3DConfig extends PhysicsConfigBase<'3d'> {
   maxLinearVelocity?: number
   layers?: Record<string, number>
   vite?: {
-    bvhPrebake: boolean
-    debug: boolean
+    bvhPrebake?: boolean
   }
 }
 ```

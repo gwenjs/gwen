@@ -328,6 +328,10 @@ Cause. Une coordonnée ou un rayon de requête est refusé. Fix. Utilisez une va
 
 Cause. Un delta de pas n'est pas fini ou sort de 0 à 1. Fix. Restez dans cet intervalle.
 
+### PHYSICS2D:VITE_PIPELINE_MISSING {#physics2d-vite-pipeline-missing}
+
+Cause. La config Vite n'a pas gwen:transform-pipeline. Fix. Ajoutez gwen() de @gwenjs/vite avant le plugin physique.
+
 ## @gwenjs/physics3d
 
 ### PHYSICS3D:BVH_WORKER_TIMEOUT {#physics3d-bvh-worker-timeout}
@@ -457,6 +461,10 @@ Cause. Une coordonnée, une direction ou une distance a été refusée. Fix. Pas
 ### PHYSICS3D:INVALID_STEP_DELTA {#physics3d-invalid-step-delta}
 
 Cause. Un delta de pas n'est pas fini ou sort de 0 à 1. Fix. Restez dans cet intervalle.
+
+### PHYSICS3D:VITE_PIPELINE_MISSING {#physics3d-vite-pipeline-missing}
+
+Cause. La config Vite n'a pas gwen:transform-pipeline. Fix. Ajoutez gwen() de @gwenjs/vite avant le plugin physique.
 
 ## @gwenjs/renderer-core
 

@@ -36,6 +36,8 @@ export const Physics2DErrorCodes = {
   INVALID_QUERY: "PHYSICS2D:INVALID_QUERY",
   /** A step delta is not finite, or sits outside 0 to 1. */
   INVALID_STEP_DELTA: "PHYSICS2D:INVALID_STEP_DELTA",
+  /** `gwen:transform-pipeline` is not in the Vite config. */
+  VITE_PIPELINE_MISSING: "PHYSICS2D:VITE_PIPELINE_MISSING",
 } as const;
 
 export type Physics2DErrorCode = (typeof Physics2DErrorCodes)[keyof typeof Physics2DErrorCodes];

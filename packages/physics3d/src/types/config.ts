@@ -26,11 +26,6 @@ export interface Physics3DConfig extends PhysicsConfigBase<"3d"> {
      * @default false
      */
     bvhPrebake?: boolean;
-    /**
-     * Log layer-inlining and BVH baking activity to the Vite console.
-     * @default false
-     */
-    debug?: boolean;
   };
 }
 

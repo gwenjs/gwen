@@ -1,7 +1,5 @@
-export function evalBitExpr(expr: string): number | null;
-export function extractLayerDefinitions(code: string): Map<string, number> | null;
-export function inlineLayerReferences(
-  code: string,
-  variableName: string,
-  layerMap: Map<string, number>,
-): string;
+export const layerInlineTransform: {
+  readonly name: "gwen:layer-inline";
+  run: (program: unknown, context: unknown) => readonly unknown[] | Promise<readonly unknown[]>;
+};
+export function evalConstInt(node: unknown): number | null;

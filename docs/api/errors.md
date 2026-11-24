@@ -328,6 +328,10 @@ Cause. A query coordinate or radius is not accepted. Fix. Use a finite in-range 
 
 Cause. A step delta is not finite or is outside 0 to 1. Fix. Pass a delta in that range.
 
+### PHYSICS2D:VITE_PIPELINE_MISSING {#physics2d-vite-pipeline-missing}
+
+Cause. The Vite config has no gwen:transform-pipeline. Fix. Add gwen() from @gwenjs/vite before the physics plugin.
+
 ## @gwenjs/physics3d
 
 ### PHYSICS3D:BVH_WORKER_TIMEOUT {#physics3d-bvh-worker-timeout}
@@ -457,6 +461,10 @@ Cause. A query coordinate, direction, or distance was refused. Fix. Pass finite 
 ### PHYSICS3D:INVALID_STEP_DELTA {#physics3d-invalid-step-delta}
 
 Cause. A step delta is not finite or is outside 0 to 1. Fix. Pass a delta in that range.
+
+### PHYSICS3D:VITE_PIPELINE_MISSING {#physics3d-vite-pipeline-missing}
+
+Cause. The Vite config has no gwen:transform-pipeline. Fix. Add gwen() from @gwenjs/vite before the physics plugin.
 
 ## @gwenjs/renderer-core
 

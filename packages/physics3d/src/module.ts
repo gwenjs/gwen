@@ -55,10 +55,8 @@ export default defineGwenModule<Physics3DConfig>({
       { name: "useJoint", from: "@gwenjs/physics3d" },
     ]);
 
-    const viteOptions: GwenPhysics3DPluginOptions = {
-      ...(options.vite?.bvhPrebake !== undefined ? { bvhPrebake: options.vite.bvhPrebake } : {}),
-      ...(options.vite?.debug !== undefined ? { debug: options.vite.debug } : {}),
-    };
+    const viteOptions: GwenPhysics3DPluginOptions =
+      options.vite?.bvhPrebake !== undefined ? { bvhPrebake: options.vite.bvhPrebake } : {};
     kit.addVitePlugin({ ...physics3dVitePlugin(viteOptions) });
   },
 });
