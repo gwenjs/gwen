@@ -136,6 +136,8 @@ export function baseModuleSource(options: BaseSourceOptions = {}): string {
       ? ""
       : `extensionApi: { major: ${String(major)}, minor: ${String(minor)} },`;
   const providesField = options.provides === false ? "" : `provides: [${JSON.stringify(key)}],`;
+  const provideLine =
+    options.provides === false ? "" : `engine.provide(${JSON.stringify(key)}, api);`;
   const requires = baseRequiresField(options);
   return `export function ${exportName}() {
   return {
@@ -167,11 +169,38 @@ export function baseModuleSource(options: BaseSourceOptions = {}): string {
           };
         },
       };
-      engine.provide(${JSON.stringify(key)}, api);
+      ${provideLine}
     },
   };
 }
 `;
+}
+
+/**
+ * The package under test, shaped as a base.
+ * Written at `dir` (not under `node_modules`). `./extension` is present unless
+ * `extensionExport` is false. `gwen.hookNamespace` is the package name.
+ */
+export async function writeBaseSurfacePackage(
+  dir: string,
+  options: BaseWriteOptions = {},
+): Promise<string> {
+  const name = options.name ?? "fixture-base";
+  const exportName = options.exportName ?? "Base";
+  const hookNamespace = options.hookNamespace ?? name;
+  const source =
+    options.source ??
+    baseModuleSource({
+      ...options,
+      exportName,
+      packageName: name,
+      pluginName: options.pluginName ?? name,
+      hookNamespace,
+    });
+  const extensionExport = options.extensionExport !== false;
+  const files: Record<string, string> = { "dist/index.js": source };
+  if (extensionExport) files["dist/extension.js"] = "export const ready = true;\n";
+  return writeTree(dir, manifestFor(name, { hookNamespace }, extensionExport, undefined), files);
 }
 
 function baseRequiresField(options: BaseSourceOptions): string {

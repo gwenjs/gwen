@@ -5,12 +5,26 @@ import {
   recordedBaseApis,
   recordedBaseNames,
   writeBasePackage,
+  writeBaseSurfacePackage,
   writeExtensionPackage,
+  type BaseWriteOptions,
 } from "../helpers/extension-runtime.js";
 import { withPrivateTmpdir } from "../helpers/fixture.js";
 import { findingsOfCode, findingsWithCode, ranChecks, spec } from "../helpers/runtime.js";
 
 const RUNTIME_EXTENSION = "CONFORMANCE:RUNTIME_EXTENSION";
+const RUNTIME_EXTENSION_API = "CONFORMANCE:RUNTIME_EXTENSION_API";
+
+async function surfaceReport(dir: string, options: BaseWriteOptions = {}) {
+  await writeBaseSurfacePackage(dir, options);
+  return runPluginConformance(
+    spec({
+      root: dir,
+      packageName: options.name ?? "fixture-base",
+      factories: [{ export: options.exportName ?? "Base" }],
+    }),
+  );
+}
 
 function layeredModule(packageName: string): string {
   return [
@@ -753,6 +767,60 @@ describe("runPluginConformance extension", () => {
       expect(hidden[0]?.message).toContain("fixture-base");
       expect(report.checks).toContain("requirement-form");
       expect(report.checks).toContain("extension");
+    });
+  });
+
+  it("RB1 reports a base plugin that has no extensionApi", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      const report = await surfaceReport(dir, { extensionApi: false });
+      const findings = findingsOfCode(report, RUNTIME_EXTENSION_API);
+      expect(findings).toHaveLength(1);
+      expect(findings[0]?.message).toContain('"Base"');
+    });
+  });
+
+  it("RB1 reports a base that does not provide its hookNamespace extension service", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      const report = await surfaceReport(dir, { provides: false });
+      const findings = findingsOfCode(report, RUNTIME_EXTENSION_API);
+      expect(findings).toHaveLength(1);
+      expect(findings[0]?.message).toContain("fixture-base:extension");
+    });
+  });
+
+  it("RB1 reports a service whose extensionApi differs from the plugin", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      const report = await surfaceReport(dir, { serviceMajor: 1, serviceMinor: 1 });
+      const findings = findingsOfCode(report, RUNTIME_EXTENSION_API);
+      expect(findings).toHaveLength(1);
+      expect(findings[0]?.message).toContain('{"major":1,"minor":1}');
+      expect(findings[0]?.message).toContain('{"major":1,"minor":2}');
+    });
+  });
+
+  it("RB1 reports a base whose registrations are not 0 after use", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      const report = await surfaceReport(dir, { registrations: 1 });
+      const findings = findingsOfCode(report, RUNTIME_EXTENSION_API);
+      expect(findings).toHaveLength(1);
+      expect(findings[0]?.message).toContain("registrations 1");
+    });
+  });
+
+  it("RB1 runs only for a package that exports ./extension", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      const withExport = await surfaceReport(dir, { extensionExport: true });
+      expect(withExport.checks).toContain("base-surface");
+      const without = await surfaceReport(dir, { extensionExport: false });
+      expect(without.checks).not.toContain("base-surface");
+    });
+  });
+
+  it("RB1 accepts a base that declares everything", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      const report = await surfaceReport(dir);
+      expect(report.checks).toEqual(ranChecks({ extensionExport: true }));
+      expect(report.findings).toEqual([]);
     });
   });
 });
