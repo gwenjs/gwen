@@ -197,7 +197,7 @@ describe("runPluginConformance extension", () => {
         }),
       );
       expect(report.findings).toEqual([]);
-      expect(report.checks).toEqual(ranChecks({ extension: true }));
+      expect(report.checks).toEqual(ranChecks({ extension: true, requirementForm: true }));
     });
   });
 
@@ -248,7 +248,7 @@ describe("runPluginConformance extension", () => {
       const frames = findingsWithCode(report, ConformanceErrorCodes.RUNTIME_FRAME_EVENT);
       expect(frames).toHaveLength(1);
       expect(frames[0]?.message).toContain("frame 2");
-      expect(report.checks).toEqual(ranChecks({ extension: true }));
+      expect(report.checks).toEqual(ranChecks({ extension: true, requirementForm: true }));
     });
   });
 
@@ -287,7 +287,7 @@ describe("runPluginConformance extension", () => {
         expect(names[index]).toBe("fixture-base");
         expect(names[index + 1]).toBe("fixture-mid");
       }
-      expect(report.checks).toEqual(ranChecks({ extension: true }));
+      expect(report.checks).toEqual(ranChecks({ extension: true, requirementForm: true }));
     });
   });
 
@@ -535,7 +535,7 @@ describe("runPluginConformance extension", () => {
         }),
       );
       expect(report.findings).toEqual([]);
-      expect(report.checks).toEqual(ranChecks({ extension: true }));
+      expect(report.checks).toEqual(ranChecks({ extension: true, requirementForm: true }));
     });
   });
 
@@ -606,6 +606,7 @@ describe("runPluginConformance extension", () => {
       );
       expect(report.findings).toEqual([]);
       expect(report.checks).toContain("extension");
+      expect(report.checks).toContain("requirement-form");
     });
   });
 
@@ -628,7 +629,130 @@ describe("runPluginConformance extension", () => {
         }),
       );
       expect(report.findings).toEqual([]);
-      expect(report.checks).toEqual(ranChecks({ module: true, extension: true }));
+      expect(report.checks).toEqual(
+        ranChecks({ module: true, extension: true, requirementForm: true }),
+      );
+    });
+  });
+
+  it("RX6 reports a requires.plugins string that names a base", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      await writeBasePackage(dir, { name: "fixture-base" });
+      await writeExtensionPackage(dir, {
+        name: "fixture-ext",
+        gwen: { extends: ["fixture-base"] },
+        sourceOptions: { requiresPlugins: "string", setup: "empty" },
+      });
+
+      const report = await runPluginConformance(
+        spec({
+          root: dir,
+          packageName: "fixture-ext",
+          bases: [{ packageName: "fixture-base", export: "Base" }],
+        }),
+      );
+      const findings = findingsWithCode(report, ConformanceErrorCodes.RUNTIME_REQUIRES);
+      expect(findings).toHaveLength(1);
+      expect(findings[0]?.message).toContain("fixture-base");
+      expect(findings[0]?.message).toContain("object form");
+      expect(report.checks).toContain("requirement-form");
+    });
+  });
+
+  it("RX6 reports a gwen.extends package that no requires entry names", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      await writeBasePackage(dir, { name: "fixture-base" });
+      await writeExtensionPackage(dir, {
+        name: "fixture-ext",
+        gwen: { extends: ["fixture-base"] },
+        sourceOptions: { requiresPlugins: "empty", setup: "empty" },
+      });
+
+      const report = await runPluginConformance(
+        spec({
+          root: dir,
+          packageName: "fixture-ext",
+          bases: [{ packageName: "fixture-base", export: "Base" }],
+        }),
+      );
+      const findings = findingsWithCode(report, ConformanceErrorCodes.RUNTIME_REQUIRES);
+      expect(findings).toHaveLength(1);
+      expect(findings[0]?.message).toContain("fixture-base");
+      expect(report.checks).toContain("requirement-form");
+    });
+  });
+
+  it("RX6 accepts an object entry for every base", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      await writeBasePackage(dir, { name: "fixture-base" });
+      await writeExtensionPackage(dir, {
+        name: "fixture-ext",
+        gwen: { extends: ["fixture-base"] },
+        sourceOptions: { requiresPlugins: "object", setup: "register" },
+      });
+
+      const report = await runPluginConformance(
+        spec({
+          root: dir,
+          packageName: "fixture-ext",
+          bases: [{ packageName: "fixture-base", export: "Base" }],
+        }),
+      );
+      expect(report.checks).toContain("requirement-form");
+      expect(report.findings).toEqual([]);
+    });
+  });
+
+  it("RX6 reports a module declaration whose requires differ from the instance", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      const packageName = "fixture-ext";
+      const declared =
+        '{ plugins: [{ name: "other-base", extensionApi: { major: 1, minor: 0 } }] }';
+      await writeExtensionPackage(dir, {
+        name: packageName,
+        sourceOptions: { requiresPlugins: "object", setup: "empty" },
+        moduleSource: [
+          "export default {",
+          `  meta: { name: ${JSON.stringify(packageName)} },`,
+          "  defaults: {},",
+          "  setup(_options, kit) {",
+          `    kit.addPlugin({ src: ${JSON.stringify(packageName)}, export: "Plugin", requires: ${declared} });`,
+          "  },",
+          "};",
+          "",
+        ].join("\n"),
+      });
+
+      const report = await runPluginConformance(spec({ root: dir, packageName }));
+      const findings = findingsWithCode(report, ConformanceErrorCodes.RUNTIME_REQUIRES);
+      expect(findings).toHaveLength(1);
+      expect(findings[0]?.message).toContain("other-base");
+    });
+  });
+
+  it("hidden-base-install reports RUNTIME_REQUIRES for a base installed from setup", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      await writeBasePackage(dir, { name: "fixture-base" });
+      await writeExtensionPackage(dir, {
+        name: "fixture-ext",
+        gwen: { extends: ["fixture-base"] },
+        sourceOptions: { requiresPlugins: "none", setup: "import-base" },
+      });
+
+      const report = await runPluginConformance(
+        spec({
+          root: dir,
+          packageName: "fixture-ext",
+          bases: [{ packageName: "fixture-base", export: "Base" }],
+        }),
+      );
+      const hidden = findingsWithCode(report, ConformanceErrorCodes.RUNTIME_REQUIRES).filter(
+        (finding) => finding.message.includes("installed"),
+      );
+      expect(hidden).toHaveLength(1);
+      expect(hidden[0]?.message).toContain("fixture-base");
+      expect(report.checks).toContain("requirement-form");
+      expect(report.checks).toContain("extension");
     });
   });
 });

@@ -187,4 +187,40 @@ describe("runPluginConformance module", () => {
       ]);
     });
   });
+
+  it("reports a declaration name that differs from the instance name and accepts one that equals it", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      const packageName = "@fixture/module-decl-name";
+      await writeModulePackage(
+        dir,
+        packageName,
+        moduleSource(
+          packageName,
+          `kit.addPlugin({ src: ${JSON.stringify(packageName)}, export: "Plugin", name: "other-name" });`,
+        ),
+      );
+
+      const report = await runPluginConformance(spec({ root: dir, packageName }));
+      const findings = findingsWithCode(report, ConformanceErrorCodes.RUNTIME_MODULE);
+      expect(findings).toHaveLength(1);
+      expect(findings[0]?.message).toContain("other-name");
+      expect(findings[0]?.message).toContain("Plugin");
+    });
+
+    await withPrivateTmpdir(async (dir) => {
+      const packageName = "@fixture/module-decl-equal";
+      await writeModulePackage(
+        dir,
+        packageName,
+        moduleSource(
+          packageName,
+          `kit.addPlugin({ src: ${JSON.stringify(packageName)}, export: "Plugin", name: "Plugin" });`,
+        ),
+      );
+
+      const report = await runPluginConformance(spec({ root: dir, packageName }));
+      expect(findingsWithCode(report, ConformanceErrorCodes.RUNTIME_MODULE)).toEqual([]);
+      expect(report.checks).toContain("module");
+    });
+  });
 });

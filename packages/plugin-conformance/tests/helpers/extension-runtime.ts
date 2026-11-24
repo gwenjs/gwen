@@ -47,13 +47,13 @@ export interface BaseSourceOptions {
 export interface ExtensionSourceOptions {
   readonly exportName?: string;
   readonly pluginName?: string;
-  readonly requiresPlugins?: "none" | "string" | "object";
+  readonly requiresPlugins?: "none" | "empty" | "string" | "object";
   readonly requiredBase?: string;
   readonly requiredMajor?: number;
   readonly requiredMinor?: number;
   readonly hookNamespace?: string;
-  /** `empty` does nothing. The other modes need the base installed. */
-  readonly setup?: "empty" | "register" | "leak" | "warn" | "hook" | "use-base";
+  /** `empty` does nothing. `import-base` imports the base package. The other modes need the base installed. */
+  readonly setup?: "empty" | "register" | "leak" | "warn" | "hook" | "use-base" | "import-base";
 }
 
 export interface ExtensionWriteOptions {
@@ -187,6 +187,7 @@ function baseRequiresField(options: BaseSourceOptions): string {
 function requiresField(options: ExtensionSourceOptions): string {
   const mode = options.requiresPlugins ?? "none";
   if (mode === "none") return "";
+  if (mode === "empty") return "requires: {},";
   const base = options.requiredBase ?? "fixture-base";
   if (mode === "string") return `requires: { plugins: [${JSON.stringify(base)}] },`;
   const major = options.requiredMajor ?? 1;
@@ -238,6 +239,14 @@ function setupBody(options: ExtensionSourceOptions): {
       teardown: "",
     };
   }
+  if (mode === "import-base") {
+    return {
+      setup: `setup(engine) {
+      return engine.use(Base());
+    }`,
+      teardown: "",
+    };
+  }
   const teardown =
     mode === "leak"
       ? ""
@@ -261,7 +270,11 @@ export function extensionModuleSource(options: ExtensionSourceOptions = {}): str
   const body = setupBody(options);
   const disposer =
     body.teardown.length > 0 || (options.setup ?? "empty") === "leak" ? "let disposer;\n  " : "";
-  return `export function ${exportName}() {
+  const imported =
+    options.setup === "import-base"
+      ? `import { Base } from ${JSON.stringify(options.requiredBase ?? "fixture-base")};\n`
+      : "";
+  return `${imported}export function ${exportName}() {
   ${disposer}return {
     name: ${JSON.stringify(pluginName)},
     ${requires}
