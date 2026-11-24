@@ -380,8 +380,8 @@ export type LiveQuery<T> = Iterable<T>;
  * `createLiveQuery`.
  *
  * @param components - List of component definitions to match
- * @param _cacheKey - Pre-computed cache key injected by the Vite transform.
- *                    Internal — do not pass manually.
+ * @param cacheKey - Optional cache key. It is no longer injected by any plugin.
+ *                   Internal — do not pass manually.
  * @returns A chunk query. Column arrays are read with `chunk.get`. Accessors come from `each()`.
  *
  * @throws {GwenContextError} If called outside an active engine context

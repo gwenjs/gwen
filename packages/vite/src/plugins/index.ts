@@ -9,7 +9,6 @@ import { gwenHooksPlugin } from "./hooks.js";
 import { gwenLocalPluginsPlugin } from "./local-plugins.js";
 import { gwenLocalModulesPlugin } from "./local-modules.js";
 import { gwenOptimizerPlugin } from "./optimizer.js";
-import { gwenQueryHoistPlugin } from "./query-hoist.js";
 import { gwenDevStripPlugin } from "./dev-strip.js";
 import { BUILT_IN_UNITS } from "../pipeline/registry.js";
 import { createTransformPipeline } from "../pipeline/transform-pipeline.js";
@@ -41,7 +40,6 @@ export {
   scanLocalModuleFiles,
   generateLocalModulesModule,
 } from "./local-modules.js";
-export { gwenQueryHoistPlugin } from "./query-hoist.js";
 export { gwenDevStripPlugin, type GwenDevStripReport } from "./dev-strip.js";
 
 /**
@@ -52,13 +50,12 @@ export { gwenDevStripPlugin, type GwenDevStripReport } from "./dev-strip.js";
  * - `gwen:virtual` — injects `virtual:gwen/env` constants
  * - `gwen:actor` — actor auto-discovery and the actors virtual module
  * - `gwen:layout` — layout virtual module and name injection
- * - `gwen:transform-pipeline` — AST units: system and actor names, actor dependency lists, async-context await wrapping
+ * - `gwen:transform-pipeline` — AST units: system and actor names, actor dependency lists, async-context await wrapping, query hoisting
  * - `gwen:scene-router` — scene router virtual module and name injection
  * - `gwen:tween` — easing tree-shake analysis via `virtual:gwen/used-easings`
  * - `gwen:hooks` — generates `hooks.d.ts` from `src/hooks.ts`
  * - `gwen:local-plugins` — auto-discovers `src/plugins/`, generates `virtual:gwen/local-plugins`
  * - `gwen:local-modules` — auto-discovers `src/modules/`, generates `virtual:gwen/local-modules`
- * - `gwen:query-hoist` — hoists useQuery arrays and pre-computes cache keys
  * - `gwen:optimizer` — ECS bulk optimizer
  *
  * @param options - Plugin configuration. All sub-options are optional.
@@ -107,7 +104,6 @@ export function gwenVitePlugin(options: GwenViteOptions = {}): PluginOption {
     gwenHooksPlugin(options),
     gwenLocalPluginsPlugin(options),
     gwenLocalModulesPlugin(options),
-    gwenQueryHoistPlugin(),
     gwenOptimizerPlugin(resolveOptimizerOptions(options.optimizer)),
     gwenDevStripPlugin(),
   ];
