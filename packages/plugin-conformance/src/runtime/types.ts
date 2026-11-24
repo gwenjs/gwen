@@ -54,4 +54,6 @@ export interface RuntimeConformanceReport {
 export interface RuntimeCheckContext {
   readonly spec: PluginConformanceSpec;
   readonly entry: Record<string, unknown>;
+  /** Absolute path of `entry`, used to evaluate the module again. */
+  readonly entryFile: string;
 }

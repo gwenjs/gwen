@@ -1,0 +1,68 @@
+import type { GwenEngine } from "@gwenjs/core";
+import type { GwenPlugin, GwenPluginServiceKey } from "@gwenjs/schema";
+import type { PluginConformanceSpec } from "./types.js";
+
+/** `hookListeners` and `plugins` from one `getStats()` call (`packages/core/src/engine/gwen-engine.ts:566`). */
+export interface EngineBaseline {
+  readonly hookListeners: number;
+  readonly plugins: readonly string[];
+}
+
+/** Snapshot `hookListeners` and `plugins`. `plugins` is a new array on each call (`packages/core/src/engine/engine-types.ts:502`). */
+export function baselineOf(engine: GwenEngine): EngineBaseline {
+  const stats = engine.getStats();
+  return { hookListeners: stats.hookListeners, plugins: stats.plugins };
+}
+
+/** Install `frameworkProviders` in order. Each call builds a new plugin. */
+export async function installProviders(
+  engine: GwenEngine,
+  spec: PluginConformanceSpec,
+): Promise<void> {
+  for (const provider of spec.frameworkProviders ?? []) {
+    await engine.use(provider());
+  }
+}
+
+/** Declared `provides` keys. An absent list is no keys. */
+export function provideKeys(plugin: GwenPlugin): readonly GwenPluginServiceKey[] {
+  if (plugin.provides === undefined) return [];
+  return plugin.provides;
+}
+
+/** Names in `after` that are not in `baseline`, in `after` order. */
+export function extraNames(baseline: readonly string[], after: readonly string[]): string[] {
+  const known = new Set(baseline);
+  const extras: string[] = [];
+  for (const name of after) {
+    if (!known.has(name)) extras.push(name);
+  }
+  return extras;
+}
+
+/** Same names in the same order. */
+export function sameNames(left: readonly string[], right: readonly string[]): boolean {
+  if (left.length !== right.length) return false;
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) return false;
+  }
+  return true;
+}
+
+/**
+ * `engine.use`. A rejection is swallowed so a shape or dependency failure
+ * stays with the check that owns it (`packages/core/src/engine/plugin-registry.ts:218`).
+ */
+export async function usePlugin(engine: GwenEngine, plugin: GwenPlugin): Promise<void> {
+  try {
+    await engine.use(plugin);
+  } catch {
+    return;
+  }
+}
+
+/** Text of a thrown value. A non-Error becomes its string form. */
+export function thrownMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
