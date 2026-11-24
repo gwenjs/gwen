@@ -16,6 +16,24 @@ export interface WritePluginPackageOptions {
   readonly files?: Readonly<Record<string, string>>;
 }
 
+/**
+ * Local `bases` shape. Not `PluginConformanceSpec["bases"]`: the field
+ * arrives with the loader. A string or a bad entry is kept so the runtime
+ * can reject it.
+ */
+export type LocalBases =
+  | readonly {
+      readonly packageName: string;
+      readonly export: string;
+      readonly options?: unknown;
+    }[]
+  | string
+  | readonly {
+      readonly packageName?: unknown;
+      readonly export?: unknown;
+      readonly options?: unknown;
+    }[];
+
 export interface SpecOverrides {
   readonly packageName?: string;
   readonly factories?: readonly PluginFactorySpec[];
@@ -26,6 +44,7 @@ export interface SpecOverrides {
   readonly variant?: PluginConformanceSpec["variant"] | string;
   readonly frameworkProviders?: PluginConformanceSpec["frameworkProviders"];
   readonly fixture?: PluginConformanceSpec["fixture"];
+  readonly bases?: LocalBases;
 }
 
 /** `packageName` and `factories` are present. `variant` is checked by the runtime. */
@@ -77,6 +96,7 @@ export function spec(overrides: SpecOverrides = {}): PluginConformanceSpec {
     variant?: string;
     frameworkProviders?: PluginConformanceSpec["frameworkProviders"];
     fixture?: PluginConformanceSpec["fixture"];
+    bases?: LocalBases;
   } = {
     packageName: overrides.packageName ?? "@fixture/plugin",
     factories: overrides.factories ?? [{ export: "Plugin" }],
@@ -89,6 +109,7 @@ export function spec(overrides: SpecOverrides = {}): PluginConformanceSpec {
     result.frameworkProviders = overrides.frameworkProviders;
   }
   if (overrides.fixture !== undefined) result.fixture = overrides.fixture;
+  if (overrides.bases !== undefined) result.bases = overrides.bases;
   if (!isSpec(result)) throw new Error("spec helper requires packageName and factories");
   return result;
 }
@@ -98,14 +119,20 @@ export function spec(overrides: SpecOverrides = {}): PluginConformanceSpec {
  * remove, reentry, two-engines, stop.
  * `options` follows `stop` when `options.options` is true.
  * `module` follows that when `options.module` is true.
+ * `requirement-form`, `extension`, and `base-surface` follow `module`
+ * when `requirementForm`, `extension`, or `extensionExport` is true.
  * `hooks` is always present, once per run.
  * `composable` is always last.
  */
 export function ranChecks(options?: {
   readonly options?: boolean;
   readonly module?: boolean;
-}): readonly RuntimeCheckId[] {
-  const checks: RuntimeCheckId[] = [
+  readonly requirementForm?: boolean;
+  readonly extension?: boolean;
+  /** `base-surface`, when the package exports `./extension`. */
+  readonly extensionExport?: boolean;
+}): readonly ListedCheck[] {
+  const checks: ListedCheck[] = [
     "shape",
     "requires",
     "provides",
@@ -117,10 +144,16 @@ export function ranChecks(options?: {
   ];
   if (options?.options === true) checks.push("options");
   if (options?.module === true) checks.push("module");
+  if (options?.requirementForm === true) checks.push("requirement-form");
+  if (options?.extension === true) checks.push("extension");
+  if (options?.extensionExport === true) checks.push("base-surface");
   checks.push("hooks");
   checks.push("composable");
   return checks;
 }
+
+/** Check ids the helper can list before those ids are on `RuntimeCheckId`. */
+type ListedCheck = RuntimeCheckId | "requirement-form" | "extension" | "base-surface";
 
 /** Findings of `report` whose code is `code`. */
 export function findingsWithCode(
