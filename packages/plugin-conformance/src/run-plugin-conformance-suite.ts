@@ -124,7 +124,7 @@ export function registerPluginConformance(spec: PluginConformanceSpec, api: RowA
     if (moduleSubpathPresent(spec)) {
       api.it("R10 module", () => assertCheck(spec, "module"));
     }
-    // Brief row order: RX1-RX5, then RX6, then RB1.
+    // RX1-RX5, then RX6, per factory. RB1 is one unscoped row for the package.
     if (basesListed(spec)) {
       for (const factory of listedFactories(spec)) {
         registerFactoryRow(api, spec, EXTENSION_ROW, factory);
@@ -134,9 +134,7 @@ export function registerPluginConformance(spec: PluginConformanceSpec, api: RowA
       }
     }
     if (extensionSubpathPresent(spec)) {
-      for (const factory of listedFactories(spec)) {
-        registerFactoryRow(api, spec, BASE_SURFACE_ROW, factory);
-      }
+      api.it(BASE_SURFACE_ROW.title, () => assertCheck(spec, BASE_SURFACE_ROW.id));
     }
     for (const factory of listedFactories(spec)) {
       registerFactoryRow(api, spec, HOOKS_ROW, factory);

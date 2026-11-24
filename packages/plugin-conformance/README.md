@@ -56,7 +56,7 @@ import { describePluginConformance } from "@gwenjs/plugin-conformance/vitest";
 describePluginConformance({ packageName: "@scope/plugin", factories: [{ export: "Plugin" }] });
 ```
 
-Rows, in order: `R1 shape (<export>)`, `R2 installs alone (<export>)`, `R3 provides (<export>)`, `R4 quiet frames (<export>)`, `R5 remove (<export>)`, `R6 re-entry (<export>)`, `R7 two engines (<export>)`, `R8 stop (<export>)`, `R9 options (<export>)` when that factory sets `invalidOptions`, `R10 module` when `exports` has `./module`, `RX1-RX5 extension (<export>)` and `RX6 requirement form (<export>)` for each factory when `spec.bases` is non-empty, `RB1 base surface (<export>)` for each factory when `exports` has `./extension`, `R11 hooks (<export>)`, and `R12 composable surface`.
+Rows, in order: `R1 shape (<export>)`, `R2 installs alone (<export>)`, `R3 provides (<export>)`, `R4 quiet frames (<export>)`, `R5 remove (<export>)`, `R6 re-entry (<export>)`, `R7 two engines (<export>)`, `R8 stop (<export>)`, `R9 options (<export>)` when that factory sets `invalidOptions`, `R10 module` when `exports` has `./module`, `RX1-RX5 extension (<export>)` and `RX6 requirement form (<export>)` for each factory when `spec.bases` is non-empty, `RB1 base surface` when `exports` has `./extension`, `R11 hooks (<export>)`, and `R12 composable surface`.
 
 ## Runtime
 
