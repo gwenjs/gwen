@@ -8,7 +8,7 @@ import fs from "node:fs";
 import os from "node:os";
 import * as path from "node:path";
 import { createServer, type ConfigEnv, type Plugin, type UserConfig } from "vite";
-import { gwen } from "../src/index";
+import { gwen, type GwenPluginOptions } from "../src/index";
 import {
   generateEntryModule,
   generateScenesModule,
@@ -220,6 +220,21 @@ describe("plugin options defaults", () => {
 
 // ── generateBundle ────────────────────────────────────────────────────────────
 
+type BundleEmitHook = (this: { emitFile(file: unknown): void }) => void;
+
+function isBundleEmitHook(hook: Plugin["generateBundle"]): hook is BundleEmitHook {
+  return typeof hook === "function";
+}
+
+function emittedFileName(value: unknown): string {
+  if (typeof value !== "object" || value === null || !("fileName" in value)) {
+    throw new Error("emitFile argument has no fileName string");
+  }
+  const fileName = value.fileName;
+  if (typeof fileName !== "string") throw new Error("emitFile argument has no fileName string");
+  return fileName;
+}
+
 describe("generateBundle", () => {
   it("emits gwen-manifest.json asset", () => {
     const plugin = gwenPlugin();
@@ -243,6 +258,120 @@ describe("generateBundle", () => {
     const manifestAsset = emitted.find((asset) => asset.fileName === "gwen-manifest.json");
     expect(manifestAsset).toBeDefined();
     expect(() => JSON.parse(manifestAsset.source)).not.toThrow();
+  });
+
+  it("generateBundle emits only gwen-manifest.json when a plugin package ships wasm files", () => {
+    const root = makeTmp();
+    try {
+      const pluginA = path.join(root, "node_modules/@gwenjs/gwen-plugin-a/wasm");
+      const pluginB = path.join(root, "node_modules/@gwenjs/gwen-plugin-b/wasm");
+      fs.mkdirSync(pluginA, { recursive: true });
+      fs.mkdirSync(pluginB, { recursive: true });
+      fs.writeFileSync(path.join(pluginA, "a.wasm"), "A");
+      fs.writeFileSync(path.join(pluginB, "b.js"), "B");
+
+      const plugin = gwenPlugin();
+      applyResolvedRoot(plugin, root);
+
+      const emitted: { fileName: string }[] = [];
+      const hook = plugin.generateBundle;
+      if (!isBundleEmitHook(hook)) throw new Error("generateBundle is not a function");
+      hook.call({
+        emitFile(file: unknown) {
+          emitted.push({ fileName: emittedFileName(file) });
+        },
+      });
+
+      expect(emitted.map((file) => file.fileName)).toEqual(["gwen-manifest.json"]);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("gwen() dev server — routes", () => {
+  it("does not serve a plugin .wasm file under /wasm/ and still serves .gwen/index.html", async () => {
+    const root = makeTmp();
+    const wasmDir = path.join(root, "node_modules/@gwenjs/gwen-plugin-demo/wasm");
+    fs.mkdirSync(wasmDir, { recursive: true });
+    fs.writeFileSync(path.join(wasmDir, "demo.wasm"), "WASM");
+    fs.mkdirSync(path.join(root, ".gwen"), { recursive: true });
+    fs.writeFileSync(
+      path.join(root, ".gwen", "index.html"),
+      "<!DOCTYPE html><html><body>GWEN_HTML_MARKER</body></html>",
+    );
+    fs.writeFileSync(path.join(root, "gwen.config.ts"), "export default { modules: [] };\n");
+
+    let server: Awaited<ReturnType<typeof createServer>> | undefined;
+    try {
+      server = await createServer({
+        configFile: false,
+        root,
+        logLevel: "silent",
+        plugins: gwen(),
+        server: { host: "127.0.0.1", port: 0 },
+      });
+      await server.listen();
+      const address = server.httpServer?.address();
+      if (address === null || address === undefined || typeof address === "string") {
+        throw new Error("dev server has no TCP port");
+      }
+      const wasmResponse = await fetch(`http://127.0.0.1:${address.port}/wasm/demo.wasm`);
+      const wasmBody = await wasmResponse.text();
+      expect(wasmResponse.headers.get("content-type")).not.toBe("application/wasm");
+      expect(wasmBody).not.toBe("WASM");
+      const page = await fetch(`http://127.0.0.1:${address.port}/`);
+      const pageBody = await page.text();
+      expect(pageBody).toContain("GWEN_HTML_MARKER");
+    } finally {
+      await server?.close();
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("gwen() options — no crate build path", () => {
+  it("ignores a Cargo.toml in the project: no Rust source watcher is registered", async () => {
+    const root = makeTmp();
+    fs.writeFileSync(path.join(root, "gwen.config.ts"), "export default { modules: [] };\n");
+    fs.writeFileSync(path.join(root, "Cargo.toml"), "[package]\n");
+    fs.mkdirSync(path.join(root, "src"), { recursive: true });
+    fs.writeFileSync(path.join(root, "src", "lib.rs"), "\n");
+
+    const recorded: string[] = [];
+    const spy: Plugin = {
+      name: "record-watcher-add",
+      enforce: "pre",
+      configureServer(devServer) {
+        const watcher = devServer.watcher;
+        const originalAdd = watcher.add.bind(watcher);
+        watcher.add = (paths) => {
+          if (typeof paths === "string") recorded.push(paths);
+          else for (const entry of paths) recorded.push(entry);
+          return originalAdd(paths);
+        };
+      },
+    };
+
+    let server: Awaited<ReturnType<typeof createServer>> | undefined;
+    try {
+      server = await createServer({
+        configFile: false,
+        root,
+        logLevel: "silent",
+        plugins: [spy, ...gwen()],
+        server: { host: "127.0.0.1", port: 0 },
+      });
+      const optionsAreManifestOnly: Exclude<keyof GwenPluginOptions, "manifestPath"> extends never
+        ? true
+        : false = true;
+      expect(recorded.filter((entry) => entry === path.join(root, "src"))).toEqual([]);
+      expect(fs.existsSync(path.join(root, ".gwen", "wasm"))).toBe(false);
+      expect(optionsAreManifestOnly).toBe(true);
+    } finally {
+      await server?.close();
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   });
 });
 
