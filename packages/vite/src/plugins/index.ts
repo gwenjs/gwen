@@ -7,7 +7,6 @@ import { gwenTweenPlugin } from "./tween.js";
 import { gwenHooksPlugin } from "./hooks.js";
 import { gwenLocalPluginsPlugin } from "./local-plugins.js";
 import { gwenLocalModulesPlugin } from "./local-modules.js";
-import { gwenOptimizerPlugin } from "./optimizer.js";
 import { gwenDevStripPlugin } from "./dev-strip.js";
 import { BUILT_IN_UNITS } from "../pipeline/registry.js";
 import { createTransformPipeline } from "../pipeline/transform-pipeline.js";
@@ -53,7 +52,6 @@ export { gwenDevStripPlugin, type GwenDevStripReport } from "./dev-strip.js";
  * - `gwen:hooks` — generates `hooks.d.ts` from `src/hooks.ts`
  * - `gwen:local-plugins` — auto-discovers `src/plugins/`, generates `virtual:gwen/local-plugins`
  * - `gwen:local-modules` — auto-discovers `src/modules/`, generates `virtual:gwen/local-modules`
- * - `gwen:optimizer` — ECS bulk optimizer
  *
  * @param options - Plugin configuration. All sub-options are optional.
  *
@@ -67,27 +65,6 @@ export { gwenDevStripPlugin, type GwenDevStripReport } from "./dev-strip.js";
  * })
  * ```
  */
-/**
- * Resolve the `optimizer` option from `GwenViteOptions` into concrete
- * `gwenOptimizerPlugin` arguments.
- *
- * - `false / undefined` → detect mode, no extra options
- * - `true`              → transform mode, default options
- * - `{ ... }`           → transform mode, forwarded options
- */
-function resolveOptimizerOptions(
-  opt: GwenViteOptions["optimizer"],
-): Parameters<typeof gwenOptimizerPlugin>[0] {
-  if (!opt) return { mode: "detect" };
-  if (opt === true) return { mode: "transform" };
-  const { componentsDir, tier, debug } = opt;
-  const resolved: Parameters<typeof gwenOptimizerPlugin>[0] = { mode: "transform" };
-  if (componentsDir !== undefined) resolved.componentsDir = componentsDir;
-  if (tier !== undefined) resolved.tier = tier;
-  if (debug !== undefined) resolved.debug = debug;
-  return resolved;
-}
-
 export function gwenVitePlugin(options: GwenViteOptions = {}): PluginOption {
   return [
     createTransformPipeline({ units: BUILT_IN_UNITS, autoImports: options.autoImports ?? [] }),
@@ -100,7 +77,6 @@ export function gwenVitePlugin(options: GwenViteOptions = {}): PluginOption {
     gwenHooksPlugin(options),
     gwenLocalPluginsPlugin(options),
     gwenLocalModulesPlugin(options),
-    gwenOptimizerPlugin(resolveOptimizerOptions(options.optimizer)),
     gwenDevStripPlugin(),
   ];
 }

@@ -322,9 +322,9 @@ export default gwen;
 export { gwenVitePlugin, type GwenDevStripReport } from "./plugins/index.js";
 export type { GwenViteOptions, ActorPluginOptions } from "./types.js";
 
-// RFC-007: ECS optimizer plugin (opt-in)
-export { gwenOptimizerPlugin } from "./plugins/optimizer.js";
-export type { GwenOptimizerOptions } from "./plugins/optimizer.js";
+// Removed: gwenOptimizerPlugin throws until P-66-5a2 deletes it.
+export { gwenOptimizerPlugin } from "./plugins/optimizer-stub.js";
+export type { GwenOptimizerOptions } from "./plugins/optimizer-stub.js";
 
 // RFC-008: Physics3D query optimizer plugin (opt-in, Phase 1 — warn)
 export { gwenPhysics3DOptimizerPlugin } from "./plugins/physics3d-optimizer.js";

@@ -1,6 +1,6 @@
 /**
- * Red while `gwenVitePlugin` still installs `gwenOptimizerPlugin`
- * (`packages/vite/src/plugins/index.ts:103`).
+ * gwenVitePlugin installs no optimizer; optimizer: true is a no-op;
+ * gwenOptimizerPlugin throws until #69/P-66-5a2.
  */
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
