@@ -1,6 +1,6 @@
 export {};
 declare module "@gwenjs/schema" {
   interface GwenProvides {
-    "layered-ok:own": { readonly marker: 1 };
+    "fixture-base:extension": { readonly marker: 1 };
   }
 }
