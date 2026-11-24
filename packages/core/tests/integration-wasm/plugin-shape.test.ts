@@ -47,7 +47,11 @@ const FACTORIES: readonly {
     repoPath: "packages/physics2d/src/systems.ts",
     factories: ["createPhysicsKinematicSyncSystem"],
   },
-  { repoPath: "packages/physics3d/src/plugin/index.ts", factories: ["Physics3DPlugin"] },
+  {
+    repoPath: "packages/physics3d/src/plugin/index.ts",
+    factories: ["Physics3DPlugin"],
+    builder: "createPhysicsPlugin",
+  },
   {
     repoPath: "packages/physics3d/src/systems.ts",
     factories: ["createPhysicsKinematicSyncSystem"],
