@@ -65,7 +65,9 @@ export function onSensorExit(sensorId: number, callback: (entityId: bigint) => v
 /**
  * Dispatch a sensor-enter event to all callbacks registered for `sensorId`.
  *
- * Called by the Physics3D plugin during the `onUpdate` phase.
+ * Test seam (`packages/physics3d/tests/composables/on-sensor.test.ts:35`).
+ * The plugin does not call it. Kept until the follow-up that deletes the
+ * `_dispatch*` seams of both physics packages.
  *
  * @param sensorId - The collider ID of the sensor that was entered.
  * @param entityId - Packed slot index of the entity that entered.

@@ -40,8 +40,9 @@ export function onContact(callback: (contact: CollisionContact) => void): () => 
 /**
  * Dispatch a contact event to all registered callbacks.
  *
- * Called by the Physics3D plugin during the `onUpdate` phase after processing
- * the collision event list. Not intended for direct use in game code.
+ * Test and bench seam (`packages/physics3d/bench/timing-gate.test.ts:80`).
+ * The plugin does not call it. Kept until the follow-up that deletes the
+ * `_dispatch*` seams of both physics packages.
  *
  * @param event - The contact event to dispatch.
  * @internal
@@ -53,7 +54,9 @@ export function _dispatchContactEvent(event: CollisionContact): void {
 /**
  * Remove all registered contact callbacks.
  *
- * Used in tests and plugin teardown to reset the callback registry.
+ * Test and bench seam (`packages/physics3d/bench/timing-gate.test.ts:70`).
+ * Kept until the follow-up that deletes the `_dispatch*` seams of both
+ * physics packages.
  *
  * @internal
  */
