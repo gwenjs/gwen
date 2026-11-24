@@ -373,39 +373,26 @@ describe("Physics2D stale entity guards", () => {
   });
 
   it("unhooks every registered hook on teardown", async () => {
+    const wasm = mockPhysicsWasm();
     (getWasmBridge as Mock).mockReturnValue({
       hasPhysics: () => true,
-      getPhysicsBridge: () => mockPhysicsWasm(),
+      getPhysicsBridge: () => wasm,
       getLinearMemory: () => ({ buffer: new ArrayBuffer(65536) }),
     });
     const engine = await createEngine({ maxEntities: 16 });
     engine.activate();
-    const original = engine.hooks.hook.bind(engine.hooks);
-    const unhooks: Array<{ name: string; off: Mock }> = [];
-    engine.hooks.hook = ((name: string, fn: (...args: unknown[]) => unknown) => {
-      const off = original(name as never, fn as never);
-      const spy = vi.fn(() => {
-        off();
-      });
-      unhooks.push({ name, off: spy });
-      return spy;
-    }) as typeof engine.hooks.hook;
-
     const plugin = Physics2DPlugin();
     try {
+      const listeners = engine.getStats().hookListeners;
       await engine.use(plugin);
-      plugin.teardown?.();
-
-      for (const name of [
-        "prefab:instantiate",
-        "entity:destroy",
-        "engine:before-update",
-        "engine:update",
-      ]) {
-        const matches = unhooks.filter((entry) => entry.name === name);
-        expect(matches).toHaveLength(1);
-        expect(matches[0]!.off).toHaveBeenCalledTimes(1);
-      }
+      expect(engine.getStats().hookListeners).toBeGreaterThan(listeners);
+      const steps = wasm.physics_step.mock.calls.length;
+      await engine.hooks.callHook("engine:before-update", 0.016);
+      expect(wasm.physics_step).toHaveBeenCalledTimes(steps + 1);
+      await engine.unuse(plugin.name);
+      expect(engine.getStats().hookListeners).toBe(listeners);
+      await engine.hooks.callHook("engine:before-update", 0.016);
+      expect(wasm.physics_step).toHaveBeenCalledTimes(steps + 1);
     } finally {
       engine.deactivate();
       await engine.stop();
