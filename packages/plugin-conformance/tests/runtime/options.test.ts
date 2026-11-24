@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { ConformanceErrorCodes } from "@gwenjs/plugin-conformance";
 import { runPluginConformance } from "@gwenjs/plugin-conformance/runtime";
 import { withPrivateTmpdir } from "../helpers/fixture.js";
-import { findingsWithCode, spec, writePluginPackage } from "../helpers/runtime.js";
+import { findingsWithCode, ranChecks, spec, writePluginPackage } from "../helpers/runtime.js";
 
 const optionsRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -31,7 +31,7 @@ describe("runPluginConformance options", () => {
       );
       const findings = findingsWithCode(report, ConformanceErrorCodes.RUNTIME_OPTIONS);
       expect(findings).toHaveLength(1);
-      expect(report.checks).toEqual(["shape", "requires", "provides", "options"]);
+      expect(report.checks).toEqual(ranChecks({ options: true }));
     });
   });
 
@@ -43,7 +43,7 @@ describe("runPluginConformance options", () => {
         factories: [{ export: "OptionsPlugin", invalidOptions: { speed: -1 } }],
       }),
     );
-    expect(report.checks).toEqual(["shape", "requires", "provides", "options"]);
+    expect(report.checks).toEqual(ranChecks({ options: true }));
     expect(report.findings).toEqual([]);
   });
 
@@ -60,7 +60,7 @@ describe("runPluginConformance options", () => {
       const report = await runPluginConformance(
         spec({ root: dir, packageName: "@fixture/no-invalid-options" }),
       );
-      expect(report.checks).toEqual(["shape", "requires", "provides"]);
+      expect(report.checks).toEqual(ranChecks());
       expect(report.findings).toEqual([]);
     });
   });

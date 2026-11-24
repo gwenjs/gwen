@@ -3,7 +3,13 @@ import { GWEN_PLUGIN_KEYS } from "@gwenjs/schema";
 import { ConformanceErrorCodes } from "@gwenjs/plugin-conformance";
 import { runPluginConformance } from "@gwenjs/plugin-conformance/runtime";
 import { withPrivateTmpdir } from "../helpers/fixture.js";
-import { factorySource, findingsWithCode, spec, writePluginPackage } from "../helpers/runtime.js";
+import {
+  factorySource,
+  findingsWithCode,
+  ranChecks,
+  spec,
+  writePluginPackage,
+} from "../helpers/runtime.js";
 
 /** Own-key value for one `GWEN_PLUGIN_KEYS` entry, so the object is built from the constant. */
 function keyValue(key: string, exportName: string): string {
@@ -43,7 +49,7 @@ describe("runPluginConformance shape", () => {
       expect(findings[0]?.message).toContain("@fixture/on-update");
       expect(findings[0]?.message).toContain("Plugin");
       expect(findings[0]?.message).toContain("onUpdate");
-      expect(report.checks).toEqual(["shape", "requires", "provides"]);
+      expect(report.checks).toEqual(ranChecks());
     });
   });
 
@@ -57,7 +63,7 @@ describe("runPluginConformance shape", () => {
       const report = await runPluginConformance(
         spec({ root: dir, packageName: "@fixture/all-keys" }),
       );
-      expect(report.checks).toEqual(["shape", "requires", "provides"]);
+      expect(report.checks).toEqual(ranChecks());
       expect(report.findings).toEqual([]);
     });
   });
@@ -81,7 +87,7 @@ describe("runPluginConformance shape", () => {
       const findings = findingsWithCode(report, ConformanceErrorCodes.RUNTIME_SHAPE);
       expect(findings).toHaveLength(1);
       expect(findings[0]?.message).toContain("Second");
-      expect(report.checks).toEqual(["shape", "requires", "provides"]);
+      expect(report.checks).toEqual(ranChecks());
     });
   });
 });

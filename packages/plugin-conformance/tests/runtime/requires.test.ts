@@ -7,9 +7,13 @@ import { CameraCorePlugin } from "@gwenjs/camera-core";
 import { ConformanceErrorCodes } from "@gwenjs/plugin-conformance";
 import { runPluginConformance } from "@gwenjs/plugin-conformance/runtime";
 import { withPrivateTmpdir } from "../helpers/fixture.js";
-import { factorySource, findingsWithCode, spec, writePluginPackage } from "../helpers/runtime.js";
-
-const RAN = ["shape", "requires", "provides"] as const;
+import {
+  factorySource,
+  findingsWithCode,
+  ranChecks,
+  spec,
+  writePluginPackage,
+} from "../helpers/runtime.js";
 
 const servicesRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -40,7 +44,7 @@ describe("runPluginConformance requires", () => {
       const report = await runPluginConformance(
         spec({ root: dir, packageName: "@fixture/no-requires" }),
       );
-      expect(report.checks).toEqual([...RAN]);
+      expect(report.checks).toEqual(ranChecks());
       expect(report.findings).toEqual([]);
     });
   });
@@ -65,7 +69,7 @@ describe("runPluginConformance requires", () => {
         frameworkProviders: [createViewportsPlugin, CameraCorePlugin],
       }),
     );
-    expect(report.checks).toEqual([...RAN]);
+    expect(report.checks).toEqual(ranChecks());
     expect(report.findings).toEqual([]);
   });
 
@@ -82,7 +86,7 @@ describe("runPluginConformance requires", () => {
     expect(findings[0]?.message).toContain("camera-core");
     expect(findings[0]?.message).toContain("cameraManager");
     expect(findings[0]?.message).toContain("viewportManager");
-    expect(report.checks).toEqual([...RAN]);
+    expect(report.checks).toEqual(ranChecks());
   });
 
   it("reports a plugin that installs camera-core from setup", async () => {
@@ -98,7 +102,7 @@ describe("runPluginConformance requires", () => {
     expect(findings).toHaveLength(1);
     expect(findings[0]?.message).toContain("camera-core");
     expect(findings[0]?.message).toContain(JSON.stringify(HIDDEN_PLUGINS));
-    expect(report.checks).toEqual([...RAN]);
+    expect(report.checks).toEqual(ranChecks());
   });
 
   it("reports an official plugin that names a plugin of another package", async () => {
@@ -121,7 +125,7 @@ describe("runPluginConformance requires", () => {
       const findings = findingsWithCode(report, ConformanceErrorCodes.RUNTIME_REQUIRES);
       expect(findings).toHaveLength(1);
       expect(findings[0]?.message).toContain("@other/plugin");
-      expect(report.checks).toEqual([...RAN]);
+      expect(report.checks).toEqual(ranChecks());
     });
   });
 
@@ -143,7 +147,7 @@ describe("runPluginConformance requires", () => {
           frameworkProviders: [createViewportsPlugin, CameraCorePlugin],
         }),
       );
-      expect(report.checks).toEqual([...RAN]);
+      expect(report.checks).toEqual(ranChecks());
       expect(report.findings).toEqual([]);
     });
   });
@@ -169,7 +173,7 @@ describe("runPluginConformance requires", () => {
         (finding) => finding.message.includes("@other/plugin"),
       );
       expect(named).toEqual([]);
-      expect(report.checks).toEqual([...RAN]);
+      expect(report.checks).toEqual(ranChecks());
     });
   });
 });
