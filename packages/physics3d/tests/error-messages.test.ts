@@ -1,5 +1,9 @@
-import { resolveConfig } from "vite";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { createServer, resolveConfig, type ViteDevServer } from "vite";
 import { afterEach, describe, expect, it } from "vitest";
+import { gwen as gwenPlugins } from "@gwenjs/vite";
 import { createEngine } from "@gwenjs/core/node";
 import { defineComponent, GwenContextError, Types, type GwenEngine } from "@gwenjs/core";
 import { defineActor, definePrefab } from "@gwenjs/core/actor";
@@ -11,7 +15,7 @@ import { useStaticBody } from "../src/composables/use-static-body";
 import { Physics3DErrorCodes } from "../src/errors/codes";
 import { encodeCompoundShapes } from "../src/helpers/compound";
 import { Physics3DPlugin, preloadMeshCollider } from "../src/index";
-import { physics3dVitePlugin } from "../src/vite-plugin.js";
+import { _setBuildToolsLoader, physics3dVitePlugin } from "../src/vite-plugin.js";
 import { Physics3DStaleEntityError } from "../src/plugin/entity-owner";
 import type { MeshColliderHandle3D } from "../src/types";
 
@@ -214,6 +218,73 @@ describe("physics3d error messages", () => {
     } finally {
       if (previous === undefined) delete process.env["NODE_ENV"];
       else process.env["NODE_ENV"] = previous;
+    }
+  });
+
+  it("a failed bake names the file and carries the hint only in dev", async () => {
+    const origin = new Error("bad glb");
+    const root = mkdtempSync(join(tmpdir(), "gwen-bvh-error-"));
+    mkdirSync(join(root, "src"));
+    writeFileSync(join(root, "src", "x.glb"), new Uint8Array([1, 2, 3, 4]));
+    const stub = join(root, "src", "physics-stub.ts");
+    writeFileSync(stub, "export function useMeshCollider() {}\n");
+    writeFileSync(
+      join(root, "src", "game.ts"),
+      `import { useMeshCollider } from "@gwenjs/physics3d";
+export const anchor = useMeshCollider("./x.glb");
+`,
+    );
+    const previous = process.env["NODE_ENV"];
+    let server: ViteDevServer | undefined;
+    try {
+      _setBuildToolsLoader(async () => ({
+        build_bvh_from_glb: () => {
+          throw origin;
+        },
+      }));
+      const pipeline = gwenPlugins().find((plugin) => plugin.name === "gwen:transform-pipeline");
+      expect(pipeline?.name).toBe("gwen:transform-pipeline");
+      if (pipeline === undefined) return;
+      server = await createServer({
+        configFile: false,
+        root,
+        logLevel: "silent",
+        appType: "custom",
+        plugins: [pipeline, physics3dVitePlugin({ bvhPrebake: true })],
+        resolve: { alias: [{ find: "@gwenjs/physics3d", replacement: stub }] },
+        server: { middlewareMode: true, hmr: false, fs: { strict: false } },
+      });
+      process.env["NODE_ENV"] = __GWEN_DEV__ ? "development" : "production";
+      await expect(server.transformRequest("/src/game.ts")).rejects.toSatisfy((error: unknown) => {
+        const record = typeof error === "object" && error !== null ? error : undefined;
+        const message = record !== undefined && "message" in record ? String(record.message) : "";
+        const cause = record !== undefined && "cause" in record ? record.cause : undefined;
+        const causeRecord = typeof cause === "object" && cause !== null ? cause : undefined;
+        const code =
+          record !== undefined && "code" in record && typeof record.code === "string"
+            ? record.code
+            : causeRecord !== undefined &&
+                "code" in causeRecord &&
+                typeof causeRecord.code === "string"
+              ? causeRecord.code
+              : "";
+        const fix = message.split("\n").some((line) => line.startsWith("Fix:"));
+        const hint = "Fix: Export the mesh as triangles; see the physics3d docs.";
+        return (
+          code === "VITE:BVH_PREBAKE_FAILED" &&
+          message.includes("./x.glb") &&
+          fix === __GWEN_DEV__ &&
+          (__GWEN_DEV__ ? message.includes(hint) : true)
+        );
+      });
+    } finally {
+      if (previous === undefined) delete process.env["NODE_ENV"];
+      else process.env["NODE_ENV"] = previous;
+      _setBuildToolsLoader(async () => ({
+        build_bvh_from_glb: () => new Uint8Array([0]),
+      }));
+      await server?.close();
+      rmSync(root, { recursive: true, force: true });
     }
   });
 });

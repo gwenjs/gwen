@@ -5,12 +5,19 @@
  * `loc.column` is that value minus 1: Vite reads `err.loc.column` as 0-based.
  */
 
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { resolveConfig, type Plugin } from "vite";
+import { build, createServer, resolveConfig, type Plugin, type ViteDevServer } from "vite";
 import { ViteErrorCodes } from "../../src/error-codes.js";
 import { BUILT_IN_UNITS } from "../../src/pipeline/registry.js";
 import { createTransformPipeline } from "../../src/pipeline/transform-pipeline.js";
-import type { GwenSourceTransform, TransformEdit } from "../../src/pipeline/types.js";
+import type {
+  GwenSourceTransform,
+  TransformEdit,
+  ViteErrorCode,
+} from "../../src/pipeline/types.js";
 import { applyTransform, mapCheck, preparePipeline, runPipeline, testInsert } from "./helpers.js";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -436,4 +443,188 @@ export const marked = tag();
     }
     expect(plugin.api.names).toEqual(builtInNames);
   });
+});
+
+interface FileNameEmit {
+  (asset: { type: "asset"; fileName: string; source: Uint8Array }): string;
+}
+
+interface CauseRaise {
+  (
+    code: ViteErrorCode,
+    node: { start: number; end: number },
+    what: string,
+    hint: string | undefined,
+    cause: Error,
+  ): never;
+}
+
+interface BundleAsset {
+  readonly fileName: string;
+  readonly source: Uint8Array | string;
+}
+
+function isFileNameEmit(value: unknown): value is FileNameEmit {
+  return typeof value === "function";
+}
+
+function isCauseRaise(value: unknown): value is CauseRaise {
+  return typeof value === "function";
+}
+
+function writeProbeRoot(): string {
+  const root = mkdtempSync(join(tmpdir(), "gwen-bvh-probe-"));
+  mkdirSync(join(root, "src"));
+  writeFileSync(join(root, "src", "mod.ts"), "export const value = 1;\n");
+  return root;
+}
+
+function bundleAssets(result: unknown): BundleAsset[] {
+  const outputs = Array.isArray(result) ? result : [result];
+  const assets: BundleAsset[] = [];
+  for (const output of outputs) {
+    if (!isRecord(output)) continue;
+    const files = output["output"];
+    if (!Array.isArray(files)) continue;
+    for (const file of files) {
+      if (!isRecord(file) || file["type"] !== "asset") continue;
+      const fileName = file["fileName"];
+      const source = file["source"];
+      if (typeof fileName !== "string") continue;
+      if (typeof source !== "string" && !(source instanceof Uint8Array)) continue;
+      assets.push({ fileName, source });
+    }
+  }
+  return assets;
+}
+
+function sameBytes(source: Uint8Array | string | undefined, expected: Uint8Array): boolean {
+  if (source === undefined) return false;
+  const actual = typeof source === "string" ? Buffer.from(source) : source;
+  if (actual.byteLength !== expected.byteLength) return false;
+  for (let index = 0; index < expected.byteLength; index += 1) {
+    if (actual[index] !== expected[index]) return false;
+  }
+  return true;
+}
+
+function causeReaches(error: unknown, target: Error): boolean {
+  const seen = new Set<unknown>();
+  let current: unknown = error;
+  while (typeof current === "object" && current !== null && !seen.has(current)) {
+    if (current === target) return true;
+    seen.add(current);
+    if (!("cause" in current)) return false;
+    current = current.cause;
+  }
+  return false;
+}
+
+it("a unit sees ctx.emitFile in a build and not in serve", async () => {
+  const seen: string[] = [];
+  const unit = (): GwenSourceTransform => ({
+    name: "gwen:emit-probe",
+    run(_program, ctx) {
+      seen.push(typeof ctx.emitFile);
+      return [];
+    },
+  });
+  const root = writeProbeRoot();
+  let server: ViteDevServer | undefined;
+  try {
+    await build({
+      configFile: false,
+      root,
+      logLevel: "silent",
+      plugins: [createTransformPipeline({ units: [unit()] })],
+      build: {
+        write: false,
+        minify: false,
+        rollupOptions: { input: join(root, "src", "mod.ts") },
+      },
+    });
+    server = await createServer({
+      configFile: false,
+      root,
+      logLevel: "silent",
+      appType: "custom",
+      plugins: [createTransformPipeline({ units: [unit()] })],
+      server: { middlewareMode: true, hmr: false, fs: { strict: false } },
+    });
+    await server.transformRequest("/src/mod.ts");
+    expect(seen).toEqual(["function", "undefined"]);
+  } finally {
+    await server?.close();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+it("ctx.emitFile with a fileName emits that exact file name in the bundle", async () => {
+  const fileName = "probe-asset.bin";
+  const bytes = new Uint8Array([4, 5, 6, 7]);
+  const probe: GwenSourceTransform = {
+    name: "gwen:emit-name",
+    run(_program, ctx) {
+      const emit: unknown = ctx.emitFile;
+      if (!isFileNameEmit(emit)) return [];
+      emit({ type: "asset", fileName, source: bytes });
+      return [];
+    },
+  };
+  const root = writeProbeRoot();
+  try {
+    const result = await build({
+      configFile: false,
+      root,
+      logLevel: "silent",
+      plugins: [createTransformPipeline({ units: [probe] })],
+      build: {
+        write: false,
+        minify: false,
+        rollupOptions: { input: join(root, "src", "mod.ts") },
+      },
+    });
+    const asset = bundleAssets(result).find((item) => item.fileName === fileName);
+    expect(asset?.fileName).toBe(fileName);
+    expect(sameBytes(asset?.source, bytes)).toBe(true);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+it("raise keeps the cause on the thrown error", async () => {
+  const origin = new Error("bake origin");
+  const probe: GwenSourceTransform = {
+    name: "gwen:raise-cause",
+    run(_program, ctx) {
+      const raise: unknown = ctx.raise;
+      if (!isCauseRaise(raise)) return [];
+      return raise(
+        ViteErrorCodes.TRANSFORM_UNSUPPORTED,
+        { start: 0, end: 1 },
+        "bake origin",
+        "a hint",
+        origin,
+      );
+    },
+  };
+  const root = writeProbeRoot();
+  let server: ViteDevServer | undefined;
+  try {
+    server = await createServer({
+      configFile: false,
+      root,
+      logLevel: "silent",
+      appType: "custom",
+      plugins: [createTransformPipeline({ units: [probe] })],
+      server: { middlewareMode: true, hmr: false, fs: { strict: false } },
+    });
+    await expect(server.transformRequest("/src/mod.ts")).rejects.toSatisfy((error: unknown) => {
+      const loc = readLoc(error);
+      return causeReaches(error, origin) && loc?.line === 1 && loc.column === 0;
+    });
+  } finally {
+    await server?.close();
+    rmSync(root, { recursive: true, force: true });
+  }
 });

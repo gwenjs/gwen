@@ -81,7 +81,7 @@ describe("@gwenjs/physics3d module export", () => {
     expect(typeof Reflect.get(entry, exportName)).toBe("function");
   });
 
-  it("the module hands the app a vite plugin named gwen:physics3d with its transform", async () => {
+  it("the module hands the app a vite plugin named gwen:physics3d that has no transform hook", async () => {
     const { GwenApp } = await import("@gwenjs/app/resolve");
     const { resolveLoadedConfig } = await import("../../app/src/config");
     const loaded = await import("@gwenjs/physics3d/module");
@@ -90,7 +90,8 @@ describe("@gwenjs/physics3d module export", () => {
     await app.setupModules(resolved, async () => loaded.default);
     const [plugin] = app.vitePlugins;
     expect(plugin?.name).toBe("gwen:physics3d");
-    expect(typeof plugin?.transform).toBe("function");
+    expect(plugin?.transform).toBeUndefined();
+    expect(typeof plugin?.configResolved).toBe("function");
   });
 
   it("the module setup registers the plugin, auto-imports and vite plugin only", async () => {

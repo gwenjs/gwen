@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
 import { BUILT_IN_UNITS } from "../../src/pipeline/registry.js";
 import type { GwenSourceTransform } from "../../src/pipeline/types.js";
-import { layerInlineTransform } from "../../src/shared/layer-utils.js";
+import * as layerUtils from "../../src/shared/layer-utils.js";
 import { fixtureCase, mapCheck, resolveRelativeId, runPipeline } from "./helpers.js";
 
 const packageRoot = fileURLToPath(new URL("../../", import.meta.url));
@@ -61,9 +61,53 @@ if (cases.length === 0) {
   throw new Error(`No transform-pipeline fixture cases under ${fixturesRoot}`);
 }
 
+interface BvhPrebakeDeps {
+  bake(glb: Uint8Array, mesh: string | undefined): Promise<Uint8Array>;
+  assets: Map<string, Uint8Array>;
+}
+
+function isBvhFactory(value: unknown): value is (deps: BvhPrebakeDeps) => GwenSourceTransform {
+  return typeof value === "function";
+}
+
+/** Bytes the fixture baker returns for one glb, mesh name and call count. */
+function bakeBody(glb: Uint8Array, mesh: string | undefined, count: number): Uint8Array {
+  const meshBytes = new TextEncoder().encode(mesh ?? "");
+  const body = new Uint8Array(5 + meshBytes.length + glb.length);
+  body[0] = 0x62;
+  body[1] = 0x76;
+  body[2] = 0x68;
+  body[3] = count;
+  body[4] = meshBytes.length;
+  body.set(meshBytes, 5);
+  body.set(glb, 5 + meshBytes.length);
+  return body;
+}
+
+/**
+ * `createBvhPrebakeTransform` is absent on the base
+ * (`packages/vite/src/shared/layer-utils.ts:8`). No unit is registered then.
+ */
+function bvhPrebakeUnit(): GwenSourceTransform | undefined {
+  const factory: unknown = Reflect.get(layerUtils, "createBvhPrebakeTransform");
+  if (!isBvhFactory(factory)) return undefined;
+  const counts = new Map<string, number>();
+  const assets = new Map<string, Uint8Array>();
+  const bake = (glb: Uint8Array, mesh: string | undefined): Promise<Uint8Array> => {
+    const key = `${mesh ?? ""}\0${Buffer.from(glb).toString("hex")}`;
+    const count = counts.get(key) ?? 0;
+    counts.set(key, count + 1);
+    return Promise.resolve(bakeBody(glb, mesh, count));
+  };
+  return factory({ bake, assets });
+}
+
 function extraUnits(unit: string): readonly GwenSourceTransform[] {
-  if (unit !== "layer-inline" && unit !== "async-context") return [];
-  return [layerInlineTransform];
+  if (unit === "layer-inline" || unit === "async-context") return [layerUtils.layerInlineTransform];
+  if (unit !== "bvh-prebake") return [];
+  const unitTransform = bvhPrebakeUnit();
+  if (unitTransform === undefined) return [];
+  return [unitTransform];
 }
 
 function runCase(dir: string, code: string, unit: string) {
