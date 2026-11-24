@@ -5,7 +5,7 @@ import { isRecord } from "../json.js";
 import type { ConformanceFinding } from "../types.js";
 import { callExport, isPlugin, isProvideCode, thrownCode } from "./call-factory.js";
 import { FRAMEWORK_PLUGIN_NAMES } from "./framework-plugin-names.js";
-import { installPrerequisites, installProviders, sameNames, thrownMessage } from "./lifecycle.js";
+import { installProviders, sameNames, thrownMessage } from "./lifecycle.js";
 import { withEngine } from "./open-engine.js";
 import type { PluginConformanceSpec, PluginFactorySpec, RuntimeCheckContext } from "./types.js";
 
@@ -77,16 +77,6 @@ function foreignPluginNames(
     foreign.push(name);
   }
   return foreign;
-}
-
-/** R2 does not install bases. A second use of an installed name would be a no-op. */
-function r2InstallsBases(): boolean {
-  return false;
-}
-
-async function installForRequires(engine: GwenEngine, context: RuntimeCheckContext): Promise<void> {
-  await installProviders(engine, context.spec);
-  if (r2InstallsBases()) await installPrerequisites(engine, context);
 }
 
 /** A plugin name outside `allowed` is left out: the official rule names it. */
@@ -189,7 +179,8 @@ async function checkOne(
   const foreign = foreignPluginNames(spec, plugin, allowed);
   if (foreign.length > 0) return [foreignPlugin(spec, factory, foreign)];
   return withEngine(spec, async (open) => {
-    await installForRequires(open.engine, context);
+    /** R2 does not install bases. */
+    await installProviders(open.engine, spec);
     await installSiblings(context, plugin, factory.export, open.engine);
     const baseline = open.engine.getStats().plugins;
     try {
