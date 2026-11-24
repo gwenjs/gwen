@@ -1,3 +1,4 @@
+import { resolveConfig } from "vite";
 import { afterEach, describe, expect, it } from "vitest";
 import { GwenContextError, type GwenEngine } from "@gwenjs/core";
 import { createEngine } from "@gwenjs/core/node";
@@ -10,6 +11,7 @@ import { useShape } from "../src/composables/use-shape";
 import { useStaticBody } from "../src/composables/use-static-body";
 import * as errors from "../src/errors";
 import { Physics2DPlugin } from "../src/index";
+import { physics2dVitePlugin } from "../src/vite-plugin.js";
 import { addPrefabCollider as pluginAdd } from "../src/plugin/prefab";
 import { addPrefabCollider } from "../src/prefab";
 import * as systems from "../src/systems";
@@ -147,5 +149,38 @@ describe("physics2d error messages", () => {
     expect(error.code).toBe("CORE:OUTSIDE_ENGINE_CONTEXT");
     expect(error.composable).toBe(name);
     expect(error.message.startsWith(`[${name}()]`)).toBe(true);
+  });
+
+  it("physics2dVitePlugin without the pipeline names the composable and carries the hint only in dev", async () => {
+    const code = "PHYSICS2D:VITE_PIPELINE_" + "MISSING";
+    const line = "[physics2dVitePlugin()] gwen:transform-pipeline is not in the Vite config.";
+    const missing = () =>
+      resolveConfig(
+        { configFile: false, logLevel: "silent", plugins: [physics2dVitePlugin()] },
+        "serve",
+      );
+
+    const dev = await caught(missing);
+    expect(dev).toBeInstanceOf(GwenError);
+    if (!(dev instanceof GwenError)) return;
+    expect(dev.code).toBe(code);
+    expect(head(dev)).toBe(line);
+    expect(dev.composable).toBe("physics2dVitePlugin");
+    expect(dev.hint).toContain("gwen()");
+
+    const previous = process.env["NODE_ENV"];
+    try {
+      process.env["NODE_ENV"] = "production";
+      const prod = await caught(missing);
+      expect(prod).toBeInstanceOf(GwenError);
+      if (!(prod instanceof GwenError)) return;
+      expect(prod.code).toBe(code);
+      expect(head(prod)).toBe(line);
+      expect(prod.composable).toBe("physics2dVitePlugin");
+      expect(prod.hint).toBeUndefined();
+    } finally {
+      if (previous === undefined) delete process.env["NODE_ENV"];
+      else process.env["NODE_ENV"] = previous;
+    }
   });
 });
