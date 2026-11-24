@@ -80,6 +80,45 @@ describe("physics2d contact payload", () => {
     }
   });
 
+  it("a 2d onContact callback receives the collider ids of the contact", async () => {
+    const handle = await createRealEngine({ variant: "physics2d", maxEntities: 32 });
+    try {
+      const { engine, advance } = handle;
+      await engine.use(Physics2DPlugin({ gravity: { x: 0, y: 0 } }));
+      const physics = engine.inject("physics2d");
+      const seen: Array<{
+        entityA: EntityId;
+        entityB: EntityId;
+        aColliderId?: number;
+        bColliderId?: number;
+      }> = [];
+      const left = engine.createEntity();
+      const right = engine.createEntity();
+      engine.run(() => {
+        onContact((event) => {
+          seen.push(event);
+        }, left);
+      });
+      physics.addRigidBody(left, "dynamic", 0, 0);
+      physics.addBoxCollider(left, 0.5, 0.5, { colliderId: 11 });
+      physics.addRigidBody(right, "dynamic", 0.2, 0);
+      physics.addBoxCollider(right, 0.5, 0.5, { colliderId: 22 });
+      await advance(5, 1 / 60);
+      const first = seen[0];
+      const idForLeft =
+        first === undefined
+          ? undefined
+          : first.entityA === left
+            ? first.aColliderId
+            : first.entityB === left
+              ? first.bColliderId
+              : undefined;
+      expect(idForLeft).toBe(11);
+    } finally {
+      await handle.dispose();
+    }
+  });
+
   it("contacts and sensors still arrive with key physics2d", async () => {
     const handle = await createRealEngine({ variant: "physics2d", maxEntities: 32 });
     try {

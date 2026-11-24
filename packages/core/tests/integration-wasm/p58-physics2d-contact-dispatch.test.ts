@@ -55,6 +55,8 @@ describe("tilemap chunk contacts", () => {
         contacts.push(...list);
       });
       engine.hooks.hook("physics:collision:batch", (batch) => {
+        const memory = handle.bridge.getLinearMemory();
+        if (memory !== null) memory.grow(1);
         for (const event of batch.events) rawSlots.push(...slotsOf(event));
       });
       const chunk = {
@@ -71,11 +73,55 @@ describe("tilemap chunk contacts", () => {
       const body = engine.createEntity();
       physics.addRigidBody(body, "dynamic", 0, 0, { gravityScale: 0 });
       physics.addBoxCollider(body, 0.5, 0.5);
+      const other = engine.createEntity();
+      physics.addRigidBody(other, "dynamic", 0, 0, { gravityScale: 0 });
+      physics.addBoxCollider(other, 0.5, 0.5);
       await advance(8, 1 / 60);
       expect(rawSlots).toContain(pseudoSlot);
       expect(
         contacts.some((contact) => contact.entityA === pseudoId || contact.entityB === pseudoId),
       ).toBe(false);
+      expect(
+        contacts.some(
+          (contact) =>
+            (contact.entityA === body && contact.entityB === other) ||
+            (contact.entityA === other && contact.entityB === body),
+        ),
+      ).toBe(true);
+    } finally {
+      await handle.dispose();
+    }
+  });
+
+  it("a frame whose contacts all lack an owner emits no physics:collision", async () => {
+    const handle = await createRealEngine({ variant: "physics2d", maxEntities: 32 });
+    try {
+      const { engine, advance } = handle;
+      await engine.use(Physics2DPlugin({ gravity: { x: 0, y: 0 }, eventMode: "hybrid" }));
+      const physics = engine.inject("physics2d");
+      let collisionCalls = 0;
+      let batchCalls = 0;
+      engine.hooks.hook("physics:collision", () => {
+        collisionCalls += 1;
+      });
+      engine.hooks.hook("physics:collision:batch", () => {
+        batchCalls += 1;
+      });
+      const chunk = {
+        key: "0,0",
+        checksum: "contact-dispatch-unowned",
+        chunkX: 0,
+        chunkY: 0,
+        rects: [],
+        colliders: [{ shape: "box" as const, hw: 50, hh: 50 }],
+      };
+      physics.loadTilemapPhysicsChunk(chunk, 0, 0);
+      const body = engine.createEntity();
+      physics.addRigidBody(body, "dynamic", 0, 0, { gravityScale: 0 });
+      physics.addBoxCollider(body, 0.5, 0.5);
+      await advance(8, 1 / 60);
+      expect(collisionCalls).toBe(0);
+      expect(batchCalls).toBeGreaterThan(0);
     } finally {
       await handle.dispose();
     }
