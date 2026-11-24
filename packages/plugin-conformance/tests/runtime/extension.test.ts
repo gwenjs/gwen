@@ -39,6 +39,46 @@ function layeredModule(packageName: string): string {
   ].join("\n");
 }
 
+/** Base whose `setup` throws when the installed major is not 1. */
+function raisedMajorBaseSource(pluginName: string): string {
+  const key = `${pluginName}:extension`;
+  return `export function Base() {
+  return {
+    name: ${JSON.stringify(pluginName)},
+    extensionApi: { major: 1, minor: 2 },
+    provides: [${JSON.stringify(key)}],
+    setup(engine) {
+      const extensionApi = this.extensionApi;
+      if (extensionApi !== undefined && extensionApi.major !== 1) throw new Error("copy-major");
+      const list = globalThis.__fixtureBaseApis ?? [];
+      list.push(extensionApi);
+      globalThis.__fixtureBaseApis = list;
+      const names = globalThis.__fixtureBaseNames ?? [];
+      names.push(this.name);
+      globalThis.__fixtureBaseNames = names;
+      let registrations = 0;
+      const api = {
+        extensionApi: { major: 1, minor: 2 },
+        get registrations() {
+          return registrations;
+        },
+        register() {
+          registrations += 1;
+          let disposed = false;
+          return () => {
+            if (disposed) return;
+            disposed = true;
+            registrations -= 1;
+          };
+        },
+      };
+      engine.provide(${JSON.stringify(key)}, api);
+    },
+  };
+}
+`;
+}
+
 describe("runPluginConformance extension", () => {
   it("a base outside gwen.extends in spec.bases is INVALID_SPEC", async () => {
     await withPrivateTmpdir(async (dir) => {
@@ -375,6 +415,43 @@ describe("runPluginConformance extension", () => {
     });
   });
 
+  it("RX3 reports a teardown that throws and the later rules still run", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      await writeBasePackage(dir, { name: "fixture-base" });
+      await writeExtensionPackage(dir, {
+        name: "fixture-ext",
+        gwen: { extends: ["fixture-base"] },
+        source: [
+          "export function Plugin() {",
+          "  return {",
+          '    name: "fixture-ext",',
+          '    requires: { plugins: [{ name: "fixture-base", extensionApi: { major: 1, minor: 2 } }] },',
+          "    setup() {},",
+          "    teardown() {",
+          '      throw new Error("teardown-boom");',
+          "    },",
+          "  };",
+          "}",
+          "",
+        ].join("\n"),
+      });
+
+      const report = await runPluginConformance(
+        spec({
+          root: dir,
+          packageName: "fixture-ext",
+          bases: [{ packageName: "fixture-base", export: "Base" }],
+        }),
+      );
+      const extensionFindings = findingsOfCode(report, RUNTIME_EXTENSION);
+      expect(extensionFindings).toHaveLength(1);
+      expect(extensionFindings[0]?.message.startsWith("RX3")).toBe(true);
+      expect(extensionFindings[0]?.message).toContain("teardown-boom");
+      expect(recordedBaseApis()).toContainEqual({ major: 2, minor: 2 });
+      expect(report.checks).toContain("extension");
+    });
+  });
+
   it("RX4 reports a base that unuse removes while its extension is installed", async () => {
     await withPrivateTmpdir(async (dir) => {
       await writeBasePackage(dir, { name: "fixture-base" });
@@ -530,6 +607,83 @@ describe("runPluginConformance extension", () => {
       );
       expect(findings).toHaveLength(1);
       expect(findings[0]?.message).toContain("fixture-base");
+    });
+  });
+
+  it("two direct bases one over the other report no finding", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      await writeBasePackage(dir, { name: "fixture-base" });
+      await writeBasePackage(dir, {
+        name: "fixture-mid",
+        gwen: { extends: ["fixture-base"], hookNamespace: "fixture-mid" },
+        requiresPlugins: "object",
+        requiredBase: "fixture-base",
+      });
+      await writeExtensionPackage(dir, {
+        name: "fixture-ext",
+        gwen: { extends: ["fixture-base", "fixture-mid"] },
+        source: [
+          "export function Plugin() {",
+          "  return {",
+          '    name: "fixture-ext",',
+          "    requires: { plugins: [",
+          '      { name: "fixture-base", extensionApi: { major: 1, minor: 2 } },',
+          '      { name: "fixture-mid", extensionApi: { major: 1, minor: 2 } },',
+          "    ] },",
+          "    setup() {},",
+          "  };",
+          "}",
+          "",
+        ].join("\n"),
+      });
+
+      const report = await runPluginConformance(
+        spec({
+          root: dir,
+          packageName: "fixture-ext",
+          bases: [
+            { packageName: "fixture-base", export: "Base" },
+            { packageName: "fixture-mid", export: "Base" },
+          ],
+        }),
+      );
+      expect(report.findings).toEqual([]);
+      const apis = recordedBaseApis();
+      const names = recordedBaseNames();
+      expect(apis.length).toBe(names.length);
+      expect(
+        apis.some(
+          (api, index) => api.major === 2 && api.minor === 2 && names[index] === "fixture-base",
+        ),
+      ).toBe(true);
+      expect(report.checks).toContain("extension");
+    });
+  });
+
+  it("RX5 reports a copy whose setup throws", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      await writeBasePackage(dir, {
+        name: "fixture-base",
+        source: raisedMajorBaseSource("fixture-base"),
+      });
+      await writeExtensionPackage(dir, {
+        name: "fixture-ext",
+        gwen: { extends: ["fixture-base"] },
+        sourceOptions: { requiresPlugins: "object", setup: "empty" },
+      });
+
+      const report = await runPluginConformance(
+        spec({
+          root: dir,
+          packageName: "fixture-ext",
+          bases: [{ packageName: "fixture-base", export: "Base" }],
+        }),
+      );
+      const findings = findingsOfCode(report, RUNTIME_EXTENSION);
+      expect(findings).toHaveLength(1);
+      expect(findings[0]?.message.startsWith("RX5")).toBe(true);
+      expect(findings[0]?.message).toContain("copy-major");
+      expect(report.checks).toContain("extension");
     });
   });
 
@@ -747,6 +901,55 @@ describe("runPluginConformance extension", () => {
       const findings = findingsWithCode(report, ConformanceErrorCodes.RUNTIME_REQUIRES);
       expect(findings).toHaveLength(1);
       expect(findings[0]?.message).toContain("other-base");
+    });
+  });
+
+  it("accepts a declaration requires that equals the instance requires in another key order", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      const packageName = "fixture-ext";
+      const declared =
+        '{ plugins: [{ extensionApi: { minor: 2, major: 1 }, name: "fixture-base" }] }';
+      await writeExtensionPackage(dir, {
+        name: packageName,
+        sourceOptions: { requiresPlugins: "object", setup: "empty" },
+        moduleSource: [
+          "export default {",
+          `  meta: { name: ${JSON.stringify(packageName)} },`,
+          "  defaults: {},",
+          "  setup(_options, kit) {",
+          `    kit.addPlugin({ src: ${JSON.stringify(packageName)}, export: "Plugin", requires: ${declared} });`,
+          "  },",
+          "};",
+          "",
+        ].join("\n"),
+      });
+
+      const report = await runPluginConformance(spec({ root: dir, packageName }));
+      expect(findingsWithCode(report, ConformanceErrorCodes.RUNTIME_REQUIRES)).toEqual([]);
+      expect(report.checks).toContain("module");
+    });
+
+    await withPrivateTmpdir(async (dir) => {
+      const packageName = "fixture-ext-order";
+      const declared =
+        '{ plugins: [{ name: "other-base", extensionApi: { major: 1, minor: 0 } }] }';
+      await writeExtensionPackage(dir, {
+        name: packageName,
+        sourceOptions: { requiresPlugins: "object", setup: "empty" },
+        moduleSource: [
+          "export default {",
+          `  meta: { name: ${JSON.stringify(packageName)} },`,
+          "  defaults: {},",
+          "  setup(_options, kit) {",
+          `    kit.addPlugin({ src: ${JSON.stringify(packageName)}, export: "Plugin", requires: ${declared} });`,
+          "  },",
+          "};",
+          "",
+        ].join("\n"),
+      });
+
+      const report = await runPluginConformance(spec({ root: dir, packageName }));
+      expect(findingsWithCode(report, ConformanceErrorCodes.RUNTIME_REQUIRES)).toHaveLength(1);
     });
   });
 
