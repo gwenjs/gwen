@@ -23,7 +23,13 @@
     ]
   },
   "./shared/layer-utils": {
-    "values": ["evalBitExpr", "extractLayerDefinitions", "inlineLayerReferences"],
+    "values": [
+      "evalBitExpr",
+      "evalConstInt",
+      "extractLayerDefinitions",
+      "inlineLayerReferences",
+      "layerInlineTransform"
+    ],
     "types": []
   },
   "./scanners": {

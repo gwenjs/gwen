@@ -8,6 +8,8 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
 import { BUILT_IN_UNITS } from "../../src/pipeline/registry.js";
+import type { GwenSourceTransform } from "../../src/pipeline/types.js";
+import * as layerUtils from "../../src/shared/layer-utils.js";
 import { fixtureCase, mapCheck, resolveRelativeId, runPipeline } from "./helpers.js";
 
 const packageRoot = fileURLToPath(new URL("../../", import.meta.url));
@@ -59,19 +61,37 @@ if (cases.length === 0) {
   throw new Error(`No transform-pipeline fixture cases under ${fixturesRoot}`);
 }
 
-function runCase(dir: string, code: string) {
+function isTransformName(value: unknown): value is `gwen:${string}` {
+  return typeof value === "string" && value.startsWith("gwen:");
+}
+
+/** Absent on the base: the guard fails and the layer cases run built-ins only. */
+function isSourceTransform(value: unknown): value is GwenSourceTransform {
+  if (typeof value !== "object" || value === null) return false;
+  if (!("name" in value) || !("run" in value)) return false;
+  return isTransformName(value.name) && typeof value.run === "function";
+}
+
+function extraUnits(unit: string): readonly GwenSourceTransform[] {
+  if (unit !== "layer-inline") return [];
+  const found: unknown = Reflect.get(layerUtils, "layerInlineTransform");
+  if (!isSourceTransform(found)) return [];
+  return [found];
+}
+
+function runCase(dir: string, code: string, unit: string) {
   return runPipeline(code, {
     id: caseId(dir),
     root: packageRoot,
     resolveId: resolveRelativeId,
-    units: BUILT_IN_UNITS,
+    units: [...BUILT_IN_UNITS, ...extraUnits(unit)],
   });
 }
 
 for (const item of cases) {
   it(`${item.unit}/${item.name}`, async () => {
     const fixture = fixtureCase(item.dir);
-    const pending = runCase(item.dir, fixture.input);
+    const pending = runCase(item.dir, fixture.input, item.unit);
     if (fixture.errorCode !== undefined) {
       const code = fixture.errorCode;
       await expect(pending).rejects.toMatchObject({ code });
@@ -90,8 +110,11 @@ it("idempotent", async () => {
     const fixture = fixtureCase(item.dir);
     const output = fixture.output;
     if (typeof output !== "string") continue;
-    expect(await runCase(item.dir, fixture.input), `${item.unit}/${item.name}`).not.toBeNull();
-    expect(await runCase(item.dir, output), `${item.unit}/${item.name}`).toBeNull();
+    expect(
+      await runCase(item.dir, fixture.input, item.unit),
+      `${item.unit}/${item.name}`,
+    ).not.toBeNull();
+    expect(await runCase(item.dir, output, item.unit), `${item.unit}/${item.name}`).toBeNull();
   }
 });
 
@@ -128,7 +151,7 @@ it("actor-name/deps-local-binding raises with the exact message, hint and positi
   // Same condition as devHint (`packages/vite/src/pipeline/dev-hint.ts:7`).
   const message =
     process.env["NODE_ENV"] !== "production" ? `${what}\n${fix}\n${see}` : `${what}\n${see}`;
-  await expect(runCase(dir, fixture.input)).rejects.toMatchObject({
+  await expect(runCase(dir, fixture.input, "actor-name")).rejects.toMatchObject({
     message,
     loc: { file: caseId(dir), line: place.line, column: place.column },
   });
@@ -147,7 +170,7 @@ it("actor-name/deps-declared-after raises with the exact message, hint and posit
   // Same condition as devHint (`packages/vite/src/pipeline/dev-hint.ts:7`).
   const message =
     process.env["NODE_ENV"] !== "production" ? `${what}\n${fix}\n${see}` : `${what}\n${see}`;
-  await expect(runCase(dir, fixture.input)).rejects.toMatchObject({
+  await expect(runCase(dir, fixture.input, "actor-name")).rejects.toMatchObject({
     message,
     loc: { file: caseId(dir), line: place.line, column: place.column },
   });

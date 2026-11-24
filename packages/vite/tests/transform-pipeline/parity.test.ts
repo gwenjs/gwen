@@ -53,6 +53,35 @@ function findPipeline(
   return Object.assign(option, { api });
 }
 
+function normalStack(capture: { code: string | undefined }): PluginOption[] {
+  const owned = gwen();
+  const pipeline = findPipeline(owned);
+  const registrar: Plugin = {
+    name: "test:register-insert-normal",
+    configResolved() {
+      if (pipeline === undefined) return;
+      pipeline.api.register(testInsert);
+    },
+  };
+  const tap: Plugin = {
+    name: "test:tap-pipeline-output",
+    enforce: "pre",
+    transform(code, id) {
+      if (id.replaceAll("\\", "/").includes("/src/systems/score.ts")) capture.code = code;
+      return null;
+    },
+  };
+  const plugins: PluginOption[] = [];
+  for (const plugin of owned) {
+    plugins.push(plugin);
+    if (plugin.name === "gwen:transform-pipeline") {
+      plugins.push(tap);
+      plugins.push(registrar);
+    }
+  }
+  return plugins;
+}
+
 function stack(capture: { code: string | undefined }): PluginOption[] {
   const owned = gwen();
   const pipeline = findPipeline(owned);
@@ -187,6 +216,36 @@ describe("gwen:transform-pipeline parity", () => {
     } finally {
       await server.close();
     }
+  });
+
+  it("a unit registered from a normal plugin's configResolved runs in serve and build", async () => {
+    const serveCapture: { code: string | undefined } = { code: undefined };
+    const buildCapture: { code: string | undefined } = { code: undefined };
+    let server: ViteDevServer | undefined;
+    try {
+      const opening = createServer({
+        configFile: false,
+        root: fixtureRoot,
+        plugins: normalStack(serveCapture),
+        server: { middlewareMode: true, hmr: false },
+        logLevel: "silent",
+      });
+      await expect(opening).resolves.toBeDefined();
+      server = await opening;
+      await server.transformRequest("/src/systems/score.ts");
+      const built = build({
+        configFile: false,
+        root: fixtureRoot,
+        plugins: normalStack(buildCapture),
+        build: { write: false, minify: false },
+        logLevel: "silent",
+      });
+      await expect(built).resolves.toBeDefined();
+    } finally {
+      await server?.close();
+    }
+    expect(serveCapture.code).toEqual(expect.stringContaining("/*X*/"));
+    expect(buildCapture.code).toEqual(expect.stringContaining("/*X*/"));
   });
 
   it("the CLI plugin list names an aliased system", async () => {
