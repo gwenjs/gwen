@@ -61,59 +61,14 @@ console.log(manifest.version);
 console.log(manifest.buildDate);
 ```
 
-### 3. **RFC-008 Transform (incremental)**
-
-`gwenTransform()` exposes the compile-time transform contract used by RFC-008.
-Current implemented behavior is intentionally safe and incremental:
-
-- optional GWEN helper auto-import injection (`autoImports`),
-- optional `query: [...]` typing rewrite to `query: [...] as const` (`compileSystems`).
-
-```typescript
-import { defineConfig } from "vite";
-import { gwen, gwenTransform } from "@gwenjs/vite";
-
-export default defineConfig({
-  plugins: [
-    gwenTransform({
-      compileComponents: true,
-      compileSystems: true,
-      autoImports: true,
-    }),
-    gwen(),
-  ],
-});
-```
-
-Subpath import is also supported:
-
-```typescript
-import { gwenTransform } from "@gwenjs/vite";
-```
-
 ## Configuration
 
 ```typescript
 interface GwenPluginOptions {
   // Path to gwen-manifest.json (optional)
   manifestPath?: string;
-}
-
-interface GwenTransformOptions {
-  // Enable compile-time transforms for defineComponent schemas
-  compileComponents?: boolean;
-
-  // Enable compile-time transforms for defineSystem/query descriptors
-  compileSystems?: boolean;
-
-  // Enable optional auto-import rewriting for GWEN helpers
-  autoImports?: boolean;
-
-  // Optional include filter (module id -> boolean)
-  include?: (id: string) => boolean;
-
-  // Optional exclude filter (module id -> boolean)
-  exclude?: (id: string) => boolean;
+  // Reserved. Accepted and ignored until #69.
+  optimizer?: boolean | { debug?: boolean };
 }
 ```
 
@@ -185,9 +140,9 @@ console.log(manifest.buildDate); // Build timestamp
 
 ### `.`
 
-Values: `ViteErrorCodes`, `default`, `gwen`, `gwenOptimizerPlugin`, `gwenPhysics3DOptimizerPlugin`, `gwenTransform`, `gwenVitePlugin`
+Values: `ViteErrorCodes`, `default`, `gwen`, `gwenPhysics3DOptimizerPlugin`, `gwenVitePlugin`
 
-Types: `ActorPluginOptions`, `CoreVariant`, `GwenDevStripReport`, `GwenOptimizerOptions`, `GwenPhysics3DOptimizerOptions`, `GwenPluginOptions`, `GwenTransformOptions`, `GwenViteOptions`
+Types: `ActorPluginOptions`, `CoreVariant`, `GwenDevStripReport`, `GwenPhysics3DOptimizerOptions`, `GwenPluginOptions`, `GwenViteOptions`
 
 `GwenDevStripReport` — Numeric `sites`, `sourceBytes`, and `perFrameSites`.
 

@@ -22,6 +22,7 @@ import {
   gwenDevStripPlugin,
 } from "./plugins/index.js";
 import type { LocalPluginsDirOption } from "./plugins/local-plugins.js";
+import type { GwenOptimizerUserOptions } from "./types.js";
 import { generateEntryModule, generateScenesModule, toRootRelative } from "./entry-gen.js";
 import { resolveMainScene, scanScenes } from "./scanners/index.js";
 import { BUILT_IN_UNITS } from "./pipeline/registry.js";
@@ -37,6 +38,13 @@ export interface GwenPluginOptions {
    * If provided, its contents are injected as `__GWEN_MANIFEST__`.
    */
   manifestPath?: string;
+
+  /**
+   * Reserved for #69, same type as `GwenViteOptions.optimizer`. Accepted and ignored (no-op).
+   *
+   * @default false
+   */
+  optimizer?: boolean | GwenOptimizerUserOptions;
 }
 
 // ── Virtual module IDs ────────────────────────────────────────────────────────
@@ -313,18 +321,11 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
 }
 
 // Default export for CommonJS compatibility
-export { gwenTransform } from "./transform";
-export type { GwenTransformOptions } from "./transform";
-
 export default gwen;
 
 // RFC-006: New sub-plugin architecture
 export { gwenVitePlugin, type GwenDevStripReport } from "./plugins/index.js";
 export type { GwenViteOptions, ActorPluginOptions } from "./types.js";
-
-// Removed: gwenOptimizerPlugin throws until P-66-5a2 deletes it.
-export { gwenOptimizerPlugin } from "./plugins/optimizer-stub.js";
-export type { GwenOptimizerOptions } from "./plugins/optimizer-stub.js";
 
 // RFC-008: Physics3D query optimizer plugin (opt-in, Phase 1 — warn)
 export { gwenPhysics3DOptimizerPlugin } from "./plugins/physics3d-optimizer.js";

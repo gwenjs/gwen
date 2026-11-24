@@ -7,13 +7,13 @@ description: "API reference for @gwenjs/vite — Vite plugins for GWEN projects.
 
 `pnpm add -D @gwenjs/vite`
 
-Vite integration for GWEN. Provides the composite main plugin, an opt-in ECS optimizer, and build-time plugins for 2D/3D physics.
+Vite integration for GWEN. Provides the composite main plugin and build-time plugins for 2D/3D physics.
 
 ---
 
 ## `gwenVitePlugin(options?)`
 
-The main entry point. A composite Vite plugin that wires up actor/scene hot-reload, auto-imports, TypeScript declarations, layout support, tween helpers, and the optional ECS optimizer — all from a single registration.
+The main entry point. A composite Vite plugin that wires up actor/scene hot-reload, auto-imports, TypeScript declarations, layout support, and tween helpers — all from a single registration.
 
 Names are injected by `gwen:transform-pipeline` in both `gwen()` and `gwenVitePlugin()`, matched by import binding. Layout and scene-router names are a statement guarded by `__GWEN_DEV__`, so production bundles carry none.
 
@@ -27,11 +27,7 @@ export default defineConfig({
     gwenVitePlugin({
       dts: true,
       actors: { dir: 'src/actors', hmr: true },
-      optimizer: {
-        componentsDir: 'src',
-        tier: 'core',
-        debug: false,
-      },
+      optimizer: { debug: false },
     }),
   ],
 })
@@ -50,90 +46,19 @@ export default defineConfig({
 | `layout.disableNameInjection` | `boolean` | `false` | When true, the `gwen:layout-name` unit is not registered. |
 | `sceneRouter` | `GwenSceneRouterOptions` | — | When `disableNameInjection` is true, the `gwen:scene-router-name` unit is not registered. |
 | `tween` | `GwenTweenOptions` | — | Options forwarded to the tween transform. |
-| `optimizer` | `boolean \| GwenOptimizerUserOptions` | — | Enable the ECS bulk optimizer (see below). |
+| `optimizer` | `boolean \| GwenOptimizerUserOptions` | — | Reserved. Accepted and ignored until the hot-path rewrite of #69. |
 
 ### The `optimizer` option
 
-The `optimizer` key controls whether the ECS optimizer transform runs inside `gwenVitePlugin`.
-
-- **Omitted or `false`** — detect-only mode. The optimizer scans your source and logs patterns that could be optimized, but makes no code changes. Useful for auditing.
-- **`true`** — transform mode with defaults: `componentsDir: 'src'`, `tier: 'core'`, `debug: false`.
-- **Object** — transform mode with explicit configuration.
+Reserved. Accepted and ignored until the hot-path rewrite of #69. It accepts `boolean` or `{ debug?: boolean }` and is a no-op today. `gwen()` accepts the same option (`GwenPluginOptions.optimizer`), also ignored.
 
 ```ts
-// Detect only (default)
 gwenVitePlugin()
 
-// Transform with defaults
 gwenVitePlugin({ optimizer: true })
 
-// Transform with explicit config
-gwenVitePlugin({
-  optimizer: {
-    componentsDir: 'src/ecs',
-    tier: 'physics2d',
-    debug: true,
-  },
-})
+gwenVitePlugin({ optimizer: { debug: true } })
 ```
-
-| Sub-option | Type | Default | Description |
-|---|---|---|---|
-| `componentsDir` | `string` | `'src'` | Directory scanned for `defineComponent` calls. |
-| `tier` | `'core' \| 'physics2d' \| 'physics3d'` | `'core'` | Optimization tier. Use a physics tier if your components include physics data. |
-| `debug` | `boolean` | `false` | Emit verbose optimizer logs. |
-
----
-
-## `gwenOptimizerPlugin(options?)`
-
-Standalone opt-in Vite plugin that rewrites hot ECS loops into bulk array operations. Useful when you want fine-grained control over optimizer configuration independently from the composite plugin.
-
-### Modes
-
-- **`'detect'`** — scans source for optimizable `for...of` loops over query results and logs them. No code is modified. Good for a first audit.
-- **`'transform'`** — rewrites detected patterns into batched array reads/writes, which can yield significant throughput gains for large entity populations.
-
-### Standalone usage
-
-```ts
-// vite.config.ts
-import { defineConfig } from 'vite'
-import { gwenVitePlugin, gwenOptimizerPlugin } from '@gwenjs/vite'
-
-export default defineConfig({
-  plugins: [
-    gwenVitePlugin(),
-    gwenOptimizerPlugin({
-      mode: 'transform',
-      tier: 'physics2d',
-      componentsDir: 'src',
-      debug: true,
-    }),
-  ],
-})
-```
-
-### Integrated usage
-
-Pass the `optimizer` key directly to `gwenVitePlugin` — no need to add `gwenOptimizerPlugin` separately:
-
-```ts
-gwenVitePlugin({ optimizer: { tier: 'physics2d', debug: true } })
-```
-
-:::tip
-Prefer the integrated form for most projects. Use the standalone plugin only when you need to position the optimizer at a specific point in the Vite plugin pipeline.
-:::
-
-### Options (`GwenOptimizerOptions`)
-
-| Option | Type | Default | Description |
-|---|---|---|---|
-| `mode` | `'detect' \| 'transform'` | `'transform'` | Optimizer mode. |
-| `tier` | `'core' \| 'physics2d' \| 'physics3d'` | `'core'` | Optimization tier matching the component types in use. |
-| `componentsDir` | `string` | `'src'` | Directory scanned for component definitions. |
-| `debug` | `boolean` | `false` | Emit verbose logs during the transform pass. |
 
 ---
 
@@ -233,13 +158,11 @@ Exported from `@gwenjs/vite`.
 
 | Key | Code |
 |---|---|
-| `OPTIMIZER_UNKNOWN_COMPONENT` | `VITE:OPTIMIZER_UNKNOWN_COMPONENT` |
-| `OPTIMIZER_UNKNOWN_FIELD` | `VITE:OPTIMIZER_UNKNOWN_FIELD` |
 | `SCENE_NAME_UNRESOLVED` | `VITE:SCENE_NAME_UNRESOLVED` |
 | `SCENE_NAME_DUPLICATE` | `VITE:SCENE_NAME_DUPLICATE` |
 | `MAIN_SCENE_UNKNOWN` | `VITE:MAIN_SCENE_UNKNOWN` |
 
-The code generator throws `VITE:OPTIMIZER_UNKNOWN_COMPONENT` for a component missing from the manifest, and `VITE:OPTIMIZER_UNKNOWN_FIELD` for a field the manifest does not list. These throws are `GwenError` values with no `[gwen:optimizer]` tag. The hint is present when `NODE_ENV` is not `production`. `scanScenes` throws `VITE:SCENE_NAME_UNRESOLVED` and `VITE:SCENE_NAME_DUPLICATE`. `resolveMainScene` throws `VITE:MAIN_SCENE_UNKNOWN`. Those three hints are present when `process.env["NODE_ENV"]` is not `"production"` (`packages/vite/src/scanners/index.ts:142`, `packages/vite/src/scanners/index.ts:157`, `packages/vite/src/scanners/index.ts:196`).
+`scanScenes` throws `VITE:SCENE_NAME_UNRESOLVED` and `VITE:SCENE_NAME_DUPLICATE`. `resolveMainScene` throws `VITE:MAIN_SCENE_UNKNOWN`. Those three hints are present when `process.env["NODE_ENV"]` is not `"production"` (`packages/vite/src/scanners/index.ts:142`, `packages/vite/src/scanners/index.ts:157`, `packages/vite/src/scanners/index.ts:196`).
 
 ## Type Definitions
 
@@ -260,21 +183,6 @@ interface GwenViteOptions {
   }
   sceneRouter?: GwenSceneRouterOptions
   tween?: GwenTweenOptions
-  optimizer?: boolean | {
-    componentsDir?: string
-    tier?: 'core' | 'physics2d' | 'physics3d'
-    debug?: boolean
-  }
-}
-```
-
-### `GwenOptimizerOptions`
-
-```ts
-interface GwenOptimizerOptions {
-  debug?: boolean
-  mode?: 'detect' | 'transform'
-  tier?: 'core' | 'physics2d' | 'physics3d'
-  componentsDir?: string
+  optimizer?: boolean | { debug?: boolean }
 }
 ```

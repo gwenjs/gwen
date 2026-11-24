@@ -1,7 +1,6 @@
 import type { AutoImport } from "@gwenjs/kit";
 import type { GwenTweenOptions } from "./plugins/tween.js";
 import type { HooksPluginOptions } from "./plugins/hooks.js";
-export type WasmTier = "core" | "physics2d" | "physics3d";
 
 /**
  * Options for the `gwen:actor` sub-plugin.
@@ -145,14 +144,10 @@ export interface GwenViteOptions {
 }
 
 /**
- * Reserved, a no-op until #69 (see GwenViteOptions.optimizer); the fields are
+ * Reserved, a no-op until #69 (see GwenViteOptions.optimizer); the field is
  * accepted and ignored.
  */
 export interface GwenOptimizerUserOptions {
-  /** Accepted and ignored. */
-  componentsDir?: string;
-  /** Accepted and ignored. */
-  tier?: WasmTier;
   /** Accepted and ignored. */
   debug?: boolean;
 }
