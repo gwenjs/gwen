@@ -42,3 +42,4 @@ Exports of `@gwenjs/plugin-conformance`:
 - `ConformanceCode` is one value of `ConformanceErrorCodes`.
 - `ConformanceFinding` is one problem: `code`, `message`, `hint`, and an optional `file` and `line`.
 - `ConformanceReport` is the result: `checks` (the checks that ran) and `findings`.
+- `runPluginConformance(spec)` on `@gwenjs/plugin-conformance/runtime` takes a `PluginConformanceSpec` (its `PluginFactorySpec` list, `root`, `official`) and returns a `RuntimeConformanceReport` whose `checks` are `RuntimeCheckId` values.

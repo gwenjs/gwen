@@ -62,6 +62,7 @@
       "@gwenjs/camera-core/module": ["./packages/camera-core/src/module.ts"],
       "@gwenjs/camera-core/internal": ["./packages/camera-core/src/internal.ts"],
       "@gwenjs/plugin-conformance": ["./packages/plugin-conformance/src/index.ts"],
+      "@gwenjs/plugin-conformance/runtime": ["./packages/plugin-conformance/src/runtime.ts"],
       "@gwenjs/*": ["./packages/*/src/index.ts", "./packages/*/src"]
     }
   }

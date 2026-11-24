@@ -15,5 +15,14 @@
       "ConformanceFinding",
       "ConformanceReport"
     ]
+  },
+  "./runtime": {
+    "values": ["runPluginConformance"],
+    "types": [
+      "PluginConformanceSpec",
+      "PluginFactorySpec",
+      "RuntimeCheckId",
+      "RuntimeConformanceReport"
+    ]
   }
 }
