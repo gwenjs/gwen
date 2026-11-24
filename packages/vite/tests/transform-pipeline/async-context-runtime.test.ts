@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { afterEach, expect, it } from "vitest";
 import { createEngine } from "@gwenjs/core/node";
-import { engineContext } from "@gwenjs/core/internal";
+import { engineContext, runScenePreload, SceneEnginePlugin } from "@gwenjs/core/internal";
 import { BUILT_IN_UNITS } from "../../src/pipeline/registry.js";
 import { runPipeline } from "./helpers.js";
 
@@ -41,6 +41,24 @@ const STATEMENT_SOURCE = [
   "",
 ].join("\n");
 
+const PRELOAD_SOURCE = [
+  'import { useEngine } from "@gwenjs/core";',
+  'import { defineScene, onPreload } from "@gwenjs/core/scene";',
+  "",
+  "export const probe: { switchToB: () => Promise<void>; seen: unknown[] } = {",
+  "  switchToB: async () => {},",
+  "  seen: [],",
+  "};",
+  "",
+  'export const Level = defineScene("Level", () => {',
+  "  onPreload(async () => {",
+  "    await probe.switchToB();",
+  "    probe.seen.push(useEngine());",
+  "  });",
+  "});",
+  "",
+].join("\n");
+
 const testsRoot = fileURLToPath(new URL("../", import.meta.url));
 const engines: { stop: () => Promise<void> }[] = [];
 const dirs: string[] = [];
@@ -65,6 +83,41 @@ function readRun(moduleValue: unknown): (switchToB: () => Promise<void>) => () =
   const run: unknown = moduleValue.run;
   if (!isRun(run)) throw new Error("runtime module has no run");
   return run;
+}
+
+interface PreloadProbe {
+  switchToB: () => Promise<void>;
+  seen: unknown[];
+}
+
+function isPreloadProbe(value: unknown): value is PreloadProbe {
+  if (typeof value !== "object" || value === null) return false;
+  if (!("switchToB" in value) || !("seen" in value)) return false;
+  return typeof value.switchToB === "function" && Array.isArray(value.seen);
+}
+
+function isSceneFactory(value: unknown): value is (registry: { register: () => void }) => void {
+  return typeof value === "function";
+}
+
+function readPreloadModule(moduleValue: unknown): {
+  probe: PreloadProbe;
+  Level: (registry: { register: () => void }) => void;
+} {
+  if (
+    typeof moduleValue !== "object" ||
+    moduleValue === null ||
+    !("probe" in moduleValue) ||
+    !("Level" in moduleValue)
+  ) {
+    throw new Error("runtime module has no probe");
+  }
+  const probe: unknown = moduleValue.probe;
+  const level: unknown = moduleValue.Level;
+  if (!isPreloadProbe(probe) || !isSceneFactory(level)) {
+    throw new Error("runtime module has no probe");
+  }
+  return { probe, Level: level };
 }
 
 function isTakenResult(
@@ -124,4 +177,30 @@ it("a rewritten handler keeps the engine after a statement await in a block", as
   });
   const current = await wrapped();
   expect(current).toBe(engineA);
+});
+
+it("a rewritten onPreload handler keeps the engine after an await when runScenePreload runs it", async () => {
+  const { engineA, engineB } = await enginePair();
+  await engineA.use(SceneEnginePlugin());
+  const transformed = await runPipeline(PRELOAD_SOURCE, {
+    id: "/src/async-context-runtime.ts",
+    units: BUILT_IN_UNITS,
+  });
+  expect(transformed).not.toBeNull();
+  if (transformed === null) throw new Error("pipeline returned null");
+  const dir = mkdtempSync(join(testsRoot, "async-context-runtime-"));
+  dirs.push(dir);
+  const file = join(dir, "handler.ts");
+  writeFileSync(file, transformed.code);
+  const loaded: unknown = await import(pathToFileURL(file).href);
+  const { probe, Level } = readPreloadModule(loaded);
+  engineA.run(() => {
+    Level({ register: () => {} });
+  });
+  probe.switchToB = async () => {
+    engineB.activate();
+  };
+  await runScenePreload(engineA, null, "Level");
+  expect(probe.seen).toHaveLength(1);
+  expect(probe.seen[0]).toBe(engineA);
 });

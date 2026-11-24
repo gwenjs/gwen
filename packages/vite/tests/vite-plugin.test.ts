@@ -507,6 +507,51 @@ describe("generateEntryModule — bootstrap correctness", () => {
     expect(code).not.toContain("mainSceneFactory");
   });
 
+  it("with scenes: imports runScenePreload from @gwenjs/core/internal and awaits it for mainScene before scene:enter and start()", () => {
+    const code = entryModule(true);
+    expect(code).toMatch(
+      /import \{[^}]*\brunScenePreload\b[^}]*\} from "@gwenjs\/core\/internal";/,
+    );
+    const call = "if (mainScene) await runScenePreload(engine, null, mainScene);";
+    expect(code.split(call)).toHaveLength(2);
+    const importEnd = code.indexOf("engine.run(");
+    const tryIdx = code.indexOf("try {");
+    const registerIdx = code.indexOf("registerScenes(", importEnd);
+    const resumeIdx = code.indexOf("engine.hooks.hook('scene:enter'");
+    const callIdx = code.indexOf(call);
+    const enterIdx = code.indexOf('engine.hooks.callHook("scene:enter"');
+    const startIdx = code.indexOf("await engine.start()");
+    const externalIdx = code.indexOf("await engine.startExternal()");
+    const catchIdx = code.indexOf("} catch (err) {");
+    expect(tryIdx).toBeGreaterThanOrEqual(0);
+    expect(tryIdx).toBeLessThan(registerIdx);
+    expect(registerIdx).toBeLessThan(resumeIdx);
+    expect(resumeIdx).toBeLessThan(callIdx);
+    expect(callIdx).toBeLessThan(enterIdx);
+    expect(enterIdx).toBeLessThan(startIdx);
+    expect(callIdx).toBeLessThan(externalIdx);
+    expect(callIdx).toBeLessThan(catchIdx);
+  });
+
+  it("the entry calls runScenePreload once and has no inline scene:preload:progress, aggregation code or errors emit", () => {
+    const code = entryModule(true);
+    const hits = code.match(/runScenePreload\(/g);
+    expect(hits === null ? 0 : hits.length).toBe(1);
+    expect(code).not.toContain("scene:preload");
+    expect(code).not.toContain("Σ");
+    expect(code).not.toContain("loaded");
+    expect(code).not.toContain(".errors");
+    expect(code).not.toContain("errors.emit");
+    expect(code).not.toContain("Promise.all");
+  });
+
+  it("without scenes: no runScenePreload import or call, unlike the entry with scenes", () => {
+    const without = entryModule(false);
+    expect(without).not.toContain("runScenePreload");
+    expect(without).toContain('import { WasmBridgeImpl } from "@gwenjs/core/internal";');
+    expect(entryModule(true)).toContain("runScenePreload");
+  });
+
   it("without scenes: no registerScenes import or call", () => {
     const code = entryModule(false);
     expect(code).not.toContain("registerScenes");
