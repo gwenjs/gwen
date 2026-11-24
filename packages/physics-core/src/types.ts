@@ -108,7 +108,7 @@ export interface CollisionContact {
 export interface SensorState {
   /** Number of distinct overlapping contacts right now. */
   contactCount: number;
-  /** `true` when at least one contact is active. */
+  /** `true` when the sensor is active. `set` can store active at count 0 (`packages/physics-core/src/sensor-tracker.ts:40`). */
   isActive: boolean;
 }
 

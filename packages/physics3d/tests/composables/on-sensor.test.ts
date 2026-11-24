@@ -245,6 +245,8 @@ describe("onSensor engine isolation", () => {
       await b.use(Physics3DPlugin());
       let hitsA = 0;
       let hitsB = 0;
+      let orphanA = 0;
+      let orphanB = 0;
       const Tag = defineComponent({ name: "P3SensorOwner", schema: { x: Types.f32 } });
       const Prefab = definePrefab([{ def: Tag, defaults: { x: 0 } }]);
       const Actor = defineActor(Prefab, () => {
@@ -253,6 +255,11 @@ describe("onSensor engine isolation", () => {
         });
         onSensorExit(7, () => {
           hitsA += 1;
+        });
+        // No collider for sensor 9. Only the shared destroy hook drops it
+        // (`packages/physics-core/src/plugin.ts:97`).
+        onSensorEnter(9, () => {
+          orphanA += 1;
         });
       });
       await a.use(Actor._plugin);
@@ -277,18 +284,29 @@ describe("onSensor engine isolation", () => {
         onSensorExit(7, () => {
           hitsB += 1;
         });
+        onSensorEnter(9, () => {
+          orphanB += 1;
+        });
       });
+      a.run(() => {
+        _dispatchSensorEnter(9, id);
+      });
+      expect(orphanA).toBe(1);
       a.destroyEntity(id);
       a.run(() => {
         _dispatchSensorEnter(7, 1n);
         _dispatchSensorExit(7, 1n);
+        _dispatchSensorEnter(9, id);
       });
       b.run(() => {
         _dispatchSensorEnter(7, 1n);
         _dispatchSensorExit(7, 1n);
+        _dispatchSensorEnter(9, 1n);
       });
       expect(hitsA).toBe(0);
       expect(hitsB).toBe(2);
+      expect(orphanA).toBe(1);
+      expect(orphanB).toBe(1);
     } finally {
       await handleA.dispose();
       await handleB.dispose();

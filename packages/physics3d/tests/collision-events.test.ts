@@ -85,6 +85,7 @@ import {
 } from "../../core/src/engine/engine-errors.ts";
 import { Physics3DPlugin, type Physics3DAPI } from "../src/index";
 import { onContact } from "../src/composables/on-contact";
+import { createStagedEventBuffer, encodeLocalEvents } from "../src/plugin/event-staging";
 import type { CollisionContact } from "../src/types";
 import type { GwenEngine } from "@gwenjs/core";
 import { engineContext } from "@gwenjs/core/internal";
@@ -255,6 +256,12 @@ describe("Physics3D collision events — WASM backend mode", () => {
     expect(contacts).toHaveLength(2);
     expect(contacts[0].started).toBe(true);
     expect(contacts[1].started).toBe(false);
+
+    // A later frame with no events must not keep the previous contacts.
+    // `eventView` clears them before decode (`packages/physics3d/src/plugin/index.ts:467`).
+    mockEventCount = 0;
+    runFrame(hookMap, 1 / 60);
+    expect(service.getCollisionContacts()).toHaveLength(0);
   });
 
   it("does not dispatch hook when contact list is empty", () => {
@@ -591,5 +598,44 @@ describe("Physics3D collision events — local mode", () => {
     runFrame(hookMap, 1 / 60);
 
     expect(service.getCollisionContacts()).toHaveLength(0);
+
+    // The public collider path always stores a numeric id
+    // (`packages/physics3d/src/plugin/collider-management.ts:387`).
+    // An absent id is what `encodeLocalEvents` writes as 0xffff
+    // (`packages/physics3d/src/plugin/event-staging.ts:61`). The shared update
+    // then omits that sentinel (`packages/physics-core/src/events.ts:31`,
+    // `packages/physics-core/src/plugin.ts:130`).
+    const staged = createStagedEventBuffer();
+    encodeLocalEvents(staged, [
+      { slotA: 7, slotB: 8, aColliderId: undefined, bColliderId: undefined, started: true },
+    ]);
+    const delivered = makeEngine();
+    engineContext.set(delivered.engine, true);
+    Physics3DPlugin().setup(delivered.engine);
+    const deliveredService = delivered.services.get("physics3d") as Physics3DAPI;
+    deliveredService.createBody(7n);
+    deliveredService.createBody(8n);
+    const seen: CollisionContact[] = [];
+    onContact((contact) => {
+      seen.push(contact);
+    });
+    mockMemoryBuffer = staged.view.buffer;
+    mockEventsPtr = 0;
+    mockEventCount = staged.count;
+    try {
+      runFrame(delivered.hookMap, 1 / 60);
+      const contact = { entityA: 7n, entityB: 8n, started: true };
+      const contacts = deliveredService.getCollisionContacts();
+      expect(contacts[0]?.aColliderId).toBeUndefined();
+      expect(contacts[0]?.bColliderId).toBeUndefined();
+      expect(contacts).toEqual([contact]);
+      expect(seen[0]?.aColliderId).toBeUndefined();
+      expect(seen[0]?.bColliderId).toBeUndefined();
+      expect(seen).toEqual([contact]);
+      expect(delivered.engine.hooks.callHook).toHaveBeenCalledWith("physics:collision", [contact]);
+    } finally {
+      mockEventCount = 0;
+      mockMemoryBuffer = null;
+    }
   });
 });

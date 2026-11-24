@@ -24,6 +24,7 @@ import { createJointMethods } from "../src/plugin/joint-management";
 import { createPathfindingMethods } from "../src/plugin/pathfinding-service";
 import { createPluginContext, type PluginContext } from "../src/plugin/plugin-context";
 import type { Physics3DBridgeRuntime, Physics3DWasmBridge } from "../src/plugin/bridge";
+import { createSensorTracker } from "../../physics-core/src/sensor-tracker.ts";
 import { createGetSensorState, createUpdateSensorState } from "../src/plugin/sensor-management";
 import type { Physics3DBodyHandle } from "../src/types";
 
@@ -387,16 +388,25 @@ describe("sensor state", () => {
   it("decodes the packed bigint: count in bits 0-31, active flag in bit 32", () => {
     const ctx = makeContext({ physics3d_get_sensor_state: () => 3n | (1n << 32n) });
     ownBody(ctx, ENTITY_A, SLOT_A);
+    const sensors = createSensorTracker().sensors;
 
-    expect(createGetSensorState(ctx)(ENTITY_A, 1)).toEqual({ contactCount: 3, isActive: true });
+    expect(createGetSensorState(ctx, sensors)(ENTITY_A, 1)).toEqual({
+      contactCount: 3,
+      isActive: true,
+    });
   });
 
   it("reads 0n from Rust as no contact and not active, even when the local mirror disagrees", () => {
     const ctx = makeContext({ physics3d_get_sensor_state: () => 0n });
     ownBody(ctx, ENTITY_A, SLOT_A);
-    ctx.localSensorStates.set(SLOT_A, new Map([[1, { contactCount: 9, isActive: true }]]));
+    const sensors = createSensorTracker().sensors;
+    sensors.set(ENTITY_A, 1, { contactCount: 9, isActive: true });
 
-    expect(createGetSensorState(ctx)(ENTITY_A, 1)).toEqual({ contactCount: 0, isActive: false });
+    expect(createGetSensorState(ctx, sensors)(ENTITY_A, 1)).toEqual({
+      contactCount: 0,
+      isActive: false,
+    });
+    expect(sensors.read(ENTITY_A, 1)).toEqual({ contactCount: 9, isActive: true });
   });
 
   it("lets BODY_NOT_FOUND through instead of falling back to the local mirror", () => {
@@ -406,11 +416,13 @@ describe("sensor state", () => {
       },
     });
     ownBody(ctx, ENTITY_A, SLOT_A);
-    ctx.localSensorStates.set(SLOT_A, new Map([[1, { contactCount: 9, isActive: true }]]));
+    const sensors = createSensorTracker().sensors;
+    sensors.set(ENTITY_A, 1, { contactCount: 9, isActive: true });
 
-    const err = caught(() => createGetSensorState(ctx)(ENTITY_A, 1));
+    const err = caught(() => createGetSensorState(ctx, sensors)(ENTITY_A, 1));
 
     requireWasmError(err, "PHYSICS3D:BODY_NOT_FOUND", "physics3d_get_sensor_state");
+    expect(sensors.read(ENTITY_A, 1)).toEqual({ contactCount: 9, isActive: true });
   });
 
   it("updateSensorState passes a boolean and keeps the mirror when Rust rejects", () => {
@@ -420,11 +432,38 @@ describe("sensor state", () => {
       },
     });
     ownBody(ctx, ENTITY_A, SLOT_A);
+    const sensors = createSensorTracker().sensors;
+    sensors.set(ENTITY_A, 1, { contactCount: 4, isActive: false });
 
-    const err = caught(() => createUpdateSensorState(ctx)(ENTITY_A, 1, true, 2));
+    const err = caught(() => createUpdateSensorState(ctx, sensors)(ENTITY_A, 1, true, 2));
 
     requireWasmError(err, "PHYSICS3D:BODY_NOT_FOUND", "physics3d_update_sensor_state");
-    expect(ctx.localSensorStates.get(SLOT_A)?.get(1)).toBeUndefined();
+    expect(sensors.read(ENTITY_A, 1)).toEqual({ contactCount: 4, isActive: false });
+
+    // Local mode reads the tracker (`packages/physics3d/src/plugin/sensor-management.ts:34`).
+    const local = makeContext({});
+    local.backendMode = "local";
+    ownBody(local, ENTITY_A, SLOT_A);
+    const localSensors = createSensorTracker().sensors;
+    createUpdateSensorState(local, localSensors)(ENTITY_A, 1, true, 2);
+    expect(createGetSensorState(local, localSensors)(ENTITY_A, 1)).toEqual({
+      contactCount: 2,
+      isActive: true,
+    });
+
+    // Rust runs before the tracker write (`packages/physics3d/src/plugin/sensor-management.ts:47`).
+    const wasmSensors = createSensorTracker().sensors;
+    wasmSensors.set(ENTITY_A, 1, { contactCount: 4, isActive: false });
+    const during: number[] = [];
+    const wasm = makeContext({
+      physics3d_update_sensor_state: () => {
+        during.push(wasmSensors.read(ENTITY_A, 1).contactCount);
+      },
+    });
+    ownBody(wasm, ENTITY_A, SLOT_A);
+    createUpdateSensorState(wasm, wasmSensors)(ENTITY_A, 1, true, 2);
+    expect(during).toEqual([4]);
+    expect(wasmSensors.read(ENTITY_A, 1)).toEqual({ contactCount: 2, isActive: true });
   });
 });
 
