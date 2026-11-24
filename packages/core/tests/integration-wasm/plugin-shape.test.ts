@@ -26,14 +26,23 @@ import { createViewportsPlugin } from "../../../app/src/viewports-plugin";
  */
 export const CORE_MODULES_NOT_CHECKED = ["actor", "system", "scene", "tween", "router"] as const;
 
-const FACTORIES: readonly { readonly repoPath: string; readonly factories: readonly string[] }[] = [
+const FACTORIES: readonly {
+  readonly repoPath: string;
+  readonly factories: readonly string[];
+  /** `createPhysicsPlugin` also accepts the kit `definePlugin(` form, so the check stays green before adoption. */
+  readonly builder?: "definePlugin" | "createPhysicsPlugin";
+}[] = [
   { repoPath: "packages/app/src/viewports-plugin.ts", factories: ["createViewportsPlugin"] },
   { repoPath: "packages/renderer-core/src/screen-plugin.ts", factories: ["ScreenPlugin"] },
   {
     repoPath: "packages/camera-core/src/camera-core-plugin.ts",
     factories: ["CameraCorePlugin"],
   },
-  { repoPath: "packages/physics2d/src/plugin/index.ts", factories: ["Physics2DPlugin"] },
+  {
+    repoPath: "packages/physics2d/src/plugin/index.ts",
+    factories: ["Physics2DPlugin"],
+    builder: "createPhysicsPlugin",
+  },
   {
     repoPath: "packages/physics2d/src/systems.ts",
     factories: ["createPhysicsKinematicSyncSystem"],
@@ -42,6 +51,11 @@ const FACTORIES: readonly { readonly repoPath: string; readonly factories: reado
   {
     repoPath: "packages/physics3d/src/systems.ts",
     factories: ["createPhysicsKinematicSyncSystem"],
+  },
+  {
+    repoPath: "packages/physics-core/src/plugin.ts",
+    factories: ["createPhysicsPlugin"],
+    builder: "definePlugin",
   },
 ];
 
@@ -86,6 +100,33 @@ function factoryCallsDefinePlugin(source: string, name: string): boolean {
   return /\breturn\s+definePlugin\s*\(/.test(body);
 }
 
+function importsCreatePhysicsPlugin(source: string): boolean {
+  return /import\s*\{[\s\S]*?\bcreatePhysicsPlugin\b[\s\S]*?\}\s*from\s*["']@gwenjs\/physics-core["']/.test(
+    source,
+  );
+}
+
+function factoryCallsCreatePhysicsPlugin(source: string, name: string): boolean {
+  return new RegExp(`export\\s+const\\s+${name}\\s*=\\s*createPhysicsPlugin\\s*\\(`).test(source);
+}
+
+/**
+ * A kit factory calls `definePlugin`.
+ * A shared-physics factory calls `createPhysicsPlugin` and imports it from `@gwenjs/physics-core`.
+ * The physics2d entry accepts either form.
+ */
+function factoryIsBuilt(
+  source: string,
+  name: string,
+  builder: "definePlugin" | "createPhysicsPlugin" | undefined,
+): boolean {
+  const kit = importsDefinePlugin(source) && factoryCallsDefinePlugin(source, name);
+  if (builder !== "createPhysicsPlugin") return kit;
+  const shared =
+    importsCreatePhysicsPlugin(source) && factoryCallsCreatePhysicsPlugin(source, name);
+  return kit || shared;
+}
+
 function strayKeys(plugin: object): string[] {
   const allowedKeys: readonly string[] = GWEN_PLUGIN_KEYS;
   return Object.keys(plugin).filter((key) => !allowedKeys.includes(key));
@@ -108,9 +149,7 @@ describe("official plugin shape", () => {
     const offending: string[] = [];
     for (const entry of FACTORIES) {
       const source = sourceText(entry.repoPath);
-      const built =
-        importsDefinePlugin(source) &&
-        entry.factories.every((name) => factoryCallsDefinePlugin(source, name));
+      const built = entry.factories.every((name) => factoryIsBuilt(source, name, entry.builder));
       if (!built) offending.push(entry.repoPath);
     }
     expect(offending).toEqual([]);
