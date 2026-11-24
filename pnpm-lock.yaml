@@ -472,6 +472,48 @@ importers:
         specifier: ^4.1.2
         version: 4.1.2(@types/node@20.19.39)(happy-dom@18.0.1)(vite@8.0.5(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@20.19.39)(jiti@2.6.1))
 
+  packages/vite/tests/fixtures/app-light:
+    dependencies:
+      '@gwenjs/app':
+        specifier: workspace:*
+        version: link:../../../../app
+      '@gwenjs/core':
+        specifier: workspace:*
+        version: link:../../../../core
+      '@gwenjs/vite':
+        specifier: workspace:*
+        version: link:../../..
+
+  packages/vite/tests/fixtures/app-physics2d:
+    dependencies:
+      '@gwenjs/app':
+        specifier: workspace:*
+        version: link:../../../../app
+      '@gwenjs/core':
+        specifier: workspace:*
+        version: link:../../../../core
+      '@gwenjs/physics2d':
+        specifier: workspace:*
+        version: link:../../../../physics2d
+      '@gwenjs/vite':
+        specifier: workspace:*
+        version: link:../../..
+
+  packages/vite/tests/fixtures/app-physics3d:
+    dependencies:
+      '@gwenjs/app':
+        specifier: workspace:*
+        version: link:../../../../app
+      '@gwenjs/core':
+        specifier: workspace:*
+        version: link:../../../../core
+      '@gwenjs/physics3d':
+        specifier: workspace:*
+        version: link:../../../../physics3d
+      '@gwenjs/vite':
+        specifier: workspace:*
+        version: link:../../..
+
 packages:
 
   '@algolia/abtesting@1.16.1':

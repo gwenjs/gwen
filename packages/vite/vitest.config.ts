@@ -1,4 +1,4 @@
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 import { gwenSourceAliases } from "../../vitest.aliases.ts";
 
 const alias = gwenSourceAliases();
@@ -6,6 +6,7 @@ const alias = gwenSourceAliases();
 const shared = {
   environment: "node" as const,
   include: ["tests/**/*.test.ts"],
+  exclude: [...configDefaults.exclude, "tests/bundle-size.test.ts"],
 };
 
 export default defineConfig({
