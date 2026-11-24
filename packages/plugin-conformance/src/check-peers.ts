@@ -1,5 +1,5 @@
 import { FRAMEWORK_RANGES } from "@gwenjs/schema";
-import { satisfies, valid, validRange } from "semver";
+import { satisfies, subset, valid, validRange } from "semver";
 import { ConformanceErrorCodes } from "./error-codes.js";
 import { readExtensionManifest } from "./extension-manifest.js";
 import type { ExtensionBase } from "./extension-manifest.js";
@@ -58,6 +58,8 @@ function hasRangeProtocol(spec: string): boolean {
 /**
  * Normalised semver range, or `undefined` when the spec is unusable.
  * An any-range (`*`, `x`, `X`, `x.x.x`, `>=0.0.0`, empty) normalises to `*`.
+ * A range that still matches every version once prereleases are included
+ * (`>=0.0.0-0`) is unusable too.
  * `latest` and a `workspace:`, `file:`, `link:` or `npm:` spec are unusable.
  */
 function usablePeerRange(spec: string): string | undefined {
@@ -65,7 +67,14 @@ function usablePeerRange(spec: string): string | undefined {
   const normalised = validRange(spec);
   if (normalised === null) return undefined;
   if (normalised === "*") return undefined;
+  if (matchesEveryVersion(normalised)) return undefined;
   return normalised;
+}
+
+/** True when `range` contains `*` or `>=0.0.0-0` once prereleases count. */
+function matchesEveryVersion(range: string): boolean {
+  const options = { includePrerelease: true };
+  return subset("*", range, options) || subset(">=0.0.0-0", range, options);
 }
 
 /** Exact version shape, a semver `valid` version, and `satisfies` inside `range`. */

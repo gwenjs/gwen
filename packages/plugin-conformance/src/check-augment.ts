@@ -103,10 +103,143 @@ function absorbModule(
 }
 
 /**
+ * Resolution of `readBuilt`: `noLib`, no `paths`. `@gwenjs/schema` is not loaded.
+ * Only a relative static import or `export … from` is followed, never `import()`.
+ */
+const BASE_RESOLVE_OPTIONS: ts.CompilerOptions = {
+  target: ts.ScriptTarget.ES2022,
+  module: ts.ModuleKind.ESNext,
+  moduleResolution: ts.ModuleResolutionKind.Bundler,
+  allowJs: true,
+  skipLibCheck: true,
+  noEmit: true,
+  noLib: true,
+  types: [],
+  strict: false,
+};
+
+interface DeclarationText {
+  readonly file: string;
+  readonly text: string;
+}
+
+function specifierText(node: ts.Expression | undefined): string | undefined {
+  if (node === undefined || !isStringLiteralLike(node)) return undefined;
+  const text = node.text;
+  if (text.startsWith("./") || text.startsWith("../")) return text;
+  return undefined;
+}
+
+/** Relative static imports and `export … from` of one file. `import()` is left out. */
+function relativeSpecifiers(source: ts.SourceFile): readonly string[] {
+  const specs: string[] = [];
+  const visit = (node: ts.Node): void => {
+    if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
+      const text = specifierText(node.moduleSpecifier);
+      if (text !== undefined) specs.push(text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return specs;
+}
+
+/** A file under `baseDirectory` that is not inside a nested `node_modules`. */
+function isInsideBase(fileName: string, baseDirectory: string): boolean {
+  const relative = path.relative(baseDirectory, fileName);
+  if (
+    relative === "" ||
+    relative === ".." ||
+    relative.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relative)
+  ) {
+    return false;
+  }
+  for (const segment of relative.split(path.sep)) {
+    if (segment === "node_modules") return false;
+  }
+  return true;
+}
+
+function resolveInsideBase(
+  specifier: string,
+  fromFile: string,
+  baseDirectory: string,
+): string | undefined {
+  try {
+    const resolved = ts.resolveModuleName(
+      specifier,
+      fromFile,
+      BASE_RESOLVE_OPTIONS,
+      ts.sys,
+    ).resolvedModule;
+    if (resolved === undefined) return undefined;
+    const fileName = path.resolve(resolved.resolvedFileName);
+    if (!isInsideBase(fileName, baseDirectory)) return undefined;
+    return fileName;
+  } catch {
+    return undefined;
+  }
+}
+
+/** A referenced file that cannot be read is skipped. The entry file is read by the caller. */
+async function readReferenced(fileName: string): Promise<string | undefined> {
+  try {
+    return await readTextIfPresent(fileName);
+  } catch {
+    return undefined;
+  }
+}
+
+function enqueueReferenced(
+  fileName: string,
+  text: string,
+  baseDirectory: string,
+  seen: Set<string>,
+  pending: string[],
+): void {
+  const source = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, true);
+  for (const specifier of relativeSpecifiers(source)) {
+    const resolved = resolveInsideBase(specifier, fileName, baseDirectory);
+    if (resolved === undefined || seen.has(resolved)) continue;
+    seen.add(resolved);
+    pending.push(resolved);
+  }
+}
+
+/**
+ * Declaration files reached from `entryFile` by a relative import or `export … from`,
+ * staying inside `baseDirectory`. An import cycle is visited once. An absent file is skipped.
+ */
+async function followReferenced(
+  baseDirectory: string,
+  entryFile: string,
+  entryText: string,
+): Promise<readonly DeclarationText[]> {
+  const root = path.resolve(baseDirectory);
+  const seen = new Set<string>([path.resolve(entryFile)]);
+  const pending: string[] = [];
+  const found: DeclarationText[] = [];
+  enqueueReferenced(entryFile, entryText, root, seen, pending);
+  let index = 0;
+  while (index < pending.length) {
+    const fileName = pending[index];
+    index += 1;
+    if (fileName === undefined) continue;
+    const text = await readReferenced(fileName);
+    if (text === undefined) continue;
+    found.push({ file: fileName, text });
+    enqueueReferenced(fileName, text, root, seen, pending);
+  }
+  return found;
+}
+
+/**
  * Keys an installed base already declares on the three schema interfaces.
  * An official package (a name under `@gwenjs/`) is not compared with its bases.
  * An absent or unparsed base adds nothing: `BASE_NOT_EXTENSIBLE` already reports it.
- * The declaration file is read as syntax, not type-checked.
+ * The `./extension` declaration and the declaration files it references inside the base
+ * directory are read as syntax, not type-checked.
  */
 async function loadBaseKeys(context: PackageContext): Promise<BaseKeys> {
   const listing = readExtensionManifest(context);
@@ -120,7 +253,9 @@ async function loadBaseKeys(context: PackageContext): Promise<BaseKeys> {
     const file = path.resolve(installed.directory, declared);
     const text = await readTextIfPresent(file);
     if (text === undefined) continue;
-    absorbModule(text, file, base.name, keys);
+    const followed = await followReferenced(installed.directory, file, text);
+    const files = [{ file, text }, ...followed];
+    for (const item of files) absorbModule(item.text, item.file, base.name, keys);
   }
   return keys;
 }
@@ -223,7 +358,8 @@ async function listScanned(root: string): Promise<readonly SourceFile[]> {
  * package's own name and its subpaths are not reported), and a `GwenProvides` key of
  * `@gwenjs/schema` that the framework already declares. A community package also reports a
  * `GwenProvides`, `GwenRuntimeHooks` or `GwenPluginRegistry` key that an installed base already
- * declares in its `./extension` declaration file. The framework message wins when both match.
+ * declares in its `./extension` declaration or in a declaration file that file references inside
+ * the base directory. The framework message wins when both match.
  * Every script file and every declaration file (`.d.ts`, `.d.mts`, `.d.cts`) of `src`, and every
  * test file, is read; `dist` is not. A file that cannot be read (any error but an absent one)
  * rejects.
