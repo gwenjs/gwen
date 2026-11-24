@@ -7,10 +7,11 @@ import { indexJson } from "../src/json.js";
 import {
   extensionFindings,
   extensionFixtureRoot,
+  installBase,
   openExtensionFixture,
 } from "./helpers/extension.js";
 import type { ExtensionManifest } from "./helpers/extension.js";
-import { writeInstalledPackage } from "./helpers/fixture.js";
+import { writeDeep, writeInstalledPackage } from "./helpers/fixture.js";
 
 const open = openExtensionFixture();
 
@@ -1169,3 +1170,232 @@ function expectUnused(findings: readonly ConformanceFinding[], line: number): vo
     },
   ]);
 }
+
+const BASE_NOT = "CONFORMANCE:BASE_NOT_EXTENSIBLE";
+const HOOK_INVALID = "CONFORMANCE:HOOK_NAMESPACE_INVALID";
+const HOOK_FOREIGN = "CONFORMANCE:HOOK_FOREIGN_NAMESPACE";
+const EXTENSION_NAMESPACE = "fixture-ext";
+const UNINSTALLED_BASE = "fixture-not-installed";
+const STRING_BASE = "fixture-string";
+const RENAMED_BASE = "other-base";
+
+function noExtensionMessage(base: string): string {
+  return `base "${base}" has no "./extension" export`;
+}
+
+function noNamespaceMessage(base: string): string {
+  return `base "${base}" has no gwen.hookNamespace`;
+}
+
+function unresolvedMessage(base: string): string {
+  return `base "${base}" cannot be resolved from node_modules`;
+}
+
+function unparsedMessage(base: string): string {
+  return `base "${base}" has a package.json that cannot be parsed`;
+}
+
+function sharedNamespaceMessage(namespace: string, base: string): string {
+  return `gwen.hookNamespace "${namespace}" is the hookNamespace of base "${base}"`;
+}
+
+function baseShape(finding: ConformanceFinding): {
+  code: string;
+  file: string;
+  line: number;
+  message: string;
+} {
+  const code: string = finding.code;
+  const file = finding.file;
+  const line = finding.line;
+  if (file === undefined || line === undefined) {
+    throw new Error("finding has no file or line");
+  }
+  return { code, file, line, message: finding.message };
+}
+
+function expectBaseAt(
+  findings: readonly ConformanceFinding[],
+  message: string,
+  line: number,
+  code: string = BASE_NOT,
+): void {
+  expect(findings.map(baseShape)).toEqual([{ code, file: "package.json", line, message }]);
+  const finding = findings[0];
+  if (finding === undefined) {
+    throw new Error(`expected one finding: ${message}`);
+  }
+  expect(finding.hint.length).toBeGreaterThan(0);
+}
+
+async function openCopied(name: string) {
+  const manifest = await readFixtureManifest(name);
+  const source = await readFile(path.join(extensionFixtureRoot(name), "src/index.ts"), "utf8");
+  return open(manifest, { "src/index.ts": source });
+}
+
+/** Package nested under a temp root whose `node_modules` holds `fixtureName` as `listed`. */
+async function withBaseAbove(listed: string, fixtureName: string): Promise<string> {
+  const parent = await open({ name: "fixture-holder", gwen: { type: "plugin" } });
+  if (fixtureName === listed) await installBase(parent.root, fixtureName);
+  else await installBase(parent.root, fixtureName, listed);
+  await writeDeep(
+    parent.root,
+    "pkg/package.json",
+    `${JSON.stringify(pluginManifest(COMMUNITY_NAME, [listed]), null, 2)}\n`,
+  );
+  return path.join(parent.root, "pkg");
+}
+
+function emitInBaseNamespace(): string {
+  return [
+    "export function tick(bus: { callHook(name: string): void }): void {",
+    '  bus.callHook("fixture-base:tick");',
+    "}",
+    "",
+  ].join("\n");
+}
+
+function extensionWithNamespace(namespace: string, base: string): ExtensionManifest {
+  return {
+    name: EXTENSION_NAMESPACE,
+    gwen: { type: "plugin", hookNamespace: namespace, extends: [base] },
+  };
+}
+
+describe("BASE_NOT_EXTENSIBLE", () => {
+  it("base-not-extensible reports BASE_NOT_EXTENSIBLE for a base without ./extension", async () => {
+    const fixture = await openCopied("base-not-extensible");
+    await installBase(fixture.root, "fixture-plain");
+    const findings = await fixture.checkOf(BASE_NOT);
+    expectBaseAt(
+      findings,
+      noExtensionMessage("fixture-plain"),
+      await extendsElementLine(fixture.root, 0),
+    );
+  });
+
+  it("reports a base that exports ./extension and has no gwen.hookNamespace", async () => {
+    const fixture = await open(pluginManifest(COMMUNITY_NAME, ["fixture-nons"]));
+    await installBase(fixture.root, "fixture-nons");
+    const findings = await fixture.checkOf(BASE_NOT);
+    expectBaseAt(
+      findings,
+      noNamespaceMessage("fixture-nons"),
+      await extendsElementLine(fixture.root, 0),
+    );
+  });
+
+  it("reports a base that is not installed", async () => {
+    const fixture = await open(pluginManifest(COMMUNITY_NAME, [UNINSTALLED_BASE]));
+    const findings = await fixture.checkOf(BASE_NOT);
+    expectBaseAt(
+      findings,
+      unresolvedMessage(UNINSTALLED_BASE),
+      await extendsElementLine(fixture.root, 0),
+    );
+  });
+
+  it("reports a base whose package.json cannot be parsed", async () => {
+    const base = "fixture-bad-json";
+    const fixture = await open(pluginManifest(COMMUNITY_NAME, [base]));
+    await writeDeep(fixture.root, `node_modules/${base}/package.json`, "{");
+    const findings = await fixture.checkOf(BASE_NOT);
+    expectBaseAt(findings, unparsedMessage(base), await extendsElementLine(fixture.root, 0));
+  });
+
+  it("accepts ./extension declared as a string or as a condition object", async () => {
+    const accepted = await open(pluginManifest(COMMUNITY_NAME, ["fixture-base", STRING_BASE]));
+    await installBase(accepted.root, "fixture-base");
+    await writeInstalledPackage(accepted.root, STRING_BASE, {
+      exports: { "./extension": "./dist/extension.js" },
+      gwen: { type: "plugin", hookNamespace: STRING_BASE },
+    });
+    expect(await accepted.checkOf(BASE_NOT)).toEqual([]);
+    const sibling = await open(pluginManifest(COMMUNITY_NAME, ["fixture-plain"]));
+    await installBase(sibling.root, "fixture-plain");
+    const findings = await sibling.checkOf(BASE_NOT);
+    expectBaseAt(
+      findings,
+      noExtensionMessage("fixture-plain"),
+      await extendsElementLine(sibling.root, 0),
+    );
+  });
+
+  it("reports only the bad base when two are listed", async () => {
+    const fixture = await open(pluginManifest(COMMUNITY_NAME, ["fixture-base", "fixture-plain"]));
+    await installBase(fixture.root, "fixture-base");
+    await installBase(fixture.root, "fixture-plain");
+    const findings = await fixture.checkOf(BASE_NOT);
+    expect(findings.map((finding) => finding.message)).toEqual([
+      noExtensionMessage("fixture-plain"),
+    ]);
+    expectBaseAt(
+      findings,
+      noExtensionMessage("fixture-plain"),
+      await extendsElementLine(fixture.root, 1),
+    );
+  });
+
+  it("finds the base installed above the package root", async () => {
+    // Ancestor walk: src/check-imports.ts:122-130. The base sits in the parent node_modules.
+    const above = await withBaseAbove("fixture-base", "fixture-base");
+    expect(await extensionFindings(above, BASE_NOT)).toEqual([]);
+    const sibling = await withBaseAbove("fixture-plain", "fixture-plain");
+    const findings = await extensionFindings(sibling, BASE_NOT);
+    expectBaseAt(
+      findings,
+      noExtensionMessage("fixture-plain"),
+      await extendsElementLine(sibling, 0),
+    );
+  });
+
+  it("ext-of-ext reports nothing for fixture-top and reports fixture-mid without ./extension", async () => {
+    const top = await openCopied("ext-of-ext/fixture-top");
+    await installBase(top.root, "fixture-mid");
+    expect(await top.checkOf(BASE_NOT)).toEqual([]);
+    const twin = await openCopied("ext-of-ext/fixture-top");
+    await installBase(twin.root, "fixture-plain", "fixture-mid");
+    const findings = await twin.checkOf(BASE_NOT);
+    expectBaseAt(
+      findings,
+      noExtensionMessage("fixture-mid"),
+      await extendsElementLine(twin.root, 0),
+    );
+  });
+
+  it("reports a hookNamespace equal to the hookNamespace of a base", async () => {
+    // The namespace finding is package.json line 1 (src/check-hooks.ts:82-89).
+    const fixture = await open(extensionWithNamespace("fixture-base", RENAMED_BASE));
+    await installBase(fixture.root, "fixture-base", RENAMED_BASE);
+    const findings = await fixture.checkOf(HOOK_INVALID);
+    expectBaseAt(findings, sharedNamespaceMessage("fixture-base", RENAMED_BASE), 1, HOOK_INVALID);
+  });
+
+  it("accepts a different hookNamespace and still flags an emit in the base namespace", async () => {
+    // Emit outside the package namespace: src/check-hooks.ts:163-171.
+    const different = await open(extensionWithNamespace(EXTENSION_NAMESPACE, "fixture-base"), {
+      "src/index.ts": emitInBaseNamespace(),
+    });
+    await installBase(different.root, "fixture-base");
+    expect(await different.checkOf(HOOK_INVALID)).toEqual([]);
+    const foreign = await different.checkOf(HOOK_FOREIGN);
+    expect(foreign.map(baseShape)).toEqual([
+      {
+        code: HOOK_FOREIGN,
+        file: "src/index.ts",
+        line: 2,
+        message: `${EXTENSION_NAMESPACE} emits "fixture-base:tick", outside its hook namespace "${EXTENSION_NAMESPACE}"`,
+      },
+    ]);
+    const foreignFinding = foreign[0];
+    if (foreignFinding === undefined) {
+      throw new Error("expected one HOOK_FOREIGN_NAMESPACE finding");
+    }
+    expect(foreignFinding.hint.length).toBeGreaterThan(0);
+    const sibling = await open(extensionWithNamespace("fixture-base", RENAMED_BASE));
+    await installBase(sibling.root, "fixture-base", RENAMED_BASE);
+    const findings = await sibling.checkOf(HOOK_INVALID);
+    expectBaseAt(findings, sharedNamespaceMessage("fixture-base", RENAMED_BASE), 1, HOOK_INVALID);
+  });
+});
