@@ -60,14 +60,15 @@ export function sameNames(left: readonly string[], right: readonly string[]): bo
 }
 
 /**
- * `engine.use`. A rejection is swallowed so a shape or dependency failure
- * stays with the check that owns it (`packages/core/src/engine/plugin-registry.ts:218`).
+ * `engine.use`. A rejection returns false so the caller can skip.
+ * Requires owns that rejection (`packages/core/src/engine/plugin-registry.ts:346`).
  */
-export async function usePlugin(engine: GwenEngine, plugin: GwenPlugin): Promise<void> {
+export async function usePlugin(engine: GwenEngine, plugin: GwenPlugin): Promise<boolean> {
   try {
     await engine.use(plugin);
+    return true;
   } catch {
-    return;
+    return false;
   }
 }
 

@@ -81,9 +81,19 @@ export async function checkModule(
   moduleFile: string,
 ): Promise<ConformanceFinding[]> {
   const loaded = await importFreshEntry(moduleFile, "module");
-  if (loaded === undefined) return [];
+  if (loaded === undefined) {
+    return [
+      moduleFinding(`module ${JSON.stringify(context.spec.packageName)} could not be imported`),
+    ];
+  }
   const mod: unknown = loaded.default;
-  if (!isRecord(mod)) return [];
+  if (!isRecord(mod)) {
+    return [
+      moduleFinding(
+        `module ${JSON.stringify(context.spec.packageName)} default export is not an object`,
+      ),
+    ];
+  }
   const findings: ConformanceFinding[] = [];
   const name = metaName(mod);
   if (name !== context.spec.packageName) {

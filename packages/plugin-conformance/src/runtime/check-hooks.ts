@@ -47,12 +47,15 @@ function hookFinding(pkg: string, factory: string, name: string): ConformanceFin
 function note(
   sink: ConformanceFinding[],
   declared: ReadonlySet<string>,
+  seen: Set<string>,
   pkg: string,
   factory: string,
   name: string,
 ): void {
   if (isIgnoredName(name)) return;
   if (declared.has(name)) return;
+  if (seen.has(name)) return;
+  seen.add(name);
   sink.push(hookFinding(pkg, factory, name));
 }
 
@@ -65,8 +68,9 @@ async function checkOne(
 ): Promise<void> {
   await withEngine(context.spec, async (open) => {
     await installProviders(open.engine, context.spec);
+    const seen = new Set<string>();
     const recording = startHookRecording(open.engine, (name) => {
-      note(sink, declared, context.spec.packageName, factory, name);
+      note(sink, declared, seen, context.spec.packageName, factory, name);
     });
     recording.arm();
     try {
@@ -76,10 +80,15 @@ async function checkOne(
         try {
           await fixture(open.engine);
         } catch {
-          // `frames` already reports a thrown fixture (`packages/plugin-conformance/src/runtime/check-frames.ts:134`).
+          // `frames` already reports a thrown fixture (`packages/plugin-conformance/src/runtime/check-frames.ts:155`).
         }
       }
-      await advanceFrames(open, context.spec);
+      try {
+        await advanceFrames(open, context.spec);
+      } catch {
+        // A fatal event faults the engine. The next advance throws
+        // (`packages/core/src/engine/engine-loop.ts:178`). Frames already reports that event.
+      }
     } finally {
       recording.stop();
     }

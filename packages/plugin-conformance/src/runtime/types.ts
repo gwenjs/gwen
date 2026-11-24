@@ -53,6 +53,12 @@ export interface RuntimeConformanceReport {
 /** A loaded spec. Not part of the public runtime entry. */
 export interface RuntimeCheckContext {
   readonly spec: PluginConformanceSpec;
+  /**
+   * Every factory of the original spec.
+   * A per-factory row narrows `spec.factories` and still reads this list,
+   * so requires can name a sibling factory.
+   */
+  readonly packageFactories: readonly PluginFactorySpec[];
   readonly entry: Record<string, unknown>;
   /** Absolute path of `entry`, used to evaluate the module again. */
   readonly entryFile: string;

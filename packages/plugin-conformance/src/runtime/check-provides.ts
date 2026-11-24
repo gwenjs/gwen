@@ -1,16 +1,10 @@
-import { CoreErrorCodes } from "@gwenjs/core";
+import type { GwenPlugin } from "@gwenjs/schema";
 import { ConformanceErrorCodes } from "../error-codes.js";
 import type { ConformanceFinding } from "../types.js";
-import { callExport, isPlugin, thrownCode } from "./call-factory.js";
+import { callExport, isPlugin, isProvideCode, thrownCode } from "./call-factory.js";
+import { installProviders } from "./lifecycle.js";
 import { withEngine } from "./open-engine.js";
 import type { PluginConformanceSpec, PluginFactorySpec, RuntimeCheckContext } from "./types.js";
-
-function provideRejection(error: unknown): string | undefined {
-  const code = thrownCode(error);
-  if (code === CoreErrorCodes.PLUGIN_PROVIDE_MISSING) return code;
-  if (code === CoreErrorCodes.PLUGIN_PROVIDE_UNDECLARED) return code;
-  return undefined;
-}
 
 function providesFinding(
   spec: PluginConformanceSpec,
@@ -24,21 +18,31 @@ function providesFinding(
   };
 }
 
-/** R3. `engine.use` must accept the plugin. A provide rejection is one finding. */
-export async function checkProvides(context: RuntimeCheckContext): Promise<ConformanceFinding[]> {
-  return withEngine(context.spec, async (open) => {
-    const findings: ConformanceFinding[] = [];
-    for (const factory of context.spec.factories) {
-      const created = callExport(context.entry, factory.export, factory.options);
-      if (!isPlugin(created)) continue;
-      try {
-        await open.engine.use(created);
-      } catch (error: unknown) {
-        const code = provideRejection(error);
-        if (code === undefined) continue;
-        findings.push(providesFinding(context.spec, factory, code));
-      }
+async function checkOne(
+  spec: PluginConformanceSpec,
+  factory: PluginFactorySpec,
+  plugin: GwenPlugin,
+): Promise<ConformanceFinding[]> {
+  return withEngine(spec, async (open) => {
+    await installProviders(open.engine, spec);
+    try {
+      await open.engine.use(plugin);
+    } catch (error: unknown) {
+      const code = thrownCode(error);
+      if (!isProvideCode(code)) return [];
+      return [providesFinding(spec, factory, code)];
     }
-    return findings;
+    return [];
   });
+}
+
+/** R3. One engine per factory. Install providers, then `use`. A provide rejection is one finding. */
+export async function checkProvides(context: RuntimeCheckContext): Promise<ConformanceFinding[]> {
+  const findings: ConformanceFinding[] = [];
+  for (const factory of context.spec.factories) {
+    const created = callExport(context.entry, factory.export, factory.options);
+    if (!isPlugin(created)) continue;
+    findings.push(...(await checkOne(context.spec, factory, created)));
+  }
+  return findings;
 }

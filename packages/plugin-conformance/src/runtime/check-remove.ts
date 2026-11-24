@@ -2,6 +2,7 @@ import type { GwenPlugin } from "@gwenjs/schema";
 import { ConformanceErrorCodes } from "../error-codes.js";
 import type { ConformanceFinding } from "../types.js";
 import { callExport, isPlugin } from "./call-factory.js";
+import { quietWindowFindings } from "./check-frames.js";
 import { baselineOf, installProviders, provideKeys, sameNames, usePlugin } from "./lifecycle.js";
 import { withEngine } from "./open-engine.js";
 import type { RuntimeCheckContext } from "./types.js";
@@ -22,6 +23,8 @@ async function checkOne(
     // After providers, before use (`packages/core/src/engine/gwen-engine.ts:566`).
     const baseline = baselineOf(open.engine);
     await usePlugin(open.engine, plugin);
+    const eventFrom = open.events.length;
+    const logFrom = open.logs.length;
     await open.engine.unuse(plugin.name);
     const findings: ConformanceFinding[] = [];
     for (const key of provideKeys(plugin)) {
@@ -47,8 +50,17 @@ async function checkOne(
         ),
       );
     }
-    // One more frame. `advance` swallows a hook throw (`packages/core/src/engine/engine-loop.ts:215`).
+    // One more frame. A warning, error, or fatal on the bus, or a warn or error
+    // log, from unuse through this frame is a finding.
     await open.advance(1, 1 / 60);
+    findings.push(
+      ...quietWindowFindings(
+        ConformanceErrorCodes.RUNTIME_REMOVE_LEAK,
+        HINT,
+        open.events.slice(eventFrom),
+        open.logs.slice(logFrom),
+      ),
+    );
     return findings;
   });
 }

@@ -35,7 +35,8 @@ async function checkPair(
     return withEngine(spec, async (second) => {
       await installProviders(first.engine, spec);
       await installProviders(second.engine, spec);
-      await usePlugin(first.engine, left);
+      const installed = await usePlugin(first.engine, left);
+      if (!installed) return [];
       await usePlugin(second.engine, right);
       const findings: ConformanceFinding[] = [];
       for (const key of provideKeys(left)) {
@@ -45,7 +46,8 @@ async function checkPair(
       }
       // `unuse` on the first engine leaves the second engine's keys and its plugin,
       // then one frame (`packages/core/src/engine/gwen-engine.ts:128`).
-      // `advance` swallows a hook throw (`packages/core/src/engine/engine-loop.ts:215`).
+      // The second engine still runs the plugin, so this frame's own emits stay
+      // with the frames check.
       let survived = false;
       await first.engine.unuse(left.name);
       await second.advance(1, 1 / 60);

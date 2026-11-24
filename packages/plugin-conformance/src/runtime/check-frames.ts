@@ -4,7 +4,7 @@ import { ConformanceErrorCodes } from "../error-codes.js";
 import { isRecord } from "../json.js";
 import type { ConformanceFinding } from "../types.js";
 import { callExport, isPlugin } from "./call-factory.js";
-import { advanceFrames } from "./lifecycle.js";
+import { advanceFrames, installProviders, thrownMessage } from "./lifecycle.js";
 import { withEngine } from "./open-engine.js";
 import { runtimeFinding } from "./spec.js";
 import type { PluginConformanceSpec, RuntimeCheckContext } from "./types.js";
@@ -96,9 +96,30 @@ function collect(
   return findings;
 }
 
-function thrownMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  return String(error);
+/**
+ * Bus events at warning, error, or fatal, and logger entries at warn or error,
+ * in this window. A logger copy of a bus event is not a second finding
+ * (`packages/core/src/engine/engine-error-policy.ts:407`).
+ */
+export function quietWindowFindings(
+  code: ConformanceFinding["code"],
+  hint: string,
+  events: readonly GwenErrorPayload[],
+  logs: readonly GwenLogEntry[],
+): ConformanceFinding[] {
+  const findings: ConformanceFinding[] = [];
+  const bus: GwenErrorPayload[] = [];
+  for (const event of events) {
+    if (!isReportedBusLevel(event.level)) continue;
+    bus.push(event);
+    findings.push({ code, message: `${event.code} ${event.message}`, hint });
+  }
+  for (const entry of logs) {
+    if (!isReportedLogLevel(entry.level)) continue;
+    if (isBusCopy(entry, bus)) continue;
+    findings.push({ code, message: `${entry.level} ${entry.message}`, hint });
+  }
+  return findings;
 }
 
 async function checkOne(
@@ -119,9 +140,7 @@ async function checkOne(
     open.engine.errors.on((event) => {
       stamped.push({ event, frame });
     });
-    for (const provider of spec.frameworkProviders ?? []) {
-      await open.engine.use(provider());
-    }
+    await installProviders(open.engine, spec);
     try {
       await open.engine.use(plugin);
     } catch {
@@ -140,7 +159,12 @@ async function checkOne(
         ];
       }
     }
-    await advanceFrames(open, spec);
+    try {
+      await advanceFrames(open, spec);
+    } catch {
+      // A fatal event faults the engine. The next advance throws
+      // (`packages/core/src/engine/engine-loop.ts:178`). The event is already stamped.
+    }
     return collect(stamped, open.logs);
   });
 }
