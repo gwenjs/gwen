@@ -2,7 +2,7 @@ import type { AutoImport } from "@gwenjs/kit";
 import type { GwenSceneRouterOptions } from "./plugins/scene-router.js";
 import type { GwenTweenOptions } from "./plugins/tween.js";
 import type { HooksPluginOptions } from "./plugins/hooks.js";
-import type { WasmTier } from "./optimizer/types.js";
+export type WasmTier = "core" | "physics2d" | "physics3d";
 
 /**
  * Options for the `gwen:actor` sub-plugin.
@@ -125,23 +125,8 @@ export interface GwenViteOptions {
   localModules?: LocalModulesOptions | false;
 
   /**
-   * Enable the ECS bulk optimizer.
-   *
-   * - `false` (default) — detect-only mode: logs optimizable patterns without modifying code.
-   * - `true` — transform mode: rewrites `useQuery + onUpdate + useComponent` loops to bulk
-   *   WASM calls with default settings (`componentsDir: 'src'`, `tier: 'core'`).
-   * - `{ ... }` — transform mode with explicit options. Providing an object always enables
-   *   the optimizer in `'transform'` mode.
-   *
-   * @example vite.config.ts — simple activation
-   * ```ts
-   * gwenVitePlugin({ optimizer: true })
-   * ```
-   *
-   * @example vite.config.ts — custom components directory
-   * ```ts
-   * gwenVitePlugin({ optimizer: { componentsDir: 'src/ecs', tier: 'physics3d' } })
-   * ```
+   * Reserved. A no-op until the hot-path rewrite of #69; accepted so existing
+   * configs keep typechecking.
    *
    * @default false
    */
@@ -149,28 +134,14 @@ export interface GwenViteOptions {
 }
 
 /**
- * Fine-grained options for the ECS bulk optimizer sub-plugin.
- * Providing these always enables the optimizer in `'transform'` mode.
- *
- * @see {@link GwenViteOptions.optimizer}
+ * Reserved, a no-op until #69 (see GwenViteOptions.optimizer); the fields are
+ * accepted and ignored.
  */
 export interface GwenOptimizerUserOptions {
-  /**
-   * Directory (relative to project root) scanned for `defineComponent` calls.
-   * Set this when your components live outside the default `'src'` folder.
-   * @default 'src'
-   */
+  /** Accepted and ignored. */
   componentsDir?: string;
-  /**
-   * Override the WASM tier for generated bulk-call code.
-   * Use `'physics2d'` or `'physics3d'` when the optimized systems query
-   * physics-specific component types.
-   * @default 'core'
-   */
+  /** Accepted and ignored. */
   tier?: WasmTier;
-  /**
-   * Log each detected and transformed pattern to the console.
-   * @default false
-   */
+  /** Accepted and ignored. */
   debug?: boolean;
 }
