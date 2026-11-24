@@ -3,7 +3,16 @@
  * A config failure is caught so a missing `addSourceTransform` fails the assertion.
  */
 
-import { copyFileSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -18,6 +27,7 @@ import {
 } from "vite";
 import { describe, expect, it } from "vitest";
 import { GwenError } from "@gwenjs/schema";
+import { extractFences } from "../../../docs-check/src/fences.js";
 import { ViteErrorCodes } from "../../src/error-codes.js";
 import { gwen } from "../../src/index.js";
 import { BUILT_IN_UNITS } from "../../src/pipeline/registry.js";
@@ -212,6 +222,46 @@ function writeTintFixtures(root: string): void {
   const pkg = join(root, "node_modules", "@example", "tint");
   mkdirSync(pkg, { recursive: true });
   copyFileSync(join(tintFixtureDir, "tint.ts"), join(pkg, "tint.ts"));
+  writeFileSync(
+    join(pkg, "package.json"),
+    JSON.stringify({ type: "module", exports: { ".": "./tint.ts" } }),
+  );
+}
+
+const docsPage = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "../../../../docs/kit/source-transforms.md",
+);
+
+/** The example fences and the sample source of the EN source transforms page. */
+function pageExample(): { tint: string; module: string; sample: string } {
+  const markdown = existsSync(docsPage) ? readFileSync(docsPage, "utf8") : "";
+  const fences = extractFences(markdown, docsPage);
+  const checks = fences.filter((fence) => fence.tag === "check");
+  const samples = fences.filter(
+    (fence) => fence.tag === null && fence.code.includes('from "@example/tint"'),
+  );
+  expect(checks).toHaveLength(2);
+  expect(samples).toHaveLength(1);
+  return {
+    tint: checks[0]?.code ?? "",
+    module: checks[1]?.code ?? "",
+    sample: samples[0]?.code ?? "",
+  };
+}
+
+function writePageFixtures(root: string, example: { tint: string; module: string }): void {
+  const dir = join(root, "src", "modules", "tint");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "tint.ts"), `${example.tint}\n`);
+  writeFileSync(join(dir, "module.ts"), `${example.module}\n`);
+  writeFileSync(
+    join(dir, "index.ts"),
+    'import "./tint.js";\nexport { default } from "./module.js";\n',
+  );
+  const pkg = join(root, "node_modules", "@example", "tint");
+  mkdirSync(pkg, { recursive: true });
+  writeFileSync(join(pkg, "tint.ts"), `${example.tint}\n`);
   writeFileSync(
     join(pkg, "package.json"),
     JSON.stringify({ type: "module", exports: { ".": "./tint.ts" } }),
@@ -970,6 +1020,35 @@ describe("kit source transforms", () => {
         );
         expect(causeCode(caught)).toBe(ViteErrorCodes.TRANSFORM_UNSUPPORTED);
         expect(causeMessage(caught)).toContain("emitAsset is only available in a build");
+      } finally {
+        await server?.close();
+      }
+    });
+  });
+
+  it("the documented example inlines aliased, namespaced and barrel imports and keeps shadowed and dynamic calls", async () => {
+    const example = pageExample();
+    await withFixtureRoot(async (root) => {
+      writePageFixtures(root, example);
+      writeFileSync(
+        join(root, "src", "barrel.js"),
+        'export { defineTint } from "@example/tint";\n',
+      );
+      writeConfig(root, []);
+      writeFileSync(join(root, "src", "game.ts"), `${example.sample}\n`);
+      const pipeline = await loadProject(root);
+      let server: ViteDevServer | undefined;
+      try {
+        server = await openServer(root, [pipeline]);
+        const result = await server.transformRequest("/src/game.ts");
+        expect(result?.code).toContain("aliased = 16711680");
+        expect(result?.code).toContain("namespaced = 65280");
+        expect(result?.code).toContain("barreled = 255");
+        expect(result?.code).not.toContain("paint(");
+        expect(result?.code).not.toContain("tint.defineTint(");
+        expect(result?.code).not.toContain('defineTint("blue")');
+        expect(result?.code).toContain('return defineTint("red")');
+        expect(result?.code).toContain("return defineTint(color)");
       } finally {
         await server?.close();
       }
