@@ -1,5 +1,4 @@
 import type { AutoImport } from "@gwenjs/kit";
-import type { GwenSceneRouterOptions } from "./plugins/scene-router.js";
 import type { GwenTweenOptions } from "./plugins/tween.js";
 import type { HooksPluginOptions } from "./plugins/hooks.js";
 export type WasmTier = "core" | "physics2d" | "physics3d";
@@ -63,8 +62,20 @@ export interface GwenLayoutOptions {
   include?: string[];
 
   /**
-   * Disable debug name injection (default: false).
-   * When `false`, `defineLayout(...)` calls are wrapped with `Object.assign(..., { __layoutName__: 'Name' })`.
+   * When true, `gwen:layout-name` is not registered.
+   * When false, each `const` layout is followed by a dev-only statement:
+   * `__GWEN_DEV__ && Object.assign(Name, { __layoutName__: "Name" })`.
+   * @default false
+   */
+  disableNameInjection?: boolean;
+}
+
+/**
+ * Options for scene-router name injection.
+ */
+export interface GwenSceneRouterOptions {
+  /**
+   * When true, `gwen:scene-router-name` is not registered.
    * @default false
    */
   disableNameInjection?: boolean;
@@ -98,7 +109,7 @@ export interface GwenViteOptions {
 
   /** Options for the layout virtual module sub-plugin. */
   layout?: GwenLayoutOptions;
-  /** Options for the scene router sub-plugin. */
+  /** Options for scene-router name injection. */
   sceneRouter?: GwenSceneRouterOptions;
 
   /** Options for the tween easing analysis sub-plugin. */
