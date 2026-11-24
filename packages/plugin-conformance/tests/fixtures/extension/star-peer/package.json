@@ -1,0 +1,18 @@
+{
+  "name": "fixture-star-peer",
+  "version": "0.0.0",
+  "license": "MPL-2.0",
+  "type": "module",
+  "devDependencies": {
+    "fixture-base": "1.0.0"
+  },
+  "peerDependencies": {
+    "fixture-base": "*"
+  },
+  "gwen": {
+    "type": "plugin",
+    "extends": [
+      "fixture-base"
+    ]
+  }
+}

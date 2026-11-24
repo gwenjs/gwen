@@ -731,3 +731,441 @@ describe("EXTENSION_ENTRY", () => {
     ]);
   });
 });
+
+const PEER = "CONFORMANCE:EXTENSION_PEER";
+const UNUSED = "CONFORMANCE:PEER_UNUSED";
+
+/** Same sentences as `unusedFindings` (src/check-peers.ts:131-132). */
+function unusedMessage(base: string): string {
+  return `peer ${JSON.stringify(base)} is declared but src never uses it`;
+}
+
+function unusedHint(base: string): string {
+  return `Remove ${JSON.stringify(base)} from peerDependencies, or import it from src.`;
+}
+
+function absentPeerMessage(base: string): string {
+  return `base ${JSON.stringify(base)} is listed in gwen.extends but not in peerDependencies`;
+}
+
+function sectionMessage(base: string, section: "dependencies" | "optionalDependencies"): string {
+  return `base ${JSON.stringify(base)} is declared in ${section}, not in peerDependencies`;
+}
+
+function unusableRangeMessage(base: string, range: string): string {
+  return `peer ${JSON.stringify(base)} has range ${JSON.stringify(range)}, which is not a usable semver range`;
+}
+
+function pinAbsentMessage(base: string): string {
+  return `base ${JSON.stringify(base)} has no exact devDependency pin`;
+}
+
+function pinMessage(base: string, pin: string, range: string): string {
+  return `devDependency ${JSON.stringify(base)} is ${JSON.stringify(pin)}, not an exact version inside the peer range ${JSON.stringify(range)}`;
+}
+
+interface PeerShape {
+  readonly code: string;
+  readonly file: string | undefined;
+  readonly line: number | undefined;
+  readonly message: string;
+}
+
+function peerShape(finding: ConformanceFinding): PeerShape {
+  const code: string = finding.code;
+  return { code, file: finding.file, line: finding.line, message: finding.message };
+}
+
+function sortShapes(shapes: readonly PeerShape[]): PeerShape[] {
+  return [...shapes].sort((left, right) => {
+    if (left.message < right.message) return -1;
+    if (left.message > right.message) return 1;
+    return 0;
+  });
+}
+
+function sortedShapes(findings: readonly ConformanceFinding[]): PeerShape[] {
+  return sortShapes(findings.map(peerShape));
+}
+
+function named(findings: readonly ConformanceFinding[], base: string): ConformanceFinding[] {
+  const quoted = JSON.stringify(base);
+  return findings.filter((finding) => finding.message.includes(quoted));
+}
+
+function expectPeerAt(
+  findings: readonly ConformanceFinding[],
+  message: string,
+  line: number,
+): void {
+  const matches = findings.filter((finding) => finding.message === message);
+  expect(matches.map(peerShape)).toEqual([{ code: PEER, file: "package.json", line, message }]);
+  const finding = matches[0];
+  if (finding === undefined) {
+    throw new Error(`expected one finding: ${message}`);
+  }
+  expect(finding.hint.length).toBeGreaterThan(0);
+}
+
+function expectHints(findings: readonly ConformanceFinding[]): void {
+  for (const finding of findings) expect(finding.hint.length).toBeGreaterThan(0);
+}
+
+async function manifestKeyLine(root: string, section: string, name: string): Promise<number> {
+  const text = await readFile(path.join(root, "package.json"), "utf8");
+  const line = indexJson(text).keyLine([section, name]);
+  if (line === undefined) {
+    throw new Error(`package.json has no key line for ${section}/${name}`);
+  }
+  return line;
+}
+
+function positionOf(bases: readonly string[], name: string): number {
+  const index = bases.indexOf(name);
+  if (index < 0) throw new Error(`base ${name} is not listed`);
+  return index;
+}
+
+/** Community plugin whose `gwen.extends` lists `bases`, plus the dependency fields. */
+function listedPeers(
+  bases: readonly string[],
+  peerDependencies: Readonly<Record<string, string>>,
+  devDependencies: Readonly<Record<string, string>>,
+  extra: ExtensionManifest = {},
+): ExtensionManifest {
+  return {
+    ...pluginManifest(COMMUNITY_NAME, [...bases]),
+    ...extra,
+    peerDependencies,
+    devDependencies,
+  };
+}
+
+function extensionSource(base: string): string {
+  return `import { marker } from ${JSON.stringify(`${base}/extension`)};\nexport { marker };\n`;
+}
+
+async function readFixtureManifest(name: string): Promise<ExtensionManifest> {
+  const text = await readFile(path.join(extensionFixtureRoot(name), "package.json"), "utf8");
+  const parsed: unknown = JSON.parse(text);
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    throw new Error(`${name} package.json is not an object`);
+  }
+  const manifest: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(parsed)) manifest[key] = value;
+  return manifest;
+}
+
+function withPeerRange(
+  manifest: ExtensionManifest,
+  base: string,
+  range: string,
+): ExtensionManifest {
+  const peers = manifest.peerDependencies;
+  if (typeof peers !== "object" || peers === null || Array.isArray(peers)) {
+    throw new Error("peerDependencies is not an object");
+  }
+  const next: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(peers)) next[key] = value;
+  next[base] = range;
+  return { ...manifest, peerDependencies: next };
+}
+
+describe("EXTENSION_PEER", () => {
+  it("missing-peer reports EXTENSION_PEER when the base is only in devDependencies", async () => {
+    const root = extensionFixtureRoot("missing-peer");
+    const findings = await extensionFindings(root, PEER);
+    expectPeerAt(findings, absentPeerMessage(BASE), await extendsElementLine(root, 0));
+    expect(findings).toHaveLength(1);
+  });
+
+  it('star-peer reports EXTENSION_PEER for the peer range "*"', async () => {
+    const root = extensionFixtureRoot("star-peer");
+    const findings = await extensionFindings(root, PEER);
+    expectPeerAt(
+      findings,
+      unusableRangeMessage(BASE, "*"),
+      await manifestKeyLine(root, "peerDependencies", BASE),
+    );
+    expect(findings).toHaveLength(1);
+  });
+
+  it("base-in-dependencies reports EXTENSION_PEER", async () => {
+    const root = extensionFixtureRoot("base-in-dependencies");
+    const findings = await extensionFindings(root, PEER);
+    expectPeerAt(
+      findings,
+      sectionMessage(BASE, "dependencies"),
+      await manifestKeyLine(root, "dependencies", BASE),
+    );
+    expect(findings).toHaveLength(1);
+    const optional = await open(
+      listedPeers(
+        [BASE],
+        { [BASE]: "^1.0.0" },
+        { [BASE]: "1.0.0" },
+        { optionalDependencies: { [BASE]: "^1.0.0" } },
+      ),
+      { "src/index.ts": extensionSource(BASE) },
+    );
+    const optionalFindings = await optional.checkOf(PEER);
+    expectPeerAt(
+      optionalFindings,
+      sectionMessage(BASE, "optionalDependencies"),
+      await manifestKeyLine(optional.root, "optionalDependencies", BASE),
+    );
+    expect(optionalFindings).toHaveLength(1);
+  });
+
+  it("reports each unusable peer range", async () => {
+    const rejected: readonly { readonly name: string; readonly range: string }[] = [
+      { name: "base-star", range: "*" },
+      { name: "base-x", range: "x" },
+      { name: "base-capital-x", range: "X" },
+      { name: "base-latest", range: "latest" },
+      { name: "base-empty", range: "" },
+      { name: "base-workspace", range: "workspace:^" },
+      { name: "base-file", range: "file:../b" },
+      { name: "base-link", range: "link:../b" },
+      { name: "base-caret", range: "^^1" },
+      { name: "base-any", range: ">=0.0.0" },
+      { name: "base-triple-x", range: "x.x.x" },
+    ];
+    const accepted: readonly {
+      readonly name: string;
+      readonly range: string;
+      readonly pin: string;
+    }[] = [
+      { name: "base-ok-caret", range: "^1.0.0", pin: "1.0.0" },
+      { name: "base-ok-tilde", range: "~1.2.0", pin: "1.2.0" },
+      { name: "base-ok-span", range: ">=1.0.0 <2.0.0", pin: "1.5.0" },
+      { name: "base-ok-minor", range: "1.x", pin: "1.2.3" },
+    ];
+    const peers: Record<string, string> = {};
+    const pins: Record<string, string> = {};
+    for (const row of rejected) peers[row.name] = row.range;
+    for (const row of accepted) {
+      peers[row.name] = row.range;
+      pins[row.name] = row.pin;
+    }
+    const bases = [...rejected.map((row) => row.name), ...accepted.map((row) => row.name)];
+    const fixture = await open(listedPeers(bases, peers, pins));
+    const findings = await fixture.checkOf(PEER);
+    const expected: PeerShape[] = [];
+    for (const row of rejected) {
+      expected.push({
+        code: PEER,
+        file: "package.json",
+        line: await manifestKeyLine(fixture.root, "peerDependencies", row.name),
+        message: unusableRangeMessage(row.name, row.range),
+      });
+    }
+    expect(sortedShapes(findings)).toEqual(sortShapes(expected));
+    expectHints(findings);
+  });
+
+  it("reports a devDependency pin that is missing, a range, or outside the peer range", async () => {
+    const noPin = "base-no-pin";
+    const rangePin = "base-range-pin";
+    const lowPin = "base-low-pin";
+    const bases = [noPin, rangePin, lowPin];
+    const fixture = await open(
+      listedPeers(
+        bases,
+        { [noPin]: "^1.0.0", [rangePin]: "^1.0.0", [lowPin]: "^1.0.0" },
+        { [rangePin]: "^1.0.0", [lowPin]: "0.9.0" },
+      ),
+    );
+    const findings = await fixture.checkOf(PEER);
+    expect(sortedShapes(findings)).toEqual(
+      sortShapes([
+        {
+          code: PEER,
+          file: "package.json",
+          line: await extendsElementLine(fixture.root, positionOf(bases, noPin)),
+          message: pinAbsentMessage(noPin),
+        },
+        {
+          code: PEER,
+          file: "package.json",
+          line: await manifestKeyLine(fixture.root, "devDependencies", rangePin),
+          message: pinMessage(rangePin, "^1.0.0", "^1.0.0"),
+        },
+        {
+          code: PEER,
+          file: "package.json",
+          line: await manifestKeyLine(fixture.root, "devDependencies", lowPin),
+          message: pinMessage(lowPin, "0.9.0", "^1.0.0"),
+        },
+      ]),
+    );
+    expectHints(findings);
+  });
+
+  it("accepts an exact pin inside the range, a stamp and a build pin", async () => {
+    const exact = "base-exact";
+    const stamp = "base-stamp";
+    const build = "base-build";
+    const alpha = "base-alpha";
+    const high = "base-high";
+    const rcMinor = "base-rc-minor";
+    const stampMinor = "base-stamp-minor";
+    const stampPin = "1.0.0-integration.20261123120000.gabc1234";
+    const stampMinorPin = "1.2.0-integration.20261123120000.gabc1234";
+    const fixture = await open(
+      listedPeers(
+        [exact, stamp, build, alpha, high, rcMinor, stampMinor],
+        {
+          [exact]: "^1.0.0",
+          [stamp]: "^1.0.0-alpha.0",
+          [build]: "^1.0.0",
+          [alpha]: "^1.0.0-alpha.0",
+          [high]: "^1.0.0",
+          [rcMinor]: "^1.0.0-alpha.0",
+          [stampMinor]: "^1.0.0",
+        },
+        {
+          [exact]: "1.0.0",
+          [stamp]: stampPin,
+          [build]: "1.0.0+build.5",
+          [alpha]: "1.0.0-alpha.0",
+          [high]: "2.0.0",
+          [rcMinor]: "1.1.0-rc.1",
+          [stampMinor]: stampMinorPin,
+        },
+      ),
+    );
+    const findings = await fixture.checkOf(PEER);
+    expectPeerAt(
+      named(findings, high),
+      pinMessage(high, "2.0.0", "^1.0.0"),
+      await manifestKeyLine(fixture.root, "devDependencies", high),
+    );
+    expect(named(findings, exact)).toEqual([]);
+    expect(named(findings, stamp)).toEqual([]);
+    expect(named(findings, build)).toEqual([]);
+    expect(named(findings, alpha)).toEqual([]);
+    expect(named(findings, rcMinor)).toEqual([]);
+    expect(named(findings, stampMinor)).toEqual([]);
+    expect(findings).toHaveLength(1);
+  });
+
+  it("reports each base once per problem", async () => {
+    const good = "base-good";
+    const bad = "base-bad";
+    const fixture = await open(
+      listedPeers(
+        [good, bad],
+        { [good]: "^1.0.0", [bad]: "^1.0.0" },
+        { [good]: "1.0.0", [bad]: "2.0.0" },
+        { dependencies: { [bad]: "^1.0.0" } },
+      ),
+    );
+    const findings = await fixture.checkOf(PEER);
+    expect(named(findings, good)).toEqual([]);
+    expect(sortedShapes(named(findings, bad))).toEqual(
+      sortShapes([
+        {
+          code: PEER,
+          file: "package.json",
+          line: await manifestKeyLine(fixture.root, "dependencies", bad),
+          message: sectionMessage(bad, "dependencies"),
+        },
+        {
+          code: PEER,
+          file: "package.json",
+          line: await manifestKeyLine(fixture.root, "devDependencies", bad),
+          message: pinMessage(bad, "2.0.0", "^1.0.0"),
+        },
+      ]),
+    );
+    expectHints(named(findings, bad));
+    expect(findings).toHaveLength(2);
+  });
+
+  it("reports nothing when gwen.extends is absent or empty", async () => {
+    const absent = await open({ name: COMMUNITY_NAME, gwen: { type: "plugin" } });
+    const empty = await open(pluginManifest(COMMUNITY_NAME, []));
+    expect(await absent.checkOf(PEER)).toEqual([]);
+    expect(await empty.checkOf(PEER)).toEqual([]);
+    const sibling = await open(pluginManifest(COMMUNITY_NAME, [BASE]));
+    const findings = await sibling.checkOf(PEER);
+    expectPeerAt(findings, absentPeerMessage(BASE), await extendsElementLine(sibling.root, 0));
+    expect(findings).toHaveLength(1);
+  });
+
+  it("layered-ok reports nothing and its mutated twin reports EXTENSION_PEER", async () => {
+    const root = extensionFixtureRoot("layered-ok");
+    expect(await extensionFindings(root, PEER)).toEqual([]);
+    const source = await readFile(path.join(root, "src/index.ts"), "utf8");
+    const twin = await open(withPeerRange(await readFixtureManifest("layered-ok"), BASE, "*"), {
+      "src/index.ts": source,
+    });
+    const findings = await twin.checkOf(PEER);
+    expectPeerAt(
+      findings,
+      unusableRangeMessage(BASE, "*"),
+      await manifestKeyLine(twin.root, "peerDependencies", BASE),
+    );
+    expect(findings).toHaveLength(1);
+  });
+
+  it("runs for the package profile and with a malformed block", async () => {
+    const fixture = await open({
+      name: COMMUNITY_NAME,
+      gwen: { type: "plugin", extends: [BASE] },
+      peerDependencies: [],
+      devDependencies: "x",
+    });
+    const report = await checkPluginPackage({ root: fixture.root, profile: "package" });
+    expect(report.checks).toContain("peers");
+    const findings = report.findings.filter((finding) => {
+      const code: string = finding.code;
+      return code === PEER;
+    });
+    expectPeerAt(findings, absentPeerMessage(BASE), await extendsElementLine(fixture.root, 0));
+    expect(findings).toHaveLength(1);
+  });
+
+  it("reports a base peer that src never imports", async () => {
+    // A subpath counts as its package (src/imported-packages.ts:16-28).
+    // A `*.test.*` file is a test file and is not a use (src/source-files.ts:65-74,
+    // src/imported-packages.ts:66-67). `<base>/extension` in a non-test file of src is a use.
+    const valid = listedPeers([BASE], { [BASE]: "^1.0.0" }, { [BASE]: "1.0.0" });
+    const idle = await open(valid, { "src/index.ts": "export const marker = 1;\n" });
+    const used = await open(valid, { "src/index.ts": extensionSource(BASE) });
+    const testsOnly = await open(valid, {
+      "src/index.ts": "export const marker = 1;\n",
+      "src/base.test.ts": extensionSource(BASE),
+    });
+    const idleFindings = await idle.checkOf(UNUSED);
+    const usedFindings = await used.checkOf(UNUSED);
+    const testFindings = await testsOnly.checkOf(UNUSED);
+    expectUnused(idleFindings, await manifestKeyLine(idle.root, "peerDependencies", BASE));
+    expectUnused(testFindings, await manifestKeyLine(testsOnly.root, "peerDependencies", BASE));
+    expect(usedFindings).toEqual([]);
+  });
+});
+
+function expectUnused(findings: readonly ConformanceFinding[], line: number): void {
+  expect(
+    findings.map((finding) => {
+      const code: string = finding.code;
+      return {
+        code,
+        file: finding.file,
+        line: finding.line,
+        message: finding.message,
+        hint: finding.hint,
+      };
+    }),
+  ).toEqual([
+    {
+      code: UNUSED,
+      file: "package.json",
+      line,
+      message: unusedMessage(BASE),
+      hint: unusedHint(BASE),
+    },
+  ]);
+}
