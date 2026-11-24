@@ -6,6 +6,7 @@ import { CoreErrorCodes } from "@gwenjs/core";
 import { CameraCorePlugin } from "@gwenjs/camera-core";
 import { ConformanceErrorCodes } from "@gwenjs/plugin-conformance";
 import { runPluginConformance } from "@gwenjs/plugin-conformance/runtime";
+import { writeBasePackage, writeExtensionPackage } from "../helpers/extension-runtime.js";
 import { withPrivateTmpdir } from "../helpers/fixture.js";
 import {
   factorySource,
@@ -245,6 +246,53 @@ describe("runPluginConformance requires", () => {
         }),
       );
       expect(report.findings).toEqual([]);
+    });
+  });
+
+  it("reports an official plugin that names a base in the object form", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      await writePluginPackage(dir, {
+        name: "@fixture/official-object",
+        files: {
+          "dist/index.js":
+            'export function Plugin() {\n  return {\n    name: "official-object",\n    requires: { plugins: [{ name: "@other/base", extensionApi: { major: 1, minor: 0 } }] },\n    setup() {},\n  };\n}\n',
+        },
+      });
+
+      const report = await runPluginConformance(
+        spec({
+          root: dir,
+          packageName: "@fixture/official-object",
+          official: true,
+        }),
+      );
+      const findings = findingsWithCode(report, ConformanceErrorCodes.RUNTIME_REQUIRES);
+      expect(findings).toHaveLength(1);
+      expect(findings[0]?.message).toContain("@other/base");
+    });
+  });
+
+  it("accepts a community extension that names its base in the object form", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      await writeBasePackage(dir, { name: "fixture-base" });
+      await writeExtensionPackage(dir, {
+        name: "fixture-community",
+        pluginName: "fixture-community",
+        gwen: { extends: ["fixture-base"] },
+        sourceOptions: { requiresPlugins: "object", setup: "register" },
+      });
+
+      const report = await runPluginConformance(
+        spec({
+          root: dir,
+          packageName: "fixture-community",
+          official: false,
+          bases: [{ packageName: "fixture-base", export: "Base" }],
+        }),
+      );
+      expect(findingsWithCode(report, ConformanceErrorCodes.RUNTIME_REQUIRES)).toEqual([]);
+      expect(report.checks).toContain("requirement-form");
+      expect(report.checks).toContain("extension");
     });
   });
 });
