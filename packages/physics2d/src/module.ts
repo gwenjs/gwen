@@ -12,7 +12,7 @@
  * ```
  */
 
-import { defineGwenModule } from "@gwenjs/kit/module";
+import { definePhysicsModule } from "@gwenjs/physics-core/module";
 import { PHYSICS2D_DEFAULTS, checkPhysics2DConfig } from "./config";
 import type { Physics2DConfig } from "./types";
 import { physics2dVitePlugin, type Physics2DVitePluginOptions } from "./vite-plugin";
@@ -30,33 +30,33 @@ export type { Physics2DVitePluginOptions };
  * 3. Adds the physics2d Vite plugin.
  */
 
-export default defineGwenModule<Physics2DConfig>({
-  meta: { name: "@gwenjs/physics2d", configKey: "physics2d" },
+export default definePhysicsModule<Physics2DConfig>({
+  name: "@gwenjs/physics2d",
+  configKey: "physics2d",
   defaults: PHYSICS2D_DEFAULTS,
   validate: checkPhysics2DConfig,
-  async setup(options, kit) {
-    kit.addPlugin({ src: "@gwenjs/physics2d", export: "Physics2DPlugin", options });
+  plugin: { src: "@gwenjs/physics2d", export: "Physics2DPlugin" },
+  vitePlugin: (options) => {
     const viteDebug = options.vite?.debug;
-    kit.addVitePlugin({
+    return {
       ...physics2dVitePlugin(viteDebug === undefined ? {} : { debug: viteDebug }),
-    });
-
-    kit.addAutoImports([
-      { name: "usePhysics2D", from: "@gwenjs/physics2d" },
-      { name: "useRigidBody", from: "@gwenjs/physics2d" },
-      { name: "useCollider", from: "@gwenjs/physics2d" },
-      // RFC-04 additions:
-      { name: "useStaticBody", from: "@gwenjs/physics2d" },
-      { name: "useDynamicBody", from: "@gwenjs/physics2d" },
-      { name: "useBoxCollider", from: "@gwenjs/physics2d" },
-      { name: "useSphereCollider", from: "@gwenjs/physics2d" },
-      { name: "useCapsuleCollider", from: "@gwenjs/physics2d" },
-      { name: "defineLayers", from: "@gwenjs/physics2d" },
-      { name: "onContact", from: "@gwenjs/physics2d" },
-      { name: "onSensorEnter", from: "@gwenjs/physics2d" },
-      { name: "onSensorExit", from: "@gwenjs/physics2d" },
-      { name: "useShape", from: "@gwenjs/physics2d" },
-      { name: "useKinematicBody", from: "@gwenjs/physics2d" },
-    ]);
+    };
   },
+  autoImports: [
+    { name: "usePhysics2D", from: "@gwenjs/physics2d" },
+    { name: "useRigidBody", from: "@gwenjs/physics2d" },
+    { name: "useCollider", from: "@gwenjs/physics2d" },
+    // RFC-04 additions:
+    { name: "useStaticBody", from: "@gwenjs/physics2d" },
+    { name: "useDynamicBody", from: "@gwenjs/physics2d" },
+    { name: "useBoxCollider", from: "@gwenjs/physics2d" },
+    { name: "useSphereCollider", from: "@gwenjs/physics2d" },
+    { name: "useCapsuleCollider", from: "@gwenjs/physics2d" },
+    { name: "defineLayers", from: "@gwenjs/physics2d" },
+    { name: "onContact", from: "@gwenjs/physics2d" },
+    { name: "onSensorEnter", from: "@gwenjs/physics2d" },
+    { name: "onSensorExit", from: "@gwenjs/physics2d" },
+    { name: "useShape", from: "@gwenjs/physics2d" },
+    { name: "useKinematicBody", from: "@gwenjs/physics2d" },
+  ],
 });
