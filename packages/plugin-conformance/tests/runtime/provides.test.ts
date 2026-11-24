@@ -5,7 +5,7 @@ import { runPluginConformance } from "@gwenjs/plugin-conformance/runtime";
 import { withPrivateTmpdir } from "../helpers/fixture.js";
 import { factorySource, findingsWithCode, spec, writePluginPackage } from "../helpers/runtime.js";
 
-const RAN = ["shape", "provides"] as const;
+const RAN = ["shape", "requires", "provides"] as const;
 
 describe("runPluginConformance provides", () => {
   it("reports a declared provides key that is not injectable", async () => {

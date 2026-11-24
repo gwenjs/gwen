@@ -1,0 +1,9 @@
+{
+  "name": "@fixture/installs-camera-core",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js"
+    }
+  }
+}

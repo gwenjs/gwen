@@ -3,6 +3,7 @@
     "values": [
       "ConformanceErrorCodes",
       "FRAMEWORK_ENTRIES",
+      "FRAMEWORK_PLUGIN_NAMES",
       "checkPluginPackage",
       "checkSnapshot",
       "runComposableSurfaceSuite"

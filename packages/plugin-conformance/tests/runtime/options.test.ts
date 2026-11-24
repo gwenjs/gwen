@@ -31,7 +31,7 @@ describe("runPluginConformance options", () => {
       );
       const findings = findingsWithCode(report, ConformanceErrorCodes.RUNTIME_OPTIONS);
       expect(findings).toHaveLength(1);
-      expect(report.checks).toEqual(["shape", "provides", "options"]);
+      expect(report.checks).toEqual(["shape", "requires", "provides", "options"]);
     });
   });
 
@@ -43,7 +43,7 @@ describe("runPluginConformance options", () => {
         factories: [{ export: "OptionsPlugin", invalidOptions: { speed: -1 } }],
       }),
     );
-    expect(report.checks).toEqual(["shape", "provides", "options"]);
+    expect(report.checks).toEqual(["shape", "requires", "provides", "options"]);
     expect(report.findings).toEqual([]);
   });
 
@@ -60,7 +60,7 @@ describe("runPluginConformance options", () => {
       const report = await runPluginConformance(
         spec({ root: dir, packageName: "@fixture/no-invalid-options" }),
       );
-      expect(report.checks).toEqual(["shape", "provides"]);
+      expect(report.checks).toEqual(["shape", "requires", "provides"]);
       expect(report.findings).toEqual([]);
     });
   });

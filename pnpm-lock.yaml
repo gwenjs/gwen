@@ -349,6 +349,12 @@ importers:
         specifier: ^6.0.2
         version: 6.0.2
     devDependencies:
+      '@gwenjs/app':
+        specifier: workspace:*
+        version: link:../app
+      '@gwenjs/camera-core':
+        specifier: workspace:*
+        version: link:../camera-core
       '@gwenjs/core':
         specifier: workspace:*
         version: link:../core

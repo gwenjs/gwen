@@ -52,4 +52,24 @@ describe("runPluginConformance spec", () => {
       expect(findings[0]?.message).toContain("physics3d");
     });
   });
+
+  it("rejects a frameworkProviders entry that is not a framework plugin", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      await writePluginPackage(dir, {
+        name: "@fixture/plugin",
+        files: { "dist/index.js": factorySource("Plugin") },
+      });
+
+      const report = await runPluginConformance(
+        spec({
+          root: dir,
+          frameworkProviders: [() => ({ name: "@other/plugin", setup() {} })],
+        }),
+      );
+      const findings = findingsWithCode(report, ConformanceErrorCodes.INVALID_SPEC);
+      expect(findings).toHaveLength(1);
+      expect(findings[0]?.message).toContain("@other/plugin");
+      expect(report.checks).toEqual([]);
+    });
+  });
 });
