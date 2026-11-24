@@ -8,8 +8,8 @@
  */
 
 import type { Plugin } from "vite";
-import { PhysicsQueryWalker } from "../optimizer/physics-walker.js";
-import type { PhysicsMethod } from "../optimizer/physics-walker.js";
+import { PhysicsQueryWalker } from "./physics3d-walker.js";
+import type { PhysicsMethod } from "./physics3d-walker.js";
 
 // ─── Options ─────────────────────────────────────────────────────────────────
 
