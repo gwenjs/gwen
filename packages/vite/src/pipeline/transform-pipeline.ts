@@ -129,10 +129,17 @@ export function createTransformPipeline(options: {
         );
       }
       let seen: GwenSourceTransform | undefined;
-      for (const existing of registered) {
+      for (const existing of builtIns) {
         if (existing.name !== unit.name) continue;
         seen = existing;
         break;
+      }
+      if (seen === undefined) {
+        for (const existing of registered) {
+          if (existing.name !== unit.name) continue;
+          seen = existing;
+          break;
+        }
       }
       if (seen !== undefined && seen !== unit) {
         throw new GwenError(

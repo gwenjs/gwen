@@ -242,7 +242,7 @@ Cause. Deux unités éditent des plages qui se chevauchent dans un module. Le me
 
 ### VITE:TRANSFORM_UNSUPPORTED {#vite-transform-unsupported}
 
-Cause. Trois sites de levée. `register()` a été appelé après le `buildStart` de `gwen:transform-pipeline`. `useActor(Y)` dans un factory d'acteur, quand `Y` n'est pas une liaison de portée module, ou quand `Y` est un `const`, un `let`, un `var` ou une `class` déclaré après cet acteur. Un `await` imbriqué dans l'argument d'un `await` de `onEnter`, `onExit` ou `withAsyncContext`. Fix. Appelez `register()` depuis un hook `config`, ou depuis le `configResolved` d'un plugin `enforce: "pre"` listé avant `gwen()`. Déclarez `Y` à la portée du module, avant l'acteur, ou passez-le par les arguments du factory. Assignez d'abord l'await intérieur à un const.
+Cause. Quatre sites de levée. `register()` a été appelé après le `buildStart` de `gwen:transform-pipeline`. `register()` a été appelé avec une unité différente sous un nom déjà pris. Le message est `register() was called with a different unit named …`. `useActor(Y)` dans un factory d'acteur, quand `Y` n'est pas une liaison de portée module, ou quand `Y` est un `const`, un `let`, un `var` ou une `class` déclaré après cet acteur. Un `await` imbriqué dans l'argument d'un `await` de `onEnter`, `onExit` ou `withAsyncContext`. Fix. `register()` est accepté jusqu'au `buildStart`, par exemple depuis le `configResolved` de n'importe quel plugin. Enregistrez un seul objet d'unité par nom. Déclarez `Y` à la portée du module, avant l'acteur, ou passez-le par les arguments du factory. Assignez d'abord l'await intérieur à un const.
 
 ### VITE:BVH_PREBAKE_FAILED {#vite-bvh-prebake-failed}
 
@@ -330,7 +330,7 @@ Cause. Un delta de pas n'est pas fini ou sort de 0 à 1. Fix. Restez dans cet in
 
 ### PHYSICS2D:VITE_PIPELINE_MISSING {#physics2d-vite-pipeline-missing}
 
-Cause. La config Vite n'a pas gwen:transform-pipeline. Fix. Ajoutez gwen() de @gwenjs/vite avant le plugin physique.
+Cause. La config Vite n'a pas gwen:transform-pipeline. Fix. Ajoutez gwen() de @gwenjs/vite à la config Vite.
 
 ## @gwenjs/physics3d
 
@@ -464,7 +464,7 @@ Cause. Un delta de pas n'est pas fini ou sort de 0 à 1. Fix. Restez dans cet in
 
 ### PHYSICS3D:VITE_PIPELINE_MISSING {#physics3d-vite-pipeline-missing}
 
-Cause. La config Vite n'a pas gwen:transform-pipeline. Fix. Ajoutez gwen() de @gwenjs/vite avant le plugin physique.
+Cause. La config Vite n'a pas gwen:transform-pipeline. Fix. Ajoutez gwen() de @gwenjs/vite à la config Vite.
 
 ## @gwenjs/renderer-core
 

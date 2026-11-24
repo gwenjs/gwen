@@ -163,7 +163,7 @@ export default defineConfig({
 
 ### Utilisation manuelle
 
-`gwen()` doit précéder le plugin physique, pour que `gwen:transform-pipeline` soit dans la config Vite. Sinon, le plugin lève `PHYSICS2D:VITE_PIPELINE_MISSING`.
+`gwen()` doit être dans la config Vite, pour que `gwen:transform-pipeline` y figure. Sinon, le plugin lève `PHYSICS2D:VITE_PIPELINE_MISSING`.
 
 ```ts
 // vite.config.ts
@@ -182,7 +182,7 @@ export default defineConfig({
 
 Plugin Vite de build pour le support de la physique 3D. Fournit deux fonctionnalités :
 
-1. **Inlining des layers** — l'unité `gwen:layer-inline`, enregistrée sur `gwen:transform-pipeline`. Les références de layers nommés deviennent leurs valeurs numériques. L'usage manuel exige `gwen()` avant ce plugin.
+1. **Inlining des layers** — l'unité `gwen:layer-inline`, enregistrée sur `gwen:transform-pipeline`. Les références de layers nommés deviennent leurs valeurs numériques. L'usage manuel exige que `gwen()` soit dans la config Vite.
 2. **Pré-baking BVH** — lorsque `bvhPrebake: true`, détecte les patterns d'appel `useMeshCollider('./file.glb')` et pré-compile la structure d'accélération BVH au moment du build. L'argument chaîne est remplacé par `{ __bvhUrl: 'bvh-<hash>.bin' }`, de sorte que le calcul BVH coûteux est effectué une seule fois lors du build plutôt qu'à l'exécution.
 
 :::tip Enregistrement automatique
@@ -217,7 +217,7 @@ export default defineConfig({
 })
 ```
 
-`gwen()` doit précéder le plugin physique. Sans `gwen:transform-pipeline`, le plugin lève `PHYSICS3D:VITE_PIPELINE_MISSING`.
+`gwen()` doit être dans la config Vite. Sans `gwen:transform-pipeline`, le plugin lève `PHYSICS3D:VITE_PIPELINE_MISSING`.
 
 ### Options
 

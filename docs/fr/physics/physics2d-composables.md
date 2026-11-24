@@ -37,7 +37,7 @@ export default defineConfig({
 | `debug` | `boolean` | `false` | Activer le renderer de débogage |
 
 :::tip Intégration des couches
-`gwen:physics2d` enregistre l'unité `gwen:layer-inline` sur le pipeline de transformation. Une config Vite manuelle exige `gwen()` avant le plugin physique.
+`gwen:physics2d` enregistre l'unité `gwen:layer-inline` sur le pipeline de transformation. Une config Vite manuelle exige `gwen()` dans la config Vite.
 :::
 
 ## Comportement Rapier 0.36

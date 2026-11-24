@@ -2,7 +2,7 @@
  * @file gwen:physics2d — registers `gwen:layer-inline` on the transform pipeline.
  *
  * Registered automatically via physics2d module.ts.
- * A manual Vite config must place `gwen()` from `@gwenjs/vite` before this plugin.
+ * `gwen()` must be in the Vite config.
  */
 
 import type { Plugin } from "vite";

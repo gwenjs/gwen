@@ -503,7 +503,7 @@ function physics2dVitePlugin(options?: Physics2DVitePluginOptions): VitePlugin
 // import { physics2dVitePlugin } from '@gwenjs/physics2d/module'
 ```
 
-**Description.** Registers the `gwen:layer-inline` unit on `gwen:transform-pipeline`. Auto-registered when the physics2d module is used. A manual Vite config needs `gwen()` from `@gwenjs/vite` before this plugin. `Physics2DVitePluginOptions` is empty.
+**Description.** Registers the `gwen:layer-inline` unit on `gwen:transform-pipeline`. Auto-registered when the physics2d module is used. A manual Vite config needs `gwen()` from `@gwenjs/vite` in the Vite config. `Physics2DVitePluginOptions` is empty.
 
 **Parameters:**
 | Param | Type | Description |

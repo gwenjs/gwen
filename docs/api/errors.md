@@ -242,7 +242,7 @@ Cause. Two units edit overlapping ranges in one module. The message names both u
 
 ### VITE:TRANSFORM_UNSUPPORTED {#vite-transform-unsupported}
 
-Cause. Thrown from three sites. `register()` was called after `gwen:transform-pipeline`'s `buildStart`. `useActor(Y)` inside an actor factory, when `Y` is not a module-scope binding or when `Y` is a `const`, `let`, `var`, or `class` declared after that actor. A nested `await` inside an await argument of `onEnter`, `onExit`, or `withAsyncContext`. Fix. Call `register()` from a `config` hook, or from `configResolved` of an `enforce: "pre"` plugin listed before `gwen()`. Declare `Y` at module scope, before the actor, or pass it through the factory arguments. Assign the inner await to a const first.
+Cause. Thrown from four sites. `register()` was called after `gwen:transform-pipeline`'s `buildStart`. `register()` was called with a different unit under a taken name. The message is `register() was called with a different unit named …`. `useActor(Y)` inside an actor factory, when `Y` is not a module-scope binding or when `Y` is a `const`, `let`, `var`, or `class` declared after that actor. A nested `await` inside an await argument of `onEnter`, `onExit`, or `withAsyncContext`. Fix. `register()` is accepted until `buildStart`, for example from any plugin's `configResolved`. Register one unit object per name. Declare `Y` at module scope, before the actor, or pass it through the factory arguments. Assign the inner await to a const first.
 
 ### VITE:BVH_PREBAKE_FAILED {#vite-bvh-prebake-failed}
 
@@ -330,7 +330,7 @@ Cause. A step delta is not finite or is outside 0 to 1. Fix. Pass a delta in tha
 
 ### PHYSICS2D:VITE_PIPELINE_MISSING {#physics2d-vite-pipeline-missing}
 
-Cause. The Vite config has no gwen:transform-pipeline. Fix. Add gwen() from @gwenjs/vite before the physics plugin.
+Cause. The Vite config has no gwen:transform-pipeline. Fix. Add gwen() from @gwenjs/vite to the Vite config.
 
 ## @gwenjs/physics3d
 
@@ -464,7 +464,7 @@ Cause. A step delta is not finite or is outside 0 to 1. Fix. Pass a delta in tha
 
 ### PHYSICS3D:VITE_PIPELINE_MISSING {#physics3d-vite-pipeline-missing}
 
-Cause. The Vite config has no gwen:transform-pipeline. Fix. Add gwen() from @gwenjs/vite before the physics plugin.
+Cause. The Vite config has no gwen:transform-pipeline. Fix. Add gwen() from @gwenjs/vite to the Vite config.
 
 ## @gwenjs/renderer-core
 
