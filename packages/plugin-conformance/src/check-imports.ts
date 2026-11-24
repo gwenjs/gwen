@@ -3,6 +3,7 @@ import { ConformanceErrorCodes } from "./error-codes.js";
 import { readExtensionManifest } from "./extension-manifest.js";
 import { FRAMEWORK_ENTRIES, FRAMEWORK_TEST_ONLY_ENTRIES } from "./framework-entries.generated.js";
 import { FRAMEWORK_PACKAGES } from "./framework-packages.js";
+import { resolveInstalledPackage } from "./installed-package.js";
 import { scanImports } from "./import-sources.js";
 import type { ImportSite } from "./import-sources.js";
 import { isRecord } from "./json.js";
@@ -13,7 +14,6 @@ import {
   listTestFiles,
   parseSource,
   readSourceText,
-  readTextIfPresent,
 } from "./source-files.js";
 import type { SourceFile } from "./source-files.js";
 import type { ConformanceFinding } from "./types.js";
@@ -102,32 +102,13 @@ function isPluginManifest(manifest: unknown): boolean {
   );
 }
 
-type InstalledManifest =
-  | { readonly kind: "found"; readonly manifest: unknown }
-  | { readonly kind: "missing" };
-
-async function readInstalled(directory: string, pkg: string): Promise<InstalledManifest> {
-  const text = await readTextIfPresent(path.join(directory, "node_modules", pkg, "package.json"));
-  if (text === undefined) return { kind: "missing" };
-  try {
-    const manifest: unknown = JSON.parse(text);
-    return { kind: "found", manifest };
-  } catch {
-    // A package.json that cannot be parsed is ignored.
-    return { kind: "found", manifest: undefined };
-  }
-}
-
-/** Whether `pkg`, as Node resolves it from `root` (its `node_modules` and its ancestors'), is a plugin. */
+/**
+ * Whether `pkg`, as Node resolves it from `root` (its `node_modules` and its ancestors'), is a plugin.
+ * An unparsed `package.json` is not a plugin.
+ */
 async function isInstalledPlugin(root: string, pkg: string): Promise<boolean> {
-  let directory = path.resolve(root);
-  for (;;) {
-    const installed = await readInstalled(directory, pkg);
-    if (installed.kind === "found") return isPluginManifest(installed.manifest);
-    const parent = path.dirname(directory);
-    if (parent === directory) return false;
-    directory = parent;
-  }
+  const installed = await resolveInstalledPackage(root, pkg);
+  return installed.kind === "found" && isPluginManifest(installed.manifest);
 }
 
 function finding(

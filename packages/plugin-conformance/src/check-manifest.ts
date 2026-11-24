@@ -1,9 +1,10 @@
 import { stat } from "node:fs/promises";
 import path from "node:path";
 import { ConformanceErrorCodes } from "./error-codes.js";
-import type { ExtensionListing, ExtensionProblem } from "./extension-manifest.js";
+import type { ExtensionBase, ExtensionListing, ExtensionProblem } from "./extension-manifest.js";
 import { readExtensionManifest } from "./extension-manifest.js";
 import { FRAMEWORK_PACKAGES } from "./framework-packages.js";
+import { installedHookNamespace, resolveInstalledPackage } from "./installed-package.js";
 import { isRecord } from "./json.js";
 import { manifestFinding } from "./manifest-finding.js";
 import type { PackageContext } from "./package-context.js";
@@ -69,7 +70,93 @@ export async function checkManifest(
   if (isOfficial(read.name) && read.bases.length > 0) {
     findings.push(extensionOfficialFinding(read));
   }
+  for (const base of read.bases) {
+    for (const item of await baseExtensibleFindings(context.root, base)) {
+      findings.push(item);
+    }
+  }
   return findings;
+}
+
+/**
+ * One `BASE_NOT_EXTENSIBLE` per problem of a validated base.
+ * A base that is absent or whose `package.json` cannot be parsed stops there.
+ * A framework package name is checked the same way as any other base.
+ */
+async function baseExtensibleFindings(
+  root: string,
+  base: ExtensionBase,
+): Promise<readonly ConformanceFinding[]> {
+  const installed = await resolveInstalledPackage(root, base.name);
+  if (installed.kind === "absent") {
+    return [baseNotExtensible(base, unresolvedMessage(base.name), unresolvedHint(base.name))];
+  }
+  if (installed.kind === "unparsed") {
+    return [baseNotExtensible(base, unparsedMessage(base.name), unparsedHint(base.name))];
+  }
+  const findings: ConformanceFinding[] = [];
+  if (!hasExtensionExport(installed.manifest)) {
+    findings.push(
+      baseNotExtensible(base, noExtensionMessage(base.name), noExtensionHint(base.name)),
+    );
+  }
+  if (installedHookNamespace(installed.manifest) === undefined) {
+    findings.push(
+      baseNotExtensible(base, noNamespaceMessage(base.name), noNamespaceHint(base.name)),
+    );
+  }
+  return findings;
+}
+
+function unresolvedMessage(name: string): string {
+  return `base "${name}" cannot be resolved from node_modules`;
+}
+
+function unparsedMessage(name: string): string {
+  return `base "${name}" has a package.json that cannot be parsed`;
+}
+
+function noExtensionMessage(name: string): string {
+  return `base "${name}" has no "./extension" export`;
+}
+
+function noNamespaceMessage(name: string): string {
+  return `base "${name}" has no gwen.hookNamespace`;
+}
+
+function unresolvedHint(name: string): string {
+  return `Install "${name}" in node_modules of this package or of an ancestor.`;
+}
+
+function unparsedHint(name: string): string {
+  return `Fix the JSON syntax of the installed package.json of "${name}".`;
+}
+
+function noExtensionHint(name: string): string {
+  return `Add an "./extension" entry to the exports of "${name}": a string or a condition object.`;
+}
+
+function noNamespaceHint(name: string): string {
+  return `Set gwen.hookNamespace on "${name}".`;
+}
+
+/** `exports["./extension"]` is present when it is a string or a condition object. */
+function hasExtensionExport(manifest: unknown): boolean {
+  if (!isRecord(manifest)) return false;
+  const exportsField = manifest.exports;
+  if (!isRecord(exportsField)) return false;
+  const entry = exportsField["./extension"];
+  return typeof entry === "string" || isRecord(entry);
+}
+
+function baseNotExtensible(base: ExtensionBase, message: string, hint: string): ConformanceFinding {
+  return {
+    code: ConformanceErrorCodes.BASE_NOT_EXTENSIBLE,
+    message,
+    hint,
+    file: "package.json",
+    line: base.line,
+  };
 }
 
 function extendsProblemFinding(problem: ExtensionProblem): ConformanceFinding {

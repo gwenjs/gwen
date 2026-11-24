@@ -1,6 +1,8 @@
 import { GWEN_FRAMEWORK_HOOK_NAMESPACES, GWEN_RESERVED_HOOK_NAMESPACES } from "@gwenjs/schema";
 import { ConformanceErrorCodes } from "./error-codes.js";
+import { readExtensionManifest } from "./extension-manifest.js";
 import { scanHookSources } from "./hook-sources.js";
+import { installedHookNamespace, resolveInstalledPackage } from "./installed-package.js";
 import { isRecord } from "./json.js";
 import type { PackageContext } from "./package-context.js";
 import type { ConformanceFinding } from "./types.js";
@@ -93,6 +95,8 @@ function namespaceFinding(message: string, hint: string): ConformanceFinding {
  * Hook rules: the `gwen.hookNamespace` value, every declared name inside that namespace,
  * and every emit site (`emit`, `callHook`, `callHookParallel`, `callHookWith`) on a declared,
  * owned name. An alias of an emit method is not an emit site.
+ * A valid namespace that equals the `gwen.hookNamespace` of a listed, installed, parseable base
+ * is `HOOK_NAMESPACE_INVALID` on `package.json` line 1. The message names both.
  */
 export async function checkHooks(context: PackageContext): Promise<readonly ConformanceFinding[]> {
   const pkg = packageName(context.manifest);
@@ -110,6 +114,23 @@ export async function checkHooks(context: PackageContext): Promise<readonly Conf
         'Set gwen.hookNamespace in package.json, for example "myplug".',
       ),
     );
+  }
+  if (namespace.kind === "valid") {
+    const listing = readExtensionManifest(context);
+    for (const base of listing.bases) {
+      const installed = await resolveInstalledPackage(context.root, base.name);
+      if (installed.kind !== "found") continue;
+      const baseNamespace = installedHookNamespace(installed.manifest);
+      if (baseNamespace === undefined) continue;
+      if (baseNamespace === namespace.value) {
+        findings.push(
+          namespaceFinding(
+            `gwen.hookNamespace "${namespace.value}" is the hookNamespace of base "${base.name}"`,
+            `Pick a gwen.hookNamespace other than the hookNamespace of "${base.name}".`,
+          ),
+        );
+      }
+    }
   }
   const prefix = namespace.kind === "valid" ? `${namespace.value}:` : undefined;
   const declared = new Set(sources.declarations.map((declaration) => declaration.name));
