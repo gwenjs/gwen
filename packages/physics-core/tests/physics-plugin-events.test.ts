@@ -66,6 +66,7 @@ interface PackedFrame {
 
 interface SensorRead {
   read(entityId: bigint, sensorId: number): SensorState;
+  update?(entityId: bigint, sensorId: number, started: boolean): void;
 }
 
 interface Harness {
@@ -676,4 +677,86 @@ it("a rejected physics:sensor:changed handler is reported, not thrown", async ()
   expect(hit?.code).toBe("CORE:PLUGIN_RUNTIME_ERROR");
   expect(hit?.message).toBe("sensor hook failed");
   expect(hit?.source).toBe("reject-sensor-plugin");
+});
+
+it("a callback that removes an entity's callbacks mid-frame still delivers the contact to the next listener", async () => {
+  const engine = await openEngine();
+  const box = harness(LAYOUT_16);
+  await usePlugin(engine, "remove-mid-frame", box);
+  const entityE = engine.createEntity();
+  const other = engine.createEntity();
+  box.owners.set(1, entityE);
+  box.owners.set(2, other);
+  const registry = api.createContactRegistry().get(engine);
+  expect(typeof registry.removeEntity).toBe("function");
+  if (typeof registry.removeEntity !== "function") return;
+  const order: string[] = [];
+  await engine.run(() => {
+    api.onContact(() => {
+      order.push("a");
+      registry.removeEntity(entityE);
+    }, entityE);
+    api.onContact(() => {
+      order.push("b");
+    }, entityE);
+  });
+  box.frames.push(frame16([[1, 2, 7, 8, true]]));
+  await update(engine);
+  expect(order).toEqual(["a", "b"]);
+  expect(registry.entries.length).toBe(0);
+});
+
+it("a manual sensor update is read back and forgotten with the entity", async () => {
+  const engine = await openEngine();
+  const box = harness(LAYOUT_16);
+  let tracker: SensorRead | undefined;
+  await usePlugin(engine, "manual-sensor", box, (sensors) => {
+    tracker = sensors;
+  });
+  const sensors = tracker;
+  const updateSensor = sensors?.update;
+  expect(typeof updateSensor).toBe("function");
+  if (typeof updateSensor !== "function" || sensors === undefined) return;
+  const entity = engine.createEntity();
+  updateSensor(entity, 8, false);
+  expect(sensors.read(entity, 8)).toEqual({ contactCount: 0, isActive: false });
+  updateSensor(entity, 4, true);
+  expect(sensors.read(entity, 4)).toEqual({ contactCount: 1, isActive: true });
+  updateSensor(entity, 4, true);
+  expect(sensors.read(entity, 4)).toEqual({ contactCount: 2, isActive: true });
+  updateSensor(entity, 4, false);
+  expect(sensors.read(entity, 4)).toEqual({ contactCount: 1, isActive: true });
+  await engine.hooks.callHook("entity:destroy", entity);
+  expect(sensors.read(entity, 4)).toEqual({ contactCount: 0, isActive: false });
+});
+
+it("a manual sensor update and the dispatch share one count", async () => {
+  const engine = await openEngine();
+  const box = harness(LAYOUT_16);
+  let tracker: SensorRead | undefined;
+  await usePlugin(engine, "shared-count", box, (sensors) => {
+    tracker = sensors;
+  });
+  const sensors = tracker;
+  const updateSensor = sensors?.update;
+  expect(typeof updateSensor).toBe("function");
+  if (typeof updateSensor !== "function" || sensors === undefined) return;
+  const entityA = engine.createEntity();
+  const entityB = engine.createEntity();
+  box.owners.set(1, entityA);
+  box.owners.set(2, entityB);
+  box.sensors.set(1, 4);
+  const entered: bigint[] = [];
+  await engine.run(() => {
+    api.onSensorEnter(4, (entityId) => {
+      entered.push(entityId);
+    });
+    updateSensor(entityA, 4, true);
+  });
+  expect(entered).toEqual([]);
+  expect(sensors.read(entityA, 4)).toEqual({ contactCount: 1, isActive: true });
+  box.frames.push(frame16([[1, 2, 4, 1, true]]));
+  await update(engine);
+  expect(sensors.read(entityA, 4)).toEqual({ contactCount: 2, isActive: true });
+  expect(entered).toEqual([]);
 });

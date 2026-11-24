@@ -15,6 +15,14 @@ afterEach(async () => {
   for (const engine of pending) await engine.stop();
 });
 
+function contactPair(entity: bigint): {
+  entityA: bigint;
+  entityB: bigint;
+  started: boolean;
+} {
+  return { entityA: entity, entityB: entity, started: true };
+}
+
 describe("contact and sensor registries", () => {
   it("two engines are isolated", async () => {
     expect(typeof api.createContactRegistry).toBe("function");
@@ -197,5 +205,335 @@ describe("contact and sensor registries", () => {
     expect(caught).toBeInstanceOf(GwenContextError);
     if (!(caught instanceof GwenContextError)) return;
     expect(caught.code).toBe("CORE:OUTSIDE_ENGINE_CONTEXT");
+  });
+
+  it("a contact callback that unsubscribes itself during emit does not skip the next callback", async () => {
+    expect(typeof api.onContact).toBe("function");
+    const engine = await createEngine({ maxEntities: 8 });
+    engines.push(engine);
+    const entity = engine.createEntity();
+    const registry = api.createContactRegistry().get(engine);
+    registry.emit(contactPair(entity));
+    expect(registry.entries.length).toBe(0);
+    const order: string[] = [];
+    let dropFirst: () => void = () => undefined;
+    await engine.run(() => {
+      dropFirst = api.onContact(() => {
+        order.push("a");
+        dropFirst();
+      });
+      api.onContact(() => {
+        order.push("b");
+      });
+    });
+    registry.emit(contactPair(entity));
+    expect(order).toEqual(["a", "b"]);
+    registry.emit(contactPair(entity));
+    expect(order).toEqual(["a", "b", "b"]);
+    api.clearEngineContacts(engine);
+    let alone = 0;
+    let dropAlone: () => void = () => undefined;
+    await engine.run(() => {
+      dropAlone = api.onContact(() => {
+        alone += 1;
+        dropAlone();
+      });
+    });
+    registry.emit(contactPair(entity));
+    expect(alone).toBe(1);
+    expect(registry.entries.length).toBe(0);
+  });
+
+  it("a contact callback that removes the next callback during emit still lets it run for that contact", async () => {
+    expect(typeof api.onContact).toBe("function");
+    const engine = await createEngine({ maxEntities: 8 });
+    engines.push(engine);
+    const entity = engine.createEntity();
+    const registry = api.createContactRegistry().get(engine);
+    const order: string[] = [];
+    let dropNext: () => void = () => undefined;
+    await engine.run(() => {
+      api.onContact(() => {
+        order.push("a");
+        dropNext();
+      });
+      dropNext = api.onContact(() => {
+        order.push("b");
+      });
+    });
+    registry.emit(contactPair(entity));
+    expect(order).toEqual(["a", "b"]);
+    registry.emit(contactPair(entity));
+    expect(order).toEqual(["a", "b", "a"]);
+  });
+
+  it("removeEntity during a contact emit keeps the entry until the walk ends", async () => {
+    expect(typeof api.createContactRegistry).toBe("function");
+    const engine = await createEngine({ maxEntities: 8 });
+    engines.push(engine);
+    const dropped = 2n;
+    const kept = 3n;
+    const registry = api.createContactRegistry().get(engine);
+    expect(typeof registry.removeEntity).toBe("function");
+    if (typeof registry.removeEntity !== "function") return;
+    registry.emit(contactPair(dropped));
+    expect(registry.entries.length).toBe(0);
+    let lengthDuring = -1;
+    let second = 0;
+    await engine.run(() => {
+      api.onContact(() => {
+        registry.removeEntity(dropped);
+        lengthDuring = registry.entries.length;
+      });
+      api.onContact(() => {
+        second += 1;
+      }, dropped);
+      api.onContact(() => undefined, kept);
+    });
+    registry.emit(contactPair(dropped));
+    expect(lengthDuring).toBe(3);
+    expect(second).toBe(1);
+    expect(registry.entries.filter((entry) => entry.entityId === dropped).length).toBe(0);
+    expect(registry.entries.filter((entry) => entry.entityId === kept).length).toBe(1);
+    registry.emit(contactPair(dropped));
+    expect(second).toBe(1);
+  });
+
+  it("a throwing contact callback still applies the queued removals", async () => {
+    expect(typeof api.onContact).toBe("function");
+    const engine = await createEngine({ maxEntities: 8 });
+    engines.push(engine);
+    const entity = engine.createEntity();
+    const registry = api.createContactRegistry().get(engine);
+    const order: string[] = [];
+    let dropSecond: () => void = () => undefined;
+    await engine.run(() => {
+      api.onContact(() => {
+        order.push("first");
+        dropSecond();
+      });
+      dropSecond = api.onContact(() => {
+        order.push("second");
+        throw new Error("contact boom");
+      });
+    });
+    let thrown: unknown;
+    try {
+      registry.emit(contactPair(entity));
+    } catch (error) {
+      thrown = error;
+    }
+    expect(order).toEqual(["first", "second"]);
+    expect(thrown).toBeInstanceOf(Error);
+    expect(registry.entries.length).toBe(1);
+    registry.emit(contactPair(entity));
+    expect(order).toEqual(["first", "second", "first"]);
+  });
+
+  it("removal outside an emit is immediate", async () => {
+    expect(typeof api.onContact).toBe("function");
+    const engine = await createEngine({ maxEntities: 8 });
+    engines.push(engine);
+    const registry = api.createContactRegistry().get(engine);
+    expect(typeof registry.removeEntity).toBe("function");
+    if (typeof registry.removeEntity !== "function") return;
+    let calls = 0;
+    let drop: () => void = () => undefined;
+    await engine.run(() => {
+      drop = api.onContact(() => {
+        calls += 1;
+      });
+    });
+    expect(registry.entries.length).toBe(1);
+    drop();
+    expect(registry.entries.length).toBe(0);
+    registry.emit(contactPair(1n));
+    expect(calls).toBe(0);
+    const entity = 4n;
+    await engine.run(() => {
+      api.onContact(() => undefined, entity);
+    });
+    expect(registry.entries.length).toBe(1);
+    registry.removeEntity(entity);
+    expect(registry.entries.length).toBe(0);
+    registry.removeEntity(entity);
+    expect(registry.entries.length).toBe(0);
+  });
+
+  it("removal on one engine never touches another engine", async () => {
+    expect(typeof api.onContact).toBe("function");
+    const engineA = await createEngine({ maxEntities: 8 });
+    const engineB = await createEngine({ maxEntities: 8 });
+    engines.push(engineA, engineB);
+    const shared = 5n;
+    let aCount = 0;
+    let bCount = 0;
+    await engineA.run(() => {
+      api.onContact(() => {
+        aCount += 1;
+      }, shared);
+    });
+    await engineB.run(() => {
+      api.onContact(() => {
+        bCount += 1;
+      }, shared);
+    });
+    const registryA = api.createContactRegistry().get(engineA);
+    const registryB = api.createContactRegistry().get(engineB);
+    expect(typeof registryA.removeEntity).toBe("function");
+    if (typeof registryA.removeEntity !== "function") return;
+    registryA.removeEntity(shared);
+    registryA.emit(contactPair(shared));
+    registryB.emit(contactPair(shared));
+    expect(aCount).toBe(0);
+    expect(bCount).toBe(1);
+    expect(registryB.entries.length).toBe(1);
+  });
+
+  it("a removal queued during a nested contact emit waits for the outermost emit", async () => {
+    expect(typeof api.createContactRegistry).toBe("function");
+    const engine = await createEngine({ maxEntities: 8 });
+    engines.push(engine);
+    const registry = api.createContactRegistry().get(engine);
+    expect(typeof registry.removeEntity).toBe("function");
+    if (typeof registry.removeEntity !== "function") return;
+    const watched = engine.createEntity();
+    let nested = false;
+    let nextCalls = 0;
+    await engine.run(() => {
+      api.onContact(() => {
+        if (!nested) {
+          nested = true;
+          registry.emit(contactPair(watched));
+          return;
+        }
+        registry.removeEntity(watched);
+      });
+      api.onContact(() => {
+        nextCalls += 1;
+      }, watched);
+    });
+    registry.emit(contactPair(watched));
+    expect(nextCalls).toBe(2);
+    registry.emit(contactPair(watched));
+    expect(nextCalls).toBe(2);
+  });
+
+  it("a removal queued during a nested sensor emit waits for the outermost emit", async () => {
+    expect(typeof api.createSensorRegistry).toBe("function");
+    const engine = await createEngine({ maxEntities: 8 });
+    engines.push(engine);
+    const registry = api.createSensorRegistry().get(engine);
+    expect(typeof registry.remove).toBe("function");
+    if (typeof registry.remove !== "function") return;
+    const entity = engine.createEntity();
+    let nested = false;
+    let nextCalls = 0;
+    const tracked = (entityId: bigint): void => {
+      if (entityId === entity) nextCalls += 1;
+    };
+    await engine.run(() => {
+      api.onSensorEnter(4, () => {
+        if (!nested) {
+          nested = true;
+          registry.emit(4, entity, "enter");
+          return;
+        }
+        registry.remove([tracked]);
+      });
+      api.onSensorEnter(4, tracked);
+    });
+    registry.emit(4, entity, "enter");
+    expect(nextCalls).toBe(2);
+    registry.emit(4, entity, "enter");
+    expect(nextCalls).toBe(2);
+  });
+
+  it("a sensor callback that unsubscribes itself during emit does not skip the next callback", async () => {
+    expect(typeof api.onSensorEnter).toBe("function");
+    const engine = await createEngine({ maxEntities: 8 });
+    engines.push(engine);
+    const entity = engine.createEntity();
+    const registry = api.createSensorRegistry().get(engine);
+    registry.emit(4, entity, "enter");
+    expect(registry.entries.length).toBe(0);
+    const order: string[] = [];
+    let dropFirst: () => void = () => undefined;
+    await engine.run(() => {
+      dropFirst = api.onSensorEnter(4, () => {
+        order.push("a");
+        dropFirst();
+      });
+      api.onSensorEnter(4, () => {
+        order.push("b");
+      });
+    });
+    registry.emit(4, entity, "enter");
+    expect(order).toEqual(["a", "b"]);
+    registry.emit(4, entity, "enter");
+    expect(order).toEqual(["a", "b", "b"]);
+  });
+
+  it("remove() during a sensor emit keeps the entry until the walk ends", async () => {
+    expect(typeof api.onSensorEnter).toBe("function");
+    const engine = await createEngine({ maxEntities: 8 });
+    engines.push(engine);
+    const entity = engine.createEntity();
+    const registry = api.createSensorRegistry().get(engine);
+    expect(typeof registry.remove).toBe("function");
+    if (typeof registry.remove !== "function") return;
+    registry.emit(4, entity, "enter");
+    expect(registry.entries.length).toBe(0);
+    const seen: bigint[] = [];
+    const tracked = (entityId: bigint): void => {
+      seen.push(entityId);
+    };
+    let lengthDuring = -1;
+    await engine.run(() => {
+      api.onSensorEnter(4, () => {
+        registry.remove([tracked]);
+        lengthDuring = registry.entries.length;
+      });
+      api.onSensorEnter(4, tracked);
+    });
+    registry.emit(4, entity, "enter");
+    expect(lengthDuring).toBe(2);
+    expect(seen).toEqual([entity]);
+    registry.remove([]);
+    expect(registry.entries.length).toBe(1);
+    registry.emit(4, entity, "enter");
+    expect(seen).toEqual([entity]);
+    expect(registry.entries.length).toBe(1);
+  });
+
+  it("a throwing sensor callback still applies the queued removals", async () => {
+    expect(typeof api.onSensorEnter).toBe("function");
+    const engine = await createEngine({ maxEntities: 8 });
+    engines.push(engine);
+    const entity = engine.createEntity();
+    const registry = api.createSensorRegistry().get(engine);
+    const order: string[] = [];
+    let dropSecond: () => void = () => undefined;
+    await engine.run(() => {
+      api.onSensorEnter(4, () => {
+        order.push("first");
+        dropSecond();
+      });
+      dropSecond = api.onSensorEnter(4, () => {
+        order.push("second");
+        throw new Error("sensor boom");
+      });
+    });
+    let thrown: unknown;
+    try {
+      registry.emit(4, entity, "enter");
+    } catch (error) {
+      thrown = error;
+    }
+    expect(order).toEqual(["first", "second"]);
+    expect(thrown).toBeInstanceOf(Error);
+    expect(registry.entries.length).toBe(1);
+    registry.emit(4, entity, "enter");
+    expect(order).toEqual(["first", "second", "first"]);
   });
 });
