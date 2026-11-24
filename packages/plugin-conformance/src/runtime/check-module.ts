@@ -71,8 +71,25 @@ function recordingKit(recorded: unknown[]): GwenKit {
  * A function value is the instance case (`packages/app/src/app.ts:357`).
  * `src` and `export` are checked only after that (`packages/app/src/app.ts:433`).
  */
-function sameJson(left: unknown, right: unknown): boolean {
-  return JSON.stringify(left) === JSON.stringify(right);
+/** Deep equality. Object key order does not count. */
+function sameValue(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) return true;
+  if (Array.isArray(left) || Array.isArray(right)) {
+    if (!Array.isArray(left) || !Array.isArray(right)) return false;
+    if (left.length !== right.length) return false;
+    for (let index = 0; index < left.length; index += 1) {
+      if (!sameValue(left[index], right[index])) return false;
+    }
+    return true;
+  }
+  if (!isRecord(left) || !isRecord(right)) return false;
+  const leftKeys = Object.keys(left);
+  if (leftKeys.length !== Object.keys(right).length) return false;
+  for (const key of leftKeys) {
+    if (!Object.hasOwn(right, key)) return false;
+    if (!sameValue(left[key], right[key])) return false;
+  }
+  return true;
 }
 
 /** The factory named by `export`, when that export is one plugin instance. */
@@ -120,7 +137,7 @@ function declarationRequiresProblem(
   if (!Object.hasOwn(value, "requires")) return undefined;
   const plugin = instancePlugin(value, spec, entry);
   if (plugin === undefined) return undefined;
-  if (sameJson(value.requires, plugin.requires)) return undefined;
+  if (sameValue(value.requires, plugin.requires)) return undefined;
   return `module ${JSON.stringify(spec.packageName)} declaration requires ${JSON.stringify(value.requires)} differs from the instance ${JSON.stringify(plugin.requires)}`;
 }
 

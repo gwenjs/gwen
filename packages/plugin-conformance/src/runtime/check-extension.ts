@@ -138,16 +138,7 @@ function declaredApi(
 }
 
 function copyWithApi(plugin: GwenPlugin, major: number, minor: number): GwenPlugin {
-  return {
-    name: plugin.name,
-    setup: plugin.setup,
-    extensionApi: { major, minor },
-    ...(plugin.requires !== undefined ? { requires: plugin.requires } : {}),
-    ...(plugin.provides !== undefined ? { provides: plugin.provides } : {}),
-    ...(plugin.teardown !== undefined ? { teardown: plugin.teardown } : {}),
-    ...(plugin.onError !== undefined ? { onError: plugin.onError } : {}),
-    ...(plugin.validateOptions !== undefined ? { validateOptions: plugin.validateOptions } : {}),
-  };
+  return { ...plugin, extensionApi: { major, minor } };
 }
 
 /** Fixture keys are plain strings. The service registry type does not list them. */
@@ -294,8 +285,21 @@ async function checkRx3(
     } catch {
       return [];
     }
-    await open.engine.unuse(plugin.name);
     const findings: ConformanceFinding[] = [];
+    const unuseFrom = open.events.length;
+    try {
+      await open.engine.unuse(plugin.name);
+    } catch (error: unknown) {
+      findings.push(rx(`RX3 plugin "${plugin.name}" unuse threw: ${thrownMessage(error)}`));
+    }
+    if (findings.length === 0) {
+      for (const event of open.events.slice(unuseFrom)) {
+        if (event.level !== "warning" && event.level !== "error" && event.level !== "fatal") {
+          continue;
+        }
+        findings.push(rx(`RX3 plugin "${plugin.name}" unuse threw: ${event.message}`));
+      }
+    }
     const after = baselineOf(open.engine);
     if (after.hookListeners !== baseline.hookListeners) {
       findings.push(
@@ -431,16 +435,30 @@ async function checkRaised(
   return withEngine(context.spec, async (open) => {
     const plugin = extensionFrom(context, factory);
     if (plugin === undefined) return [];
-    await installProviders(open.engine, context.spec);
-    for (const base of context.bases) {
-      if (base.packageName === target.packageName) continue;
-      const other = pluginFrom(base.create);
-      if (other === undefined) continue;
-      await open.engine.use(other);
-    }
     const original = pluginFrom(target.create);
     if (original === undefined) return [];
-    await open.engine.use(copyWithApi(original, major, minor));
+    await installProviders(open.engine, context.spec);
+    for (const base of context.bases) {
+      if (base.packageName === target.packageName) {
+        try {
+          await open.engine.use(copyWithApi(original, major, minor));
+        } catch (error: unknown) {
+          return [
+            rx(
+              `RX5 plugin "${plugin.name}" copy of "${original.name}" rejected with ${codeText(thrownCode(error))}: ${thrownMessage(error)}`,
+            ),
+          ];
+        }
+        continue;
+      }
+      const other = pluginFrom(base.create);
+      if (other === undefined) continue;
+      try {
+        await open.engine.use(other);
+      } catch {
+        return [];
+      }
+    }
     try {
       await open.engine.use(plugin);
     } catch (error: unknown) {
