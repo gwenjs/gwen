@@ -152,3 +152,22 @@ it("actor-name/deps-declared-after raises with the exact message, hint and posit
     loc: { file: caseId(dir), line: place.line, column: place.column },
   });
 });
+
+it("async-context/nested-await raises with the exact message, hint and position", async () => {
+  const dir = join(fixturesRoot, "async-context", "nested-await");
+  const fixture = fixtureCase(dir);
+  const offset = fixture.input.indexOf("await read()");
+  expect(offset).toBeGreaterThanOrEqual(0);
+  const place = callPlace(fixture.input, offset);
+  const what = "[gwen()] Nested await inside an await argument.";
+  const fix = "Fix: Assign the inner await to a const first.";
+  const see =
+    "See https://gwenjs.github.io/gwen/api/errors#vite-transform-unsupported (VITE:TRANSFORM_UNSUPPORTED)";
+  // Same condition as devHint (`packages/vite/src/pipeline/dev-hint.ts:7`).
+  const message =
+    process.env["NODE_ENV"] !== "production" ? `${what}\n${fix}\n${see}` : `${what}\n${see}`;
+  await expect(runCase(dir, fixture.input)).rejects.toMatchObject({
+    message,
+    loc: { file: caseId(dir), line: place.line, column: place.column },
+  });
+});

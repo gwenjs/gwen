@@ -5,6 +5,7 @@
     "**/dist/**",
     "**/wasm/**",
     "**/build-tools/**",
-    "**/node_modules/**"
+    "**/node_modules/**",
+    "packages/vite/tests/fixtures/async-context/**"
   ]
 }
