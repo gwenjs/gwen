@@ -1,4 +1,4 @@
-import { defineConfig } from "vitest/config";
+import { defaultExclude, defineConfig } from "vitest/config";
 import { gwenSourceAliases } from "../../vitest.aliases.ts";
 
 const alias = gwenSourceAliases();
@@ -26,7 +26,13 @@ export default defineConfig({
       {
         resolve: { alias },
         define: { __GWEN_DEV__: "false" },
-        test: { name: "prod", ...shared },
+        test: {
+          name: "prod",
+          ...shared,
+          // Per-entity warning is a no-op when __GWEN_DEV__ is false
+          // (packages/core/src/engine/engine-internals.ts:131).
+          exclude: [...defaultExclude, "tests/runtime/**"],
+        },
       },
     ],
   },

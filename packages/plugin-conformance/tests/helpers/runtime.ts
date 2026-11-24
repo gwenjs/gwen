@@ -4,6 +4,7 @@ import type { ConformanceCode, ConformanceFinding } from "@gwenjs/plugin-conform
 import type {
   PluginConformanceSpec,
   PluginFactorySpec,
+  RuntimeCheckId,
   RuntimeConformanceReport,
 } from "@gwenjs/plugin-conformance/runtime";
 
@@ -87,6 +88,16 @@ export function spec(overrides: SpecOverrides = {}): PluginConformanceSpec {
   }
   if (overrides.fixture !== undefined) result = { ...result, fixture: overrides.fixture };
   return result;
+}
+
+/**
+ * Implemented checks, in check order: shape, requires, provides, frames.
+ * `options` follows `frames` when `options.options` is true.
+ */
+export function ranChecks(options?: { readonly options?: boolean }): readonly RuntimeCheckId[] {
+  const checks: RuntimeCheckId[] = ["shape", "requires", "provides", "frames"];
+  if (options?.options === true) checks.push("options");
+  return checks;
 }
 
 /** Findings of `report` whose code is `code`. */

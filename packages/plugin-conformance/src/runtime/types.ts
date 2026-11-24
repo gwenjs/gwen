@@ -1,4 +1,5 @@
-import type { GwenEngineBase, GwenPlugin } from "@gwenjs/schema";
+import type { GwenEngine } from "@gwenjs/core";
+import type { GwenPlugin } from "@gwenjs/schema";
 import type { ConformanceFinding } from "../types.js";
 
 /** Ids of the runtime checks, in check order. Not part of the static check list. */
@@ -36,8 +37,8 @@ export interface PluginConformanceSpec {
   readonly root?: string;
   readonly official?: boolean;
   readonly frameworkProviders?: readonly (() => GwenPlugin)[];
-  /** Runs before the frames. The argument is the schema engine base. */
-  readonly fixture?: (engine: GwenEngineBase) => void | Promise<void>;
+  /** Runs before the first advance. The argument is the core engine. */
+  readonly fixture?: (engine: GwenEngine) => void | Promise<void>;
   /** How many frames to advance. Default 3, minimum 1. */
   readonly frames?: number;
   readonly variant?: "light" | "physics2d" | "physics3d";
