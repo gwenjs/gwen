@@ -1,0 +1,47 @@
+[
+  {
+    "file": "packages/vite/src/entry-gen.ts",
+    "pattern": "/\\\\/g",
+    "on": "file path"
+  },
+  {
+    "file": "packages/vite/src/pipeline/parse.ts",
+    "pattern": "/\\.(ts|tsx|js|jsx|mts|cts)$/",
+    "on": "file path"
+  },
+  {
+    "file": "packages/vite/src/plugins/auto-imports.ts",
+    "pattern": "/\\.(ts|tsx|js|jsx)$/",
+    "on": "module id"
+  },
+  {
+    "file": "packages/vite/src/plugins/dev-strip.ts",
+    "pattern": "/(?:^|[/\\\\])node_modules[/\\\\]@gwenjs[/\\\\]/",
+    "on": "module id"
+  },
+  {
+    "file": "packages/vite/src/plugins/dev-strip.ts",
+    "pattern": "/\\.[cm]?[jt]sx?$/",
+    "on": "module id"
+  },
+  {
+    "file": "packages/vite/src/plugins/hooks.ts",
+    "pattern": "/\\.ts$/",
+    "on": "file path"
+  },
+  {
+    "file": "packages/vite/src/plugins/hooks.ts",
+    "pattern": "/\\\\/g",
+    "on": "file path"
+  },
+  {
+    "file": "packages/vite/src/plugins/layout.ts",
+    "pattern": "/\\/$/",
+    "on": "file path"
+  },
+  {
+    "file": "packages/vite/src/scanners/index.ts",
+    "pattern": "/\\.ts$/",
+    "on": "file path"
+  }
+]

@@ -208,6 +208,30 @@ describe("gwenHooksPlugin — buildStart", () => {
 
     expect(mtime2).toBe(mtime1);
   });
+
+  it("does not type a defineHooks const that is not exported", () => {
+    fs.writeFileSync(
+      path.join(tmp, "src", "hooks.ts"),
+      ["export const Shown = defineHooks({});", "const Hidden = defineHooks({});", ""].join("\n"),
+    );
+
+    const plugin = gwenHooksPlugin({
+      autoImports: [{ name: "defineHooks", from: "@gwenjs/core" }],
+    });
+    const configResolved = plugin.configResolved;
+    expect(typeof configResolved).toBe("function");
+    if (typeof configResolved !== "function") return;
+    Reflect.apply(configResolved, plugin, [{ root: tmp }]);
+    const buildStart = plugin.buildStart;
+    expect(typeof buildStart).toBe("function");
+    if (typeof buildStart !== "function") return;
+    Reflect.apply(buildStart, plugin, []);
+
+    const dtsPath = path.join(tmp, ".gwen", "types", "hooks.d.ts");
+    const content = fs.existsSync(dtsPath) ? fs.readFileSync(dtsPath, "utf8") : "";
+    expect(content).toContain("Shown");
+    expect(content).not.toContain("Hidden");
+  });
 });
 
 describe("gwenHooksPlugin — handleHotUpdate", () => {
