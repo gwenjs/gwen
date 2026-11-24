@@ -14,6 +14,9 @@ const optionsRoot = path.resolve(
   "../fixtures/runtime/options-validate",
 );
 
+const eagerSource =
+  'export function Plugin(o){ if (o && o.bad) throw new Error("eager"); return { name: "eager", setup() {} }; }\n';
+
 describe("runPluginConformance options", () => {
   it("reports invalid options that install without CORE:PLUGIN_OPTIONS_INVALID", async () => {
     await withPrivateTmpdir(async (dir) => {
@@ -146,6 +149,23 @@ describe("runPluginConformance options", () => {
         }),
       );
       expect(report.findings).toEqual([]);
+    });
+  });
+
+  it("reports a factory that throws when built with invalidOptions", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      await writePluginPackage(dir, {
+        name: "@fixture/plugin",
+        files: { "dist/index.js": eagerSource },
+      });
+      const report = await runPluginConformance(
+        spec({ root: dir, factories: [{ export: "Plugin", invalidOptions: { bad: true } }] }),
+      );
+      const findings = findingsWithCode(report, ConformanceErrorCodes.RUNTIME_OPTIONS);
+      expect(findings).toHaveLength(1);
+      expect(findings[0]?.message).toContain("Plugin");
+      expect(findings[0]?.message).toContain("eager");
+      expect(report.checks).toEqual(ranChecks({ options: true }));
     });
   });
 });

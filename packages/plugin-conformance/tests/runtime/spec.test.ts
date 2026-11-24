@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 import { ConformanceErrorCodes } from "@gwenjs/plugin-conformance";
 import { runPluginConformance } from "@gwenjs/plugin-conformance/runtime";
 import { withPrivateTmpdir } from "../helpers/fixture.js";
-import { factorySource, findingsWithCode, spec, writePluginPackage } from "../helpers/runtime.js";
+import {
+  factorySource,
+  findingsWithCode,
+  spec,
+  writePluginPackage,
+  type SpecOverrides,
+} from "../helpers/runtime.js";
 
 describe("runPluginConformance spec", () => {
   it("rejects an empty factories list with CONFORMANCE:INVALID_SPEC", async () => {
@@ -113,6 +119,21 @@ describe("runPluginConformance spec", () => {
           expect.objectContaining({
             code: ConformanceErrorCodes.INVALID_SPEC,
             message: expect.stringContaining("provider boom"),
+          }),
+        ],
+      }),
+    );
+  });
+
+  it("rejects a frameworkProviders value that is not a list", async () => {
+    const frameworkProviders = {} as SpecOverrides["frameworkProviders"];
+    await expect(runPluginConformance(spec({ frameworkProviders }))).resolves.toEqual(
+      expect.objectContaining({
+        checks: [],
+        findings: [
+          expect.objectContaining({
+            code: ConformanceErrorCodes.INVALID_SPEC,
+            message: expect.stringContaining("frameworkProviders"),
           }),
         ],
       }),

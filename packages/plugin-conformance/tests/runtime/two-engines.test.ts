@@ -27,6 +27,25 @@ const separateSource = `export function Plugin() {
 }
 `;
 
+// Module-level owner, reopened in setup, closed in teardown. The scoped
+// `engine.hooks.hook` drops with unuse, so only the other engine's frame throws.
+const closedOwnerSource = `let owner = { open: true };
+export function Plugin() {
+  return {
+    name: "closed-owner",
+    setup(engine) {
+      owner = { open: true };
+      engine.hooks.hook("engine:update", () => {
+        if (!owner.open) throw new Error("owner closed");
+      });
+    },
+    teardown() {
+      owner.open = false;
+    },
+  };
+}
+`;
+
 describe("runPluginConformance two engines", () => {
   it("reports a plugin that shares one module-global service between engines", async () => {
     await withPrivateTmpdir(async (dir) => {
@@ -94,6 +113,22 @@ export function Plugin() {
       expect(findings.map((finding) => finding.message)).toEqual([
         'plugin "cross-unuse" lost "cross-unuse" on the other engine',
       ]);
+    });
+  });
+
+  it("reports a frame error on the second engine after the first unuse", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      await writePluginPackage(dir, {
+        name: "@fixture/closed-owner",
+        files: { "dist/index.js": closedOwnerSource },
+      });
+      const report = await runPluginConformance(
+        spec({ root: dir, packageName: "@fixture/closed-owner" }),
+      );
+      expect(report.findings.map((finding) => finding.code)).toEqual([
+        ConformanceErrorCodes.RUNTIME_TWO_ENGINES,
+      ]);
+      expect(report.findings[0]?.message).toContain("owner closed");
     });
   });
 });
