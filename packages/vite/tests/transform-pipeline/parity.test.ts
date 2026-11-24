@@ -313,6 +313,49 @@ describe("gwen:transform-pipeline parity", () => {
     expect(pluginNames(gwenVitePlugin()).filter((name) => name === "gwen:query-hoist")).toEqual([]);
   });
 
+  it("gwen() and gwenVitePlugin() list gwen:layout-name and gwen:scene-router-name once, between gwen:actor-name and gwen:query-hoist", () => {
+    const expected = [
+      "gwen:async-context",
+      "gwen:system-name",
+      "gwen:actor-name",
+      "gwen:layout-name",
+      "gwen:scene-router-name",
+      "gwen:query-hoist",
+    ];
+    expect(findPipeline(gwen())?.api.names).toEqual(expected);
+    expect(findPipeline(gwenVitePlugin())?.api.names).toEqual(expected);
+    const cliNames = pluginNames(gwen());
+    const viteNames = pluginNames(gwenVitePlugin());
+    const nameUnits = (name: string) =>
+      name === "gwen:layout-name" || name === "gwen:scene-router-name";
+    expect(cliNames.filter(nameUnits)).toEqual([]);
+    expect(viteNames.filter(nameUnits)).toEqual([]);
+    expect(viteNames.filter((name) => name === "gwen:scene-router")).toEqual([]);
+    expect(viteNames.filter((name) => name === "gwen:layout")).toEqual(["gwen:layout"]);
+  });
+
+  it("gwenVitePlugin() registers gwen:layout-name and gwen:scene-router-name unless disableNameInjection is true", () => {
+    const names = (options?: Parameters<typeof gwenVitePlugin>[0]) =>
+      findPipeline(gwenVitePlugin(options))?.api.names ?? [];
+    const baseline = names();
+    expect(baseline).toContain("gwen:layout-name");
+    expect(baseline).toContain("gwen:scene-router-name");
+    const layoutOff = names({ layout: { disableNameInjection: true } });
+    expect(layoutOff).not.toContain("gwen:layout-name");
+    expect(layoutOff).toContain("gwen:scene-router-name");
+    const routerOff = names({ sceneRouter: { disableNameInjection: true } });
+    expect(routerOff).toContain("gwen:layout-name");
+    expect(routerOff).not.toContain("gwen:scene-router-name");
+    const bothOff = names({
+      layout: { disableNameInjection: true },
+      sceneRouter: { disableNameInjection: true },
+    });
+    expect(bothOff).not.toContain("gwen:layout-name");
+    expect(bothOff).not.toContain("gwen:scene-router-name");
+    expect(bothOff).toContain("gwen:actor-name");
+    expect(bothOff).toContain("gwen:query-hoist");
+  });
+
   it("the CLI plugin list hoists a useQuery array in a system", async () => {
     const server = await createServer({
       configFile: false,

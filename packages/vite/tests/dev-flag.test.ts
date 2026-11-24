@@ -133,3 +133,59 @@ describe("dev flag follows Vite DEV", () => {
     120_000,
   );
 });
+
+const NAMES = `import { defineLayout as layout } from "@gwenjs/core/actor";
+import { defineSceneRouter as route } from "@gwenjs/core/scene";
+export const Level1 = layout(() => ({}));
+export const AppRouter = route({ initial: "menu", routes: {} });
+`;
+
+function bundleSource(result: Awaited<ReturnType<typeof build>>): string {
+  const groups = Array.isArray(result) ? result : [result];
+  const parts: string[] = [];
+  for (const group of groups) {
+    if (!("output" in group)) continue;
+    for (const item of group.output) {
+      if (item.type === "chunk") parts.push(item.code);
+    }
+  }
+  return parts.join("\n");
+}
+
+describe("names follow the dev flag", () => {
+  it.runIf(__GWEN_DEV__)(
+    "a production build has no __routerName__ or __layoutName__ and a development build has both",
+    async () => {
+      for (const mode of ["production", "development"] as const) {
+        const root = fixture();
+        writeFileSync(join(root, "src", "names.ts"), NAMES);
+        const result = await build({
+          configFile: false,
+          root,
+          mode,
+          logLevel: "silent",
+          plugins: [gwenVitePlugin()],
+          build: {
+            write: false,
+            minify: false,
+            rollupOptions: {
+              external: [/^@gwenjs\//],
+              input: join(root, "src", "names.ts"),
+              output: { entryFileNames: "names.js", format: "es" },
+            },
+          },
+        });
+        const code = bundleSource(result);
+        if (mode === "production") {
+          expect(code, mode).not.toContain("__layoutName__");
+          expect(code, mode).not.toContain("__routerName__");
+        } else {
+          expect(code, mode).toContain('__layoutName__: "Level1"');
+          expect(code, mode).toContain('__routerName__: "AppRouter"');
+        }
+        expect(code, mode).not.toContain("__GWEN_DEV__");
+      }
+    },
+    120_000,
+  );
+});
