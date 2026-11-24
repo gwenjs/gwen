@@ -3,7 +3,18 @@
   "version": "0.0.0",
   "license": "MPL-2.0",
   "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./module": {
+      "types": "./dist/module.d.ts",
+      "import": "./dist/module.js"
+    }
+  },
   "devDependencies": {
+    "@gwenjs/schema": "0.1.1",
     "fixture-base": "1.0.0"
   },
   "peerDependencies": {
@@ -11,6 +22,7 @@
   },
   "gwen": {
     "type": "plugin",
+    "hookNamespace": "layered-ok",
     "extends": [
       "fixture-base"
     ]
