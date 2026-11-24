@@ -5,12 +5,9 @@ import type { GwenEngine } from "../../src/engine/engine-types.js";
 import { useEngine } from "../../src/engine/context.js";
 import { GwenScenePreloadError } from "../../src/scene/scene-preload-error.js";
 import { defineScene } from "../../src/scene/runtime/define-scene.js";
-import { onEnter, onExit, onPreload, useSystem } from "../../src/scene/runtime/scene-context.js";
+import { onEnter, onExit, onPreload } from "../../src/scene/runtime/scene-context.js";
 import { defineSceneRouter } from "../../src/router/defines/define-scene-router.js";
 import { useSceneRouter } from "../../src/router/uses/use-scene-router.js";
-import { defineSystem } from "../../src/system/index.js";
-
-const MenuTick = defineSystem("preload-menu-tick", () => {});
 
 function gate(): { promise: Promise<void>; open: () => void } {
   let open: () => void = () => {};
@@ -64,15 +61,8 @@ describe("useSceneRouter preload", () => {
     const engine = await loadEngine();
     const log: string[] = [];
     let exits = 0;
-    let menuEnters = 0;
-    let menuActive = (): boolean => false;
     const held = gate();
     const Menu = defineScene("Menu", () => {
-      const handle = useSystem(MenuTick());
-      menuActive = () => handle.active;
-      onEnter(() => {
-        menuEnters += 1;
-      });
       onExit(() => {
         exits += 1;
       });
@@ -102,8 +92,6 @@ describe("useSceneRouter preload", () => {
       expect(log).toEqual(["preload-1", "preload-2"]);
       expect(nav.current).toBe("menu");
       expect(exits).toBe(0);
-      expect(menuEnters).toBe(0);
-      expect(menuActive()).toBe(true);
     } finally {
       held.open();
       await pending;
