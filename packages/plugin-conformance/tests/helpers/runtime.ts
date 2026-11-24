@@ -162,3 +162,11 @@ export function findingsWithCode(
 ): ConformanceFinding[] {
   return report.findings.filter((finding) => finding.code === code);
 }
+
+/** Findings whose code equals `code`. `code` is a string so a new code typechecks before it exists. */
+export function findingsOfCode(
+  report: RuntimeConformanceReport,
+  code: string,
+): ConformanceFinding[] {
+  return report.findings.filter((finding) => finding.code === code);
+}
