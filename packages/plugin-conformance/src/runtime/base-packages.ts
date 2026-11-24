@@ -162,11 +162,11 @@ export async function loadSpecBases(
   if (outside.length > 0) return rejected(outside);
   const covered = new Set<string>();
   for (const base of requested) covered.add(base.packageName);
-  const missing: ConformanceFinding[] = [];
+  const uncovered: ConformanceFinding[] = [];
   for (const name of gwenExtends) {
-    if (!covered.has(name)) missing.push(extendsWithoutBase(name));
+    if (!covered.has(name)) uncovered.push(extendsWithoutBase(name));
   }
-  if (missing.length > 0) return rejected(missing);
+  if (uncovered.length > 0) return rejected(uncovered);
   const bases: LoadedBase[] = [];
   for (const entry of requested) {
     const loaded = await loadOne(root, entry);

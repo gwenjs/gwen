@@ -17,7 +17,7 @@ interface FactoryRow {
   readonly title: string;
 }
 
-/** Per-factory rows, in check order. Options, module, extension rows, hooks, and composable follow. */
+/** Per-factory rows, in check order. Options, module, extension, requirement-form, base-surface, hooks, and composable follow. */
 const FACTORY_ROWS: readonly FactoryRow[] = [
   { id: "shape", title: "R1 shape" },
   { id: "requires", title: "R2 installs alone" },
