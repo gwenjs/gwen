@@ -5,10 +5,14 @@
 import fs from "node:fs";
 import * as path from "node:path";
 import { walk } from "oxc-walker";
+import type { Expression, ModuleExportName, Program } from "oxc-parser";
 import { GwenError } from "@gwenjs/schema";
 import type { AutoImport } from "@gwenjs/kit";
-import { getCallArgs, isCallTo, parseSource } from "../oxc/index.js";
+import { getCallArgs, getObjectProperties, getPropertyKeyName } from "../oxc/index.js";
 import { ViteErrorCodes } from "../error-codes.js";
+import type { ModuleResolver } from "../pipeline/resolve-callee.js";
+import type { GwenCallee } from "../pipeline/types.js";
+import { includeBase, readScanned, sourceFilesUnder } from "./read.js";
 
 /** One file under `src/scenes/` that exports a scene. */
 export interface SceneInfo {
@@ -33,7 +37,11 @@ export interface LayoutName {
   name: string;
 }
 
-/** Shared scanner options. `autoImports` supplies bare callees. */
+/**
+ * Shared scanner options.
+ * `autoImports` supplies bare callees such as `defineScene("menu", …)` with no import.
+ * Without it only explicit imports of the framework are found.
+ */
 export interface ScanOptions {
   autoImports?: readonly AutoImport[];
 }
@@ -44,9 +52,9 @@ export interface ScanOptions {
  * `className` is the export binding, or `fallbackName` when the file declares none.
  */
 function scanSceneFile(
-  source: string,
-  filename: string,
+  file: string,
   fallbackName: string,
+  autoImports: readonly AutoImport[],
 ): {
   className: string;
   sceneName: string | null;
@@ -54,16 +62,7 @@ function scanSceneFile(
   isFactory: boolean;
   isConst: boolean;
 } {
-  const parsed = parseSource(filename, source);
-  if (!parsed) {
-    return {
-      className: fallbackName,
-      sceneName: null,
-      isDefault: false,
-      isConst: false,
-      isFactory: false,
-    };
-  }
+  const { program, resolver } = readScanned(file, "scanScenes", autoImports);
 
   let className = fallbackName;
   let isDefault = false;
@@ -71,7 +70,7 @@ function scanSceneFile(
   let isFactory = false;
   let sceneName: string | null = null;
 
-  walk(parsed.program, {
+  walk(program, {
     enter(node) {
       if (node.type === "ExportDefaultDeclaration") {
         const { declaration } = node;
@@ -96,7 +95,8 @@ function scanSceneFile(
         if (declaration.type === "VariableDeclaration") {
           for (const { id, init } of declaration.declarations) {
             if (id.type !== "Identifier") continue;
-            if (!init || init.type !== "CallExpression" || !isCallTo(init, "defineScene")) continue;
+            if (!init || init.type !== "CallExpression") continue;
+            if (resolver.resolveCallee(init) !== "defineScene") continue;
             className = id.name;
             isConst = true;
             const first = getCallArgs(init)[0];
@@ -109,7 +109,7 @@ function scanSceneFile(
         }
       }
 
-      if (node.type === "CallExpression" && isCallTo(node, "defineScene")) {
+      if (node.type === "CallExpression" && resolver.resolveCallee(node) === "defineScene") {
         if (!sceneName) {
           const first = getCallArgs(node)[0];
           if (first && first.type === "Literal" && typeof first.value === "string") {
@@ -132,8 +132,11 @@ function scanSceneFile(
   return { className, sceneName, isDefault, isConst, isFactory };
 }
 
-/** Scan `src/scenes/*.ts`. Files whose names start with `_` or `.` are skipped. */
-export function scanScenes(projectRoot: string, _options?: ScanOptions): SceneInfo[] {
+/**
+ * Scan `src/scenes/*.ts`. Files whose names start with `_` or `.` are skipped.
+ * A file that cannot be read or parsed throws `VITE:TRANSFORM_PARSE_FAILED`.
+ */
+export function scanScenes(projectRoot: string, options?: ScanOptions): SceneInfo[] {
   const scenesDir = path.join(projectRoot, "src", "scenes");
   if (!fs.existsSync(scenesDir)) return [];
 
@@ -146,10 +149,9 @@ export function scanScenes(projectRoot: string, _options?: ScanOptions): SceneIn
 
   for (const file of files) {
     const rel = `src/scenes/${file}`;
-    const base = file.replace(/\.ts$/, "");
+    const base = file.slice(0, -".ts".length);
     const fullPath = path.join(scenesDir, file);
-    const source = fs.readFileSync(fullPath, "utf-8");
-    const extracted = scanSceneFile(source, fullPath, base);
+    const extracted = scanSceneFile(fullPath, base, options?.autoImports ?? []);
     if (extracted.sceneName === null) {
       throw new GwenError(
         ViteErrorCodes.SCENE_NAME_UNRESOLVED,
@@ -222,24 +224,158 @@ export function resolveMainScene(
   return scenes[0]?.sceneName;
 }
 
-/** Inert until hooks files are read with the strict parser. */
+function moduleExportName(name: ModuleExportName): string {
+  return name.type === "Identifier" ? name.name : name.value;
+}
+
+/** True when `init` is a call that resolves, by import binding or auto-import, to `callee`. */
+function isCalleeCall(
+  resolver: ModuleResolver,
+  init: Expression | null,
+  callee: GwenCallee,
+): boolean {
+  if (!init || init.type !== "CallExpression") return false;
+  return resolver.resolveCallee(init) === callee;
+}
+
+/** Exported `defineHooks` bindings of one parsed file, in source order. */
+function hooksOfProgram(file: string, program: Program, resolver: ModuleResolver): HookExport[] {
+  const locals = new Set<string>();
+  for (const statement of program.body) {
+    if (statement.type !== "VariableDeclaration") continue;
+    for (const { id, init } of statement.declarations) {
+      if (id.type === "Identifier" && isCalleeCall(resolver, init, "defineHooks")) {
+        locals.add(id.name);
+      }
+    }
+  }
+
+  const found: HookExport[] = [];
+  for (const statement of program.body) {
+    if (statement.type !== "ExportNamedDeclaration") continue;
+    const { declaration } = statement;
+    if (declaration && declaration.type === "VariableDeclaration") {
+      for (const { id, init } of declaration.declarations) {
+        if (id.type === "Identifier" && isCalleeCall(resolver, init, "defineHooks")) {
+          found.push({ file, name: id.name });
+        }
+      }
+      continue;
+    }
+    if (declaration || statement.source) continue;
+    for (const specifier of statement.specifiers) {
+      if (!locals.has(moduleExportName(specifier.local))) continue;
+      // `default` and a string export name (`as "x-y"`) cannot be written in `import type { … }`.
+      if (specifier.exported.type !== "Identifier" || specifier.exported.name === "default") {
+        continue;
+      }
+      found.push({ file, name: specifier.exported.name });
+    }
+  }
+  return found;
+}
+
+/**
+ * Exported `defineHooks` bindings of `src/hooks.ts`, then of `src/hooks/*.ts` in name order.
+ * `options.file` and `options.dir` replace those paths (relative to `root`).
+ * A binding counts when it is `export const X = defineHooks(…)` or a top-level
+ * `const X = defineHooks(…)` named in an `export { X }` list. A default export is not typed,
+ * and neither is a binding exported under `default` or under a string name
+ * (`export { X as "x-y" }`).
+ * The result keeps source order inside a file.
+ * A file that cannot be read or parsed throws `VITE:TRANSFORM_PARSE_FAILED`.
+ */
 export function scanDefineHooks(
-  _root: string,
-  _options?: ScanOptions & { file?: string; dir?: string },
+  root: string,
+  options?: ScanOptions & { file?: string; dir?: string },
 ): HookExport[] {
-  return [];
+  const autoImports = options?.autoImports ?? [];
+  const mainFile = path.resolve(root, options?.file ?? "src/hooks.ts");
+  const hooksDir = path.resolve(root, options?.dir ?? "src/hooks");
+
+  const files: string[] = [];
+  if (fs.existsSync(mainFile)) files.push(mainFile);
+  if (fs.existsSync(hooksDir)) {
+    for (const name of fs.readdirSync(hooksDir).sort()) {
+      const full = path.join(hooksDir, name);
+      if (name.endsWith(".ts") && !files.includes(full)) files.push(full);
+    }
+  }
+
+  const found: HookExport[] = [];
+  for (const file of files) {
+    const { program, resolver } = readScanned(file, "scanDefineHooks", autoImports);
+    found.push(...hooksOfProgram(file, program, resolver));
+  }
+  return found;
 }
 
-/** Inert until layout files are read with the strict parser. */
+/**
+ * `defineLayout` bindings of the files the `include` globs select, sorted by file.
+ * A glob names a directory only: the text before `**`. Every `.ts` and `.tsx` file under that
+ * directory is scanned, whatever the rest of the glob says. A `.d.ts` file and a file whose name
+ * contains `.test.` are skipped and never read; a `.spec.` file is scanned.
+ * A file that cannot be read or parsed throws `VITE:TRANSFORM_PARSE_FAILED`.
+ */
 export function scanLayoutNames(
-  _root: string,
-  _include: readonly string[],
-  _options?: ScanOptions,
+  root: string,
+  include: readonly string[],
+  options?: ScanOptions,
 ): LayoutName[] {
-  return [];
+  const autoImports = options?.autoImports ?? [];
+  const files = new Set<string>();
+  for (const pattern of include) {
+    const base = includeBase(pattern);
+    if (base === "") continue;
+    for (const file of sourceFilesUnder(path.resolve(root, base), [".ts", ".tsx"])) {
+      files.add(file);
+    }
+  }
+
+  const found: LayoutName[] = [];
+  for (const file of [...files].sort()) {
+    const { program, resolver } = readScanned(file, "scanLayoutNames", autoImports);
+    walk(program, {
+      enter(node) {
+        if (node.type !== "VariableDeclarator" || node.id.type !== "Identifier") return;
+        if (isCalleeCall(resolver, node.init, "defineLayout")) {
+          found.push({ file, name: node.id.name });
+        }
+      },
+    });
+  }
+  return found;
 }
 
-/** Inert until easing calls are read with the strict parser. */
-export function scanEasingNames(_root: string, _options?: ScanOptions): string[] {
-  return [];
+/**
+ * Easing names written as `easing: "<name>"` in an object argument of a `useTween` call,
+ * over `src/**`. Sorted and unique. Template literals and identifiers are not read.
+ * A `.d.ts` file and a file whose name contains `.test.` or `.spec.` are skipped and never read.
+ * A file that cannot be read or parsed throws `VITE:TRANSFORM_PARSE_FAILED`.
+ */
+export function scanEasingNames(root: string, options?: ScanOptions): string[] {
+  const autoImports = options?.autoImports ?? [];
+  const found = new Set<string>();
+  for (const file of sourceFilesUnder(path.join(root, "src"), [".ts", ".tsx", ".js", ".jsx"], {
+    skipSpec: true,
+  })) {
+    const { program, resolver } = readScanned(file, "scanEasingNames", autoImports);
+    walk(program, {
+      enter(node) {
+        if (node.type !== "CallExpression") return;
+        if (resolver.resolveCallee(node) !== "useTween") return;
+        for (const argument of node.arguments) {
+          if (argument.type !== "ObjectExpression") continue;
+          for (const property of getObjectProperties(argument)) {
+            if (getPropertyKeyName(property) !== "easing") continue;
+            const { value } = property;
+            if (value.type === "Literal" && typeof value.value === "string") {
+              found.add(value.value);
+            }
+          }
+        }
+      },
+    });
+  }
+  return [...found].sort();
 }

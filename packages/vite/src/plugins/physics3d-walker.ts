@@ -10,7 +10,7 @@
 
 import { walk } from "oxc-walker";
 import type { CallExpression, Node } from "oxc-parser";
-import { parseSource, isCallTo, getCallArgs, getFunctionBodyStatements } from "../oxc/index.js";
+import { parseModule, isCallTo, getCallArgs, getFunctionBodyStatements } from "../oxc/index.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -87,6 +87,8 @@ export class PhysicsQueryWalker {
    *
    * @param source - TypeScript source code to analyze.
    * @returns Array of detected patterns (may be empty).
+   * @throws {GwenError} `VITE:TRANSFORM_PARSE_FAILED` when `source` names a watched method and
+   *   cannot be parsed.
    */
   walk(source: string): PhysicsQueryPattern[] {
     // Fast pre-scan: skip files that contain none of the target method names.
@@ -98,8 +100,7 @@ export class PhysicsQueryWalker {
       return [];
     }
 
-    const parsed = parseSource(this.filename, source);
-    if (!parsed) return [];
+    const parsed = parseModule(this.filename, source);
 
     const patterns: PhysicsQueryPattern[] = [];
     const filename = this.filename;

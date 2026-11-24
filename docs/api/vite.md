@@ -148,9 +148,34 @@ export default defineConfig({
 
 ---
 
-## `@gwenjs/vite/scanners`
+## `@gwenjs/vite/scanners` {#vite-scanners}
 
-`scanScenes` and `resolveMainScene` are exported from `@gwenjs/vite/scanners` (`packages/vite/package.json:22`). `scanScenes` reads `src/scenes/*.ts` and returns one `SceneInfo` per file (`packages/vite/src/scanners/index.ts:118`). `resolveMainScene` returns the given `mainScene` when it was discovered (`packages/vite/src/scanners/index.ts:202`), and the first scene when `mainScene` is omitted (`packages/vite/src/scanners/index.ts:204`).
+`@gwenjs/vite/scanners` reads project files and returns facts about them (`packages/vite/package.json:22`). It has no Vite import, so an app or a CLI can call it without a Vite peer. The pipeline rewrites one module at a time; see [Build Pipeline](/advanced/build-pipeline).
+
+```ts
+import { scanScenes, scanDefineHooks, scanLayoutNames, scanEasingNames } from '@gwenjs/vite/scanners'
+
+const root = '/path/to/project'
+const scenes = scanScenes(root)
+const hooks = scanDefineHooks(root)
+const layouts = scanLayoutNames(root, ['src/layouts/**/*.ts'])
+const easings = scanEasingNames(root)
+```
+
+| Function | Reads | Returns |
+|---|---|---|
+| `scanScenes(projectRoot, options?)` | `src/scenes/*.ts` (`packages/vite/src/scanners/index.ts:139`) | `SceneInfo[]` |
+| `scanDefineHooks(root, options?)` | `src/hooks.ts`, then `src/hooks/*.ts` in name order (`packages/vite/src/scanners/index.ts:288`) | `HookExport[]`: `{ file, name }` per binding |
+| `scanLayoutNames(root, include, options?)` | the files under the base directory of each `include` glob, the text before its first `**` (`packages/vite/src/scanners/index.ts:320`) | `LayoutName[]`: `{ file, name }` per `defineLayout` binding, sorted by file |
+| `scanEasingNames(root, options?)` | `src/**` (`packages/vite/src/scanners/index.ts:356`) | `string[]`, sorted and unique |
+
+`resolveMainScene(scenes, fromConfig?)` returns the given `mainScene` when it was discovered (`packages/vite/src/scanners/index.ts:222`), and the first scene when `mainScene` is omitted (`packages/vite/src/scanners/index.ts:224`).
+
+- **Hooks.** A binding counts when it is `export const X = defineHooks(...)`, or a top-level `const X = defineHooks(...)` named in `export { X }`. A default export is not typed. `options.file` and `options.dir` replace the default paths, relative to `root`.
+- **Easings.** A name counts when it is the string literal of `easing:` in an object argument of a `useTween` call. A template literal or an identifier is not read.
+- **Strict parse.** Every scanner parses with `parseModule`. A file with a syntax error throws `VITE:TRANSFORM_PARSE_FAILED` and names `<file>:<line>:<column>`. A file that cannot be read throws the same code, with the Node error as `cause` (`packages/vite/src/scanners/read.ts:37`). No file is skipped.
+- **`autoImports`.** Callees match through import bindings, never by text. Pass `options.autoImports` (type `ScanOptions`) to match a bare `defineScene(...)` that relies on an auto-import. Without it, only an explicit import from a GWEN package matches. An alias and a namespace import match. A local function with the same name, or a function from another package, does not.
+- **No barrels.** A scanner does not follow a re-export (`packages/vite/src/scanners/read.ts:48`). A scanned file must import the GWEN function from its package, or rely on `autoImports`.
 
 ## `ViteErrorCodes`
 
@@ -162,7 +187,7 @@ Exported from `@gwenjs/vite`.
 | `SCENE_NAME_DUPLICATE` | `VITE:SCENE_NAME_DUPLICATE` |
 | `MAIN_SCENE_UNKNOWN` | `VITE:MAIN_SCENE_UNKNOWN` |
 
-`scanScenes` throws `VITE:SCENE_NAME_UNRESOLVED` and `VITE:SCENE_NAME_DUPLICATE`. `resolveMainScene` throws `VITE:MAIN_SCENE_UNKNOWN`. Those three hints are present when `process.env["NODE_ENV"]` is not `"production"` (`packages/vite/src/scanners/index.ts:142`, `packages/vite/src/scanners/index.ts:157`, `packages/vite/src/scanners/index.ts:196`).
+`scanScenes` throws `VITE:SCENE_NAME_UNRESOLVED` and `VITE:SCENE_NAME_DUPLICATE`. `resolveMainScene` throws `VITE:MAIN_SCENE_UNKNOWN`. Those three hints are present when `process.env["NODE_ENV"]` is not `"production"` (`packages/vite/src/scanners/index.ts:162`, `packages/vite/src/scanners/index.ts:177`, `packages/vite/src/scanners/index.ts:216`).
 
 ## Type Definitions
 

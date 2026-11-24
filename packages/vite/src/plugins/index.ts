@@ -15,9 +15,9 @@ import type { PluginOption } from "vite";
 export { gwenAutoImportsPlugin, generateAutoImportsModule } from "./auto-imports.js";
 export { gwenVirtualPlugin } from "./virtual-env.js";
 export { gwenActorPlugin, generateActorsModule } from "./actor.js";
-export { gwenLayoutPlugin, generateLayoutsModule, extractLayoutNames } from "./layout.js";
-export { gwenTweenPlugin, extractUsedEasings, type GwenTweenOptions } from "./tween.js";
-export { gwenHooksPlugin, extractDefineHooksExports, generateHooksDts } from "./hooks.js";
+export { gwenLayoutPlugin, generateLayoutsModule } from "./layout.js";
+export { gwenTweenPlugin, type GwenTweenOptions } from "./tween.js";
+export { gwenHooksPlugin, generateHooksDts } from "./hooks.js";
 export type { HooksPluginOptions } from "./hooks.js";
 export {
   gwenLocalPluginsPlugin,

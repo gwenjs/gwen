@@ -29,7 +29,7 @@ export const GameHooks = defineHooks({
 ```
 
 ::: info Augmentation auto-générée
-`gwenHooksPlugin` (inclus dans `@gwenjs/vite`) scanne `src/hooks.ts` et `src/hooks/*.ts` et génère automatiquement le bloc `declare module '@gwenjs/schema'` dans `.gwen/types/hooks.d.ts`. Vous n'écrivez jamais ce bloc à la main.
+`gwenHooksPlugin` (inclus dans `@gwenjs/vite`) scanne `src/hooks.ts` et `src/hooks/*.ts` et génère automatiquement le bloc `declare module '@gwenjs/schema'` dans `.gwen/types/hooks.d.ts`. Vous n'écrivez jamais ce bloc à la main. Seule une constante exportée liée à `defineHooks` est typée : `export const X = defineHooks(...)`, ou `const X = defineHooks(...)` suivi de `export { X }`. Un export par défaut ne l'est pas.
 :::
 
 `defineHooks` retourne le même objet. Une clé qui n'est pas `namespace:action`, ou qui utilise un espace de noms réservé au cœur, lève `GwenHookNameError` (`CORE:HOOK_NAME_INVALID`) à l'exécution. Le plugin Vite écrit cette carte sur `GwenRuntimeHooks`. Ensuite, un mauvais nom ou un mauvais type d'argument est une erreur de compilation dans chaque acteur, système et plugin.

@@ -1,5 +1,19 @@
 import { describe, it, expect } from "vitest";
+import { ViteErrorCodes } from "../src/error-codes.js";
 import { PhysicsQueryWalker } from "../src/plugins/physics3d-walker";
+
+/** Runs `run` and returns the `code` of what it throws, or `undefined` when it returns. */
+function thrownCode(run: () => unknown): string | undefined {
+  try {
+    run();
+  } catch (caught) {
+    if (typeof caught === "object" && caught !== null && "code" in caught) {
+      return typeof caught.code === "string" ? caught.code : undefined;
+    }
+    return "";
+  }
+  return undefined;
+}
 
 const SYSTEM_WITH_CAST_RAY = `
 import { defineSystem, onUpdate } from '@gwenjs/core';
@@ -154,5 +168,10 @@ describe("PhysicsQueryWalker", () => {
     `;
     const walker = new PhysicsQueryWalker("test.ts");
     expect(walker.walk(src)).toHaveLength(0);
+  });
+
+  it("throws VITE:TRANSFORM_PARSE_FAILED when a module that names castRay has a syntax error", () => {
+    const walker = new PhysicsQueryWalker("a.ts");
+    expect(thrownCode(() => walker.walk("castRay("))).toBe(ViteErrorCodes.TRANSFORM_PARSE_FAILED);
   });
 });

@@ -41,7 +41,9 @@ export type GwenCallee =
   | "defineLayout"
   | "withAsyncContext"
   | "defineLayers"
-  | "useMeshCollider";
+  | "useMeshCollider"
+  | "defineHooks"
+  | "useTween";
 
 /** One edit against the original source. Offsets are in that original text. */
 export type TransformEdit =

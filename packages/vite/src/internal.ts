@@ -6,6 +6,4 @@ export {
   type EntryResolvedConfig,
   generateEntryModule,
   generateScenesModule,
-  extractModuleNamesFromConfig,
-  extractGlobalCssFromConfig,
 } from "./entry-gen.js";

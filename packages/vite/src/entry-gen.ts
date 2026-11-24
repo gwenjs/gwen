@@ -1,11 +1,8 @@
 /**
  * Codegen helpers for the GWEN Vite plugin.
- * The package entry `@gwenjs/vite/internal` re-exports only the five public-internal names.
+ * The package entry `@gwenjs/vite/internal` re-exports only the three public-internal names.
  */
-import fs from "node:fs";
 import * as path from "node:path";
-import { walk } from "oxc-walker";
-import { getObjectProperties, getPropertyKeyName, parseSource } from "./oxc/index.js";
 import type { GwenEngineConfig, PluginDeclaration } from "@gwenjs/schema";
 import type { SceneInfo } from "./scanners/index.js";
 
@@ -94,105 +91,6 @@ export function generateScenesModule(scenes: SceneInfo[], mainScene: string | un
 }
 
 /**
- * Extract module package names from a `gwen.config.ts` file's `modules: [...]` array.
- *
- * Handles two element shapes:
- * - `'@scope/pkg'` — plain string literal
- * - `['@scope/pkg', options]` — tuple with package name as first element
- *
- * @param configPath - Absolute path to `gwen.config.ts`.
- * @returns Array of module package name strings.
- */
-export function extractModuleNamesFromConfig(configPath: string): string[] {
-  if (!fs.existsSync(configPath)) return [];
-  const src = fs.readFileSync(configPath, "utf-8");
-
-  const parsed = parseSource(configPath, src);
-  if (!parsed) return [];
-
-  const names: string[] = [];
-
-  walk(parsed.program, {
-    enter(node) {
-      if (node.type !== "ObjectExpression") return;
-
-      for (const prop of getObjectProperties(node)) {
-        if (getPropertyKeyName(prop) !== "modules") continue;
-
-        const { value } = prop;
-        if (value.type !== "ArrayExpression") continue;
-
-        for (const el of value.elements) {
-          if (!el || el.type === "SpreadElement") continue;
-
-          // Form 1: '@scope/pkg' string literal
-          if (el.type === "Literal" && typeof el.value === "string") {
-            const s = el.value;
-            if (s.includes("/") || s.startsWith("@")) names.push(s);
-            continue;
-          }
-
-          // Form 2: ['@scope/pkg', opts] tuple
-          if (el.type === "ArrayExpression") {
-            const first = el.elements[0];
-            if (first && first.type === "Literal" && typeof first.value === "string") {
-              const s = first.value;
-              if (s.includes("/") || s.startsWith("@")) names.push(s);
-            }
-          }
-        }
-
-        this.skip(); // Found modules array — stop descending
-        return;
-      }
-    },
-  });
-
-  return names;
-}
-
-/**
- * Extract `globalCss` file paths from a `gwen.config.ts` file.
- *
- * @param configPath - Absolute path to `gwen.config.ts`.
- * @returns Array of CSS file path strings.
- */
-export function extractGlobalCssFromConfig(configPath: string): string[] {
-  if (!fs.existsSync(configPath)) return [];
-  const src = fs.readFileSync(configPath, "utf-8");
-
-  const parsed = parseSource(configPath, src);
-  if (!parsed) return [];
-
-  const files: string[] = [];
-
-  walk(parsed.program, {
-    enter(node) {
-      if (node.type !== "ObjectExpression") return;
-
-      for (const prop of getObjectProperties(node)) {
-        if (getPropertyKeyName(prop) !== "globalCss") continue;
-
-        const { value } = prop;
-        if (value.type !== "ArrayExpression") continue;
-
-        for (const el of value.elements) {
-          if (!el || el.type === "SpreadElement") continue;
-          if (el.type === "Literal" && typeof el.value === "string") {
-            files.push(el.value);
-          }
-        }
-
-        this.skip();
-        return;
-      }
-    },
-  });
-
-  return files;
-}
-
-/**
  * Convert a user-supplied CSS path (relative to project root, or absolute) to a
  * root-relative import path that Vite can resolve from a virtual module.
  *
@@ -204,7 +102,7 @@ export function toRootRelative(filePath: string, projectRoot: string): string {
   if (filePath.startsWith("/")) return filePath; // already root-relative or absolute URL
   const abs = path.resolve(projectRoot, filePath);
   if (abs.startsWith(projectRoot)) {
-    return "/" + path.relative(projectRoot, abs).replace(/\\/g, "/");
+    return "/" + path.relative(projectRoot, abs).split("\\").join("/");
   }
   // File is outside project root (e.g. a monorepo sibling) — use /@fs/ prefix
   return "/@fs" + abs;

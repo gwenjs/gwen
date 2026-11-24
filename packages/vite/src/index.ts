@@ -185,7 +185,7 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
       // Fallback when `config` did not run. Kit transforms need that hook:
       // this `buildStart` runs after the pipeline froze, so `registerKit` throws.
       await _loadModules(projectRoot);
-      const scenes = scanScenes(projectRoot);
+      const scenes = scanScenes(projectRoot, { autoImports: _sharedAutoImports });
       writeScenesDts(
         projectRoot,
         scenes.map((scene) => scene.sceneName),
@@ -218,7 +218,7 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
         }
 
         if (id === RESOLVED_SCENES) {
-          const scenes = scanScenes(projectRoot);
+          const scenes = scanScenes(projectRoot, { autoImports: _sharedAutoImports });
           return generateScenesModule(scenes, resolveMainScene(scenes, _resolved.mainScene));
         }
 
@@ -259,7 +259,7 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
         devServer.watcher.on("change", (filePath) => {
           if (!filePath.startsWith(scenesDir + path.sep)) return;
           try {
-            const scenes = scanScenes(projectRoot);
+            const scenes = scanScenes(projectRoot, { autoImports: _sharedAutoImports });
             writeScenesDts(
               projectRoot,
               scenes.map((scene) => scene.sceneName),

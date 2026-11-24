@@ -1,11 +1,9 @@
-import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { Plugin, ViteDevServer } from "vite";
-import { walk } from "oxc-walker";
 import type { GwenViteOptions } from "../types.js";
-import { parseSource, isCallTo } from "../oxc/index.js";
 import { createVirtualModule } from "../shared/virtual-module.js";
-import { findComponentFiles } from "../shared/find-component-files.js";
+import { scanLayoutNames } from "../scanners/index.js";
+import { includeBase } from "../scanners/read.js";
 
 const { virtual: LAYOUTS_VIRTUAL, resolved: RESOLVED_LAYOUTS } =
   createVirtualModule("virtual:gwen/layouts");
@@ -51,34 +49,6 @@ export function generateLayoutsModule(layoutMap: Map<string, string>): string {
 }
 
 /**
- * Extract all variable names bound to `defineLayout(...)` calls in the given source.
- * Uses AST parsing to avoid false positives in comments or strings.
- *
- * @param code     - TypeScript source code to scan.
- * @param filename - File path for the parser.
- * @returns Set of variable names found in `defineLayout` declarations.
- */
-export function extractLayoutNames(code: string, filename = "layout.ts"): Set<string> {
-  const names = new Set<string>();
-  if (!code.includes("defineLayout")) return names;
-
-  const parsed = parseSource(filename, code);
-  if (!parsed) return names;
-
-  walk(parsed.program, {
-    enter(node) {
-      if (node.type !== "VariableDeclarator") return;
-      const { id, init } = node;
-      if (id.type !== "Identifier") return;
-      if (!init || !isCallTo(init, "defineLayout")) return;
-      names.add(id.name);
-    },
-  });
-
-  return names;
-}
-
-/**
  * GWEN sub-plugin for the layout virtual module.
  *
  * **Phase 1 (current):**
@@ -115,8 +85,7 @@ export function gwenLayoutPlugin(options: GwenViteOptions): Plugin {
     layoutDirs.clear();
     for (const pattern of include) {
       // Extract the base directory from the pattern (before any wildcards)
-      const head = pattern.split("**")[0];
-      const basePath = head === undefined ? "" : head.replace(/\/$/, "");
+      const basePath = includeBase(pattern);
       if (basePath) layoutDirs.add(resolve(baseRoot, basePath));
     }
   };
@@ -138,21 +107,10 @@ export function gwenLayoutPlugin(options: GwenViteOptions): Plugin {
       if (id !== RESOLVED_LAYOUTS) return;
 
       const layoutMap = new Map<string, string>();
-
-      // Scan layout directories for files
-      for (const dir of layoutDirs) {
-        const files = findComponentFiles(dir);
-
-        for (const file of files) {
-          // Read the file to extract layout names
-          try {
-            const code = readFileSync(file, "utf-8");
-            const names = extractLayoutNames(code, file);
-            for (const name of names) layoutMap.set(name, file);
-          } catch {
-            // Silently skip files that cannot be read
-          }
-        }
+      for (const { name, file } of scanLayoutNames(root, include, {
+        autoImports: options.autoImports ?? [],
+      })) {
+        layoutMap.set(name, file);
       }
 
       return generateLayoutsModule(layoutMap);

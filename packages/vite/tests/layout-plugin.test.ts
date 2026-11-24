@@ -1,13 +1,10 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import type { Plugin } from "vite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ViteErrorCodes } from "../src/error-codes.js";
-import {
-  generateLayoutsModule,
-  extractLayoutNames,
-  gwenLayoutPlugin,
-} from "../src/plugins/layout.js";
+import { generateLayoutsModule, gwenLayoutPlugin } from "../src/plugins/layout.js";
 
 describe("generateLayoutsModule", () => {
   it("returns empty layouts object when no files given", () => {
@@ -46,67 +43,6 @@ describe("generateLayoutsModule", () => {
 
     expect(code).toMatch(/\{\s*'TestLayout':/);
     expect(code).toMatch(/\}\s*;/);
-  });
-});
-
-describe("extractLayoutNames", () => {
-  it("extracts layout names from const declarations", () => {
-    const code = `const Level1 = defineLayout(() => {});`;
-    const names = extractLayoutNames(code);
-
-    expect(names).toContain("Level1");
-    expect(names.size).toBe(1);
-  });
-
-  it("extracts multiple layout names from the same file", () => {
-    const code = `
-      const Level1 = defineLayout(() => {});
-      const Level2 = defineLayout(() => {});
-    `;
-    const names = extractLayoutNames(code);
-
-    expect(names).toContain("Level1");
-    expect(names).toContain("Level2");
-    expect(names.size).toBe(2);
-  });
-
-  it("extracts layout names with export keyword", () => {
-    const code = `export const Level1 = defineLayout(() => {});`;
-    const names = extractLayoutNames(code);
-
-    expect(names).toContain("Level1");
-  });
-
-  it("handles multiline defineLayout calls", () => {
-    const code = `
-      export const ComplexLayout = defineLayout(
-        () => {
-          return { width: 100 };
-        }
-      );
-    `;
-    const names = extractLayoutNames(code);
-
-    expect(names).toContain("ComplexLayout");
-  });
-
-  it("returns empty set when no defineLayout found", () => {
-    const code = `const x = 1;`;
-    const names = extractLayoutNames(code);
-
-    expect(names.size).toBe(0);
-  });
-
-  it("ignores non-layout definitions", () => {
-    const code = `
-      const defineLayout = () => {};
-      const Level1 = defineLayout(() => {});
-      const someOtherVar = something();
-    `;
-    const names = extractLayoutNames(code);
-
-    expect(names).toContain("Level1");
-    expect(names.size).toBe(1);
   });
 });
 
@@ -151,34 +87,68 @@ describe("gwenLayoutPlugin", () => {
     rmSync(root, { recursive: true, force: true });
   });
 
-  it("load throws VITE:TRANSFORM_PARSE_FAILED for an unparsable layout file", () => {
-    const dir = join(root, "src", "layouts");
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, "bad.ts"), "export const L = defineLayout(() => { const = ; });\n");
+  const AUTO = [{ name: "defineLayout", from: "@gwenjs/core/actor" }];
 
-    const plugin = gwenLayoutPlugin({
-      layout: { include: ["src/layouts/**/*.ts"] },
-      autoImports: [{ name: "defineLayout", from: "@gwenjs/core/actor" }],
-    });
+  function writeLayout(rel: string, source: string): string {
+    const full = join(root, rel);
+    mkdirSync(dirname(full), { recursive: true });
+    writeFileSync(full, source);
+    return full;
+  }
+
+  /** Runs `configResolved`, `resolveId` and `load` of the plugin against `root`. */
+  function loadLayouts(plugin: Plugin): Outcome<unknown> {
     const configResolved = plugin.configResolved;
     expect(typeof configResolved).toBe("function");
-    if (typeof configResolved !== "function") return;
+    if (typeof configResolved !== "function") return thrown(undefined);
     Reflect.apply(configResolved, plugin, [{ root }]);
 
     const resolveId = plugin.resolveId;
     expect(typeof resolveId).toBe("function");
-    if (typeof resolveId !== "function") return;
+    if (typeof resolveId !== "function") return thrown(undefined);
     const resolved: unknown = Reflect.apply(resolveId, plugin, ["virtual:gwen/layouts"]);
     expect(typeof resolved).toBe("string");
-    if (typeof resolved !== "string") return;
+    if (typeof resolved !== "string") return thrown(undefined);
 
     const load = plugin.load;
     expect(typeof load).toBe("function");
-    if (typeof load !== "function") return;
-    const outcome = outcomeOf(() => {
+    if (typeof load !== "function") return thrown(undefined);
+    return outcomeOf(() => {
       const value: unknown = Reflect.apply(load, plugin, [resolved]);
       return value;
     });
+  }
+
+  it("load returns a lazy import for a bare and an aliased defineLayout under src/layouts", () => {
+    const aliased = writeLayout(
+      "src/layouts/a.ts",
+      'import { defineLayout as dl } from "@gwenjs/core/actor";\nexport const A = dl({});\n',
+    );
+    const bare = writeLayout("src/layouts/l.ts", "export const L = defineLayout({});\n");
+    const plugin = gwenLayoutPlugin({
+      layout: { include: ["src/layouts/**/*.ts"] },
+      autoImports: AUTO,
+    });
+    const outcome = loadLayouts(plugin);
+    expect(isFailure(outcome) ? undefined : outcome.value).toBe(
+      `export const layouts = {\n  'A': () => import('${aliased}'),\n  'L': () => import('${bare}'),\n};\n`,
+    );
+  });
+
+  it("load finds no layout for a bare defineLayout when autoImports is not given", () => {
+    writeLayout("src/layouts/l.ts", "export const L = defineLayout({});\n");
+    const plugin = gwenLayoutPlugin({ layout: { include: ["src/layouts/**/*.ts"] } });
+    const outcome = loadLayouts(plugin);
+    expect(isFailure(outcome) ? undefined : outcome.value).toBe("export const layouts = {};\n");
+  });
+
+  it("load throws VITE:TRANSFORM_PARSE_FAILED for an unparsable layout file", () => {
+    writeLayout("src/layouts/bad.ts", "export const L = defineLayout(() => { const = ; });\n");
+    const plugin = gwenLayoutPlugin({
+      layout: { include: ["src/layouts/**/*.ts"] },
+      autoImports: AUTO,
+    });
+    const outcome = loadLayouts(plugin);
     expect(isFailure(outcome) ? outcome.code : undefined).toBe(
       ViteErrorCodes.TRANSFORM_PARSE_FAILED,
     );

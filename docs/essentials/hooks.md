@@ -29,7 +29,7 @@ export const GameHooks = defineHooks({
 ```
 
 ::: info Auto-generated augmentation
-`gwenHooksPlugin` (part of `@gwenjs/vite`) scans `src/hooks.ts` and `src/hooks/*.ts` and auto-generates the `declare module '@gwenjs/schema'` augmentation in `.gwen/types/hooks.d.ts`. You never write this block by hand.
+`gwenHooksPlugin` (part of `@gwenjs/vite`) scans `src/hooks.ts` and `src/hooks/*.ts` and auto-generates the `declare module '@gwenjs/schema'` augmentation in `.gwen/types/hooks.d.ts`. You never write this block by hand. Only an exported const bound to `defineHooks` is typed: `export const X = defineHooks(...)`, or `const X = defineHooks(...)` followed by `export { X }`. A default export is not.
 :::
 
 `defineHooks` returns the same object. A key that is not `namespace:action`, or that uses a core-reserved namespace, throws `GwenHookNameError` (`CORE:HOOK_NAME_INVALID`) at runtime. The Vite plugin writes the map onto `GwenRuntimeHooks`. After that, a wrong name or a wrong argument type is a compile error in every actor, system, and plugin.
