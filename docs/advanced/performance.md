@@ -1,11 +1,11 @@
 ---
 title: Performance Patterns
-description: Chunk loops for bulk work, shared functions, and the optimizer the framework installs.
+description: Chunk loops for bulk work, shared functions, and a reserved optimizer option.
 ---
 
 # Performance Patterns
 
-Use an actor for one named object. Use a system chunk loop when the same logic applies to many entities. The framework owns the Vite config and installs the optimizer.
+Use an actor for one named object. Use a system chunk loop when the same logic applies to many entities. The `optimizer` option is reserved and ignored until #69.
 
 ## 1. Hybrid actor / system architecture
 
@@ -257,17 +257,9 @@ await engine.advance(0.016);
 assert.equal(readBack, 11);
 ```
 
-## 4. The optimizer the framework installs
+## 4. The reserved optimizer option
 
-A game does not ship a `vite` config file and does not call the optimizer plugin itself. `gwenVitePlugin` always installs it. The `optimizer` option maps to `mode`:
-
-| `optimizer` | Result |
-|---|---|
-| omitted or `false` | `{ mode: "detect" }` |
-| `true` | `{ mode: "transform" }` |
-| an options object | `{ mode: "transform" }`, plus `componentsDir`, `tier`, and `debug` when set |
-
-`useComponent(entityId, def)` is the call the optimizer matches. Write the chunk loop in section 3. Rewriting that loop is a separate change.
+The `optimizer` option is reserved. `optimizer: true` does nothing until #69.
 
 ## Hot path
 

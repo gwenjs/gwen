@@ -4,19 +4,15 @@
       "ViteErrorCodes",
       "default",
       "gwen",
-      "gwenOptimizerPlugin",
       "gwenPhysics3DOptimizerPlugin",
-      "gwenTransform",
       "gwenVitePlugin"
     ],
     "types": [
       "ActorPluginOptions",
       "CoreVariant",
       "GwenDevStripReport",
-      "GwenOptimizerOptions",
       "GwenPhysics3DOptimizerOptions",
       "GwenPluginOptions",
-      "GwenTransformOptions",
       "GwenViteOptions"
     ]
   },

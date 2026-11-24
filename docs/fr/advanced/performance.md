@@ -1,11 +1,11 @@
 ---
 title: Patterns de performance
-description: Boucles de chunks pour le travail en masse, fonctions partagées, et l'optimiseur que le framework installe.
+description: Boucles de chunks pour le travail en masse, fonctions partagées, et une option optimizer réservée.
 ---
 
 # Patterns de performance
 
-Utilisez un acteur pour un objet nommé. Utilisez une boucle de chunks dans un système quand la même logique s'applique à beaucoup d'entités. Le framework possède la config Vite et installe l'optimiseur.
+Utilisez un acteur pour un objet nommé. Utilisez une boucle de chunks dans un système quand la même logique s'applique à beaucoup d'entités. L'option `optimizer` est réservée et ignorée jusqu'à #69.
 
 ## 1. Architecture hybride acteur / système
 
@@ -257,17 +257,9 @@ await engine.advance(0.016);
 assert.equal(readBack, 11);
 ```
 
-## 4. L'optimiseur que le framework installe
+## 4. L'option optimizer réservée
 
-Un jeu ne livre pas de fichier de config `vite` et n'appelle pas lui-même le plugin d'optimiseur. `gwenVitePlugin` l'installe toujours. L'option `optimizer` correspond à `mode` :
-
-| `optimizer` | Résultat |
-|---|---|
-| omis ou `false` | `{ mode: "detect" }` |
-| `true` | `{ mode: "transform" }` |
-| un objet d'options | `{ mode: "transform" }`, plus `componentsDir`, `tier` et `debug` quand ils sont définis |
-
-`useComponent(entityId, def)` est l'appel que l'optimiseur reconnaît. Écrivez la boucle de chunks de la section 3. Réécrire cette boucle est un changement à part.
+L'option `optimizer` est réservée. `optimizer: true` ne fait rien jusqu'à #69.
 
 ## Chemin chaud
 

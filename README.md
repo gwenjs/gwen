@@ -38,7 +38,7 @@ The first 3D renderer strategy is an optional three.js adapter (`@gwenjs/rendere
 | `@gwenjs/physics3d` | 3D rigid-body physics (Rapier via WASM) |
 | `@gwenjs/physics3d-fracture` | Destructible mesh support for physics3d |
 | `@gwenjs/schema` | Component schema primitives and type utilities |
-| `@gwenjs/vite` | Vite plugin — system name injection, optimizer |
+| `@gwenjs/vite` | Vite plugin — system name injection |
 
 ---
 

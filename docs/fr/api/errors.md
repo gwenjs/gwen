@@ -208,14 +208,6 @@ Cause. Un `engine.variant` explicite contredit un module de physique (`resolveGw
 
 ## @gwenjs/vite
 
-### VITE:OPTIMIZER_UNKNOWN_COMPONENT {#vite-optimizer-unknown-component}
-
-Cause. Le générateur de code a demandé un composant absent du manifeste. Fix. Enregistrez le composant avant de générer le code bulk.
-
-### VITE:OPTIMIZER_UNKNOWN_FIELD {#vite-optimizer-unknown-field}
-
-Cause. Le champ n'est pas sur ce composant dans le manifeste. Fix. Utilisez un champ listé par le manifeste du composant.
-
 ### VITE:SCENE_NAME_UNRESOLVED {#vite-scene-name-unresolved}
 
 Cause. `scanScenes` (`packages/vite/src/scanners/index.ts:118`) a lu un fichier sous `src/scenes/` dont le nom de scène n'est pas un littéral. Le message est `Scene file "${rel}" has no literal scene name.` (`packages/vite/src/scanners/index.ts:138`). Un fichier dont le nom commence par `_` ou `.` est ignoré (`packages/vite/src/scanners/index.ts:126`). Fix. Appelez `defineScene` avec un littéral, ou préfixez un fichier d'aide par `_`.
