@@ -1,7 +1,10 @@
 import { ConformanceErrorCodes } from "../error-codes.js";
 import { isRecord } from "../json.js";
 import type { ConformanceFinding } from "../types.js";
+import { FRAMEWORK_PLUGIN_NAMES } from "./framework-plugin-names.js";
 import type { PluginConformanceSpec } from "./types.js";
+
+const FRAMEWORK_PLUGIN_NAME_SET: ReadonlySet<string> = new Set(FRAMEWORK_PLUGIN_NAMES);
 
 const VARIANTS = ["light", "physics2d", "physics3d"] as const;
 
@@ -79,6 +82,19 @@ export function validateSpec(spec: PluginConformanceSpec): ConformanceFinding[] 
         'Pass variant "light", "physics2d", or "physics3d".',
       ),
     );
+  }
+  const providers = spec.frameworkProviders;
+  if (providers !== undefined) {
+    for (const provider of providers) {
+      const name = provider().name;
+      if (FRAMEWORK_PLUGIN_NAME_SET.has(name)) continue;
+      findings.push(
+        runtimeFinding(
+          `frameworkProviders entry ${JSON.stringify(name)} is not a framework plugin`,
+          "Pass a factory whose plugin name is in FRAMEWORK_PLUGIN_NAMES.",
+        ),
+      );
+    }
   }
   return findings;
 }
