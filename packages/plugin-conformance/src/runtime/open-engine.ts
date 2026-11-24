@@ -8,6 +8,11 @@ export interface OpenedEngine {
   readonly engine: GwenEngine;
   readonly events: readonly GwenErrorPayload[];
   readonly logs: readonly GwenLogEntry[];
+  /**
+   * Advance the handle. The first call runs `startExternal`
+   * (`packages/core/src/testing/create-real-engine.ts:103`).
+   */
+  advance(frames: number, dt: number): Promise<void>;
 }
 
 /**
@@ -35,7 +40,12 @@ export async function withEngine<T>(
     handle.engine.errors.on((event) => {
       events.push(event);
     });
-    return await run({ engine: handle.engine, events, logs });
+    return await run({
+      engine: handle.engine,
+      events,
+      logs,
+      advance: (frames, dt) => handle.advance(frames, dt),
+    });
   } finally {
     await handle.dispose();
   }
