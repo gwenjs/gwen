@@ -1,6 +1,5 @@
 import { createRequire } from "node:module";
 import type { Plugin } from "vite";
-import type { GwenViteOptions } from "../types.js";
 import { devFromResolvedConfig } from "./dev-from-config.js";
 
 const ENV_VIRTUAL = "virtual:gwen/env";
@@ -11,26 +10,20 @@ const RESOLVED_ENV = "\0" + ENV_VIRTUAL;
  *
  * @example Usage in game code
  * ```ts
- * import { GWEN_VERSION, GWEN_WASM_VARIANT, GWEN_DEV } from 'virtual:gwen/env'
+ * import { GWEN_VERSION, GWEN_DEV } from 'virtual:gwen/env'
  *
- * console.log(GWEN_VERSION)      // '1.0.0'
- * console.log(GWEN_WASM_VARIANT) // 'release'
- * console.log(GWEN_DEV)          // false
+ * console.log(GWEN_VERSION) // '1.0.0'
+ * console.log(GWEN_DEV)     // false
  * ```
  */
-export function gwenVirtualPlugin(options: GwenViteOptions): Plugin {
-  let isBuild = false;
+export function gwenVirtualPlugin(): Plugin {
   let dev = true;
-  let variant: "debug" | "release" = "debug";
 
   return {
     name: "gwen:virtual",
 
     configResolved(config) {
-      isBuild = config.command === "build";
       dev = devFromResolvedConfig(config);
-      const requested = options.wasm?.variant ?? "auto";
-      variant = requested === "auto" ? (isBuild ? "release" : "debug") : requested;
     },
 
     resolveId(id) {
@@ -52,11 +45,9 @@ export function gwenVirtualPlugin(options: GwenViteOptions): Plugin {
         // Fall back to '0.0.0' if the package is not resolvable
       }
 
-      return [
-        `export const GWEN_VERSION = '${version}'`,
-        `export const GWEN_WASM_VARIANT = '${variant}'`,
-        `export const GWEN_DEV = ${dev}`,
-      ].join("\n");
+      return [`export const GWEN_VERSION = '${version}'`, `export const GWEN_DEV = ${dev}`].join(
+        "\n",
+      );
     },
   };
 }

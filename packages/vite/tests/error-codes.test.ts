@@ -2,17 +2,11 @@
  * Vite plugin throws use ViteErrorCodes and the GWEN grammar.
  * packages/vite/src is Node-side, so the hint follows NODE_ENV.
  */
-import { join, resolve } from "node:path";
-import { tmpdir } from "node:os";
 import { describe, expect, it } from "vitest";
 import { GwenError } from "@gwenjs/schema";
 import { CodeGenerator } from "../src/optimizer/code-generator.js";
 import { ComponentManifest } from "../src/optimizer/component-manifest.js";
-import { gwenWasmPlugin } from "../src/plugins/wasm.js";
 
-const RESOLVED_ID = "\0virtual:gwen/wasm";
-const WASM_SEE =
-  "See https://gwenjs.github.io/gwen/api/errors#vite-wasm-not-found (VITE:WASM_NOT_FOUND)";
 const COMPONENT_SEE =
   "See https://gwenjs.github.io/gwen/api/errors#vite-optimizer-unknown-component (VITE:OPTIMIZER_UNKNOWN_COMPONENT)";
 const FIELD_SEE =
@@ -34,22 +28,6 @@ function withNodeEnv<T>(nodeEnv: string, run: () => T): T {
   }
 }
 
-function loadMissingWasm(wasmPath: string): unknown {
-  const plugin = gwenWasmPlugin({ wasm: { wasmPath } });
-  if (typeof plugin.configResolved !== "function") {
-    throw new Error("configResolved hook missing");
-  }
-  plugin.configResolved.call({} as never, { command: "serve" } as never);
-  const load = plugin.load;
-  if (typeof load !== "function") throw new Error("load hook missing");
-  try {
-    load.call({} as never, RESOLVED_ID);
-    return undefined;
-  } catch (err) {
-    return err;
-  }
-}
-
 function asGwenError(value: unknown): GwenError {
   expect(value).toBeInstanceOf(GwenError);
   if (!(value instanceof GwenError)) throw new Error("expected GwenError");
@@ -57,37 +35,6 @@ function asGwenError(value: unknown): GwenError {
 }
 
 describe("ViteErrorCodes", () => {
-  it("a missing wasm throws VITE:WASM_NOT_FOUND without a tag", async () => {
-    const wasmPath = resolve(join(tmpdir(), `gwen-missing-p648-${process.pid}.wasm`));
-    const hint = "Run 'cargo build --target wasm32-unknown-unknown' first.";
-    const what = `WASM binary not found at ${wasmPath}.`;
-
-    const dev = asGwenError(withNodeEnv("development", () => loadMissingWasm(wasmPath)));
-    expect(dev.message.split("\n")[0]).toBe(`[GWEN] ${what}`);
-    expect(dev.message).toBe(grammar(what, hint, WASM_SEE, true));
-    expect(dev.code).toBe("VITE:WASM_NOT_FOUND");
-    expect(dev.message.includes("[gwen:wasm]")).toBe(false);
-
-    const prod = asGwenError(withNodeEnv("production", () => loadMissingWasm(wasmPath)));
-    expect(prod.message).toBe(grammar(what, hint, WASM_SEE, false));
-    expect(prod.message.includes("Fix:")).toBe(false);
-    expect(prod.code).toBe("VITE:WASM_NOT_FOUND");
-
-    const entry: Record<string, unknown> = await import("@gwenjs/vite");
-    expect(entry["ViteErrorCodes"]).toEqual({
-      WASM_NOT_FOUND: "VITE:WASM_NOT_FOUND",
-      OPTIMIZER_UNKNOWN_COMPONENT: "VITE:OPTIMIZER_UNKNOWN_COMPONENT",
-      OPTIMIZER_UNKNOWN_FIELD: "VITE:OPTIMIZER_UNKNOWN_FIELD",
-      SCENE_NAME_UNRESOLVED: "VITE:SCENE_NAME_UNRESOLVED",
-      SCENE_NAME_DUPLICATE: "VITE:SCENE_NAME_DUPLICATE",
-      MAIN_SCENE_UNKNOWN: "VITE:MAIN_SCENE_UNKNOWN",
-      TRANSFORM_PARSE_FAILED: "VITE:TRANSFORM_PARSE_FAILED",
-      TRANSFORM_EDIT_CONFLICT: "VITE:TRANSFORM_EDIT_CONFLICT",
-      TRANSFORM_UNSUPPORTED: "VITE:TRANSFORM_UNSUPPORTED",
-      BVH_PREBAKE_FAILED: "VITE:BVH_PREBAKE_FAILED",
-    });
-  });
-
   it("holds exactly the codes @gwenjs/vite throws", async () => {
     const entry: Record<string, unknown> = await import("@gwenjs/vite");
     expect(entry["ViteErrorCodes"]).toEqual({

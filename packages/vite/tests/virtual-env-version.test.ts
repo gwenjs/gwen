@@ -56,6 +56,6 @@ function loadEnvModule(plugin: Plugin): string {
 describe("virtual:gwen/env — GWEN_VERSION", () => {
   it("reports 0.0.0 when the core version is not a string", () => {
     installCoreManifest({ version: 7 });
-    expect(loadEnvModule(gwenVirtualPlugin({}))).toContain("export const GWEN_VERSION = '0.0.0'");
+    expect(loadEnvModule(gwenVirtualPlugin())).toContain("export const GWEN_VERSION = '0.0.0'");
   });
 });

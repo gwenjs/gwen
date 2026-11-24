@@ -92,7 +92,6 @@ describe("GwenApp.prepare()", () => {
 
     const content = readFileSync(join(tmpRoot, ".gwen", "types", "env.d.ts"), "utf8");
     expect(content).toContain("virtual:gwen/auto-imports");
-    expect(content).toContain("virtual:gwen/wasm");
     expect(content).toContain("virtual:gwen/env");
     expect(content).toContain('/// <reference types="vite/client" />');
   });
@@ -179,7 +178,7 @@ describe("GwenApp.prepare()", () => {
     // These module names must stay in sync with the virtual module ids
     // resolved by @gwenjs/vite. If you add a new virtual module to the Vite
     // plugin, add it here too — this test is the cross-validation guard.
-    const expectedModules = ["virtual:gwen/wasm", "virtual:gwen/env", "virtual:gwen/auto-imports"];
+    const expectedModules = ["virtual:gwen/env", "virtual:gwen/auto-imports"];
 
     for (const mod of expectedModules) {
       expect(content, `env.d.ts must declare module '${mod}'`).toContain(`'${mod}'`);

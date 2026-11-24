@@ -187,7 +187,7 @@ console.log(manifest.buildDate); // Build timestamp
 
 Values: `ViteErrorCodes`, `default`, `gwen`, `gwenOptimizerPlugin`, `gwenPhysics3DOptimizerPlugin`, `gwenTransform`, `gwenVitePlugin`
 
-Types: `ActorPluginOptions`, `CoreVariant`, `GwenDevStripReport`, `GwenOptimizerOptions`, `GwenPhysics3DOptimizerOptions`, `GwenPluginOptions`, `GwenTransformOptions`, `GwenViteOptions`, `GwenWasmOptions`, `WasmVariant`
+Types: `ActorPluginOptions`, `CoreVariant`, `GwenDevStripReport`, `GwenOptimizerOptions`, `GwenPhysics3DOptimizerOptions`, `GwenPluginOptions`, `GwenTransformOptions`, `GwenViteOptions`
 
 `GwenDevStripReport` — Numeric `sites`, `sourceBytes`, and `perFrameSites`.
 

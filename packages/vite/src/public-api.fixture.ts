@@ -10,8 +10,6 @@ type _0 = [
   Root.GwenPluginOptions,
   Root.GwenTransformOptions,
   Root.GwenViteOptions,
-  Root.GwenWasmOptions,
-  Root.WasmVariant,
 ];
 
 type Physics3DOptimizerMode = NonNullable<Root.GwenPhysics3DOptimizerOptions["mode"]>;
