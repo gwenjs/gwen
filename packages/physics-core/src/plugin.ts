@@ -29,7 +29,8 @@ import type { CollisionContact, Dim } from "./types.js";
  * that frame still run. Otherwise the order continues with `physics:collision`,
  * `onContact`, then `onContacts`.
  * A rejected `physics:collision` or `physics:sensor:changed` handler is reported.
- * `entity:destroy` forgets that entity's sensor counts and does not fire an exit.
+ * `entity:destroy` forgets that entity's sensor counts, drops sensor callbacks
+ * stored for that owner (`SensorRegistry.removeOwned`), and does not fire an exit.
  * `teardown` clears that engine's contact and sensor callbacks, then calls `dispose`.
  * One plugin object installed on two engines keeps one adapter per engine.
  * Stopping one engine disposes only that engine's adapter.
@@ -93,6 +94,7 @@ export function createPhysicsPlugin<
         });
         engine.hooks.hook("entity:destroy", (entityId) => {
           tracker.forget(entityId);
+          createSensorRegistry().peek(engine)?.removeOwned(entityId);
           created.onEntityDestroy(entityId);
         });
         engine.hooks.hook("engine:before-update", (dt) => {

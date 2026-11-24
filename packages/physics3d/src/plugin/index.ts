@@ -1,4 +1,8 @@
-import { definePlugin } from "@gwenjs/kit/plugin";
+import {
+  createPhysicsPlugin,
+  type PhysicsAdapter,
+  type PhysicsSensorTracker,
+} from "@gwenjs/physics-core";
 import { engineContext, getWasmBridge, reportRejectedHook } from "@gwenjs/core/internal";
 import { createEngineLocal, useEngine } from "@gwenjs/core";
 import type { GwenEngine } from "@gwenjs/core";
@@ -8,7 +12,6 @@ import type {
   Physics3DConfig,
   CollisionContact,
   Physics3DPrefabExtension,
-  SensorState,
 } from "../types";
 
 import {
@@ -19,13 +22,7 @@ import {
   readGravityAxis,
 } from "../config";
 
-import { _dispatchContactEvent, _clearContactCallbacks } from "../composables/on-contact";
-import {
-  _dispatchSensorEnter,
-  _dispatchSensorExit,
-  _clearSensorCallbacks,
-  clearEngineSensors,
-} from "../composables/on-sensor";
+import { _clearSensorCallbacks } from "../composables/on-sensor";
 
 import type { Physics3DBridgeRuntime, Physics3DWasmBridge } from "./bridge";
 import { clearOwnerChanges, entitySlot, guardOwned, ownerEntityId } from "./entity-owner";
@@ -63,7 +60,8 @@ import {
 
 import { createGetSensorState, createUpdateSensorState } from "./sensor-management";
 
-import { detectLocalCollisions, readWasmCollisionEvents } from "./collision-events";
+import { detectLocalCollisions, readWasmEventView } from "./collision-events";
+import { copyWasmEvents, createStagedEventBuffer, encodeLocalEvents } from "./event-staging";
 
 import { createJointMethods } from "./joint-management";
 
@@ -116,17 +114,17 @@ function emitDisabledBodies(ctx: PluginContext): void {
 
 const physics3dDefaults: Physics3DConfig = DEFAULT_PHYSICS3D_CONFIG;
 
-const physics3dDeclaration = {
-  provides: ["physics3d"] as const,
-  options: { defaults: physics3dDefaults },
-};
-
 /**
- * GWEN plugin providing 3D rigid-body physics via Rapier3D integrated in the
- * core WASM. Falls back to a deterministic TypeScript simulation when the WASM
- * physics3d variant is not loaded (e.g. during tests).
+ * One engine's 3D adapter.
+ * The shared plugin owns the engine hooks (`packages/physics-core/src/plugin.ts:91`).
  */
-export const Physics3DPlugin = definePlugin(physics3dDeclaration, (config: Physics3DConfig) => {
+function makeAdapter(
+  engine: GwenEngine,
+  config: Readonly<Physics3DConfig>,
+  adapterCtx: { readonly sensors: PhysicsSensorTracker },
+): PhysicsAdapter<"3d", Physics3DAPI> {
+  const real = useEngine("Physics3DPlugin.setup");
+  const sensors = adapterCtx.sensors;
   /** One core bridge per engine. Teardown does not delete the entry. */
   const coreByEngine = new WeakMap<GwenEngine, Physics3DBridgeRuntime>();
 
@@ -224,8 +222,8 @@ export const Physics3DPlugin = definePlugin(physics3dDeclaration, (config: Physi
   const _bulkSpawnStaticBoxes = createBulkSpawnStaticBoxes(ctx);
   const _addCompoundCollider = createAddCompoundCollider(ctx);
 
-  const _getSensorState = createGetSensorState(ctx);
-  const _updateSensorState = createUpdateSensorState(ctx);
+  const _getSensorState = createGetSensorState(ctx, sensors);
+  const _updateSensorState = createUpdateSensorState(ctx, sensors);
 
   const jointMethods = createJointMethods(ctx);
   const forceMethods = createForcesAndConstraints(ctx);
@@ -343,270 +341,190 @@ export const Physics3DPlugin = definePlugin(physics3dDeclaration, (config: Physi
     ...ccMethods,
   };
 
-  // ─── Plugin lifecycle ─────────────────────────────────────────────────────────
+  // ─── Init, then the adapter ───────────────────────────────────────────────────
+
+  ctx._engine = real;
+  ctx.log = engine.logger?.child("@gwenjs/physics3d") ?? ctx.log;
+  const bridge = getWasmBridge() as Physics3DBridgeRuntime; // boundary: core types the bridge as WasmBridge, whose getPhysicsBridge returns a 2D|3D union; Physics3DBridgeRuntime is this package's view of the same object, and its variant is checked on the next lines
+  ctx._variant = bridge.variant;
+  // Same object as coreBridge. Teardown clears bridgeRuntime, not coreBridge.
+  ctx.bridgeRuntime = bridge;
+
+  if (ctx._variant !== "physics3d") {
+    throw new GwenError(
+      Physics3DErrorCodes.WASM_VARIANT_MISMATCH,
+      `Active core variant is "${ctx._variant}".`,
+      {
+        hint: __GWEN_DEV__
+          ? 'Pass variant: "physics3d" when initialising WasmBridgeImpl.'
+          : undefined,
+      },
+    );
+  }
+
+  ctx.coreBridge = bridge;
+  coreByEngine.set(real, bridge);
+
+  const pb = bridge.getPhysicsBridge();
+
+  if (typeof pb.physics3d_init !== "function") {
+    throw new GwenError(
+      Physics3DErrorCodes.WASM_VARIANT_MISMATCH,
+      "physics3d_init() is not available in the current WASM exports.",
+    );
+  }
+
+  pb.physics3d_init(
+    readGravityAxis(ctx.cfg.gravity, "x"),
+    readGravityAxis(ctx.cfg.gravity, "y"),
+    readGravityAxis(ctx.cfg.gravity, "z"),
+    ctx.cfg.maxEntities,
+  );
+
+  if (typeof pb.physics3d_set_max_linear_velocity === "function") {
+    const setCap = pb.physics3d_set_max_linear_velocity;
+    const accepted = setCap.call(pb, ctx.cfg.maxLinearVelocity);
+    if (accepted === 0) {
+      ctx.log.warn("[Physics3D] maxLinearVelocity was refused; the previous cap stays", {
+        maxLinearVelocity: ctx.cfg.maxLinearVelocity,
+      });
+    }
+  }
+
+  if (typeof pb.physics3d_set_quality === "function") {
+    const setQuality = pb.physics3d_set_quality;
+    callPhysics3DExport(ctx, "physics3d_set_quality", () =>
+      setQuality.call(pb, QUALITY_PRESET_CODE[ctx.cfg.qualityPreset]),
+    );
+  }
+
+  if (typeof pb.physics3d_set_event_coalescing === "function") {
+    const setCoalescing = pb.physics3d_set_event_coalescing;
+    callPhysics3DExport(ctx, "physics3d_set_event_coalescing", () =>
+      setCoalescing.call(pb, ctx.cfg.coalesceEvents),
+    );
+  }
+
+  // One step per frame: read the glue here, no closure over it. A rejected step leaves
+  // `engine:before-update` through the existing hook-error path.
+  const canStep = typeof pb.physics3d_step === "function";
+  ctx.stepFn = canStep
+    ? (delta: number): void => {
+        const live = ctx.coreBridge?.getPhysicsBridge();
+        const step = live?.physics3d_step;
+        if (live === undefined || typeof step !== "function") return;
+        try {
+          step.call(live, delta);
+        } catch (err: unknown) {
+          throw mapPhysics3DError(ctx, err, "physics3d_step");
+        }
+      }
+    : null;
+
+  // Detect WASM backend: if physics3d_add_body is exported, delegate to Rapier3D
+  if (typeof pb.physics3d_add_body === "function") {
+    ctx.backendMode = "wasm";
+    ctx.wasmBridge = pb;
+
+    const ccSabPtr = pb.physics3d_get_cc_sab_ptr?.() ?? 0;
+    if (ccSabPtr > 0) {
+      ctx.ccState = engine.memory.view({
+        name: "physics3d:cc-state",
+        type: "f32",
+        ptr: () => ctx.coreBridge?.getPhysicsBridge().physics3d_get_cc_sab_ptr?.() ?? 0,
+        length: () => {
+          const live = ctx.coreBridge?.getPhysicsBridge();
+          const maxCC = live?.physics3d_get_max_cc_entities?.() ?? 32;
+          return maxCC * ctx.CC_STATE_STRIDE;
+        },
+      });
+    }
+  }
+
+  ctx.ready = true;
+
+  if (ctx.cfg.debug) {
+    ctx.log.debug(`Initialized. Backend=${ctx.backendMode} quality=${ctx.cfg.qualityPreset}`);
+  }
+
+  const staged = createStagedEventBuffer();
+  const api = bindToEngine(real, service);
 
   return {
-    name: "@gwenjs/physics3d",
-
-    setup(engine: GwenEngine): void {
-      const real = useEngine("Physics3DPlugin.setup");
-      ctx._engine = real;
-      ctx.log = engine.logger?.child("@gwenjs/physics3d") ?? ctx.log;
-      const bridge = getWasmBridge() as Physics3DBridgeRuntime; // boundary: core types the bridge as WasmBridge, whose getPhysicsBridge returns a 2D|3D union; Physics3DBridgeRuntime is this package's view of the same object, and its variant is checked on the next lines
-      ctx._variant = bridge.variant;
-      // Same object as coreBridge. Teardown clears bridgeRuntime, not coreBridge.
-      ctx.bridgeRuntime = bridge;
-
-      if (ctx._variant !== "physics3d") {
-        throw new GwenError(
-          Physics3DErrorCodes.WASM_VARIANT_MISMATCH,
-          `Active core variant is "${ctx._variant}".`,
-          {
-            hint: __GWEN_DEV__
-              ? 'Pass variant: "physics3d" when initialising WasmBridgeImpl.'
-              : undefined,
-          },
-        );
+    dim: "3d",
+    api,
+    eventLayout: { stride: 16, idWidth: 2 },
+    step(dt: number): void {
+      if (!ctx.ready || !ctx.stepFn) return;
+      ctx.stepFn(dt);
+      emitDisabledBodies(ctx);
+      if (ctx.backendMode === "local") {
+        advanceLocalState(ctx, dt);
       }
-
-      ctx.coreBridge = bridge;
-      coreByEngine.set(real, bridge);
-
-      const pb = bridge.getPhysicsBridge();
-
-      if (typeof pb.physics3d_init !== "function") {
-        throw new GwenError(
-          Physics3DErrorCodes.WASM_VARIANT_MISMATCH,
-          "physics3d_init() is not available in the current WASM exports.",
-        );
+      clearOwnerChanges(ctx);
+    },
+    eventView(): { readonly view: DataView; readonly count: number } {
+      ctx.currentFrameContacts = [];
+      if (ctx.backendMode === "wasm") {
+        const read = readWasmEventView(ctx);
+        if (read === undefined) {
+          staged.count = 0;
+          return staged;
+        }
+        copyWasmEvents(staged, read.view, read.count);
+        const live = ctx.coreBridge?.getPhysicsBridge();
+        try {
+          live?.physics3d_consume_events?.();
+        } catch (err: unknown) {
+          throw mapPhysics3DError(ctx, err, "physics3d_consume_events");
+        }
+        ctx.lastFrameEventCount = read.count;
+        return staged;
       }
-
-      pb.physics3d_init(
-        readGravityAxis(ctx.cfg.gravity, "x"),
-        readGravityAxis(ctx.cfg.gravity, "y"),
-        readGravityAxis(ctx.cfg.gravity, "z"),
-        ctx.cfg.maxEntities,
-      );
-
-      if (typeof pb.physics3d_set_max_linear_velocity === "function") {
-        const setCap = pb.physics3d_set_max_linear_velocity;
-        const accepted = setCap.call(pb, ctx.cfg.maxLinearVelocity);
-        if (accepted === 0) {
-          ctx.log.warn("[Physics3D] maxLinearVelocity was refused; the previous cap stays", {
-            maxLinearVelocity: ctx.cfg.maxLinearVelocity,
-          });
-        }
-      }
-
-      if (typeof pb.physics3d_set_quality === "function") {
-        const setQuality = pb.physics3d_set_quality;
-        callPhysics3DExport(ctx, "physics3d_set_quality", () =>
-          setQuality.call(pb, QUALITY_PRESET_CODE[ctx.cfg.qualityPreset]),
-        );
-      }
-
-      if (typeof pb.physics3d_set_event_coalescing === "function") {
-        const setCoalescing = pb.physics3d_set_event_coalescing;
-        callPhysics3DExport(ctx, "physics3d_set_event_coalescing", () =>
-          setCoalescing.call(pb, ctx.cfg.coalesceEvents),
-        );
-      }
-
-      // One step per frame: read the glue here, no closure over it. A rejected step leaves
-      // `engine:before-update` through the existing hook-error path.
-      const canStep = typeof pb.physics3d_step === "function";
-      ctx.stepFn = canStep
-        ? (delta: number): void => {
-            const live = ctx.coreBridge?.getPhysicsBridge();
-            const step = live?.physics3d_step;
-            if (live === undefined || typeof step !== "function") return;
-            try {
-              step.call(live, delta);
-            } catch (err: unknown) {
-              throw mapPhysics3DError(ctx, err, "physics3d_step");
-            }
-          }
-        : null;
-
-      // Detect WASM backend: if physics3d_add_body is exported, delegate to Rapier3D
-      if (typeof pb.physics3d_add_body === "function") {
-        ctx.backendMode = "wasm";
-        ctx.wasmBridge = pb;
-
-        const ccSabPtr = pb.physics3d_get_cc_sab_ptr?.() ?? 0;
-        if (ccSabPtr > 0) {
-          ctx.ccState = engine.memory.view({
-            name: "physics3d:cc-state",
-            type: "f32",
-            ptr: () => ctx.coreBridge?.getPhysicsBridge().physics3d_get_cc_sab_ptr?.() ?? 0,
-            length: () => {
-              const live = ctx.coreBridge?.getPhysicsBridge();
-              const maxCC = live?.physics3d_get_max_cc_entities?.() ?? 32;
-              return maxCC * ctx.CC_STATE_STRIDE;
-            },
-          });
-        }
-      }
-
-      ctx.ready = true;
-
-      // Register prefab extension handler
-      ctx.offPrefabInstantiate = engine.hooks.hook("prefab:instantiate", (entityId, extensions) => {
-        const ext = extensions?.physics3d as Physics3DPrefabExtension | undefined; // boundary: GwenPrefabExtensions is an open unknown index signature filled by user prefabs; physics3d adds no typed key
-        if (!ext?.body) return;
-
-        _createBody(entityId, ext.body);
-
-        if (ext.onCollision) {
-          ctx.entityCollisionCallbacks.set(entitySlot(entityId), ext.onCollision);
-        }
-      });
-
-      ctx.offEntityDestroyed = engine.hooks.hook("entity:destroy", (entityId: EntityId) => {
-        const slot = entitySlot(entityId);
-        const handle = ctx.bodyByEntity.get(slot);
-        const owner = handle?.entityId;
-        // Another live id already owns the slot. Leave its callbacks and body alone.
-        if (owner !== undefined && owner !== entityId) return;
-        ctx.entityCollisionCallbacks.delete(slot);
-        ctx.localSensorStates.delete(slot);
-        const dyingSensors = ctx.activeSensors.get(slot);
-        if (dyingSensors) {
-          for (const sensorId of dyingSensors) _clearSensorCallbacks(entityId, sensorId);
-        }
-        ctx.activeSensors.delete(slot);
-        if (owner === entityId) _removeBody(entityId);
-      });
-
-      ctx.offEngineBeforeUpdate = engine.hooks.hook("engine:before-update", (deltaTime: number) => {
-        if (!ctx.ready || !ctx.stepFn) return;
-        if (!(deltaTime > 0)) return;
-        ctx.stepFn(deltaTime);
-        emitDisabledBodies(ctx);
-        if (ctx.backendMode === "local") {
-          advanceLocalState(ctx, deltaTime);
-        }
-        clearOwnerChanges(ctx);
-      });
-
-      ctx.offEngineUpdate = engine.hooks.hook("engine:update", (_dt: number) => {
-        if (!ctx.ready || !ctx._engine) return;
-
-        // Read events from WASM, or run local AABB collision detection
-        const rawEvents =
-          ctx.backendMode === "wasm" ? readWasmCollisionEvents(ctx) : detectLocalCollisions(ctx);
-
-        const contacts: CollisionContact[] = [];
-        for (const ev of rawEvents) {
-          const entityA = ownerEntityId(ctx, ev.slotA);
-          const entityB = ownerEntityId(ctx, ev.slotB);
-          if (entityA === undefined || entityB === undefined) continue;
-          contacts.push({
-            entityA,
-            entityB,
-            ...(ev.aColliderId !== undefined ? { aColliderId: ev.aColliderId } : {}),
-            ...(ev.bColliderId !== undefined ? { bColliderId: ev.bColliderId } : {}),
-            started: ev.started,
-          });
-        }
-
-        ctx.currentFrameContacts = contacts;
-
-        // Track event count for metrics (includes local AABB events in fallback mode)
-        if (ctx.backendMode === "local") ctx.lastFrameEventCount = rawEvents.length;
-
-        if (contacts.length === 0) return;
-
-        // Dispatch hook
-        reportRejectedHook(
-          ctx._engine,
-          "@gwenjs/physics3d",
-          "physics:collision",
-          ctx._engine.hooks.callHook("physics:collision", contacts),
-        );
-
-        // Dispatch to composable onContact() callbacks
-        for (const contact of contacts) {
-          _dispatchContactEvent(contact);
-        }
-
-        // Update sensor states and dispatch sensor:changed hook
-        for (const ev of rawEvents) {
-          for (const { slot, colliderId } of [
-            { slot: ev.slotA, colliderId: ev.aColliderId },
-            { slot: ev.slotB, colliderId: ev.bColliderId },
-          ]) {
-            if (colliderId === undefined) continue;
-
-            const eid = ownerEntityId(ctx, slot);
-            if (eid === undefined) continue;
-
-            const entitySlot = slot;
-            let sensorMap = ctx.localSensorStates.get(entitySlot);
-            if (!sensorMap) {
-              sensorMap = new Map();
-              ctx.localSensorStates.set(entitySlot, sensorMap);
-            }
-            const prev = sensorMap.get(colliderId) ?? { contactCount: 0, isActive: false };
-            const newCount = ev.started
-              ? prev.contactCount + 1
-              : Math.max(0, prev.contactCount - 1);
-            const newActive = newCount > 0;
-            const next: SensorState = { contactCount: newCount, isActive: newActive };
-            sensorMap.set(colliderId, next);
-
-            if (prev.isActive !== newActive) {
-              reportRejectedHook(
-                ctx._engine,
-                "@gwenjs/physics3d",
-                "physics:sensor:changed",
-                ctx._engine.hooks.callHook("physics:sensor:changed", eid, colliderId, next),
-              );
-              if (newActive) {
-                _dispatchSensorEnter(colliderId, eid);
-              } else {
-                _dispatchSensorExit(colliderId, eid);
-              }
-            }
-          }
-        }
-
-        // Dispatch per-entity collision callbacks
-        for (const contact of contacts) {
-          const slotA = entitySlot(contact.entityA);
-          const slotB = entitySlot(contact.entityB);
-          ctx.entityCollisionCallbacks.get(slotA)?.(contact.entityA, contact.entityB, contact);
-          ctx.entityCollisionCallbacks.get(slotB)?.(contact.entityB, contact.entityA, contact);
-        }
-      });
-
-      engine.provide("physics3d", bindToEngine(real, service));
-
-      if (ctx.cfg.debug) {
-        ctx.log.debug(`Initialized. Backend=${ctx.backendMode} quality=${ctx.cfg.qualityPreset}`);
+      const local = detectLocalCollisions(ctx);
+      encodeLocalEvents(staged, local);
+      ctx.lastFrameEventCount = local.length;
+      return staged;
+    },
+    resolveEntity(slot: number) {
+      return ownerEntityId(ctx, slot);
+    },
+    resolveSensorId(_slot: number, reportedId: number | undefined): number | undefined {
+      return reportedId;
+    },
+    onPrefab(entityId, extensions): void {
+      const ext = extensions?.physics3d as Physics3DPrefabExtension | undefined; // boundary: GwenPrefabExtensions is an open unknown index signature filled by user prefabs; physics3d adds no typed key
+      if (!ext?.body) return;
+      _createBody(entityId, ext.body);
+      if (ext.onCollision) {
+        ctx.entityCollisionCallbacks.set(entitySlot(entityId), ext.onCollision);
       }
     },
-
-    teardown(): void {
-      if (ctx.offPrefabInstantiate) {
-        ctx.offPrefabInstantiate();
-        ctx.offPrefabInstantiate = null;
+    onEntityDestroy(entityId): void {
+      const slot = entitySlot(entityId);
+      const handle = ctx.bodyByEntity.get(slot);
+      const owner = handle?.entityId;
+      // Another live id already owns the slot. Leave its callbacks and body alone.
+      if (owner !== undefined && owner !== entityId) return;
+      ctx.entityCollisionCallbacks.delete(slot);
+      const dyingSensors = ctx.activeSensors.get(slot);
+      if (dyingSensors) {
+        for (const sensorId of dyingSensors) _clearSensorCallbacks(entityId, sensorId);
       }
-      if (ctx.offEntityDestroyed) {
-        ctx.offEntityDestroyed();
-        ctx.offEntityDestroyed = null;
+      ctx.activeSensors.delete(slot);
+      if (owner === entityId) _removeBody(entityId);
+    },
+    onContacts(contacts: ReadonlyArray<CollisionContact>): void {
+      ctx.currentFrameContacts = contacts;
+      for (const contact of contacts) {
+        const slotA = entitySlot(contact.entityA);
+        const slotB = entitySlot(contact.entityB);
+        ctx.entityCollisionCallbacks.get(slotA)?.(contact.entityA, contact.entityB, contact);
+        ctx.entityCollisionCallbacks.get(slotB)?.(contact.entityB, contact.entityA, contact);
       }
-      if (ctx.offEngineBeforeUpdate) {
-        ctx.offEngineBeforeUpdate();
-        ctx.offEngineBeforeUpdate = null;
-      }
-      if (ctx.offEngineUpdate) {
-        ctx.offEngineUpdate();
-        ctx.offEngineUpdate = null;
-      }
+    },
+    dispose(): void {
       ctx.ready = false;
-      _clearContactCallbacks();
-      clearEngineSensors(useEngine("Physics3DPlugin.teardown"));
       ctx.stepFn = null;
       ctx.backendMode = "local";
       ctx.wasmBridge = null;
@@ -621,17 +539,25 @@ export const Physics3DPlugin = definePlugin(physics3dDeclaration, (config: Physi
       ctx.bodyByEntity.clear();
       ctx.stateByEntity.clear();
       ctx.localColliders.clear();
-      ctx.localSensorStates.clear();
       ctx.activeSensors.clear();
       ctx.entityCollisionCallbacks.clear();
       ctx.currentFrameContacts = [];
       ctx.lastFrameEventCount = 0;
-      ctx.pooledEvents.length = 0;
       ctx.previousLocalContactKeys.clear();
       ctx.ownerChangedSinceStep.clear();
+      staged.count = 0;
       // Drop the per-call cache: the next call resolves the engine again.
       cachedEngine = null;
       cachedContext = null;
     },
   };
+}
+
+/**
+ * GWEN plugin providing 3D rigid-body physics via Rapier3D integrated in the
+ * core WASM. Falls back to a deterministic TypeScript simulation when the WASM
+ * physics3d variant is not loaded (e.g. during tests).
+ */
+export const Physics3DPlugin = createPhysicsPlugin("@gwenjs/physics3d", "physics3d", makeAdapter, {
+  defaults: physics3dDefaults,
 });

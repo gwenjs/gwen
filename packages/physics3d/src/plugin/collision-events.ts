@@ -3,10 +3,9 @@
  */
 
 import type { InternalCollisionEvent3D } from "./bridge";
-import { EVENT_STRIDE_3D, MAX_EVENTS_3D, COLLIDER_ID_ABSENT } from "./constants";
+import { EVENT_STRIDE_3D, MAX_EVENTS_3D } from "./constants";
 import { computeColliderAABB, aabbOverlap } from "./physics3d-utils";
 import type { PluginContext } from "./plugin-context";
-import { mapPhysics3DError } from "./wasm-errors";
 import { uncheckedAt } from "../internal/unchecked";
 
 // ─── AABB collision detection (local mode) ────────────────────────────────────
@@ -102,31 +101,36 @@ export function detectLocalCollisions(ctx: PluginContext): InternalCollisionEven
 // ─── WASM collision event reading ──────────────────────────────────────────────
 
 /**
- * Read pending collision events from the WASM ring buffer.
+ * Live WASM collision bytes for this frame.
  *
  * Event layout (16 bytes per slot):
  * [slotA u32 LE][slotB u32 LE][flags u32 LE][colliderIdA u16 LE][colliderIdB u16 LE]
- * flags bit 0: 1 = contact started, 0 = contact ended
+ * flags bit 0: 1 = contact started, 0 = contact ended.
+ * This does not consume the buffer. The adapter copies, then consumes.
+ *
+ * @returns The live view and its event count, or `undefined` when this frame has none.
  */
-export function readWasmCollisionEvents(ctx: PluginContext): InternalCollisionEvent3D[] {
+export function readWasmEventView(
+  ctx: PluginContext,
+): { readonly view: DataView; readonly count: number } | undefined {
   const core = ctx.coreBridge;
-  if (core === null) return [];
+  if (core === null) return undefined;
   const pb = core.getPhysicsBridge();
   if (!pb.physics3d_get_collision_events_ptr || !pb.physics3d_get_collision_event_count) {
-    return [];
+    return undefined;
   }
 
   const memory = ctx.bridgeRuntime?.getLinearMemory?.() ?? pb.memory ?? null;
-  if (!memory) return [];
+  if (!memory) return undefined;
 
   const count = Math.min(pb.physics3d_get_collision_event_count(), MAX_EVENTS_3D);
-  if (count === 0) return [];
+  if (count === 0) return undefined;
 
   const engine = ctx._engine;
-  if (engine === null) return [];
+  if (engine === null) return undefined;
   const ptr = pb.physics3d_get_collision_events_ptr();
   const available = memory.buffer.byteLength - ptr;
-  if (available <= 0) return [];
+  if (available <= 0) return undefined;
   if (ctx.collisionEvents === null) {
     ctx.collisionEvents = engine.memory.view({
       name: "physics3d:collision-events",
@@ -144,42 +148,7 @@ export function readWasmCollisionEvents(ctx: PluginContext): InternalCollisionEv
       },
     });
   }
-  const eventsView = ctx.collisionEvents.array;
-
-  // Reuse pooled array
-  ctx.pooledEvents.length = count;
-  for (let i = 0; i < count; i++) {
-    const base = i * EVENT_STRIDE_3D;
-    const slotA = eventsView.getUint32(base, true);
-    const slotB = eventsView.getUint32(base + 4, true);
-    const rawFlags = eventsView.getUint32(base + 8, true);
-    const rawColliderA = eventsView.getUint16(base + 12, true);
-    const rawColliderB = eventsView.getUint16(base + 14, true);
-
-    const existing = ctx.pooledEvents[i];
-    if (existing) {
-      existing.slotA = slotA;
-      existing.slotB = slotB;
-      existing.aColliderId = rawColliderA === COLLIDER_ID_ABSENT ? undefined : rawColliderA;
-      existing.bColliderId = rawColliderB === COLLIDER_ID_ABSENT ? undefined : rawColliderB;
-      existing.started = (rawFlags & 1) === 1;
-    } else {
-      ctx.pooledEvents[i] = {
-        slotA,
-        slotB,
-        aColliderId: rawColliderA === COLLIDER_ID_ABSENT ? undefined : rawColliderA,
-        bColliderId: rawColliderB === COLLIDER_ID_ABSENT ? undefined : rawColliderB,
-        started: (rawFlags & 1) === 1,
-      };
-    }
-  }
-
-  // Per-frame call: `try` here, no closure. A rejected consume leaves the update hook.
-  try {
-    pb.physics3d_consume_events?.();
-  } catch (err: unknown) {
-    throw mapPhysics3DError(ctx, err, "physics3d_consume_events");
-  }
-  ctx.lastFrameEventCount = count;
-  return ctx.pooledEvents;
+  const events = ctx.collisionEvents;
+  if (events === null) return undefined;
+  return { view: events.array, count };
 }

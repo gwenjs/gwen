@@ -13,7 +13,6 @@ import type {
   Physics3DBodyHandle,
   Physics3DBodyState,
   Physics3DColliderOptions,
-  SensorState,
   Physics3DPrefabExtension,
   Pathfinding3DOptions,
   RaycastOpts,
@@ -24,11 +23,7 @@ import type {
   OverlapSlotResult,
   CollisionContact,
 } from "../types";
-import type {
-  InternalCollisionEvent3D,
-  Physics3DWasmBridge,
-  Physics3DBridgeRuntime,
-} from "./bridge";
+import type { Physics3DWasmBridge, Physics3DBridgeRuntime } from "./bridge";
 
 /** Layer registry type returned by `buildLayerRegistry`. */
 export type LayerRegistry = ReturnType<typeof import("../config").buildLayerRegistry>;
@@ -52,10 +47,6 @@ export interface PluginContext {
   ready: boolean;
   _variant: "light" | "physics2d" | "physics3d";
   stepFn: ((delta: number) => void) | null;
-  offPrefabInstantiate: (() => void) | null;
-  offEntityDestroyed: (() => void) | null;
-  offEngineBeforeUpdate: (() => void) | null;
-  offEngineUpdate: (() => void) | null;
   nextBodyId: number;
   backendMode: "wasm" | "local";
   wasmBridge: Physics3DWasmBridge | null;
@@ -81,7 +72,6 @@ export interface PluginContext {
   _pendingBvhLoads: Map<number, { ac: AbortController; ready: Promise<void> }>;
 
   // ── Sensor state ───────────────────────────────────────────────────────────
-  localSensorStates: Map<number, Map<number, SensorState>>;
   /** Collider ids created as sensors, keyed by entity slot. */
   activeSensors: Map<number, Set<number>>;
 
@@ -89,12 +79,11 @@ export interface PluginContext {
   entityCollisionCallbacks: Map<number, NonNullable<Physics3DPrefabExtension["onCollision"]>>;
 
   // ── Frame contacts ─────────────────────────────────────────────────────────
-  currentFrameContacts: CollisionContact[];
+  currentFrameContacts: ReadonlyArray<CollisionContact>;
   previousLocalContactKeys: Set<string>;
 
   // ── WASM event buffer ──────────────────────────────────────────────────────
   collisionEvents: MemoryView<"dataview"> | null;
-  pooledEvents: InternalCollisionEvent3D[];
   lastFrameEventCount: number;
 
   // ── Local simulation state ─────────────────────────────────────────────────
@@ -167,10 +156,6 @@ export function createPluginContext(
     ready: false,
     _variant: "light",
     stepFn: null,
-    offPrefabInstantiate: null,
-    offEntityDestroyed: null,
-    offEngineBeforeUpdate: null,
-    offEngineUpdate: null,
     nextBodyId: 1,
     backendMode: "local",
     wasmBridge: null,
@@ -194,7 +179,6 @@ export function createPluginContext(
     localColliders: new Map(),
     _pendingBvhLoads: new Map(),
 
-    localSensorStates: new Map(),
     activeSensors: new Map(),
 
     entityCollisionCallbacks: new Map(),
@@ -203,7 +187,6 @@ export function createPluginContext(
     previousLocalContactKeys: new Set(),
 
     collisionEvents: null,
-    pooledEvents: [],
     lastFrameEventCount: 0,
 
     localForces: new Map(),
