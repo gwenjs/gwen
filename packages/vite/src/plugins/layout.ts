@@ -6,7 +6,7 @@ import type { GwenViteOptions } from "../types.js";
 import { parseSource, isCallTo } from "../oxc/index.js";
 import { createAstNameInjector } from "../shared/ast-name-injector.js";
 import { createVirtualModule } from "../shared/virtual-module.js";
-import { findComponentFiles } from "../optimizer/component-scanner.js";
+import { findComponentFiles } from "../shared/find-component-files.js";
 import { devFromResolvedConfig } from "./dev-from-config.js";
 
 const { virtual: LAYOUTS_VIRTUAL, resolved: RESOLVED_LAYOUTS } =

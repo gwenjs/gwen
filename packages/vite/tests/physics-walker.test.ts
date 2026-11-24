@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { PhysicsQueryWalker } from "../src/optimizer/physics-walker";
+import { PhysicsQueryWalker } from "../src/plugins/physics3d-walker";
 
 const SYSTEM_WITH_CAST_RAY = `
 import { defineSystem, onUpdate } from '@gwenjs/core';

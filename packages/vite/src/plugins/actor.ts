@@ -2,7 +2,7 @@ import { resolve } from "node:path";
 import type { Plugin, ViteDevServer } from "vite";
 import type { GwenViteOptions } from "../types.js";
 import { createVirtualModule } from "../shared/virtual-module.js";
-import { findComponentFiles } from "../optimizer/component-scanner.js";
+import { findComponentFiles } from "../shared/find-component-files.js";
 
 const { virtual: ACTORS_VIRTUAL, resolved: RESOLVED_ACTORS } =
   createVirtualModule("virtual:gwen/actors");
