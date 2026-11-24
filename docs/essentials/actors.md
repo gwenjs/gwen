@@ -418,8 +418,8 @@ const PlayerActor = defineActor(PlayerPrefab, () => {
 })
 ```
 
-::: info `onEnter` / `onExit` are handled automatically
-The Vite plugin instruments `await` inside `onEnter` and `onExit` callbacks automatically — no `withAsyncContext` needed there. Use `withAsyncContext` for `onStart` and any other custom async callbacks.
+::: info `onEnter` / `onExit` / `onPreload` are handled automatically
+The Vite plugin instruments `await` inside `onEnter`, `onExit`, and `onPreload` callbacks automatically — no `withAsyncContext` needed there. Use `withAsyncContext` for `onStart` and any other custom async callbacks.
 :::
 
 ::: warning Not valid in actors

@@ -238,7 +238,7 @@ Cause. Two units edit overlapping ranges in one module. The message names both u
 
 ### VITE:TRANSFORM_UNSUPPORTED {#vite-transform-unsupported}
 
-Cause. Thrown from four sites. `register()` was called after `gwen:transform-pipeline`'s `buildStart`. `register()` was called with a different unit under a taken name. The message is `register() was called with a different unit named …`. `useActor(Y)` inside an actor factory, when `Y` is not a module-scope binding or when `Y` is a `const`, `let`, `var`, or `class` declared after that actor. A nested `await` inside an await argument of `onEnter`, `onExit`, or `withAsyncContext`. Fix. `register()` is accepted until `buildStart`, for example from any plugin's `configResolved`. Register one unit object per name. Declare `Y` at module scope, before the actor, or pass it through the factory arguments. Assign the inner await to a const first.
+Cause. Thrown from four sites. `register()` was called after `gwen:transform-pipeline`'s `buildStart`. `register()` was called with a different unit under a taken name. The message is `register() was called with a different unit named …`. `useActor(Y)` inside an actor factory, when `Y` is not a module-scope binding or when `Y` is a `const`, `let`, `var`, or `class` declared after that actor. A nested `await` inside an await argument of `onEnter`, `onExit`, `onPreload`, or `withAsyncContext`. Fix. `register()` is accepted until `buildStart`, for example from any plugin's `configResolved`. Register one unit object per name. Declare `Y` at module scope, before the actor, or pass it through the factory arguments. Assign the inner await to a const first.
 
 ### VITE:BVH_PREBAKE_FAILED {#vite-bvh-prebake-failed}
 
