@@ -342,12 +342,15 @@ describe("gwen() options — no crate build path", () => {
         plugins: [spy, ...gwen()],
         server: { host: "127.0.0.1", port: 0 },
       });
-      const optionsAreManifestOnly: Exclude<keyof GwenPluginOptions, "manifestPath"> extends never
+      const optionsAreManifestAndReservedOptimizerOnly: Exclude<
+        keyof GwenPluginOptions,
+        "manifestPath" | "optimizer"
+      > extends never
         ? true
         : false = true;
       expect(recorded.filter((entry) => entry === path.join(root, "src"))).toEqual([]);
       expect(fs.existsSync(path.join(root, ".gwen", "wasm"))).toBe(false);
-      expect(optionsAreManifestOnly).toBe(true);
+      expect(optionsAreManifestAndReservedOptimizerOnly).toBe(true);
     } finally {
       await server?.close();
       fs.rmSync(root, { recursive: true, force: true });

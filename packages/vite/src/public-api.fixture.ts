@@ -5,10 +5,8 @@ import type * as Root from "@gwenjs/vite";
 type _0 = [
   Root.ActorPluginOptions,
   Root.CoreVariant,
-  Root.GwenOptimizerOptions,
   Root.GwenPhysics3DOptimizerOptions,
   Root.GwenPluginOptions,
-  Root.GwenTransformOptions,
   Root.GwenViteOptions,
 ];
 
@@ -33,3 +31,20 @@ import { extractModuleNamesFromConfig } from "@gwenjs/vite";
 
 // @ts-expect-error TS2305 — removed from @gwenjs/vite
 import { extractGlobalCssFromConfig } from "@gwenjs/vite";
+
+const _noGwenOptimizerPlugin: "gwenOptimizerPlugin" extends keyof typeof Root ? false : true = true;
+
+const _noGwenTransform: "gwenTransform" extends keyof typeof Root ? false : true = true;
+
+const _gwenAcceptsOptimizer: Root.GwenPluginOptions = { optimizer: { debug: true } };
+
+const _noComponentsDir: "componentsDir" extends keyof Exclude<
+  NonNullable<Root.GwenViteOptions["optimizer"]>,
+  boolean
+>
+  ? false
+  : true = true;
+
+const _noTier: "tier" extends keyof Exclude<NonNullable<Root.GwenViteOptions["optimizer"]>, boolean>
+  ? false
+  : true = true;

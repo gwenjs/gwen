@@ -100,4 +100,29 @@ describe("API reference pages", () => {
     expect(checks.length).toBeGreaterThan(0);
     expect(checkFences(tagged)).toEqual([]);
   });
+
+  it("the removed vite optimizer plugin, gwenTransform and optimizer codes are absent from the docs", () => {
+    const files = [
+      "docs/api/vite.md",
+      "docs/fr/api/vite.md",
+      "docs/advanced/performance.md",
+      "docs/fr/advanced/performance.md",
+      "docs/api/errors.md",
+      "docs/fr/api/errors.md",
+      "packages/vite/README.md",
+    ];
+    for (const file of files) {
+      const text = pageText(file);
+      expect(text, file).not.toContain("gwenOptimizerPlugin");
+      expect(text, file).not.toContain("OPTIMIZER_UNKNOWN");
+    }
+    const named = ["docs/api/vite.md", "docs/fr/api/vite.md", "packages/vite/README.md"];
+    for (const file of named) {
+      const text = pageText(file);
+      expect(text, file).not.toContain("GwenTransformOptions");
+      expect(text, file).not.toContain("gwenTransform(");
+      expect(text, file).not.toContain("GwenOptimizerOptions");
+      expect(text, file).not.toContain("componentsDir");
+    }
+  });
 });
