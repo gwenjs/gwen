@@ -1,6 +1,7 @@
 import path from "node:path";
 import { ConformanceErrorCodes } from "./error-codes.js";
 import { FRAMEWORK_ENTRIES, FRAMEWORK_TEST_ONLY_ENTRIES } from "./framework-entries.generated.js";
+import { FRAMEWORK_PACKAGES } from "./framework-packages.js";
 import { scanImports } from "./import-sources.js";
 import type { ImportSite } from "./import-sources.js";
 import { isRecord } from "./json.js";
@@ -25,14 +26,6 @@ const FORBIDDEN_PACKAGES: ReadonlySet<string> = new Set([
   "@gwenjs/physics3d-fracture",
 ]);
 
-/** `@gwenjs/<name>` of a framework entry specifier. */
-function packageOfEntry(entry: string): string {
-  return entry.split("/").slice(0, 2).join("/");
-}
-
-const FRAMEWORK_PACKAGES: ReadonlySet<string> = new Set(
-  Object.keys(FRAMEWORK_ENTRIES).map(packageOfEntry),
-);
 const TEST_ONLY: ReadonlySet<string> = new Set(FRAMEWORK_TEST_ONLY_ENTRIES);
 const EXTENSION_SEGMENT = "extension";
 const CONFORMANCE_PACKAGE = "@gwenjs/plugin-conformance";

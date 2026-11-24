@@ -1,5 +1,9 @@
 import { stat } from "node:fs/promises";
 import path from "node:path";
+import { ConformanceErrorCodes } from "./error-codes.js";
+import type { ExtensionListing } from "./extension-manifest.js";
+import { readExtensionManifest } from "./extension-manifest.js";
+import { FRAMEWORK_PACKAGES } from "./framework-packages.js";
 import { isRecord } from "./json.js";
 import { manifestFinding } from "./manifest-finding.js";
 import type { PackageContext } from "./package-context.js";
@@ -58,5 +62,28 @@ export async function checkManifest(
       ),
     );
   }
+  const read = readExtensionManifest(context);
+  if (isOfficial(read.name) && read.bases.length > 0) {
+    findings.push(extensionOfficialFinding(read));
+  }
   return findings;
+}
+
+function isOfficial(name: string): boolean {
+  return name.startsWith("@gwenjs/") && !FRAMEWORK_PACKAGES.has(name);
+}
+
+function extensionOfficialFinding(read: ExtensionListing): ConformanceFinding {
+  const listed = read.bases.map((base) => `"${base.name}"`).join(", ");
+  const pinned = manifestFinding(
+    `"${read.name}" is an official package and lists ${listed} in gwen.extends`,
+    "Remove gwen.extends. An official package names only plugins of its own package and framework plugins: use requires.services or requires.optional on schema contracts.",
+  );
+  return {
+    code: ConformanceErrorCodes.EXTENSION_OFFICIAL,
+    message: pinned.message,
+    hint: pinned.hint,
+    file: pinned.file ?? "package.json",
+    line: read.extendsLine,
+  };
 }

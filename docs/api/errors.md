@@ -554,6 +554,10 @@ Cause. A framework package (a key of `FRAMEWORK_RANGES`) is listed in `devDepend
 
 Cause. A string `exports` target must start with `./` and be a file inside the package. A target that is not a string, an array, an object, or `null` is rejected. `null` is skipped. `exports` missing, not an object, or empty is rejected, and so is a mix of subpath keys and condition keys. In a condition object, `types` must be first. `./internal`, `./internal/…`, and a key that starts with `./internal*` are rejected. Profile `plugin` also requires `.` and `./module`. A subpath pattern (`*`) is not existence-checked. Fix. Point each string target at a `./` file inside the package, keep `exports` a non-empty object of one shape, put `types` first, remove internal subpaths, and add `.` and `./module` for a plugin.
 
+### CONFORMANCE:EXTENSION_OFFICIAL {#conformance-extension-official}
+
+Cause. An official package (its name starts with `@gwenjs/` and it is not a framework package) lists at least one string in `gwen.extends`. One finding, on the `package.json` line of the `gwen.extends` key. The message names the package and each listed string base. A community package, a framework package, an absent `gwen.extends`, an empty array, and a value that is not an array are accepted. An entry that is not a string is ignored. The check runs for both profiles. Fix. Remove `gwen.extends`. An official package names only plugins of its own package and framework plugins: use `requires.services` or `requires.optional` on schema contracts.
+
 ### CONFORMANCE:HOOK_DYNAMIC_NAME {#conformance-hook-dynamic-name}
 
 Cause. The name passed to `emit`, `callHook`, `callHookParallel`, or `callHookWith` is not a string literal, a template literal without substitution, or an identifier that names a `const` string literal of the same file, so the check cannot read it. One finding per call. A call through an alias (`const fire = engine.hooks.callHook`) is not an emit site and is not checked. Fix. Pass a string literal, or a `const` initialised with one, as the hook name.
