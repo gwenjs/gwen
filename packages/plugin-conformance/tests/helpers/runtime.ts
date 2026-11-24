@@ -91,11 +91,21 @@ export function spec(overrides: SpecOverrides = {}): PluginConformanceSpec {
 }
 
 /**
- * Implemented checks, in check order: shape, requires, provides, frames.
- * `options` follows `frames` when `options.options` is true.
+ * Check order the runtime tests expect: shape, requires, provides, frames,
+ * remove, reentry, two-engines, stop.
+ * `options` follows `stop` when `options.options` is true.
  */
 export function ranChecks(options?: { readonly options?: boolean }): readonly RuntimeCheckId[] {
-  const checks: RuntimeCheckId[] = ["shape", "requires", "provides", "frames"];
+  const checks: RuntimeCheckId[] = [
+    "shape",
+    "requires",
+    "provides",
+    "frames",
+    "remove",
+    "reentry",
+    "two-engines",
+    "stop",
+  ];
   if (options?.options === true) checks.push("options");
   return checks;
 }
