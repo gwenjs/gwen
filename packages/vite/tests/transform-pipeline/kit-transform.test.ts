@@ -204,7 +204,6 @@ function writeTintFixtures(root: string): void {
   const dir = join(root, "src", "modules", "tint");
   mkdirSync(dir, { recursive: true });
   copyFileSync(join(tintFixtureDir, "module.ts"), join(dir, "module.ts"));
-  copyFileSync(join(tintFixtureDir, "transform.ts"), join(dir, "transform.ts"));
   copyFileSync(join(tintFixtureDir, "tint.ts"), join(dir, "tint.ts"));
   writeFileSync(
     join(dir, "index.ts"),
