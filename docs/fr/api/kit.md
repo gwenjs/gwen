@@ -185,6 +185,10 @@ interface GwenKit {
 
 **Description.** Registre du kit gérant tous les modules et plugins.
 
+| Méthode | But |
+|---------|-----|
+| `addSourceTransform(transform)` | Enregistre une transformation de build nommée `<namespace>:<transform>` |
+
 ### GwenBuildHooks
 
 **Signature:**

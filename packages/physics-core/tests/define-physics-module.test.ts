@@ -30,6 +30,7 @@ function recordingKit(): Recording {
     addVitePlugin(plugin) {
       vitePlugins.push(plugin);
     },
+    addSourceTransform() {},
     extendViteConfig() {},
     hook() {},
     options: {},

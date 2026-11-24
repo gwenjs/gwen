@@ -20,6 +20,7 @@ function mockKit(): GwenKit {
     addPlugin: vi.fn(),
     addAutoImports: vi.fn(),
     addVitePlugin: vi.fn(),
+    addSourceTransform() {},
     extendViteConfig: vi.fn(),
     hook: vi.fn(),
     options: {},

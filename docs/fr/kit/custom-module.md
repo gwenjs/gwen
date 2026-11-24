@@ -469,6 +469,7 @@ export default defineGwenModule<Options>({
 | `addPlugin(declaration)` | Déclarez un plugin runtime : { src, export?, options? } |
 | `addAutoImports(imports)` | Déclarez les utilitaires auto-importés |
 | `addVitePlugin(plugin)` | Ajoutez un plugin Vite à la compilation |
+| `addSourceTransform(transform)` | Enregistre une transformation de build nommée `<namespace>:<transform>` |
 | `extendViteConfig(extender)` | Étendez la configuration Vite |
 | `hook(event, fn)` | S'abonner aux événements à la compilation |
 | `options` (propriété) | Accédez aux options de configuration résolues |

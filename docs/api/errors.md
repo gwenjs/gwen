@@ -165,6 +165,8 @@ Cause. The call is outside `defineActor()`, `plugin setup()`, or `withCleanup()`
 
 - `KIT:MODULE_INVALID` {#kit-module-invalid} Thrown by `defineGwenModule()` when `meta`, `meta.name`, `meta.configKey`, `meta.version`, `defaults`, `setup`, or `validate` is invalid. `fields` lists every failing path. The message names those fields.
 - `KIT:PLUGIN_SETUP_FAILED` {#kit-plugin-setup-failed} Cause. Nothing in @gwenjs/kit throws this code any more; `definePlugin` no longer wraps `setup`, and a setup failure is `CORE:PLUGIN_SETUP_ERROR` (anchor #core-plugin-setup-error).
+- `KIT:SOURCE_TRANSFORM_INVALID` {#kit-source-transform-invalid} Thrown by `kit.addSourceTransform` when `run` is not a function, when `name` is not `<namespace>:<transform>` in lower case, or when the namespace is `gwen`. The message is `Source transform "<name>" is invalid: <reason>.` (`packages/app/src/app.ts`).
+- `KIT:SOURCE_TRANSFORM_DUPLICATE` {#kit-source-transform-duplicate} Thrown by `kit.addSourceTransform` when that name was already registered. The message names the first module: `Source transform "<name>" is already registered by module "<first>".` (`packages/app/src/app.ts`).
 
 ## @gwenjs/schema
 

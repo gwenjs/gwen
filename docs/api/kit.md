@@ -193,6 +193,7 @@ The build-time API passed to `setup()`:
 | `addPlugin(declaration)` | Declare a runtime plugin: { src, export?, options? } |
 | `addAutoImports(imports)` | Declare auto-imported utilities |
 | `addVitePlugin(plugin)` | Add a Vite plugin to the build |
+| `addSourceTransform(transform)` | Register a build transform named `<namespace>:<transform>` |
 | `extendViteConfig(fn)` | Extend Vite configuration |
 | `hook(event, fn)` | Subscribe to a build-time event |
 | `options` | Access resolved config options |
