@@ -739,7 +739,7 @@ describe("EXTENSION_ENTRY", () => {
 const PEER = "CONFORMANCE:EXTENSION_PEER";
 const UNUSED = "CONFORMANCE:PEER_UNUSED";
 
-/** Same sentences as `unusedFindings` (src/check-peers.ts:131-132). */
+/** Same sentences as `unusedFindings` (src/check-peers.ts:248-249). */
 function unusedMessage(base: string): string {
   return `peer ${JSON.stringify(base)} is declared but src never uses it`;
 }
@@ -933,6 +933,7 @@ describe("EXTENSION_PEER", () => {
       { name: "base-link", range: "link:../b" },
       { name: "base-caret", range: "^^1" },
       { name: "base-any", range: ">=0.0.0" },
+      { name: "base-any-prerelease", range: ">=0.0.0-0" },
       { name: "base-triple-x", range: "x.x.x" },
     ];
     const accepted: readonly {
@@ -1341,7 +1342,7 @@ describe("BASE_NOT_EXTENSIBLE", () => {
   });
 
   it("finds the base installed above the package root", async () => {
-    // Ancestor walk: src/check-imports.ts:122-130. The base sits in the parent node_modules.
+    // Ancestor walk: src/installed-package.ts:43-55. The base sits in the parent node_modules.
     const above = await withBaseAbove("fixture-base", "fixture-base");
     expect(await extensionFindings(above, BASE_NOT)).toEqual([]);
     const sibling = await withBaseAbove("fixture-plain", "fixture-plain");
@@ -1353,19 +1354,19 @@ describe("BASE_NOT_EXTENSIBLE", () => {
     );
   });
 
-  it("ext-of-ext reports nothing for fixture-top and reports fixture-mid without ./extension", async () => {
-    const top = await openCopied("ext-of-ext/fixture-top");
-    await installBase(top.root, "fixture-mid");
-    expect(await top.checkOf(BASE_NOT)).toEqual([]);
-    const twin = await openCopied("ext-of-ext/fixture-top");
-    await installBase(twin.root, "fixture-plain", "fixture-mid");
-    const findings = await twin.checkOf(BASE_NOT);
-    expectBaseAt(
-      findings,
-      noExtensionMessage("fixture-mid"),
-      await extendsElementLine(twin.root, 0),
-    );
-  });
+  it(
+    "ext-of-ext reports nothing for fixture-top and reports fixture-mid without ./extension",
+    { timeout: SLOW_TEST_MS * 2 },
+    async () => {
+      const top = await copyExtensionPackage("ext-of-ext/fixture-top");
+      await installBase(top, "fixture-mid");
+      expect((await checkPluginPackage({ root: top, profile: "plugin" })).findings).toEqual([]);
+      const twin = await copyExtensionPackage("ext-of-ext/fixture-top");
+      await installBase(twin, "fixture-plain", "fixture-mid");
+      const findings = await extensionFindings(twin, BASE_NOT);
+      expectBaseAt(findings, noExtensionMessage("fixture-mid"), await extendsElementLine(twin, 0));
+    },
+  );
 
   it("reports a hookNamespace equal to the hookNamespace of a base", async () => {
     // The namespace finding is package.json line 1 (src/check-hooks.ts:82-89).
@@ -1376,7 +1377,7 @@ describe("BASE_NOT_EXTENSIBLE", () => {
   });
 
   it("accepts a different hookNamespace and still flags an emit in the base namespace", async () => {
-    // Emit outside the package namespace: src/check-hooks.ts:163-171.
+    // Emit outside the package namespace: src/check-hooks.ts:184-193.
     const different = await open(extensionWithNamespace(EXTENSION_NAMESPACE, "fixture-base"), {
       "src/index.ts": emitInBaseNamespace(),
     });
@@ -1418,6 +1419,14 @@ const NEGATIVE_SURFACE = [
   'import type { GwenProvides } from "@gwenjs/schema";',
   "",
   'export type Bad = GwenProvides["fixture-base:nope"];',
+  "",
+].join("\n");
+const NO_BASE_SURFACE = [
+  'import type { GwenProvides, GwenRuntimeHooks, GwenPluginRegistry } from "@gwenjs/schema";',
+  "",
+  'export type Service = GwenProvides["fixture-base:extension"];',
+  'export type ReadyHook = GwenRuntimeHooks["fixture-base:ready"];',
+  'export type BasePlugin = GwenPluginRegistry["fixture-base"];',
   "",
 ].join("\n");
 
@@ -1487,7 +1496,20 @@ async function rewriteExtensionTarget(root: string, entry: unknown): Promise<voi
   await writeSource(root, relative, `${JSON.stringify(next, null, 2)}\n`);
 }
 
-async function extensionTypeDiagnostics(root: string): Promise<readonly ts.Diagnostic[]> {
+function diagnosticTexts(diagnostics: readonly ts.Diagnostic[]): string[] {
+  return diagnostics
+    .map((diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n"))
+    .sort();
+}
+
+async function extensionTypeDiagnostics(
+  root: string,
+  files?: readonly string[],
+): Promise<readonly ts.Diagnostic[]> {
+  const programFiles =
+    files === undefined
+      ? [path.join(root, "tests/extension-surface.test-d.ts"), path.join(root, "src/index.ts")]
+      : [...files];
   const parsed = ts.parseJsonConfigFileContent(
     {
       compilerOptions: {
@@ -1501,10 +1523,7 @@ async function extensionTypeDiagnostics(root: string): Promise<readonly ts.Diagn
         skipLibCheck: false,
         paths: { "@gwenjs/schema": [SCHEMA_TYPES] },
       },
-      files: [
-        path.join(root, "tests/extension-surface.test-d.ts"),
-        path.join(root, "src/index.ts"),
-      ],
+      files: programFiles,
     },
     ts.sys,
     root,
@@ -1601,10 +1620,8 @@ describe("IMPORT_NOT_PUBLIC from ./extension", () => {
 
 describe("AUGMENT_TARGET against a base", () => {
   it('redeclares-base-key reports AUGMENT_TARGET for GwenProvides["fixture-base:extension"]', async () => {
-    const fixture = await openWithBase(
-      "redeclares-base-key",
-      schemaMember("GwenProvides", '"fixture-base:extension": { readonly marker: 1 };'),
-    );
+    const fixture = await openCopied("redeclares-base-key");
+    await installBase(fixture.root, "fixture-base");
     const findings = await fixture.checkOf(AUGMENT);
     expectCodeAt(
       findings,
@@ -1649,8 +1666,10 @@ describe("AUGMENT_TARGET against a base", () => {
   });
 
   it("redeclares-base-key reports nothing for a key of its own", async () => {
-    const fixture = await openCopied("redeclares-base-key");
-    await installBase(fixture.root, "fixture-base");
+    const fixture = await openWithBase(
+      "redeclares-base-key",
+      schemaMember("GwenProvides", '"redeclares-base-key:own": { readonly marker: 1 };'),
+    );
     expect(await fixture.checkOf(AUGMENT)).toEqual([]);
     const sibling = await openWithBase(
       "redeclares-base-key",
@@ -1665,7 +1684,53 @@ describe("AUGMENT_TARGET against a base", () => {
       SERVICE_HINT,
     );
   });
+
+  it("reports AUGMENT_TARGET when the base keeps its augmentation in a file that ./extension re-exports", async () => {
+    const fixture = await openWithBase(
+      "redeclares-base-key",
+      schemaMember("GwenProvides", '"fixture-base:extension": { readonly marker: 1 };'),
+    );
+    await installReexportedAugmentation(fixture.root);
+    const findings = await fixture.checkOf(AUGMENT);
+    expectCodeAt(
+      findings,
+      AUGMENT,
+      augmentMessage("GwenProvides", "fixture-base:extension"),
+      4,
+      SERVICE_HINT,
+    );
+    const sibling = await openWithBase(
+      "redeclares-base-key",
+      schemaMember("GwenProvides", '"redeclares-base-key:own": { readonly marker: 1 };'),
+    );
+    await installReexportedAugmentation(sibling.root);
+    expect(await sibling.checkOf(AUGMENT)).toEqual([]);
+  });
 });
+
+/** `./extension` only re-exports the file that declares the schema augmentation. */
+async function installReexportedAugmentation(root: string): Promise<void> {
+  const dist = path.join("node_modules", "fixture-base", "dist");
+  await writeSource(
+    root,
+    path.join(dist, "extension.d.ts"),
+    ['import "./registry.js";', 'export * from "./registry.js";', ""].join("\n"),
+  );
+  await writeSource(
+    root,
+    path.join(dist, "registry.d.ts"),
+    [
+      "export declare const marker: number;",
+      "",
+      'declare module "@gwenjs/schema" {',
+      "  interface GwenProvides {",
+      '    "fixture-base:extension": { readonly marker: 1 };',
+      "  }",
+      "}",
+      "",
+    ].join("\n"),
+  );
+}
 
 describe("layered-ok extension surface", () => {
   it("layered-ok runs every check and reports nothing", { timeout: SLOW_TEST_MS * 2 }, async () => {
@@ -1685,7 +1750,7 @@ describe("layered-ok extension surface", () => {
 
   it(
     "layered-ok types see the base registry, service and hooks through ./extension only",
-    { timeout: SLOW_TEST_MS * 2 },
+    { timeout: SLOW_TEST_MS * 4 },
     async () => {
       const root = await copyExtensionPackage("layered-ok");
       try {
@@ -1702,6 +1767,41 @@ describe("layered-ok extension surface", () => {
         expect(diagnostic.code).toBe(2339);
         expect(ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n")).toBe(
           "Property 'fixture-base:nope' does not exist on type 'GwenProvides'.",
+        );
+        await writeSource(root, "tests/extension-surface.test-d.ts", NO_BASE_SURFACE);
+        const stripped = await extensionTypeDiagnostics(root, [
+          path.join(root, "tests/extension-surface.test-d.ts"),
+        ]);
+        expect(stripped.map((item) => item.code)).toEqual([2339, 2339, 2339]);
+        expect(diagnosticTexts(stripped)).toEqual([
+          "Property 'fixture-base' does not exist on type 'GwenPluginRegistry'.",
+          "Property 'fixture-base:extension' does not exist on type 'GwenProvides'.",
+          "Property 'fixture-base:ready' does not exist on type 'GwenRuntimeHooks'.",
+        ]);
+        const redeclare = await copyExtensionPackage("layered-ok");
+        await installBase(redeclare, "fixture-base");
+        await writeSource(
+          redeclare,
+          "src/index.ts",
+          [
+            'import { marker } from "fixture-base/extension";',
+            "",
+            "export { marker };",
+            "",
+            schemaMember("GwenProvides", '"fixture-base:extension": { readonly marker: 1 };'),
+          ].join("\n"),
+        );
+        const report = await checkPluginPackage({ root: redeclare, profile: "plugin" });
+        const augmentFindings = report.findings.filter((finding) => {
+          const code: string = finding.code;
+          return code === AUGMENT;
+        });
+        expectCodeAt(
+          augmentFindings,
+          AUGMENT,
+          augmentMessage("GwenProvides", "fixture-base:extension"),
+          8,
+          SERVICE_HINT,
         );
       } finally {
         await rm(root, { recursive: true, force: true });
