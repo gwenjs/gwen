@@ -88,6 +88,7 @@ export const testInsert: GwenSourceTransform = {
 interface PipelineHost {
   error(value: string | object): never;
   resolve(source: string, importer?: string): Promise<{ id: string } | null>;
+  warn(log: string | object): void;
 }
 
 interface RunOptions {
@@ -162,6 +163,7 @@ function createHost(resolveId: RunOptions["resolveId"]): PipelineHost {
       if (resolved === null) return null;
       return { id: resolved };
     },
+    warn(_log) {},
   };
 }
 
@@ -200,7 +202,7 @@ function buildStartOptions(): Parameters<BuildStartFn>[0] {
 
 /**
  * `configResolved` then `buildStart`, with a real resolved config.
- * `this` is only `error` and `resolve`. Same escape as `packages/vite/tests/error-codes.test.ts:42`.
+ * `this` is `error`, `resolve`, and `warn`. Same escape as `packages/vite/tests/error-codes.test.ts:42`.
  */
 export async function preparePipeline(
   plugin: Plugin,

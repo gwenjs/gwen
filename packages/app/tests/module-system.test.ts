@@ -15,7 +15,7 @@ import { defineGwenModule, GwenModuleDefinitionError } from "@gwenjs/kit/module"
 import type { GwenModule } from "@gwenjs/kit/module";
 import type { AutoImport } from "@gwenjs/kit";
 import { GwenError } from "@gwenjs/schema";
-import type { GwenKit, PluginDeclaration } from "@gwenjs/schema";
+import type { GwenKit, GwenSourceTransform, PluginDeclaration } from "@gwenjs/schema";
 import { GwenApp } from "../src/app.js";
 import { BUILT_IN_MODULES } from "../src/built-in-modules.js";
 import { resolveLoadedConfig as resolveConfig } from "../src/config.js";
@@ -1186,5 +1186,313 @@ describe("resolveConfig — module entry as string only", () => {
   it("modules defaults to empty array", () => {
     const cfg = resolveConfig({});
     expect(cfg.modules).toEqual([]);
+  });
+});
+
+describe("GwenApp.setupModules — source transforms", () => {
+  const REASON_NAME = 'the name must be "<namespace>:<transform>" in lower case';
+  const REASON_GWEN = 'the "gwen:" namespace is reserved for built-in transforms';
+  const REASON_RUN = "run is not a function";
+  const HINT_NAME = 'Use a lower-case name "<namespace>:<transform>", for example "tint:inline".';
+  const HINT_GWEN =
+    'Choose a namespace other than "gwen". That namespace is reserved for built-in transforms.';
+  const HINT_RUN = "Set run to a function. It receives the program and the transform context.";
+  const HINT_DUPLICATE =
+    "Register each source transform name once. Remove the second registration.";
+  const BAD_NAMES = [
+    "Tint:inline",
+    "tint",
+    "tint:Inline",
+    "a:b:c",
+    "tint:",
+    ":inline",
+    "",
+    "tint:in line",
+  ] as const;
+
+  function invalidWhat(name: string, reason: string): string {
+    return `Source transform "${name}" is invalid: ${reason}.`;
+  }
+
+  function duplicateWhat(name: string, moduleName: string): string {
+    return `Source transform "${name}" is already registered by module "${moduleName}".`;
+  }
+
+  function grammarMessage(code: string, what: string, hint: string): string {
+    const fix = __GWEN_DEV__ ? `\nFix: ${hint}` : "";
+    const anchor = code.toLowerCase().replaceAll(":", "-").replaceAll("_", "-");
+    return `[kit.addSourceTransform()] ${what}${fix}\nSee https://gwenjs.github.io/gwen/api/errors#${anchor} (${code})`;
+  }
+
+  function addSourceTransform(kit: GwenKit, transform: GwenSourceTransform): void {
+    kit.addSourceTransform(transform);
+  }
+
+  function addUncheckedTransform(kit: GwenKit, transform: unknown): void {
+    Reflect.apply(kit.addSourceTransform, kit, [transform]);
+  }
+
+  function sourceTransforms(app: GwenApp): GwenSourceTransform[] {
+    return app.sourceTransforms;
+  }
+
+  function namedTransform(name: string): { name: string; run: () => readonly [] } {
+    return { name, run: () => [] };
+  }
+
+  async function runModules(
+    entries: ReadonlyArray<{ name: string; setup: GwenModule["setup"] }>,
+  ): Promise<{ app: GwenApp; caught: unknown }> {
+    const registry: Record<string, GwenModule> = {};
+    const names: string[] = [];
+    for (const entry of entries) {
+      names.push(entry.name);
+      registry[entry.name] = defineGwenModule({ meta: { name: entry.name }, setup: entry.setup });
+    }
+    const app = new GwenApp();
+    const caught = await app
+      .setupModules(resolveConfig({ modules: names }), makeLoader(registry))
+      .then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+    return { app, caught };
+  }
+
+  function kitCause(caught: unknown): GwenError {
+    expect(caught).toBeInstanceOf(GwenError);
+    if (!(caught instanceof GwenError)) throw new Error("expected GwenError");
+    expect(caught.code).toBe("APP:MODULE_SETUP_FAILED");
+    expect(caught.cause).toBeInstanceOf(GwenError);
+    if (!(caught.cause instanceof GwenError)) throw new Error("expected cause");
+    return caught.cause;
+  }
+
+  it("addSourceTransform collects a valid transform and sourceTransforms returns it", async () => {
+    const minimal = namedTransform("a:b");
+    const tint = namedTransform("tint:inline");
+    const dashed = namedTransform("tint-2:in-line");
+    const { app, caught } = await runModules([
+      {
+        name: "@example/tint",
+        setup(_options, kit) {
+          addSourceTransform(kit, minimal);
+          addSourceTransform(kit, tint);
+          addSourceTransform(kit, dashed);
+        },
+      },
+    ]);
+    expect(caught).toBeUndefined();
+    const listed = sourceTransforms(app);
+    expect(listed).toEqual([minimal, tint, dashed]);
+    expect(Array.isArray(listed) ? listed[0] : undefined).toBe(minimal);
+    expect(Array.isArray(listed) ? listed[1] : undefined).toBe(tint);
+    expect(Array.isArray(listed) ? listed[2] : undefined).toBe(dashed);
+  });
+
+  it("addSourceTransform rejects a gwen: name with KIT:SOURCE_TRANSFORM_INVALID", async () => {
+    const reserved = await runModules([
+      {
+        name: "@example/tint",
+        setup(_options, kit) {
+          addSourceTransform(kit, namedTransform("gwen:x"));
+        },
+      },
+    ]);
+    const reservedCause = kitCause(reserved.caught);
+    expect(reservedCause.code).toBe("KIT:SOURCE_TRANSFORM_INVALID");
+    expect(reservedCause.composable).toBe("kit.addSourceTransform");
+    expect(reservedCause.message).toContain("[kit.addSourceTransform()]");
+    expect(reservedCause.message).toContain(invalidWhat("gwen:x", REASON_GWEN));
+
+    const empty = await runModules([
+      {
+        name: "@example/tint",
+        setup(_options, kit) {
+          addSourceTransform(kit, namedTransform("gwen:"));
+        },
+      },
+    ]);
+    const emptyCause = kitCause(empty.caught);
+    expect(emptyCause.code).toBe("KIT:SOURCE_TRANSFORM_INVALID");
+    expect(emptyCause.message).toContain(invalidWhat("gwen:", REASON_NAME));
+  });
+
+  it.each(BAD_NAMES)(
+    "addSourceTransform rejects an upper-case or colon-less name with KIT:SOURCE_TRANSFORM_INVALID",
+    async (name) => {
+      const { caught } = await runModules([
+        {
+          name: "@example/tint",
+          setup(_options, kit) {
+            addSourceTransform(kit, namedTransform(name));
+          },
+        },
+      ]);
+      const cause = kitCause(caught);
+      expect(cause.code).toBe("KIT:SOURCE_TRANSFORM_INVALID");
+      expect(cause.message).toContain(invalidWhat(name, REASON_NAME));
+    },
+  );
+
+  it("addSourceTransform rejects a run that is not a function with KIT:SOURCE_TRANSFORM_INVALID", async () => {
+    const samples: readonly unknown[] = [
+      { name: "tint:inline" },
+      { name: "tint:inline", run: null },
+      { name: "tint:inline", run: "nope" },
+      null,
+      "nope",
+      1,
+    ];
+    for (const sample of samples) {
+      const { caught } = await runModules([
+        {
+          name: "@example/tint",
+          setup(_options, kit) {
+            addUncheckedTransform(kit, sample);
+          },
+        },
+      ]);
+      const cause = kitCause(caught);
+      expect(cause.code).toBe("KIT:SOURCE_TRANSFORM_INVALID");
+      expect(cause.message).toContain(REASON_RUN);
+      const recordName =
+        typeof sample === "object" && sample !== null && "name" in sample ? sample.name : "";
+      const quoted = typeof recordName === "string" ? recordName : "";
+      expect(cause.message).toContain(invalidWhat(quoted, REASON_RUN));
+    }
+  });
+
+  it("the same name twice rejects KIT:SOURCE_TRANSFORM_DUPLICATE naming the first module", async () => {
+    const same = await runModules([
+      {
+        name: "@example/tint",
+        setup(_options, kit) {
+          addSourceTransform(kit, namedTransform("tint:inline"));
+          addSourceTransform(kit, namedTransform("tint:inline"));
+        },
+      },
+    ]);
+    const sameCause = kitCause(same.caught);
+    expect(sameCause.code).toBe("KIT:SOURCE_TRANSFORM_DUPLICATE");
+    expect(sameCause.message).toContain(duplicateWhat("tint:inline", "@example/tint"));
+
+    const across = await runModules([
+      {
+        name: "@example/first",
+        setup(_options, kit) {
+          addSourceTransform(kit, namedTransform("tint:inline"));
+        },
+      },
+      {
+        name: "@example/second",
+        setup(_options, kit) {
+          addSourceTransform(kit, namedTransform("tint:inline"));
+        },
+      },
+    ]);
+    const acrossCause = kitCause(across.caught);
+    expect(acrossCause.code).toBe("KIT:SOURCE_TRANSFORM_DUPLICATE");
+    expect(acrossCause.composable).toBe("kit.addSourceTransform");
+    expect(acrossCause.message).toContain(duplicateWhat("tint:inline", "@example/first"));
+  });
+
+  it("transforms are collected in module order", async () => {
+    const first = namedTransform("aaa:first");
+    const second = namedTransform("bbb:second");
+    const { app, caught } = await runModules([
+      {
+        name: "@example/a",
+        setup(_options, kit) {
+          addSourceTransform(kit, first);
+        },
+      },
+      {
+        name: "@example/b",
+        setup(_options, kit) {
+          addSourceTransform(kit, second);
+        },
+      },
+    ]);
+    expect(caught).toBeUndefined();
+    const listed = sourceTransforms(app);
+    const again = sourceTransforms(app);
+    expect(listed).toEqual([first, second]);
+    expect(again).toEqual([first, second]);
+    expect(listed).not.toBe(again);
+    expect(Array.isArray(listed) ? listed[0] : undefined).toBe(first);
+    expect(Array.isArray(listed) ? listed[1] : undefined).toBe(second);
+  });
+
+  it("KIT:SOURCE_TRANSFORM_INVALID and KIT:SOURCE_TRANSFORM_DUPLICATE render the grammar message with the hint only in dev", async () => {
+    const invalid = await runModules([
+      {
+        name: "@example/tint",
+        setup(_options, kit) {
+          addSourceTransform(kit, namedTransform("Tint:inline"));
+        },
+      },
+    ]);
+    const invalidCause = kitCause(invalid.caught);
+    expect(invalidCause.message).toBe(
+      grammarMessage(
+        "KIT:SOURCE_TRANSFORM_INVALID",
+        invalidWhat("Tint:inline", REASON_NAME),
+        HINT_NAME,
+      ),
+    );
+    expect(invalidCause.hint).toBe(__GWEN_DEV__ ? HINT_NAME : undefined);
+
+    const reserved = await runModules([
+      {
+        name: "@example/tint",
+        setup(_options, kit) {
+          addSourceTransform(kit, namedTransform("gwen:x"));
+        },
+      },
+    ]);
+    expect(kitCause(reserved.caught).message).toBe(
+      grammarMessage("KIT:SOURCE_TRANSFORM_INVALID", invalidWhat("gwen:x", REASON_GWEN), HINT_GWEN),
+    );
+
+    const missingRun = await runModules([
+      {
+        name: "@example/tint",
+        setup(_options, kit) {
+          addUncheckedTransform(kit, { name: "tint:inline" });
+        },
+      },
+    ]);
+    expect(kitCause(missingRun.caught).message).toBe(
+      grammarMessage(
+        "KIT:SOURCE_TRANSFORM_INVALID",
+        invalidWhat("tint:inline", REASON_RUN),
+        HINT_RUN,
+      ),
+    );
+
+    const duplicate = await runModules([
+      {
+        name: "@example/first",
+        setup(_options, kit) {
+          addSourceTransform(kit, namedTransform("tint:inline"));
+        },
+      },
+      {
+        name: "@example/second",
+        setup(_options, kit) {
+          addSourceTransform(kit, namedTransform("tint:inline"));
+        },
+      },
+    ]);
+    const duplicateCause = kitCause(duplicate.caught);
+    expect(duplicateCause.message).toBe(
+      grammarMessage(
+        "KIT:SOURCE_TRANSFORM_DUPLICATE",
+        duplicateWhat("tint:inline", "@example/first"),
+        HINT_DUPLICATE,
+      ),
+    );
+    expect(duplicateCause.hint).toBe(__GWEN_DEV__ ? HINT_DUPLICATE : undefined);
   });
 });
