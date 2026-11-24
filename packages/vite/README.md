@@ -193,7 +193,7 @@ Types: `ActorPluginOptions`, `CoreVariant`, `GwenDevStripReport`, `GwenOptimizer
 
 ### `./shared/layer-utils`
 
-Values: `evalBitExpr`, `extractLayerDefinitions`, `inlineLayerReferences`
+Values: `evalBitExpr`, `evalConstInt`, `extractLayerDefinitions`, `inlineLayerReferences`, `layerInlineTransform`
 
 Types: none
 

@@ -23,7 +23,7 @@ import type {
   TransformEdit,
 } from "./types.js";
 
-/** In-plugin handle. `register` is refused after `configResolved`. */
+/** In-plugin handle. `register` is refused after `buildStart`. */
 export interface GwenTransformPipelineApi {
   register(t: GwenSourceTransform): void;
   readonly names: readonly string[];
@@ -124,10 +124,24 @@ export function createTransformPipeline(options: {
       if (frozen) {
         throw new GwenError(
           ViteErrorCodes.TRANSFORM_UNSUPPORTED,
-          "register() was called after configResolved.",
+          "register() was called after buildStart.",
           { composable: "gwen" },
         );
       }
+      let seen: GwenSourceTransform | undefined;
+      for (const existing of registered) {
+        if (existing.name !== unit.name) continue;
+        seen = existing;
+        break;
+      }
+      if (seen !== undefined && seen !== unit) {
+        throw new GwenError(
+          ViteErrorCodes.TRANSFORM_UNSUPPORTED,
+          `register() was called with a different unit named ${unit.name}.`,
+          { composable: "gwen" },
+        );
+      }
+      if (seen === unit) return;
       registered.push(unit);
     },
     get names(): readonly string[] {
@@ -139,10 +153,12 @@ export function createTransformPipeline(options: {
     name: "gwen:transform-pipeline",
     enforce: "pre",
     configResolved(config) {
-      ordered = orderUnits(builtIns, registered);
-      frozen = true;
       projectRoot = config.root;
       projectAliases = config.resolve.alias;
+    },
+    buildStart() {
+      ordered = orderUnits(builtIns, registered);
+      frozen = true;
     },
     async transform(code, id) {
       if (!acceptsModule(id)) return null;

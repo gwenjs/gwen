@@ -242,7 +242,7 @@ Cause. Deux unités éditent des plages qui se chevauchent dans un module. Le me
 
 ### VITE:TRANSFORM_UNSUPPORTED {#vite-transform-unsupported}
 
-Cause. Trois sites de levée. `register()` a été appelé après le `configResolved` de `gwen:transform-pipeline`. `useActor(Y)` dans un factory d'acteur, quand `Y` n'est pas une liaison de portée module, ou quand `Y` est un `const`, un `let`, un `var` ou une `class` déclaré après cet acteur. Un `await` imbriqué dans l'argument d'un `await` de `onEnter`, `onExit` ou `withAsyncContext`. Fix. Appelez `register()` depuis un hook `config`, ou depuis le `configResolved` d'un plugin `enforce: "pre"` listé avant `gwen()`. Déclarez `Y` à la portée du module, avant l'acteur, ou passez-le par les arguments du factory. Assignez d'abord l'await intérieur à un const.
+Cause. Trois sites de levée. `register()` a été appelé après le `buildStart` de `gwen:transform-pipeline`. `useActor(Y)` dans un factory d'acteur, quand `Y` n'est pas une liaison de portée module, ou quand `Y` est un `const`, un `let`, un `var` ou une `class` déclaré après cet acteur. Un `await` imbriqué dans l'argument d'un `await` de `onEnter`, `onExit` ou `withAsyncContext`. Fix. Appelez `register()` depuis un hook `config`, ou depuis le `configResolved` d'un plugin `enforce: "pre"` listé avant `gwen()`. Déclarez `Y` à la portée du module, avant l'acteur, ou passez-le par les arguments du factory. Assignez d'abord l'await intérieur à un const.
 
 ### VITE:BVH_PREBAKE_FAILED {#vite-bvh-prebake-failed}
 

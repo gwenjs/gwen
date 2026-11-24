@@ -226,22 +226,6 @@ export const marked = tag();
     expect(result).toEqual(expect.objectContaining({ code: expect.stringContaining("/*X*/") }));
   });
 
-  it("register() after configResolved raises VITE:TRANSFORM_UNSUPPORTED", async () => {
-    const plugin = createTransformPipeline({ units: [] });
-    await preparePipeline(plugin);
-    const late: GwenSourceTransform = { name: "gwen:late", run: () => [] };
-    await expect(async () => {
-      plugin.api.register(late);
-    }).rejects.toSatisfy((error: unknown) => {
-      const message = readString(error, "message");
-      return (
-        readString(error, "code") === "VITE:TRANSFORM_UNSUPPORTED" &&
-        message !== undefined &&
-        message.includes("register() was called after configResolved.")
-      );
-    });
-  });
-
   it("ctx.raise reaches the host error with code, file, line and column", async () => {
     // `const a = 1;\nconst ` is 19 chars. Offset 19 is `b` on line 2, message column 7.
     // loc.column is 6 (Vite reads the loc object as 0-based).

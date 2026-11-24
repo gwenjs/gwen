@@ -183,3 +183,5 @@ export function inlineLayerReferences(
   }
   return result;
 }
+
+export { layerInlineTransform, evalConstInt } from "../transforms/layer-inline.js";
