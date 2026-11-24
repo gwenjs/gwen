@@ -62,6 +62,7 @@ const enSidebar = [
       { text: 'Writing a Custom Module', link: '/kit/custom-module' },
       { text: 'Writing a Custom Renderer', link: '/kit/custom-renderer' },
       { text: 'Composing Plugins', link: '/kit/composing' },
+      { text: 'Source Transforms', link: '/kit/source-transforms' },
     ],
   },
   {
@@ -146,6 +147,7 @@ const frSidebar = [
       { text: 'Créer un module', link: '/fr/kit/custom-module' },
       { text: 'Créer un renderer', link: '/fr/kit/custom-renderer' },
       { text: 'Composer des plugins', link: '/fr/kit/composing' },
+      { text: 'Transformations de source', link: '/fr/kit/source-transforms' },
     ],
   },
   {

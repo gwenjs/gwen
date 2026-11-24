@@ -301,6 +301,8 @@ gwen.addVitePlugin({
 })
 ```
 
+Pour réécrire des fichiers source au build, voir [Transformations de source](/fr/kit/source-transforms).
+
 Les services et les hooks sont typés par fusion de déclaration statique dans le source du paquet (comme le fait `packages/physics2d/src/augment.ts`), et non générés par le module.
 
 ## Exemple du monde réel : Module de score
@@ -473,6 +475,8 @@ export default defineGwenModule<Options>({
 | `extendViteConfig(extender)` | Étendez la configuration Vite |
 | `hook(event, fn)` | S'abonner aux événements à la compilation |
 | `options` (propriété) | Accédez aux options de configuration résolues |
+
+Voir [Transformations de source](/fr/kit/source-transforms) pour `addSourceTransform`.
 
 ### AutoImport
 
