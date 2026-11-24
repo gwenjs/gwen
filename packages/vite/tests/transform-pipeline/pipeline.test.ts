@@ -6,6 +6,7 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { resolveConfig, type Plugin } from "vite";
 import { ViteErrorCodes } from "../../src/error-codes.js";
 import { createTransformPipeline } from "../../src/pipeline/transform-pipeline.js";
 import type { GwenSourceTransform, TransformEdit } from "../../src/pipeline/types.js";
@@ -371,5 +372,61 @@ export const marked = tag();
 
     const other = createTransformPipeline({ units: [unit("a")] });
     expect(other.api.names).toEqual(["gwen:a"]);
+  });
+
+  it("register() during a later plugin's configResolved is accepted and its unit runs", async () => {
+    const pipeline = createTransformPipeline({ units: [] });
+    const later: Plugin = {
+      name: "test:register-during-config-resolved",
+      configResolved() {
+        pipeline.api.register(testInsert);
+      },
+    };
+    await expect(
+      resolveConfig({ configFile: false, logLevel: "silent", plugins: [pipeline, later] }, "serve"),
+    ).resolves.toBeDefined();
+    await preparePipeline(pipeline);
+    const result = await applyTransform(pipeline, "export const value = tag();\n", "/src/x.ts");
+    expect(result?.code).toContain("/*X*/");
+  });
+
+  it("register() after buildStart raises VITE:TRANSFORM_UNSUPPORTED naming buildStart", async () => {
+    const plugin = createTransformPipeline({ units: [] });
+    await preparePipeline(plugin);
+    const late: GwenSourceTransform = { name: "gwen:late", run: () => [] };
+    await expect(async () => {
+      plugin.api.register(late);
+    }).rejects.toSatisfy((error: unknown) => {
+      const message = readString(error, "message");
+      return (
+        readString(error, "code") === "VITE:TRANSFORM_UNSUPPORTED" &&
+        message !== undefined &&
+        message.includes("register() was called after buildStart.")
+      );
+    });
+  });
+
+  it("registering the same unit twice runs it once", async () => {
+    const plugin = createTransformPipeline({ units: [] });
+    plugin.api.register(testInsert);
+    plugin.api.register(testInsert);
+    await preparePipeline(plugin);
+    const result = await applyTransform(plugin, "export const value = tag();\n", "/src/x.ts");
+    expect(markerCount(result?.code ?? "")).toBe(1);
+  });
+
+  it("registering a different unit under a taken name raises VITE:TRANSFORM_UNSUPPORTED", async () => {
+    const plugin = createTransformPipeline({ units: [] });
+    const first: GwenSourceTransform = { name: "gwen:taken", run: () => [] };
+    const second: GwenSourceTransform = {
+      name: "gwen:taken",
+      run: () => [{ kind: "insert", at: 0, text: "/*other*/" }],
+    };
+    plugin.api.register(first);
+    await expect(async () => {
+      plugin.api.register(second);
+    }).rejects.toSatisfy(
+      (error: unknown) => readString(error, "code") === "VITE:TRANSFORM_UNSUPPORTED",
+    );
   });
 });
