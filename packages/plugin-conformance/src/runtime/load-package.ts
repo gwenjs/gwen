@@ -12,14 +12,17 @@ export interface LoadedPackage {
   readonly findings: readonly ConformanceFinding[];
   readonly rootEntry: Record<string, unknown> | undefined;
   readonly moduleFile: string | undefined;
+  /** Absolute path of the root entry. Set only when `rootEntry` is set. */
+  readonly entryFile: string | undefined;
 }
 
 function report(
   findings: readonly ConformanceFinding[],
   rootEntry: Record<string, unknown> | undefined = undefined,
   moduleFile: string | undefined = undefined,
+  entryFile: string | undefined = undefined,
 ): LoadedPackage {
-  return { findings, rootEntry, moduleFile };
+  return { findings, rootEntry, moduleFile, entryFile };
 }
 
 async function isFile(file: string): Promise<boolean> {
@@ -110,7 +113,7 @@ export async function loadRuntimePackage(spec: PluginConformanceSpec): Promise<L
   }
   const exportFindings = factoriesNotExported(spec.factories, entry);
   if (exportFindings.length > 0) return report(exportFindings);
-  if (manifest.moduleTarget === undefined) return report([], entry, undefined);
+  if (manifest.moduleTarget === undefined) return report([], entry, undefined, entryFile);
   const moduleLocated = locateBuiltFile(root, "./module", manifest.moduleTarget);
   if (!moduleLocated.ok) return report([runtimeFinding(moduleLocated.message, moduleLocated.hint)]);
   if (!(await isFile(moduleLocated.file))) {
@@ -121,5 +124,23 @@ export async function loadRuntimePackage(spec: PluginConformanceSpec): Promise<L
       ),
     ]);
   }
-  return report([], entry, moduleLocated.file);
+  return report([], entry, moduleLocated.file, entryFile);
+}
+
+/**
+ * Import `file` again. A query on the href is a different module from the
+ * cached import (`packages/plugin-conformance/src/runtime/load-package.ts:50`),
+ * so a setup flag set by an earlier check is not on this copy.
+ */
+export async function importFreshEntry(
+  file: string,
+  token: string,
+): Promise<Record<string, unknown> | undefined> {
+  try {
+    const href = `${pathToFileURL(file).href}?gwen-conformance=${token}`;
+    const loaded: unknown = await import(href);
+    return namespaceView(loaded);
+  } catch {
+    return undefined;
+  }
 }
