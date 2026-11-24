@@ -50,6 +50,7 @@ function recordingKit(recorded: unknown[]): GwenKit {
     },
     addAutoImports(): void {},
     addVitePlugin(): void {},
+    addSourceTransform(): void {},
     extendViteConfig(): void {},
     hook<H extends keyof GwenBuildHooks>(_event: H, _fn: GwenBuildHooks[H]): void {},
     options: {},

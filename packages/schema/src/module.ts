@@ -13,6 +13,7 @@
 
 import type { DeepPartial } from "./config.js";
 import type { GwenConfigIssue } from "./engine-config.js";
+import type { GwenSourceTransform } from "./source-transform.js";
 
 /**
  * Augmentable module options merged into `defineConfig`.
@@ -220,6 +221,21 @@ export interface GwenKit {
    * @param plugin - Any Vite-compatible plugin object.
    */
   addVitePlugin(plugin: VitePlugin): void;
+
+  /**
+   * Registers a build transform. It runs once per module, after the built-in
+   * units. The module does not import `@gwenjs/vite`.
+   *
+   * @param transform - `name` is `<namespace>:<transform>` in lower case. `gwen:` is reserved.
+   * @example
+   * gwen.addSourceTransform({
+   *   name: 'tint:inline',
+   *   run(_program, ctx) {
+   *     return []
+   *   },
+   * })
+   */
+  addSourceTransform(transform: GwenSourceTransform): void;
 
   /**
    * Extends the Vite user config. The extender receives the accumulated config

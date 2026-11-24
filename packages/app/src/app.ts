@@ -8,12 +8,13 @@
  */
 
 import type { GwenPlugin, PluginDeclaration } from "@gwenjs/schema";
-import type { AutoImport, VitePlugin, ViteUserConfig } from "@gwenjs/kit";
+import { KitErrorCodes, type AutoImport, type VitePlugin, type ViteUserConfig } from "@gwenjs/kit";
 import {
   validateGwenModule,
   type GwenBuildHooks,
   type GwenKit,
   type GwenModule,
+  type GwenSourceTransform,
 } from "@gwenjs/kit/module";
 import { createHooks } from "hookable";
 import { createJiti } from "jiti";
@@ -73,6 +74,8 @@ export class GwenApp {
   private readonly _plugins: GwenPlugin[] = [];
   private readonly _autoImports: AutoImport[] = [];
   private readonly _vitePlugins: VitePlugin[] = [];
+  private readonly _sourceTransforms: GwenSourceTransform[] = [];
+  private readonly _sourceTransformOwners: string[] = [];
   private readonly _viteConfigExtenders: Array<(c: ViteUserConfig) => Partial<ViteUserConfig>> = [];
   /** Collected path-based plugin declarations (used by @gwenjs/vite for static imports). */
   private readonly _pluginDeclarations: PluginDeclaration[] = [];
@@ -108,6 +111,14 @@ export class GwenApp {
    */
   get vitePlugins(): VitePlugin[] {
     return [...this._vitePlugins];
+  }
+
+  /**
+   * Returns the source transforms registered by modules, in setup order.
+   * Each call returns a fresh array. The transform objects keep their identity.
+   */
+  get sourceTransforms(): GwenSourceTransform[] {
+    return [...this._sourceTransforms];
   }
 
   /**
@@ -341,9 +352,10 @@ export class GwenApp {
    * (while sharing the same underlying collections on `this`).
    *
    * @param resolved - Frozen config view exposed via `kit.options`.
+   * @param moduleName - `meta.name` of the module that receives this kit.
    * @returns A GwenKit implementation.
    */
-  private _createKit(resolved: Readonly<ResolvedGwenConfig>): GwenKit {
+  private _createKit(resolved: Readonly<ResolvedGwenConfig>, moduleName: string): GwenKit {
     // Capture `this` as `app` to keep the closure readable.
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const app = this;
@@ -385,6 +397,29 @@ export class GwenApp {
         app._vitePlugins.push(plugin);
       },
 
+      /** Registers a build transform after checking its name and `run`. */
+      addSourceTransform(transform: GwenSourceTransform): void {
+        const value: unknown = transform;
+        if (!isRecord(value) || typeof value["run"] !== "function") {
+          throw sourceTransformInvalid(quotedTransformName(value), REASON_RUN, HINT_RUN);
+        }
+        const name = quotedTransformName(value);
+        if (!isTransformName(name)) {
+          throw sourceTransformInvalid(name, REASON_NAME, HINT_NAME);
+        }
+        const colon = name.indexOf(":");
+        const namespace = name.slice(0, colon);
+        if (namespace === "gwen") {
+          throw sourceTransformInvalid(name, REASON_GWEN, HINT_GWEN);
+        }
+        const owner = registeredOwner(app._sourceTransforms, app._sourceTransformOwners, name);
+        if (owner !== undefined) {
+          throw sourceTransformDuplicate(name, owner);
+        }
+        app._sourceTransforms.push(transform);
+        app._sourceTransformOwners.push(moduleName);
+      },
+
       /** Queues a Vite config extender function. */
       extendViteConfig(extender: (c: ViteUserConfig) => Partial<ViteUserConfig>): void {
         app._viteConfigExtenders.push(extender);
@@ -414,7 +449,7 @@ export class GwenApp {
     options: Record<string, unknown>,
     label: string,
   ) {
-    const kit = this._createKit(resolved);
+    const kit = this._createKit(resolved, mod.meta.name);
     await this.buildHooks.callHook("module:before", mod);
     try {
       await mod.setup(options, kit);
@@ -443,6 +478,74 @@ function storedPluginDeclaration(value: PluginDeclaration): PluginDeclaration {
   const stored: PluginDeclaration = { src: value.src };
   if (typeof value.export === "string") stored.export = value.export;
   return stored;
+}
+
+const REASON_NAME = 'the name must be "<namespace>:<transform>" in lower case';
+const REASON_GWEN = 'the "gwen:" namespace is reserved for built-in transforms';
+const REASON_RUN = "run is not a function";
+const HINT_NAME = 'Use a lower-case name "<namespace>:<transform>", for example "tint:inline".';
+const HINT_GWEN =
+  'Choose a namespace other than "gwen". That namespace is reserved for built-in transforms.';
+const HINT_RUN = "Set run to a function. It receives the program and the transform context.";
+const HINT_DUPLICATE = "Register each source transform name once. Remove the second registration.";
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function quotedTransformName(value: unknown): string {
+  if (!isRecord(value)) return "";
+  const name = value["name"];
+  return typeof name === "string" ? name : "";
+}
+
+function isNameSegment(segment: string): boolean {
+  if (segment.length === 0) return false;
+  const first = segment.charCodeAt(0);
+  if (first < 97 || first > 122) return false;
+  for (let index = 1; index < segment.length; index += 1) {
+    const code = segment.charCodeAt(index);
+    const lower = code >= 97 && code <= 122;
+    const digit = code >= 48 && code <= 57;
+    const dash = code === 45;
+    if (!lower && !digit && !dash) return false;
+  }
+  return true;
+}
+
+function isTransformName(name: string): boolean {
+  const colon = name.indexOf(":");
+  if (colon <= 0 || colon !== name.lastIndexOf(":") || colon === name.length - 1) return false;
+  return isNameSegment(name.slice(0, colon)) && isNameSegment(name.slice(colon + 1));
+}
+
+function registeredOwner(
+  transforms: readonly GwenSourceTransform[],
+  owners: readonly string[],
+  name: string,
+): string | undefined {
+  for (let index = 0; index < transforms.length; index += 1) {
+    const existing = transforms[index];
+    if (existing === undefined || existing.name !== name) continue;
+    return owners[index];
+  }
+  return undefined;
+}
+
+function sourceTransformInvalid(name: string, reason: string, hint: string): GwenError {
+  return new GwenError(
+    KitErrorCodes.SOURCE_TRANSFORM_INVALID,
+    `Source transform "${name}" is invalid: ${reason}.`,
+    { composable: "kit.addSourceTransform", hint: __GWEN_DEV__ ? hint : undefined },
+  );
+}
+
+function sourceTransformDuplicate(name: string, firstModule: string): GwenError {
+  return new GwenError(
+    KitErrorCodes.SOURCE_TRANSFORM_DUPLICATE,
+    `Source transform "${name}" is already registered by module "${firstModule}".`,
+    { composable: "kit.addSourceTransform", hint: __GWEN_DEV__ ? HINT_DUPLICATE : undefined },
+  );
 }
 
 function pluginNotDeclarative(what: string, hint: string): GwenError {
