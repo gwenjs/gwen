@@ -19,6 +19,24 @@ describe("Physics3DPlugin foundation", () => {
     expect(plugin.name).toBe("@gwenjs/physics3d");
   });
 
+  it("teardown outside an engine does not throw", () => {
+    engineContext.unset();
+    const plugin = new Physics3DPlugin();
+    let code = "";
+    try {
+      plugin.teardown?.();
+      code = "none";
+    } catch (error: unknown) {
+      if (typeof error === "object" && error !== null && "code" in error) {
+        const value = error.code;
+        code = typeof value === "string" ? value : "thrown";
+      } else {
+        code = "thrown";
+      }
+    }
+    expect(code).toBe("none");
+  });
+
   it("warns when the speed cap setter returns 0", async () => {
     const warnings: string[] = [];
     const seen: number[] = [];

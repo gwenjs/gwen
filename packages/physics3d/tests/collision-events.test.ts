@@ -84,6 +84,8 @@ import {
   GwenWasmPanicError,
 } from "../../core/src/engine/engine-errors.ts";
 import { Physics3DPlugin, type Physics3DAPI } from "../src/index";
+import { onContact } from "../src/composables/on-contact";
+import type { CollisionContact } from "../src/types";
 import type { GwenEngine } from "@gwenjs/core";
 import { engineContext } from "@gwenjs/core/internal";
 
@@ -265,18 +267,46 @@ describe("Physics3D collision events — WASM backend mode", () => {
   });
 
   it("calls physics3d_consume_events after reading", () => {
-    const { service, hookMap } = setup();
+    const { service, engine, hookMap } = setup();
 
     service.createBody(5n);
     service.createBody(6n);
 
-    const buf = buildEventBuffer([{ slotA: 5, slotB: 6, started: true }]);
+    const seen: CollisionContact[] = [];
+    onContact((contact) => {
+      seen.push(contact);
+    });
+
+    // A consume that wipes the ring must not erase a payload already copied.
+    physics3dConsumeEvents.mockImplementation(() => {
+      mockEventCount = 0;
+      if (mockMemoryBuffer !== null) new Uint8Array(mockMemoryBuffer).fill(0);
+    });
+
+    const buf = buildEventBuffer([
+      { slotA: 5, slotB: 6, colliderIdA: 11, colliderIdB: 22, started: true },
+    ]);
     mockMemoryBuffer = buf;
     mockEventCount = 1;
 
-    runFrame(hookMap, 1 / 60);
+    try {
+      runFrame(hookMap, 1 / 60);
 
-    expect(physics3dConsumeEvents).toHaveBeenCalledTimes(1);
+      expect(physics3dConsumeEvents).toHaveBeenCalledTimes(1);
+      const contact = {
+        entityA: 5n,
+        entityB: 6n,
+        aColliderId: 11,
+        bColliderId: 22,
+        started: true,
+      };
+      expect(engine.hooks.callHook).toHaveBeenCalledWith("physics:collision", [
+        expect.objectContaining(contact),
+      ]);
+      expect(seen).toEqual([expect.objectContaining(contact)]);
+    } finally {
+      physics3dConsumeEvents.mockImplementation(() => undefined);
+    }
   });
 
   it("a rejected physics3d_consume_events leaves the update hook as GwenWasmError", () => {
@@ -514,6 +544,29 @@ describe("Physics3D collision events — WASM backend mode", () => {
 
     // max larger than available contacts returns all
     expect(service.getCollisionContacts({ max: 100 })).toHaveLength(3);
+  });
+
+  it("reports a sensor transition when the other side of the contact has no owner", () => {
+    const { service, engine, hookMap } = setup();
+    const owned = 7n;
+    service.createBody(owned);
+    service.addCollider(owned, {
+      colliderId: 0xf007,
+      isSensor: true,
+      shape: { type: "box", halfX: 0.5, halfY: 0.5, halfZ: 0.5 },
+    });
+
+    mockMemoryBuffer = buildEventBuffer([
+      { slotA: 7, slotB: 8, colliderIdA: 0xf007, started: true },
+    ]);
+    mockEventCount = 1;
+
+    runFrame(hookMap, 1 / 60);
+
+    expect(engine.hooks.callHook).toHaveBeenCalledWith("physics:sensor:changed", owned, 0xf007, {
+      contactCount: 1,
+      isActive: true,
+    });
   });
 });
 
