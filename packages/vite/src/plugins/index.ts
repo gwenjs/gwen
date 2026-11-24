@@ -1,4 +1,3 @@
-import { gwenWasmPlugin } from "./wasm.js";
 import { gwenAutoImportsPlugin } from "./auto-imports.js";
 import { gwenVirtualPlugin } from "./virtual-env.js";
 import { gwenActorPlugin } from "./actor.js";
@@ -15,7 +14,6 @@ import { createTransformPipeline } from "../pipeline/transform-pipeline.js";
 import type { GwenViteOptions } from "../types.js";
 import type { PluginOption } from "vite";
 
-export { gwenWasmPlugin } from "./wasm.js";
 export { gwenAutoImportsPlugin, generateAutoImportsModule } from "./auto-imports.js";
 export { gwenVirtualPlugin } from "./virtual-env.js";
 export { gwenActorPlugin, generateActorsModule } from "./actor.js";
@@ -45,7 +43,6 @@ export { gwenDevStripPlugin, type GwenDevStripReport } from "./dev-strip.js";
 /**
  * Composite Vite plugin that wires together all GWEN sub-plugins:
  *
- * - `gwen:wasm` — serves / inlines the WASM binary
  * - `gwen:auto-imports` — virtual module for composable re-exports
  * - `gwen:virtual` — injects `virtual:gwen/env` constants
  * - `gwen:actor` — actor auto-discovery and the actors virtual module
@@ -93,10 +90,9 @@ function resolveOptimizerOptions(
 
 export function gwenVitePlugin(options: GwenViteOptions = {}): PluginOption {
   return [
-    gwenWasmPlugin(options),
     createTransformPipeline({ units: BUILT_IN_UNITS, autoImports: options.autoImports ?? [] }),
     gwenAutoImportsPlugin(options),
-    gwenVirtualPlugin(options),
+    gwenVirtualPlugin(),
     gwenActorPlugin(options),
     gwenLayoutPlugin(options),
     gwenSceneRouterPlugin(options),

@@ -5,39 +5,6 @@ import type { HooksPluginOptions } from "./plugins/hooks.js";
 import type { WasmTier } from "./optimizer/types.js";
 
 /**
- * Which WASM binary build variant to load.
- * - `'debug'` — unoptimised, faster to build, includes debug info.
- * - `'release'` — optimised, smaller, suitable for production.
- * - `'auto'` — resolves to `'release'` during `vite build`, `'debug'` during `vite dev`.
- */
-export type WasmVariant = "debug" | "release" | "auto";
-
-/**
- * Options for the WASM sub-plugin (`gwen:wasm`).
- */
-export interface GwenWasmOptions {
-  /**
-   * Which WASM binary to load.
-   * @default 'auto'
-   */
-  variant?: WasmVariant;
-
-  /**
-   * Override the path to the WASM file.
-   * When omitted the plugin resolves the binary from the installed
-   * `@gwenjs/core` package.
-   */
-  wasmPath?: string;
-
-  /**
-   * Enable WASM HMR.
-   * When `true`, a `.wasm` source file change triggers a full page reload.
-   * @default true
-   */
-  hmr?: boolean;
-}
-
-/**
  * Options for the `gwen:actor` sub-plugin.
  */
 export interface ActorPluginOptions {
@@ -107,9 +74,6 @@ export interface GwenLayoutOptions {
  * Top-level options for the `gwenVitePlugin` / individual sub-plugins.
  */
 export interface GwenViteOptions {
-  /** WASM binary options. */
-  wasm?: GwenWasmOptions;
-
   /**
    * Auto-import entries to expose via `virtual:gwen/auto-imports`.
    * @default []

@@ -208,10 +208,6 @@ Cause. Un `engine.variant` explicite contredit un module de physique (`resolveGw
 
 ## @gwenjs/vite
 
-### VITE:WASM_NOT_FOUND {#vite-wasm-not-found}
-
-Cause. Le binaire WASM n'est pas au chemin résolu par le plugin. Fix. Lancez d'abord `cargo build --target wasm32-unknown-unknown`.
-
 ### VITE:OPTIMIZER_UNKNOWN_COMPONENT {#vite-optimizer-unknown-component}
 
 Cause. Le générateur de code a demandé un composant absent du manifeste. Fix. Enregistrez le composant avant de générer le code bulk.

@@ -17,9 +17,7 @@
       "GwenPhysics3DOptimizerOptions",
       "GwenPluginOptions",
       "GwenTransformOptions",
-      "GwenViteOptions",
-      "GwenWasmOptions",
-      "WasmVariant"
+      "GwenViteOptions"
     ]
   },
   "./shared/layer-utils": {
