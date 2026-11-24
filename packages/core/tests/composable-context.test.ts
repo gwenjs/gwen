@@ -25,6 +25,7 @@ import { defineActor } from "../src/actor/runtime/define-actor";
 import { defineActorPool } from "../src/actor/runtime/pool/define-actor-pool";
 import { defineLayout } from "../src/actor/runtime/define-layout";
 import { defineScene } from "../src/scene/index";
+import { onPreload } from "../src/scene/runtime/scene-context";
 import { defineSceneRouter } from "../src/router/defines/define-scene-router";
 import { defineSystem } from "../src/system/runtime/define-system";
 import { GwenContextError } from "../src/engine/context";
@@ -111,6 +112,7 @@ const ROWS: Readonly<Record<string, readonly Cell[]>> = {
   onExit: [{ kind: "scene", call: () => scene.onExit(() => {}) }],
   onTransitionExit: [{ kind: "scene", call: () => scene.onTransitionExit(() => {}) }],
   onTransitionEnter: [{ kind: "scene", call: () => scene.onTransitionEnter(() => {}) }],
+  onPreload: [{ kind: "scene", call: () => onPreload(() => {}) }],
 
   useTween: [
     {

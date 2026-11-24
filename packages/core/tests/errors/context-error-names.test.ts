@@ -49,6 +49,7 @@ import {
   useComponent,
 } from "@gwenjs/core/system";
 import { onCleanup } from "../../src/hooks/index.js";
+import { onPreload } from "../../src/scene/runtime/scene-context.js";
 
 const ENGINE_FIRST =
   "[useEngine()] Called outside defineSystem() or defineActor() or defineScene() or plugin setup() or engine.run().";
@@ -198,6 +199,7 @@ describe("context error names", () => {
       ["onExit", () => onExit(() => {})],
       ["onTransitionExit", () => onTransitionExit(() => {})],
       ["onTransitionEnter", () => onTransitionEnter(() => {})],
+      ["onPreload", () => onPreload(() => {})],
     ];
     for (const [name, hook] of hooks) {
       const error = thrownBy(() => hook());

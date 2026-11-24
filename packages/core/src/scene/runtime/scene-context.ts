@@ -10,6 +10,7 @@
  * - `onExit(cb)` — callback when scene is exited
  */
 
+import type { ScenePreloadEvent } from "@gwenjs/schema";
 import { GwenContextError, GwenContextErrorCodes, engineContext } from "../../engine/context";
 import type { GwenPlugin } from "../../engine/engine-types";
 import { ContextSlot } from "../../engine/context-slot";
@@ -203,6 +204,8 @@ export function onExit(cb: () => void | Promise<void>): void {
   }
   ctx.onExitCb = cb;
 }
+
+export function onPreload(_cb: (event: ScenePreloadEvent) => void | Promise<void>): void {}
 
 /**
  * Register an async callback that runs before the leave animation for this scene.

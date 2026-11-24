@@ -26,7 +26,7 @@
  * ```
  */
 
-import type { GwenSceneName } from "@gwenjs/schema";
+import type { GwenSceneName, ScenePreloadEvent } from "@gwenjs/schema";
 import { _withSceneContext } from "./scene-context";
 import type { GwenPlugin, GwenEngine } from "../../engine/engine-types";
 import { engineContext } from "../../engine/context";
@@ -68,6 +68,8 @@ export interface SceneDefinition<N extends GwenSceneName = GwenSceneName> {
     from: GwenSceneName;
     to: GwenSceneName;
   }) => void | Promise<void>;
+  /** Optional callbacks fired while this scene is the preload target. */
+  readonly onPreload?: readonly ((event: ScenePreloadEvent) => void | Promise<void>)[];
 }
 
 /**

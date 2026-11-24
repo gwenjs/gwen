@@ -30,6 +30,7 @@ import {
   onTransitionExit,
   useSystem,
 } from "../../src/scene/index.js";
+import { onPreload } from "../../src/scene/runtime/scene-context.js";
 import {
   defineSystem,
   onAfterUpdate,
@@ -117,6 +118,7 @@ describe("real WASM composable context", () => {
         sceneOnly("onExit", () => onExit(() => {})),
         sceneOnly("onTransitionExit", () => onTransitionExit(() => {})),
         sceneOnly("onTransitionEnter", () => onTransitionEnter(() => {})),
+        sceneOnly("onPreload", () => onPreload(() => {})),
         sceneOnly("useSystem", () => useSystem(NoopSystem())),
         everywhere("useActorPool", () => useActorPool(PoolDef)),
       ];
