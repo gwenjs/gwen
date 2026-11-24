@@ -371,3 +371,146 @@ it("stopping the engine with the plugin installed disposes the adapter once", as
   await engine.stop();
   expect(record.disposes).toEqual([0]);
 });
+
+it("a second teardown call does not clear callbacks registered after the first", async () => {
+  expect(typeof api.createPhysicsPlugin).toBe("function");
+  const engine = await openEngine();
+  const plugin = api.createPhysicsPlugin(
+    "second-teardown-callbacks",
+    SERVICE_KEY,
+    () => recording("second-teardown").adapter,
+    { defaults: {} },
+  )();
+  await engine.use(plugin);
+  await engine.unuse("second-teardown-callbacks");
+  let count = 0;
+  await engine.run(() => {
+    api.onContact(() => {
+      count += 1;
+    });
+  });
+  const teardown = plugin.teardown;
+  expect(typeof teardown).toBe("function");
+  if (typeof teardown !== "function") return;
+  teardown();
+  const entity = engine.createEntity();
+  api.createContactRegistry().get(engine).emit({
+    entityA: entity,
+    entityB: entity,
+    started: true,
+  });
+  expect(count).toBe(1);
+});
+
+it("a second teardown call does not dispose the adapter twice", async () => {
+  expect(typeof api.createPhysicsPlugin).toBe("function");
+  const engine = await openEngine();
+  const record = recording("second-dispose");
+  const plugin = api.createPhysicsPlugin(
+    "second-teardown-dispose",
+    SERVICE_KEY,
+    () => record.adapter,
+    { defaults: {} },
+  )();
+  await engine.use(plugin);
+  await engine.unuse("second-teardown-dispose");
+  const teardown = plugin.teardown;
+  expect(typeof teardown).toBe("function");
+  if (typeof teardown !== "function") return;
+  teardown();
+  expect(record.disposes).toEqual([0]);
+});
+
+it("a second teardown call inside the engine does not clear callbacks registered after the first", async () => {
+  expect(typeof api.createPhysicsPlugin).toBe("function");
+  const engine = await openEngine();
+  const plugin = api.createPhysicsPlugin(
+    "second-teardown-callbacks-inside",
+    SERVICE_KEY,
+    () => recording("second-teardown-inside").adapter,
+    { defaults: {} },
+  )();
+  await engine.use(plugin);
+  await engine.unuse("second-teardown-callbacks-inside");
+  let count = 0;
+  await engine.run(() => {
+    api.onContact(() => {
+      count += 1;
+    });
+  });
+  const teardown = plugin.teardown;
+  expect(typeof teardown).toBe("function");
+  if (typeof teardown !== "function") return;
+  await engine.run(() => {
+    teardown();
+  });
+  const entity = engine.createEntity();
+  api.createContactRegistry().get(engine).emit({
+    entityA: entity,
+    entityB: entity,
+    started: true,
+  });
+  expect(count).toBe(1);
+});
+
+it("a second teardown call inside the engine does not dispose the adapter twice", async () => {
+  expect(typeof api.createPhysicsPlugin).toBe("function");
+  const engine = await openEngine();
+  const record = recording("second-dispose-inside");
+  const plugin = api.createPhysicsPlugin(
+    "second-teardown-dispose-inside",
+    SERVICE_KEY,
+    () => record.adapter,
+    { defaults: {} },
+  )();
+  await engine.use(plugin);
+  await engine.unuse("second-teardown-dispose-inside");
+  const teardown = plugin.teardown;
+  expect(typeof teardown).toBe("function");
+  if (typeof teardown !== "function") return;
+  await engine.run(() => {
+    teardown();
+  });
+  expect(record.disposes).toEqual([0]);
+});
+
+it("one plugin object installed on two engines disposes only the stopped engine's adapter", async () => {
+  expect(typeof api.createPhysicsPlugin).toBe("function");
+  const engineA = await openEngine();
+  const engineB = await openEngine();
+  const recordA = recording("one-object-a");
+  const recordB = recording("one-object-b");
+  const records = [recordA, recordB];
+  let index = 0;
+  const plugin = api.createPhysicsPlugin(
+    "one-object-two-engines",
+    SERVICE_KEY,
+    () => {
+      const record = records[index];
+      index += 1;
+      if (record === undefined) {
+        throw new Error("makeAdapter ran more than twice");
+      }
+      return record.adapter;
+    },
+    { defaults: {} },
+  )();
+  await engineA.use(plugin);
+  await engineB.use(plugin);
+  let count = 0;
+  await engineB.run(() => {
+    api.onContact(() => {
+      count += 1;
+    });
+  });
+  await engineA.stop();
+  const entity = engineB.createEntity();
+  api.createContactRegistry().get(engineB).emit({
+    entityA: entity,
+    entityB: entity,
+    started: true,
+  });
+  expect(recordA.disposes).toEqual([0]);
+  expect(recordB.disposes).toEqual([]);
+  expect(count).toBe(1);
+});
