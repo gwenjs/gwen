@@ -19,11 +19,11 @@ function record(input: PluginConformanceSpec): {
   const suites: string[] = [];
   const rows: RecordedRow[] = [];
   registerPluginConformance(input, {
-    describe(name, body) {
+    describe: (name, body) => {
       suites.push(name);
       body();
     },
-    it(name, body) {
+    it: (name, body) => {
       rows.push({ name, body });
     },
   });
