@@ -13,4 +13,13 @@ export type {
   GwenBuildHooks,
   GwenBaseConfig,
   PluginDeclaration,
+  GwenSourceRange,
+  GwenAstNode,
+  GwenImportBinding,
+  GwenAstArgument,
+  GwenCallSite,
+  GwenTransformEdit,
+  GwenErrorCodeString,
+  GwenTransformContext,
+  GwenSourceTransform,
 } from "@gwenjs/schema";

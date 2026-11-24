@@ -22,6 +22,15 @@ export type {
   GwenKit,
   GwenModuleDefinition,
   GwenModule,
+  GwenSourceRange,
+  GwenAstNode,
+  GwenImportBinding,
+  GwenAstArgument,
+  GwenCallSite,
+  GwenTransformEdit,
+  GwenErrorCodeString,
+  GwenTransformContext,
+  GwenSourceTransform,
 } from "@gwenjs/schema";
 
 import type { GwenModuleDefinition, GwenModule } from "@gwenjs/schema";

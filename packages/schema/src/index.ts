@@ -153,6 +153,20 @@ export type {
   PluginDeclaration,
 } from "./module";
 
+// ─── Source transform ────────────────────────────────────────────────────────
+
+export type {
+  GwenSourceRange,
+  GwenAstNode,
+  GwenImportBinding,
+  GwenAstArgument,
+  GwenCallSite,
+  GwenTransformEdit,
+  GwenErrorCodeString,
+  GwenTransformContext,
+  GwenSourceTransform,
+} from "./source-transform";
+
 // ─── Framework range ─────────────────────────────────────────────────────────
 
 export { CORE_RANGE } from "./core-range";
