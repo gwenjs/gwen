@@ -193,7 +193,7 @@ Types: `ActorPluginOptions`, `CoreVariant`, `GwenDevStripReport`, `GwenOptimizer
 
 ### `./shared/layer-utils`
 
-Values: `evalConstInt`, `layerInlineTransform`
+Values: `createBvhPrebakeTransform`, `evalConstInt`, `layerInlineTransform`
 
 Types: none
 

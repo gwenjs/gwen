@@ -21,7 +21,7 @@
     ]
   },
   "./shared/layer-utils": {
-    "values": ["evalConstInt", "layerInlineTransform"],
+    "values": ["createBvhPrebakeTransform", "evalConstInt", "layerInlineTransform"],
     "types": []
   },
   "./scanners": {

@@ -194,20 +194,22 @@ useMeshCollider('./terrain.glb')
 useMeshCollider({ vertices: myFloat32Array, indices: myUint32Array })
 ```
 
-#### useConvexCollider(path | options)
+#### useConvexCollider(options)
 
 ```ts
-function useConvexCollider(source: string | {
+function useConvexCollider(options: {
   vertices: Float32Array
-  sensor?: boolean
-  density?: number
-}): void
+  isSensor?: boolean
+  layer?: number | string | readonly (number | string)[]
+  mask?: number | string | readonly (number | string)[]
+  material?: string
+}): { colliderId: number; remove(): void }
 ```
 
-Adds a convex hull collider. Faster than trimesh; suitable for dynamic bodies.
+Adds a convex hull collider from a vertex cloud (`packages/physics3d/src/composables/use-convex-collider.ts:21`). Faster than a trimesh; suitable for dynamic bodies. A `.glb` path is not accepted.
 
 ```ts
-useConvexCollider('./rock.glb')
+useConvexCollider({ vertices: new Float32Array(12) })
 ```
 
 ### Events
@@ -413,7 +415,7 @@ interface GwenPhysics3DPluginOptions {
 The plugin does two build-time jobs:
 
 1. **Layer inlining** — registers `gwen:layer-inline` on `gwen:transform-pipeline`. `Layers.player` becomes its bitmask. A manual Vite config needs `gwen()` in the Vite config.
-2. **BVH pre-baking** (opt-in) — detects `useMeshCollider('./terrain.glb')` patterns, compiles the BVH at build time, and replaces the path with `{ __bvhUrl: 'bvh-<hash>.bin' }`.
+2. **BVH pre-baking** (opt-in) — `useMeshCollider('./terrain.glb')` (a `../` path too) is rewritten to `useMeshCollider({ __bvhUrl: "bvh-<hash>.bin" })`. The build emits that file. Dev serves the same bytes from memory. An absent file or a failed bake throws `VITE:BVH_PREBAKE_FAILED`. `useConvexCollider` is not rewritten.
 
 :::tip BVH pre-bake workflow
 Enable `bvhPrebake: true` (via `vite.bvhPrebake` in module config) for large terrain meshes. The BVH is compiled once at build time and served as a binary asset, so raycast initialisation at runtime is nearly instant — no per-frame BVH rebuild cost.

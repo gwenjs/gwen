@@ -242,7 +242,7 @@ Cause. Quatre sites de levée. `register()` a été appelé après le `buildStar
 
 ### VITE:BVH_PREBAKE_FAILED {#vite-bvh-prebake-failed}
 
-Cause. Déclaré dans `ViteErrorCodes` pour l'étape ultérieure de précalcul BVH. Ce code n'a pas encore de site de levée. Fix. Lisez le message de précalcul quand cette étape le lèvera.
+Cause. `gwen:bvh-prebake` lève ce code quand un `.glb` relatif passé à `useMeshCollider` n'est pas sur le disque (`packages/vite/src/transforms/bvh-prebake.ts:134`), ou quand la lecture ou le calcul lève (`packages/vite/src/transforms/bvh-prebake.ts:102`). Un fichier absent nomme le chemin absolu. Un calcul qui lève nomme le chemin relatif et garde l'erreur d'origine dans `cause`. La ligne `Fix:` n'est présente que si `NODE_ENV` n'est pas `production` (`packages/vite/src/pipeline/dev-hint.ts:7`). Fix. Vérifiez le chemin par rapport au fichier qui importe. Exportez le maillage en triangles.
 
 ## @gwenjs/math
 

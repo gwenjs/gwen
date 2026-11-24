@@ -1,13 +1,9 @@
 /**
- * @file gwen:physics3d — Vite plugin for layer inlining and build-time optimizations.
+ * @file gwen:physics3d — Vite plugin for layer inlining and BVH pre-baking.
  */
 import type { Plugin } from "vite";
-import { createHash } from "node:crypto";
-import { readFileSync, existsSync } from "node:fs";
-import { resolve, dirname } from "node:path";
-import MagicString from "magic-string";
 import { GwenError } from "@gwenjs/schema";
-import { layerInlineTransform } from "@gwenjs/vite/shared/layer-utils";
+import { createBvhPrebakeTransform, layerInlineTransform } from "@gwenjs/vite/shared/layer-utils";
 import { Physics3DErrorCodes } from "./errors/codes";
 
 /**
@@ -21,11 +17,6 @@ export interface GwenPhysics3DPluginOptions {
    */
   bvhPrebake?: boolean;
 }
-
-/**
- * @deprecated Use {@link GwenPhysics3DPluginOptions} instead.
- */
-export type Physics3DVitePluginOptions = GwenPhysics3DPluginOptions;
 
 // ─── BVH pre-baking support ───────────────────────────────────────────────────
 
@@ -46,7 +37,7 @@ let _buildToolsLoaderOverride:
   | null = null;
 
 /**
- * Set a custom build-tools loader. Call before any `transformBvhReferences` invocation.
+ * Set a custom build-tools loader. Call it before a module that bakes is transformed.
  * Clears the module-level cache so the new loader is used on the next call.
  *
  * @param loader - Async factory returning a build-tools-like object.
@@ -83,83 +74,56 @@ async function getBuildTools(): Promise<{
   return mod;
 }
 
-/**
- * Regex matching `useMeshCollider` or `useConvexCollider` calls whose first
- * argument is a relative `.glb` string literal.
- *
- * Captures:
- *   1. Quote character used
- *   2. The GLB relative path (e.g. `./terrain.glb`)
- *   3. Optional `, { mesh: '...' }` options tail
- *
- * @internal
- */
-const MESH_GLB_RE =
-  /use(?:Mesh|Convex)Collider\(\s*(['"`])(\.\/[^'"` \n]+\.glb)\1(\s*,\s*\{[^}]*\})?\s*\)/g;
+const bakedAssets = new Map<string, Uint8Array>();
 
-/**
- * Detect `useMeshCollider('./file.glb')` patterns and pre-bake their BVH.
- * Returns the transformed code string, or `null` if no matches were found.
- *
- * @param code - Source file contents to scan and transform.
- * @param id - Absolute path of the source file (used to resolve relative GLB paths).
- * @param emitFile - Optional Rollup `emitFile` callback for writing the BVH asset.
- * @returns Transformed source string, or `null` when no GLB patterns were found.
- *
- * @internal Exported for the Vite plugin and unit tests.
- */
-export async function transformBvhReferences(
-  code: string,
-  id: string,
-  emitFile?: (opts: { type: "asset"; name: string; source: Buffer }) => string,
-): Promise<string | null> {
-  MESH_GLB_RE.lastIndex = 0;
-  if (!MESH_GLB_RE.test(code)) return null;
-  MESH_GLB_RE.lastIndex = 0;
-
+async function bakeWithBuildTools(
+  bytes: Uint8Array,
+  mesh: string | undefined,
+): Promise<Uint8Array> {
   const tools = await getBuildTools();
-  let transformed = code;
-  let offset = 0;
+  return tools.build_bvh_from_glb(bytes, mesh);
+}
 
-  for (const match of code.matchAll(MESH_GLB_RE)) {
-    const [full, , glbPath, optionsStr] = match;
-    if (full === undefined || glbPath === undefined) continue;
-    const absGlbPath = resolve(dirname(id), glbPath);
+const bvhPrebakeTransform = createBvhPrebakeTransform({
+  bake: bakeWithBuildTools,
+  assets: bakedAssets,
+});
 
-    if (!existsSync(absGlbPath)) {
-      // eslint-disable-next-line no-console
-      console.warn(`[gwen:physics3d] useMeshCollider: file not found: ${absGlbPath}`);
-      continue;
+function stripQuery(url: string): string {
+  const queryAt = url.indexOf("?");
+  if (queryAt < 0) return url;
+  return url.slice(0, queryAt);
+}
+
+function nameUnderBase(pathname: string, base: string): string | undefined {
+  if (!pathname.startsWith(base)) return undefined;
+  const name = pathname.slice(base.length);
+  if (name.length === 0) return undefined;
+  return name;
+}
+
+interface PipelineUnit {
+  readonly name: string;
+}
+
+function isPipelineRegister(value: unknown): value is (unit: PipelineUnit) => void {
+  return typeof value === "function";
+}
+
+function pipelineApi(
+  plugins: readonly Plugin[],
+): { register: (unit: PipelineUnit) => void } | undefined {
+  for (const plugin of plugins) {
+    if (plugin.name !== "gwen:transform-pipeline") continue;
+    const candidate: unknown = plugin.api;
+    if (typeof candidate !== "object" || candidate === null || !("register" in candidate)) {
+      return undefined;
     }
-
-    const meshNameMatch = optionsStr?.match(/mesh\s*:\s*['"`]([^'"` ]+)['"`]/);
-    const meshName = meshNameMatch?.[1];
-
-    const glbBytes = readFileSync(absGlbPath);
-    let bvhBuffer: Uint8Array;
-    try {
-      bvhBuffer = tools.build_bvh_from_glb(new Uint8Array(glbBytes), meshName);
-    } catch (e) {
-      // eslint-disable-next-line no-console
-      console.warn(`[gwen:physics3d] BVH pre-bake failed for ${glbPath}: ${e}`);
-      continue;
-    }
-
-    const hash = createHash("md5").update(bvhBuffer).digest("hex").slice(0, 8);
-    const assetName = `bvh-${hash}.bin`;
-
-    if (emitFile) {
-      emitFile({ type: "asset", name: assetName, source: Buffer.from(bvhBuffer) });
-    }
-
-    const replacement = `useMeshCollider({ __bvhUrl: '${assetName}' })`;
-    const start = (match.index ?? 0) + offset;
-    transformed =
-      transformed.slice(0, start) + replacement + transformed.slice(start + full.length);
-    offset += replacement.length - full.length;
+    const register: unknown = candidate.register;
+    if (!isPipelineRegister(register)) return undefined;
+    return { register };
   }
-
-  return transformed !== code ? transformed : null;
+  return undefined;
 }
 
 /**
@@ -168,9 +132,9 @@ export async function transformBvhReferences(
  * Performs the following transformations:
  * - **Layer inlining**: registers `gwen:layer-inline` on `gwen:transform-pipeline`.
  *   `gwen()` must be in the Vite config.
- * - **BVH pre-baking** (opt-in via `bvhPrebake: true`): detects `useMeshCollider('./file.glb')`
- *   patterns and replaces them with pre-baked `{ __bvhUrl: 'bvh-<hash>.bin' }` references
- *   at build time.
+ * - **BVH pre-baking** (opt-in via `bvhPrebake: true`): registers `gwen:bvh-prebake`.
+ *   A relative `useMeshCollider("./file.glb")` becomes `{ __bvhUrl: "bvh-<hash>.bin" }`.
+ *   Dev serves that asset from memory.
  *
  * Registered automatically by the `physics3dModule` when added to the GWEN config.
  * Can also be added manually to a plain Vite config:
@@ -191,19 +155,15 @@ export async function transformBvhReferences(
  *
  * @since 1.0.0
  */
-export function physics3dVitePlugin(options: GwenPhysics3DPluginOptions = {}): Plugin & {
-  /** @internal Exposed for unit tests. */
-  transformBvhReferences: typeof transformBvhReferences;
-} {
+export function physics3dVitePlugin(options: GwenPhysics3DPluginOptions = {}): Plugin {
   const { bvhPrebake = false } = options;
+  let assetBase = "/";
 
   return {
     name: "gwen:physics3d",
 
-    // Expose for unit tests
-    transformBvhReferences,
-
     configResolved(config) {
+      assetBase = config.base;
       const api = pipelineApi(config.plugins);
       if (api === undefined) {
         throw new GwenError(
@@ -219,54 +179,37 @@ export function physics3dVitePlugin(options: GwenPhysics3DPluginOptions = {}): P
         );
       }
       api.register(layerInlineTransform);
+      if (bvhPrebake) api.register(bvhPrebakeTransform);
     },
 
-    async transform(code, id) {
-      if (!/\.(ts|tsx|js|jsx)$/.test(id)) return;
+    configureServer(server) {
       if (!bvhPrebake) return;
-
-      // ── BVH pre-baking (async, build mode only) ────────────────────────────
-      if (bvhPrebake && !id.includes("node_modules")) {
-        const bvhResult = await transformBvhReferences(code, id, this.emitFile?.bind(this));
-        if (bvhResult !== null) {
-          const combined = new MagicString(code);
-          combined.overwrite(0, code.length, bvhResult);
-          return {
-            code: bvhResult,
-            map: combined.generateMap({ hires: true, source: id, includeContent: true }),
-          };
+      const base = assetBase;
+      server.middlewares.use((req, res, next) => {
+        if (req.method !== "GET") {
+          next();
+          return;
         }
-      }
+        const url = req.url;
+        if (typeof url !== "string") {
+          next();
+          return;
+        }
+        const name = nameUnderBase(stripQuery(url), base);
+        if (name === undefined) {
+          next();
+          return;
+        }
+        const bytes = bakedAssets.get(name);
+        if (bytes === undefined) {
+          next();
+          return;
+        }
+        res.setHeader("Content-Type", "application/octet-stream");
+        res.setHeader("Cache-Control", "no-cache");
+        res.statusCode = 200;
+        res.end(bytes);
+      });
     },
   };
-}
-
-function isLayerRegister(value: unknown): value is (unit: typeof layerInlineTransform) => void {
-  return typeof value === "function";
-}
-
-function pipelineApi(
-  plugins: readonly Plugin[],
-): { register: (unit: typeof layerInlineTransform) => void } | undefined {
-  for (const plugin of plugins) {
-    if (plugin.name !== "gwen:transform-pipeline") continue;
-    const candidate: unknown = plugin.api;
-    if (typeof candidate !== "object" || candidate === null || !("register" in candidate)) {
-      return undefined;
-    }
-    const register: unknown = candidate.register;
-    if (!isLayerRegister(register)) return undefined;
-    return { register };
-  }
-  return undefined;
-}
-
-/**
- * @deprecated Use `physics3dVitePlugin({ bvhPrebake: true })` instead.
- */
-export function createGwenPhysics3DPlugin(options: GwenPhysics3DPluginOptions = {}): Plugin & {
-  /** @internal Exposed for unit tests. */
-  transformBvhReferences: typeof transformBvhReferences;
-} {
-  return physics3dVitePlugin({ ...options, bvhPrebake: true });
 }
