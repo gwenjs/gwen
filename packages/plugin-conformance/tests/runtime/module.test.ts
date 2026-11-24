@@ -56,7 +56,9 @@ describe("runPluginConformance module", () => {
       const report = await runPluginConformance(spec({ root: dir, packageName }));
       const findings = findingsWithCode(report, ConformanceErrorCodes.RUNTIME_MODULE);
       expect(findings).toHaveLength(1);
-      expect(findings[0]?.message).toContain(packageName);
+      expect(findings[0]?.message).toBe(
+        `module ${JSON.stringify(packageName)} called addPlugin with name, setup`,
+      );
       expect(report.checks).toEqual(ranChecks({ module: true }));
     });
   });
@@ -140,6 +142,49 @@ describe("runPluginConformance module", () => {
       const report = await runPluginConformance(spec({ root: dir, packageName }));
       expect(report.checks).toEqual(ranChecks({ module: true }));
       expect(report.findings).toEqual([]);
+    });
+  });
+
+  it("reports a module whose default export is not an object", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      const packageName = "@fixture/module-number";
+      await writeModulePackage(dir, packageName, "export default 42;\n");
+      const report = await runPluginConformance(spec({ root: dir, packageName }));
+      expect(report.findings.map((finding) => finding.code)).toEqual([
+        ConformanceErrorCodes.RUNTIME_MODULE,
+      ]);
+    });
+  });
+
+  it("reports a module whose setup throws", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      const packageName = "@fixture/module-throws";
+      await writeModulePackage(
+        dir,
+        packageName,
+        moduleSource(packageName, 'throw new Error("module boom");'),
+      );
+      await expect(runPluginConformance(spec({ root: dir, packageName }))).resolves.toEqual(
+        expect.objectContaining({
+          findings: [
+            expect.objectContaining({
+              code: ConformanceErrorCodes.RUNTIME_MODULE,
+              message: expect.stringContaining("module boom"),
+            }),
+          ],
+        }),
+      );
+    });
+  });
+
+  it("reports a module that fails to import", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      const packageName = "@fixture/module-syntax";
+      await writeModulePackage(dir, packageName, "export default {\n");
+      const report = await runPluginConformance(spec({ root: dir, packageName }));
+      expect(report.findings.map((finding) => finding.code)).toEqual([
+        ConformanceErrorCodes.RUNTIME_MODULE,
+      ]);
     });
   });
 });

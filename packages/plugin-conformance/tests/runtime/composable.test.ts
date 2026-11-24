@@ -103,4 +103,38 @@ describe("runPluginConformance composable", () => {
       expect(report.findings).toEqual([]);
     });
   });
+
+  it("reports a use* that throws a plain Error", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      const packageName = "@fixture/use-plain";
+      await writePluginPackage(dir, {
+        name: packageName,
+        files: {
+          "dist/index.js": rootSource(
+            'export function useThing() {\n  throw new Error("plain");\n}\n',
+          ),
+        },
+      });
+      const report = await runPluginConformance(spec({ root: dir, packageName }));
+      const findings = findingsWithCode(report, ConformanceErrorCodes.RUNTIME_COMPOSABLE_CONTEXT);
+      expect(findings).toHaveLength(1);
+      expect(findings[0]?.message).toBe('export "useThing" did not throw a context error');
+    });
+  });
+
+  it("reports an on* that returns outside a context", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      const packageName = "@fixture/on-returns";
+      await writePluginPackage(dir, {
+        name: packageName,
+        files: {
+          "dist/index.js": rootSource("export function onThing() {\n  return 1;\n}\n"),
+        },
+      });
+      const report = await runPluginConformance(spec({ root: dir, packageName }));
+      const findings = findingsWithCode(report, ConformanceErrorCodes.RUNTIME_COMPOSABLE_CONTEXT);
+      expect(findings).toHaveLength(1);
+      expect(findings[0]?.message).toBe('export "onThing" did not throw a context error');
+    });
+  });
 });

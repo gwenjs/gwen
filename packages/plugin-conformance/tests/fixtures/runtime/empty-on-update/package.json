@@ -1,0 +1,9 @@
+{
+  "name": "@fixture/empty-on-update",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js"
+    }
+  }
+}

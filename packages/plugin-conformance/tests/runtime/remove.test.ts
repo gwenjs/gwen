@@ -1,6 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { createViewportsPlugin } from "@gwenjs/app";
 import { ConformanceErrorCodes } from "@gwenjs/plugin-conformance";
 import { runPluginConformance } from "@gwenjs/plugin-conformance/runtime";
 import { withPrivateTmpdir } from "../helpers/fixture.js";
@@ -9,6 +10,11 @@ import { findingsWithCode, ranChecks, spec, writePluginPackage } from "../helper
 const unscopedRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../fixtures/runtime/unscoped-engine",
+);
+
+const hiddenRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../fixtures/runtime/installs-camera-core",
 );
 
 const againSource = `export function Plugin() {
@@ -100,6 +106,57 @@ describe("runPluginConformance remove", () => {
       expect(findings).toHaveLength(1);
       expect(findings[0]?.message).toContain("second install");
       expect(report.checks).toEqual(ranChecks());
+    });
+  });
+
+  it("reports a plugin that leaves another plugin installed after unuse", async () => {
+    const report = await runPluginConformance(
+      spec({
+        root: hiddenRoot,
+        packageName: "@fixture/installs-camera-core",
+        factories: [{ export: "InstallsCameraCore" }],
+        frameworkProviders: [createViewportsPlugin],
+      }),
+    );
+    const plugins = findingsWithCode(report, ConformanceErrorCodes.RUNTIME_REMOVE_LEAK).filter(
+      (finding) => finding.message.includes("left plugins after unuse"),
+    );
+    expect(plugins).toHaveLength(1);
+    expect(plugins[0]?.message).toBe(
+      'plugin "installs-camera-core" left plugins after unuse (baseline ["gwen:viewports"], after ["gwen:viewports","CameraSystem","camera-core"])',
+    );
+  });
+
+  it("reports a warning emitted on the frame after unuse", async () => {
+    // beforeEach is not counted in hookListeners (hook-dispatch.ts:301).
+    const source = `export function Plugin() {
+  let engine;
+  return {
+    name: "after-unuse",
+    setup(value) { engine = value; },
+    teardown() {
+      let sent = false;
+      engine.hooks.beforeEach(() => {
+        if (sent) return;
+        sent = true;
+        engine.errors.emit({ level: "warning", code: "FIXTURE:AFTER", message: "after" });
+      });
+    },
+  };
+}
+`;
+    await withPrivateTmpdir(async (dir) => {
+      await writePluginPackage(dir, {
+        name: "@fixture/after-unuse",
+        files: { "dist/index.js": source },
+      });
+      const report = await runPluginConformance(
+        spec({ root: dir, packageName: "@fixture/after-unuse" }),
+      );
+      expect(report.findings.map((finding) => finding.code)).toEqual([
+        ConformanceErrorCodes.RUNTIME_REMOVE_LEAK,
+      ]);
+      expect(report.findings[0]?.message).toContain("FIXTURE:AFTER");
     });
   });
 });

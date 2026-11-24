@@ -72,4 +72,50 @@ describe("runPluginConformance spec", () => {
       expect(report.checks).toEqual([]);
     });
   });
+
+  it("rejects an empty packageName", async () => {
+    const report = await runPluginConformance(spec({ packageName: "" }));
+    expect(report.checks).toEqual([]);
+    expect(report.findings).toEqual([
+      expect.objectContaining({
+        code: ConformanceErrorCodes.INVALID_SPEC,
+        message: "packageName must be a non-empty string",
+      }),
+    ]);
+  });
+
+  it("rejects a factory export that is an empty string", async () => {
+    const report = await runPluginConformance(spec({ factories: [{ export: "" }] }));
+    expect(report.checks).toEqual([]);
+    expect(report.findings).toEqual([
+      expect.objectContaining({
+        code: ConformanceErrorCodes.INVALID_SPEC,
+        message: "factory export must be a non-empty string",
+      }),
+    ]);
+  });
+
+  it("reports a frameworkProviders factory that throws as CONFORMANCE:INVALID_SPEC", async () => {
+    await expect(
+      runPluginConformance(
+        spec({
+          frameworkProviders: [
+            () => {
+              throw new Error("provider boom");
+            },
+          ],
+        }),
+      ),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        checks: [],
+        findings: [
+          expect.objectContaining({
+            code: ConformanceErrorCodes.INVALID_SPEC,
+            message: expect.stringContaining("provider boom"),
+          }),
+        ],
+      }),
+    );
+  });
 });

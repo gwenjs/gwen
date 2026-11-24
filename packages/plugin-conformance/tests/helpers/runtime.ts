@@ -8,10 +8,6 @@ import type {
   RuntimeConformanceReport,
 } from "@gwenjs/plugin-conformance/runtime";
 
-const KNOWN_VARIANTS = ["light", "physics2d", "physics3d"] as const;
-
-type RuntimeVariant = (typeof KNOWN_VARIANTS)[number];
-
 export interface WritePluginPackageOptions {
   readonly name: string;
   readonly exports?: Readonly<
@@ -26,19 +22,18 @@ export interface SpecOverrides {
   readonly root?: string;
   readonly official?: boolean;
   readonly frames?: number;
-  /** Passed through even when it is not one of the three variants. */
-  readonly variant?: string;
+  /** A string outside the three variants is kept so the runtime can reject it. */
+  readonly variant?: PluginConformanceSpec["variant"] | string;
   readonly frameworkProviders?: PluginConformanceSpec["frameworkProviders"];
   readonly fixture?: PluginConformanceSpec["fixture"];
 }
 
-function isKnownVariant(value: string): value is RuntimeVariant {
-  return KNOWN_VARIANTS.some((variant) => variant === value);
-}
-
-function readVariant(value: string): RuntimeVariant {
-  if (isKnownVariant(value)) return value;
-  return value as RuntimeVariant;
+/** `packageName` and `factories` are present. `variant` is checked by the runtime. */
+function isSpec(value: unknown): value is PluginConformanceSpec {
+  if (typeof value !== "object" || value === null) return false;
+  if (!("packageName" in value) || typeof value.packageName !== "string") return false;
+  if (!("factories" in value) || !Array.isArray(value.factories)) return false;
+  return true;
 }
 
 /** Plain factory module: one function export and no import. */
@@ -73,20 +68,28 @@ export async function writePluginPackage(
 
 /** A spec with defaults a caller can replace. An unknown `variant` is kept. */
 export function spec(overrides: SpecOverrides = {}): PluginConformanceSpec {
-  let result: PluginConformanceSpec = {
+  const result: {
+    packageName: string;
+    factories: readonly PluginFactorySpec[];
+    root?: string;
+    official?: boolean;
+    frames?: number;
+    variant?: string;
+    frameworkProviders?: PluginConformanceSpec["frameworkProviders"];
+    fixture?: PluginConformanceSpec["fixture"];
+  } = {
     packageName: overrides.packageName ?? "@fixture/plugin",
     factories: overrides.factories ?? [{ export: "Plugin" }],
   };
-  if (overrides.root !== undefined) result = { ...result, root: overrides.root };
-  if (overrides.official !== undefined) result = { ...result, official: overrides.official };
-  if (overrides.frames !== undefined) result = { ...result, frames: overrides.frames };
-  if (overrides.variant !== undefined) {
-    result = { ...result, variant: readVariant(overrides.variant) };
-  }
+  if (overrides.root !== undefined) result.root = overrides.root;
+  if (overrides.official !== undefined) result.official = overrides.official;
+  if (overrides.frames !== undefined) result.frames = overrides.frames;
+  if (overrides.variant !== undefined) result.variant = overrides.variant;
   if (overrides.frameworkProviders !== undefined) {
-    result = { ...result, frameworkProviders: overrides.frameworkProviders };
+    result.frameworkProviders = overrides.frameworkProviders;
   }
-  if (overrides.fixture !== undefined) result = { ...result, fixture: overrides.fixture };
+  if (overrides.fixture !== undefined) result.fixture = overrides.fixture;
+  if (!isSpec(result)) throw new Error("spec helper requires packageName and factories");
   return result;
 }
 

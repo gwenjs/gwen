@@ -1,3 +1,5 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import type { PluginConformanceSpec } from "@gwenjs/plugin-conformance/runtime";
 import { describe, expect, it } from "vitest";
 import { registerPluginConformance } from "../../src/run-plugin-conformance-suite.js";
@@ -174,6 +176,69 @@ describe("registerPluginConformance", () => {
           ),
         ),
       ).toBe(true);
+    });
+  });
+
+  it("each row runs its own check on its own factory", async () => {
+    const root = path.resolve(
+      path.dirname(fileURLToPath(import.meta.url)),
+      "../fixtures/runtime/unscoped-engine",
+    );
+    const { rows } = record(
+      spec({
+        root,
+        packageName: "@fixture/unscoped-engine",
+        factories: [{ export: "Good" }, { export: "LeakHook" }],
+      }),
+    );
+    const thrown: string[] = [];
+    for (const row of rows) {
+      const message = await thrownMessage(row);
+      if (message !== undefined) thrown.push(row.name);
+    }
+    expect(thrown).toEqual(["R5 remove (LeakHook)", "R8 stop (LeakHook)"]);
+  });
+
+  it("a per-factory row keeps a sibling in the allowed names", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      const packageName = "@fixture/row-siblings";
+      await writePluginPackage(dir, {
+        name: packageName,
+        files: {
+          "dist/index.js":
+            'export function A() {\n  return { name: "a", setup() {} };\n}\nexport function B() {\n  return { name: "b", requires: { plugins: ["a"] }, setup() {} };\n}\n',
+        },
+      });
+      const { rows } = record(
+        spec({
+          root: dir,
+          packageName,
+          official: true,
+          factories: [{ export: "A" }, { export: "B" }],
+        }),
+      );
+      const row = rows.find((item) => item.name === "R2 installs alone (B)");
+      expect(row).toBeDefined();
+      if (row === undefined) return;
+      expect(await thrownMessage(row)).toBeUndefined();
+    });
+  });
+
+  it("a root without package.json fails the rows with INVALID_SPEC", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      let recorded: ReturnType<typeof record> | undefined;
+      let registration: unknown;
+      try {
+        recorded = record(spec({ root: dir, packageName: "@fixture/no-manifest" }));
+      } catch (error) {
+        registration = error;
+      }
+      expect(registration).toBeUndefined();
+      const rows = recorded === undefined ? [] : recorded.rows;
+      expect(rows.length).toBeGreaterThan(0);
+      const messages: string[] = [];
+      for (const row of rows) messages.push((await thrownMessage(row)) ?? "");
+      expect(messages.every((message) => message.includes("CONFORMANCE:INVALID_SPEC"))).toBe(true);
     });
   });
 });
