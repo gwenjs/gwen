@@ -1,6 +1,8 @@
 import { compareFindings } from "../sort-findings.js";
 import type { ConformanceFinding } from "../types.js";
+import { checkComposable } from "./check-composable.js";
 import { checkFrames } from "./check-frames.js";
+import { checkModule } from "./check-module.js";
 import { checkOptions } from "./check-options.js";
 import { checkProvides } from "./check-provides.js";
 import { checkReentry } from "./check-reentry.js";
@@ -19,8 +21,10 @@ function sorted(findings: readonly ConformanceFinding[]): ConformanceFinding[] {
 
 /**
  * Validate `spec`, load the built package, then run shape, requires, provides,
- * frames, remove, reentry, two-engines, stop, and options.
- * Options runs only when a factory sets `invalidOptions`, and it runs last.
+ * frames, remove, reentry, two-engines, stop, options, module, and composable.
+ * Options runs only when a factory sets `invalidOptions`.
+ * Module runs only when the loader resolved `exports["./module"]`.
+ * Composable runs once per package.
  * An invalid spec, or a package that cannot be loaded, returns no checks.
  */
 export async function runPluginConformance(
@@ -62,5 +66,11 @@ export async function runPluginConformance(
     findings.push(...(await checkOptions(context, withInvalidOptions)));
     checks.push("options");
   }
+  if (loaded.moduleFile !== undefined) {
+    findings.push(...(await checkModule(context, loaded.moduleFile)));
+    checks.push("module");
+  }
+  findings.push(...(await checkComposable(context)));
+  checks.push("composable");
   return { checks, findings: sorted(findings) };
 }
