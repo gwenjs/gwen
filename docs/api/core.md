@@ -993,7 +993,7 @@ function useSceneRouter<TRoutes>(
 ): SceneRouterHandle<TRoutes>
 ```
 
-**Description.** Returns the runtime handle for a scene router. Call `.send()` to trigger transitions. Must be called inside an active engine context (system, actor, or scene lifecycle hook).
+**Description.** Returns the runtime handle for a scene router. Call `.send()` to trigger transitions. `.send()` awaits the target preload before the current scene leaves. It rejects with `GwenScenePreloadError` when that preload fails. A call during a pending preload is ignored. Dismissing an overlay runs no preload. Must be called inside an active engine context (system, actor, or scene lifecycle hook).
 
 **Parameters:**
 | Param | Type | Description |

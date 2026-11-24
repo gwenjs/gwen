@@ -124,11 +124,53 @@ export const GameScene = defineScene('game', () => {
 })
 ```
 
+### Preload before leaving
+
+`send()` awaits the target scene's `onPreload` work before `scene:transition:leave`. The current scene keeps running until that work finishes. Progress starts at `0` and ends at `1`. Listen with `useHook("scene:preload:progress", …)`.
+
+A rejected preload rejects `send()` with `GwenScenePreloadError`. The current scene, its params, and the overlay stack stay as they were. A `send()` while a preload is still running is ignored, with a warning.
+
+```ts check
+import { GwenScenePreloadError, useHook } from "@gwenjs/core";
+import { defineScene, defineSceneRouter, onPreload, useSceneRouter } from "@gwenjs/core/scene";
+
+const Level = defineScene("level", () => {
+  onPreload((event) => {
+    event.progress("tiles", 1, 2);
+  });
+});
+
+const Menu = defineScene("menu", () => {});
+
+const AppRouter = defineSceneRouter({
+  initial: "menu",
+  routes: {
+    menu: { scene: Menu, on: { START: "level" } },
+    level: { scene: Level },
+  },
+});
+
+const nav = useSceneRouter(AppRouter);
+
+useHook("scene:preload:progress", (payload) => {
+  if (payload.progress === 1) return;
+});
+
+export async function startLevel(): Promise<void> {
+  try {
+    await nav.send("START");
+  } catch (error) {
+    if (error instanceof GwenScenePreloadError) return;
+    throw error;
+  }
+}
+```
+
 ## Handle API
 
 | | |
 |---|---|
-| `nav.send(event, params?)` | Trigger a transition (async) |
+| `nav.send(event, params?)` | Await the target preload, then transition. Rejects with `GwenScenePreloadError`. Ignored while a preload is pending |
 | `nav.can(event)` | Check if transition is valid in current state |
 | `nav.current` | Current state name |
 | `nav.params` | Params passed to current state |
@@ -183,6 +225,8 @@ When returning from `pause`:
 - `onExit` is called on the pause scene
 - Game scene **resumes immediately** (`onEnter` not called again)
 
+Pushing an overlay preloads that scene before the stack changes. Dismissing the overlay runs no preload.
+
 ## Listening to Transitions
 
 `nav.onTransition(fn)` subscribes to all state changes. It returns an unsubscribe function:
@@ -216,7 +260,7 @@ Errors are thrown immediately during development startup, not at runtime.
 |---|---|
 | `defineSceneRouter(options)` | Declare FSM with routes and initial state |
 | `useSceneRouter(router)` | Get runtime handle (system or scene context) |
-| `nav.send(event, params?)` | Trigger a transition (async) |
+| `nav.send(event, params?)` | Await the target preload, then transition. Rejects with `GwenScenePreloadError`. Ignored while a preload is pending |
 | `nav.can(event)` | Check if transition is valid |
 | `nav.current` | Current state name |
 | `nav.params` | Params passed to current state |

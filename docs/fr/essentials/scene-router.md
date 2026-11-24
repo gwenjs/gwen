@@ -124,11 +124,53 @@ export const GameScene = defineScene('game', () => {
 })
 ```
 
+### Précharger avant de quitter
+
+`send()` attend le travail `onPreload` de la scène cible avant `scene:transition:leave`. La scène courante continue de tourner jusqu'à la fin de ce travail. L'avancement commence à `0` et finit à `1`. Écoutez-le avec `useHook("scene:preload:progress", …)`.
+
+Un préchargement rejeté fait rejeter `send()` avec `GwenScenePreloadError`. La scène courante, ses paramètres et la pile de superpositions restent inchangés. Un `send()` pendant qu'un préchargement est en cours est ignoré, avec un avertissement.
+
+```ts check
+import { GwenScenePreloadError, useHook } from "@gwenjs/core";
+import { defineScene, defineSceneRouter, onPreload, useSceneRouter } from "@gwenjs/core/scene";
+
+const Level = defineScene("level", () => {
+  onPreload((event) => {
+    event.progress("tiles", 1, 2);
+  });
+});
+
+const Menu = defineScene("menu", () => {});
+
+const AppRouter = defineSceneRouter({
+  initial: "menu",
+  routes: {
+    menu: { scene: Menu, on: { START: "level" } },
+    level: { scene: Level },
+  },
+});
+
+const nav = useSceneRouter(AppRouter);
+
+useHook("scene:preload:progress", (payload) => {
+  if (payload.progress === 1) return;
+});
+
+export async function startLevel(): Promise<void> {
+  try {
+    await nav.send("START");
+  } catch (error) {
+    if (error instanceof GwenScenePreloadError) return;
+    throw error;
+  }
+}
+```
+
 ## API du handle
 
 | | |
 |---|---|
-| `nav.send(event, params?)` | Déclencher une transition (async) |
+| `nav.send(event, params?)` | Attend le préchargement de la cible, puis transitionne. Rejette avec `GwenScenePreloadError`. Ignoré pendant un préchargement en cours |
 | `nav.can(event)` | Vérifier si la transition est valide dans l'état actuel |
 | `nav.current` | Nom de l'état actuel |
 | `nav.params` | Paramètres passés à l'état actuel |
@@ -183,6 +225,8 @@ Quand vous revenez de `pause` :
 - `onExit` est appelé sur la scène de pause
 - La scène du jeu **reprend immédiatement** (`onEnter` n'est pas appelé à nouveau)
 
+Empiler une superposition précharge cette scène avant que la pile change. Fermer la superposition ne lance aucun préchargement.
+
 ## Écouter les transitions
 
 `nav.onTransition(fn)` s'abonne à tous les changements d'état. Elle retourne une fonction de désabonnement :
@@ -216,7 +260,7 @@ Les erreurs sont levées immédiatement au démarrage du développement, pas au 
 |---|---|
 | `defineSceneRouter(options)` | Déclarer la FSM avec les routes et l'état initial |
 | `useSceneRouter(router)` | Obtenir le handle au runtime (contexte système ou scène) |
-| `nav.send(event, params?)` | Déclencher une transition (async) |
+| `nav.send(event, params?)` | Attend le préchargement de la cible, puis transitionne. Rejette avec `GwenScenePreloadError`. Ignoré pendant un préchargement en cours |
 | `nav.can(event)` | Vérifier si la transition est valide |
 | `nav.current` | Nom de l'état actuel |
 | `nav.params` | Paramètres passés à l'état actuel |

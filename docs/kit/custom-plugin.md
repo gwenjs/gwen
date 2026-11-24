@@ -332,6 +332,8 @@ export const MyPlugin = definePlugin(() => ({
 }))
 ```
 
+A plugin takes part in scene preloading through `scene:preload`. Register the handler in `setup()` with `engine.hooks.hook`. The router awaits those handlers before the current scene leaves. Dismissing an overlay does not run a preload.
+
 ## Frame callbacks are hooks
 
 `engine.use()` rejects a plugin that declares a frame callback. The code is `CORE:PLUGIN_INVALID_SHAPE`. Register the hook in `setup()`. Only own keys are checked.
