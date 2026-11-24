@@ -536,4 +536,103 @@ describe("contact and sensor registries", () => {
     registry.emit(4, entity, "enter");
     expect(order).toEqual(["first", "second", "first"]);
   });
+
+  it("a sensor callback registered with an owner only receives that entity", async () => {
+    expect(typeof api.onSensorEnter).toBe("function");
+    expect(typeof api.onSensorExit).toBe("function");
+    const engine = await createEngine({ maxEntities: 8 });
+    engines.push(engine);
+    const owner = engine.createEntity();
+    const other = engine.createEntity();
+    const ownedEnter: bigint[] = [];
+    const ownedExit: bigint[] = [];
+    const unowned: bigint[] = [];
+    await engine.run(() => {
+      api.onSensorEnter(
+        4,
+        (entityId) => {
+          ownedEnter.push(entityId);
+        },
+        owner,
+      );
+      api.onSensorExit(
+        4,
+        (entityId) => {
+          ownedExit.push(entityId);
+        },
+        owner,
+      );
+      api.onSensorEnter(4, (entityId) => {
+        unowned.push(entityId);
+      });
+    });
+    const registry = api.createSensorRegistry().get(engine);
+    registry.emit(4, other, "enter");
+    registry.emit(4, owner, "enter");
+    expect(ownedEnter).toEqual([owner]);
+    expect(unowned).toEqual([other, owner]);
+    registry.emit(4, other, "exit");
+    registry.emit(4, owner, "exit");
+    expect(ownedExit).toEqual([owner]);
+    registry.emit(4, other, "enter");
+    expect(unowned).toEqual([other, owner, other]);
+  });
+
+  it("removeOwned drops the callbacks of one owner and waits for the outermost emit", async () => {
+    expect(typeof api.onSensorEnter).toBe("function");
+    const engine = await createEngine({ maxEntities: 8 });
+    engines.push(engine);
+    const owner = engine.createEntity();
+    const other = engine.createEntity();
+    const registry = api.createSensorRegistry().get(engine);
+    const during: string[] = [];
+    let otherSensor = 0;
+    let unowned = 0;
+    let nested = false;
+    await engine.run(() => {
+      api.onSensorEnter(
+        4,
+        () => {
+          during.push("owned");
+          if (!nested) {
+            nested = true;
+            registry.emit(4, owner, "enter");
+            return;
+          }
+          registry.removeOwned?.(owner, 4);
+        },
+        owner,
+      );
+      api.onSensorEnter(
+        4,
+        () => {
+          during.push("next");
+        },
+        owner,
+      );
+      api.onSensorEnter(
+        9,
+        () => {
+          otherSensor += 1;
+        },
+        owner,
+      );
+      api.onSensorEnter(4, () => {
+        unowned += 1;
+      });
+    });
+    registry.emit(4, owner, "enter");
+    expect(during).toEqual(["owned", "owned", "next", "next"]);
+    registry.removeOwned?.(owner, 4);
+    const seen = during.length;
+    registry.emit(4, owner, "enter");
+    expect(during).toHaveLength(seen);
+    registry.emit(9, owner, "enter");
+    expect(otherSensor).toBe(1);
+    registry.removeOwned?.(owner);
+    registry.emit(9, owner, "enter");
+    expect(otherSensor).toBe(1);
+    registry.emit(4, other, "enter");
+    expect(unowned).toBe(4);
+  });
 });

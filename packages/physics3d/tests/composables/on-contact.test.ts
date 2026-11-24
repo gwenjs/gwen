@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createEngine } from "@gwenjs/core/node";
 import { GwenContextError, type GwenEngine } from "@gwenjs/core";
+import { createContactRegistry } from "@gwenjs/physics-core";
 import {
   onContact,
   _dispatchContactEvent,
@@ -104,6 +105,57 @@ describe("onContact / _dispatchContactEvent", () => {
     const unregister = onContact(() => {});
     unregister();
     expect(() => unregister()).not.toThrow();
+  });
+
+  it("onContact receives a contact emitted through the physics-core registry", () => {
+    const entityA = engine.createEntity();
+    const entityB = engine.createEntity();
+    const contact: CollisionContact = {
+      entityA,
+      entityB,
+      aColliderId: 10,
+      bColliderId: 20,
+      started: true,
+    };
+    const received: CollisionContact[] = [];
+    onContact((event) => {
+      received.push(event);
+    });
+    createContactRegistry().get(engine).emit(contact);
+    expect(received).toHaveLength(1);
+    expect(received[0]).toBe(contact);
+  });
+
+  it("a callback that unsubscribes itself during dispatch does not skip the next callback", () => {
+    const order: string[] = [];
+    let dropA: () => void = () => undefined;
+    dropA = onContact(() => {
+      order.push("A");
+      dropA();
+    });
+    onContact(() => {
+      order.push("B");
+    });
+    _dispatchContactEvent(sampleContact);
+    expect(order).toEqual(["A", "B"]);
+    _dispatchContactEvent(sampleContact);
+    expect(order).toEqual(["A", "B", "B"]);
+  });
+
+  it("a callback removed by an earlier callback still receives the current contact", () => {
+    const seen: string[] = [];
+    let dropB: () => void = () => undefined;
+    onContact(() => {
+      seen.push("A");
+      dropB();
+    });
+    dropB = onContact(() => {
+      seen.push("B");
+    });
+    _dispatchContactEvent(sampleContact);
+    expect(seen).toEqual(["A", "B"]);
+    _dispatchContactEvent(sampleContact);
+    expect(seen).toEqual(["A", "B", "A"]);
   });
 });
 
