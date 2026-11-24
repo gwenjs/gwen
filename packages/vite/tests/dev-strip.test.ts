@@ -15,7 +15,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { build, createLogger, transformWithOxc, type Logger, type Plugin } from "vite";
+import { build, createLogger, type Logger, type Plugin } from "vite";
 import { afterEach, describe, expect, it } from "vitest";
 import { gwenVitePlugin } from "../src/plugins/index.js";
 
@@ -89,26 +89,6 @@ function pickExport(exp: unknown): string | null {
   const record = exp as Record<string, unknown>;
   const value = record["import"] ?? record["default"] ?? record["require"];
   return typeof value === "string" ? value : null;
-}
-
-/**
- * The async-context plugin parses with acorn, which rejects `import type`.
- * Strip types before that plugin so the src fixture is JavaScript.
- */
-function stripTypesForParser(): Plugin {
-  return {
-    name: "gwen-test-strip-types",
-    enforce: "pre",
-    async transform(code, id) {
-      const file = id.split("?", 1)[0] ?? id;
-      if (!/\.[cm]?tsx?$/.test(file) || file.includes("node_modules")) return null;
-      if (!code.includes("import type") && !code.includes("export type")) return null;
-      const lang = file.endsWith("tsx") ? "tsx" : "ts";
-      const result = await transformWithOxc(code, file, { lang });
-      if (result.map === undefined) return { code: result.code };
-      return { code: result.code, map: result.map };
-    },
-  };
 }
 
 /** Src runs load this class from source. The rest of `@gwenjs/core` stays on dist. */
@@ -347,7 +327,7 @@ describe("dev strip", () => {
               root: dir,
               mode: prod ? "production" : "development",
               customLogger: logger,
-              plugins: [stripTypesForParser(), gwenAlias(source), gwenVitePlugin({ layout: {} })],
+              plugins: [gwenAlias(source), gwenVitePlugin({ layout: {} })],
               build: {
                 outDir: "dist",
                 emptyOutDir: true,
