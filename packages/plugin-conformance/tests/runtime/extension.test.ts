@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ConformanceErrorCodes } from "@gwenjs/plugin-conformance";
 import { runPluginConformance } from "@gwenjs/plugin-conformance/runtime";
 import {
+  baseModuleSource,
   recordedBaseApis,
   recordedBaseNames,
   writeBasePackage,
@@ -1031,6 +1032,93 @@ describe("runPluginConformance extension", () => {
       expect(report.checks).toContain("base-surface");
       expect(report.checks).toEqual(ranChecks({ extensionExport: true }));
       expect(report.findings).toEqual([]);
+    });
+  });
+
+  it("RB1 reports a package that exports ./extension and has no gwen.hookNamespace", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      await writeExtensionPackage(dir, {
+        name: "fixture-base",
+        extensionExport: true,
+        source: baseModuleSource({
+          packageName: "fixture-base",
+          pluginName: "fixture-base",
+          hookNamespace: "fixture-base",
+        }),
+      });
+
+      const report = await runPluginConformance(
+        spec({
+          root: dir,
+          packageName: "fixture-base",
+          factories: [{ export: "Base" }],
+        }),
+      );
+      const findings = findingsOfCode(report, RUNTIME_EXTENSION_API);
+      expect(findings).toHaveLength(1);
+      expect(findings[0]?.message).toContain("gwen.hookNamespace");
+    });
+  });
+
+  it("RB1 reports a package whose ./extension has no qualifying factory", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      const report = await surfaceReport(dir, { extensionApi: false, provides: false });
+      const findings = findingsOfCode(report, RUNTIME_EXTENSION_API);
+      expect(findings).toHaveLength(1);
+      expect(findings[0]?.message).toContain("no factory");
+    });
+  });
+
+  it("a spec.bases entry with an empty export is INVALID_SPEC", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      await writeExtensionPackage(dir, { name: "fixture-ext" });
+
+      const report = await runPluginConformance(
+        spec({
+          root: dir,
+          packageName: "fixture-ext",
+          bases: [{ packageName: "fixture-base", export: "" }],
+        }),
+      );
+      const findings = findingsWithCode(report, ConformanceErrorCodes.INVALID_SPEC);
+      expect(findings).toHaveLength(1);
+      expect(findings[0]?.message).toContain("bases");
+      expect(findings[0]?.message).toContain("non-empty");
+    });
+  });
+
+  it("RX4 names only the direct base of ext-of-ext", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      await writeBasePackage(dir, { name: "fixture-base" });
+      await writeBasePackage(dir, {
+        name: "fixture-mid",
+        gwen: { extends: ["fixture-base"], hookNamespace: "fixture-mid" },
+        requiresPlugins: "object",
+        requiredBase: "fixture-base",
+      });
+      await writeExtensionPackage(dir, {
+        name: "fixture-top",
+        pluginName: "fixture-top",
+        gwen: { extends: ["fixture-mid"] },
+        sourceOptions: { requiresPlugins: "none", setup: "empty" },
+      });
+
+      const report = await runPluginConformance(
+        spec({
+          root: dir,
+          packageName: "fixture-top",
+          bases: [
+            { packageName: "fixture-base", export: "Base" },
+            { packageName: "fixture-mid", export: "Base" },
+          ],
+        }),
+      );
+      const rx4 = findingsOfCode(report, RUNTIME_EXTENSION).filter((finding) =>
+        finding.message.startsWith("RX4"),
+      );
+      expect(rx4).toHaveLength(1);
+      expect(rx4[0]?.message).toContain("fixture-mid");
+      expect(rx4[0]?.message).not.toContain("fixture-base");
     });
   });
 });
