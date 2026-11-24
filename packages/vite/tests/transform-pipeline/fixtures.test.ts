@@ -62,7 +62,7 @@ if (cases.length === 0) {
 }
 
 function extraUnits(unit: string): readonly GwenSourceTransform[] {
-  if (unit !== "layer-inline") return [];
+  if (unit !== "layer-inline" && unit !== "async-context") return [];
   return [layerInlineTransform];
 }
 
