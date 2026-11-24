@@ -292,17 +292,36 @@ describe("Physics3D entity API (foundation)", () => {
     }
   });
 
-  it("cleans hook subscription and local registry on plugin destroy", () => {
-    const { plugin, service, offSpy } = setup();
+  it("cleans hook subscription and local registry on plugin destroy", async () => {
+    const engine = await createEngine({ maxEntities: 16 });
+    engine.activate();
+    const plugin = Physics3DPlugin({ gravity: { x: 0, y: 0, z: 0 } });
+    try {
+      await engine.use(plugin);
+      const service = engine.inject("physics3d");
+      const id = engine.createEntity();
+      service.createBody(id, {
+        kind: "dynamic",
+        initialPosition: { x: 0, y: 0, z: 0 },
+        initialLinearVelocity: { x: 10, y: 0, z: 0 },
+      });
+      expect(service.getBodyCount()).toBe(1);
 
-    service.createBody(7n);
-    expect(service.getBodyCount()).toBe(1);
+      const steps = physics3dStep.mock.calls.length;
+      await engine.hooks.callHook("engine:before-update", 1 / 60);
+      expect(service.getBodyState(id)?.position.x).toBeCloseTo(10 / 60, 6);
+      expect(physics3dStep).toHaveBeenCalledTimes(steps + 1);
 
-    plugin.teardown!();
-
-    expect(offSpy).toHaveBeenCalledTimes(4);
-    expect(service.getBodyCount()).toBe(0);
-    expect(service.isReady()).toBe(false);
+      await engine.unuse(plugin.name);
+      expect(service.getBodyCount()).toBe(0);
+      expect(service.isReady()).toBe(false);
+      await engine.hooks.callHook("engine:before-update", 1 / 60);
+      await engine.hooks.callHook("engine:update", 1 / 60);
+      expect(physics3dStep).toHaveBeenCalledTimes(steps + 1);
+    } finally {
+      engine.deactivate();
+      await engine.stop();
+    }
   });
 
   it("exposes manual step bridge when initialized", () => {
