@@ -297,6 +297,38 @@ describe("gwen:transform-pipeline parity", () => {
       await server.close();
     }
   });
+
+  it("gwen() and gwenVitePlugin() list gwen:query-hoist once and no other plugin has that name", () => {
+    const cli = findPipeline(gwen());
+    const vite = findPipeline(gwenVitePlugin());
+    expect(cli?.api.names).toContain("gwen:query-hoist");
+    expect(vite?.api.names).toContain("gwen:query-hoist");
+    expect(cli?.api.names.filter((name: string) => name === "gwen:query-hoist")).toEqual([
+      "gwen:query-hoist",
+    ]);
+    expect(vite?.api.names.filter((name: string) => name === "gwen:query-hoist")).toEqual([
+      "gwen:query-hoist",
+    ]);
+    expect(pluginNames(gwen()).filter((name) => name === "gwen:query-hoist")).toEqual([]);
+    expect(pluginNames(gwenVitePlugin()).filter((name) => name === "gwen:query-hoist")).toEqual([]);
+  });
+
+  it("the CLI plugin list hoists a useQuery array in a system", async () => {
+    const server = await createServer({
+      configFile: false,
+      root: fixtureRoot,
+      plugins: [gwen()],
+      optimizeDeps: { holdUntilCrawlEnd: false },
+      server: { middlewareMode: true, hmr: false, preTransformRequests: false },
+      logLevel: "silent",
+    });
+    try {
+      const result = await server.transformRequest("/src/systems/move.ts");
+      expect(result?.code).toContain("useQuery(_gwen_q0)");
+    } finally {
+      await server.close();
+    }
+  });
 });
 
 function pluginNames(option: PluginOption): string[] {

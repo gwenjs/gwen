@@ -181,3 +181,56 @@ it("async-context/nested-await raises with the exact message, hint and position"
     loc: { file: caseId(dir), line: place.line, column: place.column },
   });
 });
+
+function countOf(code: string, needle: string): number {
+  let count = 0;
+  let from = 0;
+  while (from < code.length) {
+    const at = code.indexOf(needle, from);
+    if (at < 0) break;
+    count += 1;
+    from = at + needle.length;
+  }
+  return count;
+}
+
+/** Names in `(_gwen_qN)` calls, in source order. A comma excludes the call. */
+function hoistNames(code: string): string[] {
+  const names: string[] = [];
+  const pattern = /\((_gwen_q\d+)\)/g;
+  for (const match of code.matchAll(pattern)) {
+    const name = match[1];
+    if (name !== undefined) names.push(name);
+  }
+  return names;
+}
+
+it("query-hoist/hoisted calls carry one argument and each name is declared once before its use", async () => {
+  const root = join(fixturesRoot, "query-hoist");
+  const dirs = readdirSync(root, { withFileTypes: true }).filter((entry) => entry.isDirectory());
+  expect(dirs.length).toBe(33);
+  let checked = 0;
+  for (const entry of dirs) {
+    const dir = join(root, entry.name);
+    const fixture = fixtureCase(dir);
+    const output = fixture.output;
+    if (typeof output !== "string" || !output.includes("_gwen_q")) continue;
+    checked += 1;
+    const settled = await runCase(dir, fixture.input, "query-hoist");
+    const code = settled?.code ?? "";
+    const expectedNames = hoistNames(output);
+    const actualNames = hoistNames(code);
+    expect(actualNames, entry.name).toEqual(expectedNames);
+    for (const name of expectedNames) {
+      const declaration = `const ${name} =`;
+      expect(countOf(code, declaration), name).toBe(1);
+      const declaredAt = code.indexOf(declaration);
+      const usedAt = code.indexOf(`(${name})`);
+      expect(declaredAt, name).toBeGreaterThanOrEqual(0);
+      expect(usedAt, name).toBeGreaterThanOrEqual(0);
+      expect(declaredAt, name).toBeLessThan(usedAt);
+      expect(code.includes(`(${name},`), name).toBe(false);
+    }
+  }
+  expect(checked).toBeGreaterThan(0);
+});
