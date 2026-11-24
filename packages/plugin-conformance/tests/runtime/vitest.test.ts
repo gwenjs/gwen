@@ -1,6 +1,6 @@
 import type { PluginConformanceSpec } from "@gwenjs/plugin-conformance/runtime";
 import { describe, expect, it } from "vitest";
-import { registerPluginConformance } from "../../src/vitest.js";
+import { registerPluginConformance } from "../../src/run-plugin-conformance-suite.js";
 import { withPrivateTmpdir } from "../helpers/fixture.js";
 import { factorySource, spec, writePluginPackage } from "../helpers/runtime.js";
 
