@@ -1,3 +1,4 @@
+import { resolveConfig } from "vite";
 import { afterEach, describe, expect, it } from "vitest";
 import { createEngine } from "@gwenjs/core/node";
 import { defineComponent, GwenContextError, Types, type GwenEngine } from "@gwenjs/core";
@@ -10,6 +11,7 @@ import { useStaticBody } from "../src/composables/use-static-body";
 import { Physics3DErrorCodes } from "../src/errors/codes";
 import { encodeCompoundShapes } from "../src/helpers/compound";
 import { Physics3DPlugin, preloadMeshCollider } from "../src/index";
+import { physics3dVitePlugin } from "../src/vite-plugin.js";
 import { Physics3DStaleEntityError } from "../src/plugin/entity-owner";
 import type { MeshColliderHandle3D } from "../src/types";
 
@@ -180,5 +182,38 @@ describe("physics3d error messages", () => {
     expect(error.code).toBe("CORE:OUTSIDE_ENGINE_CONTEXT");
     expect(error.composable).toBe(name);
     expect(error.message.startsWith(`[${name}()]`)).toBe(true);
+  });
+
+  it("physics3dVitePlugin without the pipeline names the composable and carries the hint only in dev", async () => {
+    const code = "PHYSICS3D:VITE_PIPELINE_" + "MISSING";
+    const line = "[physics3dVitePlugin()] gwen:transform-pipeline is not in the Vite config.";
+    const missing = () =>
+      resolveConfig(
+        { configFile: false, logLevel: "silent", plugins: [physics3dVitePlugin()] },
+        "serve",
+      );
+
+    const dev = await caught(missing);
+    expect(dev).toBeInstanceOf(GwenError);
+    if (!(dev instanceof GwenError)) return;
+    expect(dev.code).toBe(code);
+    expect(head(dev)).toBe(line);
+    expect(dev.composable).toBe("physics3dVitePlugin");
+    expect(dev.hint).toContain("gwen()");
+
+    const previous = process.env["NODE_ENV"];
+    try {
+      process.env["NODE_ENV"] = "production";
+      const prod = await caught(missing);
+      expect(prod).toBeInstanceOf(GwenError);
+      if (!(prod instanceof GwenError)) return;
+      expect(prod.code).toBe(code);
+      expect(head(prod)).toBe(line);
+      expect(prod.composable).toBe("physics3dVitePlugin");
+      expect(prod.hint).toBeUndefined();
+    } finally {
+      if (previous === undefined) delete process.env["NODE_ENV"];
+      else process.env["NODE_ENV"] = previous;
+    }
   });
 });
