@@ -33,7 +33,7 @@ packages/           @gwenjs/* TypeScript packages
   app/              defineConfig() + engine bootstrap
   kit/              Plugin and module authoring (definePlugin, defineGwenModule)
   schema/           Shared types (internal / plugin authors)
-  math/             Vec2, Vec3, Quat, Color, Spring — pure, allocation-free
+  math/             Vec2, Vec3, Quat, Color, Spring — pure; allocation-free on the `*Mut` path
   physics2d/        Rapier 2D WASM wrapper + actor composables
   physics3d/        Rapier 3D WASM wrapper + actor composables
   vite/             Vite plugin — transforms, auto-imports, virtual modules

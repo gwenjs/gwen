@@ -9,6 +9,31 @@ description: API centré sur les composables pour la physique de corps rigides 2
 
 Les composables physiques sont des fonctions composables appelées à l'intérieur de `defineActor()` qui ajoutent la dynamique des corps rigides et les collisions aux acteurs. Ils fonctionnent en parfaite harmonie avec le graphe de scène — chaque acteur obtient son propre corps physique, et les événements comme les collisions sont envoyés par entité.
 
+```ts check
+import { defineComponent, Types } from "@gwenjs/core";
+import { defineActor, definePrefab } from "@gwenjs/core/actor";
+import { useCapsuleCollider, useDynamicBody } from "@gwenjs/physics2d";
+import type { CapsuleColliderHandle, DynamicBodyHandle } from "@gwenjs/physics2d";
+
+const Position = defineComponent({
+  name: "DocsPhysics2dComposablePos",
+  schema: { x: Types.f32, y: Types.f32 },
+  defaults: { x: 0, y: 0 },
+});
+
+const CratePrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }]);
+
+export const CrateActor = defineActor(CratePrefab, () => {
+  const body: DynamicBodyHandle = useDynamicBody({ mass: 1, fixedRotation: true });
+  void body;
+});
+
+export const ZoneActor = defineActor(CratePrefab, () => {
+  const zone: CapsuleColliderHandle = useCapsuleCollider({ radius: 0.4, height: 1.2 });
+  void zone;
+});
+```
+
 ## Configuration du module
 
 Toutes les options sont passées comme second élément du tuple de module dans `gwen.config.ts` :
@@ -80,14 +105,12 @@ Déclarez la physique à l'intérieur de `defineActor()` — une fois par type d
 ```ts
 import { defineActor, definePrefab } from '@gwenjs/core/actor'
 import { onUpdate } from '@gwenjs/core/system'
-import { onContact, useShape, useDynamicBody, useBoxCollider } from '@gwenjs/physics2d'
+import { onContact, useDynamicBody } from '@gwenjs/physics2d'
 
 const PlayerPrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }])
 
 export const PlayerActor = defineActor(PlayerPrefab, () => {
-  useShape({ w: 32, h: 48 })
   useDynamicBody({ gravityScale: 1 })
-  useBoxCollider({ w: 32, h: 48 })
 
   onContact((contact) => {
     if (contact.started) {
@@ -103,7 +126,7 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
 
 Le module fait automatiquement :
 - Enregistre le corps avec la simulation physique
-- Synchronise les formes de collider avec le corps
+- Donne à `useDynamicBody` une boîte ou une balle de demi-taille 0,5
 - Envoie les événements de collision aux callbacks abonnés
 - Nettoie quand l'acteur disparaît
 
@@ -121,13 +144,11 @@ Chaque acteur a besoin d'exactement un composable de corps. Choisissez selon la 
 // Caisse en chute libre entièrement simulée
 const CrateActor = defineActor(CratePrefab, () => {
   useDynamicBody({ mass: 5, linearDamping: 0.1 })
-  useBoxCollider({ w: 32, h: 32 })
 })
 
 // Plateforme qui se déplace sur commande
 const PlatformActor = defineActor(PlatformPrefab, () => {
   const body = useKinematicBody()
-  useBoxCollider({ w: 128, h: 16 })
   onUpdate(({ dt }) => {
     body.setVelocity(50, 0) // Se déplacer vers la droite à vitesse constante
   })
@@ -136,13 +157,12 @@ const PlatformActor = defineActor(PlatformPrefab, () => {
 // Sol immobile
 const GroundActor = defineActor(GroundPrefab, () => {
   useStaticBody()
-  useBoxCollider({ w: 1024, h: 32 })
 })
 ```
 
 ## Colliders
 
-Ajoutez des formes de collision à un corps avec un composable collider. Un acteur peut avoir plusieurs colliders pour des formes complexes.
+Chaque composable collider enregistre son propre corps fixe. Il n'attache pas une forme à `useDynamicBody`.
 
 | Composable | Forme |
 |---|---|
@@ -153,13 +173,11 @@ Ajoutez des formes de collision à un corps avec un composable collider. Un acte
 ```ts
 // Personnage avec collider en capsule
 const CharacterActor = defineActor(CharacterPrefab, () => {
-  useDynamicBody({ mass: 1, gravityScale: 1 })
-  useCapsuleCollider({ radius: 0.5, length: 2 })
+  useCapsuleCollider({ radius: 0.5, height: 2 })
 })
 
 // Balle avec collider capteur (chevauchement uniquement)
 const BallActor = defineActor(BallPrefab, () => {
-  useDynamicBody({ mass: 0.5 })
   useSphereCollider({ radius: 0.25, isSensor: true })
 })
 ```
@@ -170,8 +188,9 @@ const BallActor = defineActor(BallPrefab, () => {
 - `offsetX?: number` — Décalage X local par rapport à l'origine de l'acteur (défaut: 0)
 - `offsetY?: number` — Décalage Y local par rapport à l'origine de l'acteur (défaut: 0)
 - `isSensor?: boolean` — Génère des événements de chevauchement sans réponse physique (défaut: false)
-- `layer?: number` — Masque de couche d'appartenance (voir Couches de collision ci-dessous)
-- `mask?: number` — Masque de filtre de collision (voir Couches de collision ci-dessous)
+- `layer?` — Un nom, un nombre, ou une liste des deux
+- `mask?` — Mêmes formes que `layer`
+- `material?: string` — Accepté par le type partagé et non appliqué par physics2d
 
 **Collider de boîte :**
 - `w: number` — Largeur en unités du monde
@@ -179,7 +198,7 @@ const BallActor = defineActor(BallPrefab, () => {
 
 **Collider en capsule :**
 - `radius: number` — Rayon en unités du monde
-- `length: number` — Longueur (hauteur) en unités du monde
+- `height: number` — Longueur du cylindre. Le collider est une boîte : demi-largeur `radius`, demi-hauteur `height / 2`
 
 **Collider de sphère :**
 - `radius: number` — Rayon en unités du monde
@@ -200,6 +219,8 @@ onContact((contact) => {
 L'objet `contact` a :
 - `entityA` — ID de la première entité participante
 - `entityB` — ID de la deuxième entité participante
+- `aColliderId` — Id de collider du côté A quand il est présent
+- `bColliderId` — Id de collider du côté B quand il est présent
 - `started` — `true` quand le contact commence dans cette frame
 
 L'enregistrement WASM fait 20 octets : quatre champs `u32` et un octet de drapeaux. Il n'a pas de point de contact, de normale, ni de vitesse relative. `started` est le bit 0 de cet octet.
@@ -236,31 +257,26 @@ export const Layers = defineLayers({
 
 // Le joueur entre en collision avec le terrain uniquement (pas les ennemis)
 const PlayerActor = defineActor(PlayerPrefab, () => {
-  useDynamicBody()
-  useBoxCollider({
-    w: 32, h: 48,
+  useDynamicBody({
     layer: Layers.player,
-    mask: Layers.terrain  // Entre en collision uniquement avec le terrain
+    mask: Layers.terrain, // Entre en collision uniquement avec le terrain
   })
 })
 
 // L'ennemi entre en collision avec le terrain et les projectiles (pas le joueur)
 const EnemyActor = defineActor(EnemyPrefab, () => {
-  useDynamicBody()
-  useBoxCollider({
-    w: 24, h: 24,
+  useDynamicBody({
     layer: Layers.enemy,
-    mask: Layers.terrain | Layers.projectile
+    mask: Layers.terrain | Layers.projectile,
   })
 })
 
 // Le projectile entre en collision avec tout sauf les autres projectiles
 const ProjectileActor = defineActor(ProjectilePrefab, () => {
-  useDynamicBody()
-  useSphereCollider({
-    radius: 4,
+  useDynamicBody({
+    shape: "ball",
     layer: Layers.projectile,
-    mask: Layers.player | Layers.enemy | Layers.terrain
+    mask: Layers.player | Layers.enemy | Layers.terrain,
   })
 })
 ```
@@ -274,20 +290,13 @@ Voici un motif courant : un personnage qui tombe avec la gravité, entre en coll
 ```ts
 import { defineActor } from '@gwenjs/core/actor'
 import { onUpdate } from '@gwenjs/core/system'
-import { onContact, useDynamicBody, useCapsuleCollider } from '@gwenjs/physics2d'
+import { onContact, useDynamicBody } from '@gwenjs/physics2d'
 
 export const PlayerActor = defineActor(PlayerPrefab, () => {
   const body = useDynamicBody({
     mass: 1,
     gravityScale: 3,
     linearDamping: 0.2
-  })
-
-  useCapsuleCollider({
-    radius: 0.4,
-    length: 1.8,
-    layer: Layers.player,
-    mask: Layers.terrain
   })
 
   let grounded = false
@@ -324,12 +333,15 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
 - `linearDamping?: number` — Amortissement de la vélocité linéaire (défaut: 0)
 - `angularDamping?: number` — Amortissement de la vélocité angulaire (défaut: 0)
 - `fixedRotation?: boolean` — Verrouiller la rotation (défaut: false)
+- `shape?` — `"ball"` ou une boîte. Les deux utilisent une demi-taille de 0,5. `useDynamicBody` ne lit pas `useShape`
+- `layer?`, `mask?` — Copiés sur cette boîte ou cette balle
 
 **Options du corps cinématique :**
-- `layer?: number` — Couche d'appartenance (pour les interactions avec les corps dynamiques)
-- `mask?: number` — Masque de filtre de collision
+- `initialPosition?` — Position de départ
+- `initialRotation?` — Angle de départ
+- `fixedRotation?` — Verrouiller la rotation
 
-**Les corps statiques** n'acceptent aucune option — ils ont une masse infinie et ne bougent jamais.
+**Options du corps statique :** `shape?` (`"box"` ou `"ball"`), `layer?`, `mask?`, `isSensor?`. `useStaticBody` lit `w`, `h` et `radius` de `useShape` quand ce composant est présent.
 
 ### Application des forces
 
@@ -352,7 +364,7 @@ body.applyImpulse(0, 500)
 
 ### Composable de forme
 
-Le composable `useShape()` définit les dimensions partagées que d'autres systèmes peuvent lire :
+`useShape()` range `w`, `h`, `radius` et `depth` sur l'acteur. `useStaticBody` lit `w`, `h` et `radius`. `useDynamicBody` ne les lit pas.
 
 ```ts
 useShape({ w: 32, h: 48 })
@@ -387,12 +399,12 @@ onUpdate(() => {
 
 | Fonction | Retours | Objectif |
 |---|---|---|
-| `useStaticBody()` | `void` | Enregistre un corps physique statique (immobile). |
+| `useStaticBody(opts?)` | `StaticBodyHandle` | Enregistre un corps physique statique (immobile). |
 | `useDynamicBody(opts?)` | `DynamicBodyHandle` | Enregistre un corps physique entièrement simulé. |
 | `useKinematicBody(opts?)` | `KinematicBodyHandle` | Enregistre un corps physique cinématique (piloté manuellement). |
-| `useBoxCollider(opts)` | `BoxColliderHandle` | Attache un collider en forme de boîte. |
-| `useCapsuleCollider(opts)` | `CapsuleColliderHandle` | Attache un collider en forme de capsule. |
-| `useSphereCollider(opts)` | `SphereColliderHandle` | Attache un collider en forme de sphère. |
+| `useBoxCollider(opts)` | `BoxColliderHandle` | Enregistre un corps fixe et une boîte. |
+| `useCapsuleCollider(opts)` | `CapsuleColliderHandle` | Enregistre un corps fixe et une boîte approximative. |
+| `useSphereCollider(opts)` | `CircleColliderHandle` | Enregistre un corps fixe et un cercle. |
 | `useShape(opts)` | `void` | Définit les dimensions de forme partagées pour l'acteur. |
 | `defineLayers(def)` | `Record<string, number>` | Déclare des couches de collision nommées avec des valeurs de masque de bits. |
 
@@ -420,10 +432,10 @@ onUpdate(() => {
 
 ### Types
 
-- `CollisionContact` — `{ entityA: bigint, entityB: bigint, started: boolean }`
+- `CollisionContact` — `{ entityA: bigint, entityB: bigint, aColliderId?: number, bColliderId?: number, started: boolean }`
 - `BoxColliderHandle` — `{ colliderId: number, isSensor: boolean }`
 - `CapsuleColliderHandle` — `{ colliderId: number, isSensor: boolean }`
-- `SphereColliderHandle` — `{ colliderId: number, isSensor: boolean }`
+- `CircleColliderHandle` — `{ colliderId: number, isSensor: boolean }`
 
 ## Helpers Physics
 
