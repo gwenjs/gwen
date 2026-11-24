@@ -15,7 +15,7 @@ Intégration Vite pour GWEN. Fournit le plugin composite principal, un optimiseu
 
 Le point d'entrée principal. Un plugin Vite composite qui configure le hot-reload des acteurs et scènes, les auto-imports, les déclarations TypeScript, le support des layouts, les helpers tween, et l'optimiseur ECS optionnel — le tout en une seule registration.
 
-Les noms sont injectés par `gwen:transform-pipeline` dans `gwen()` comme dans `gwenVitePlugin()`, selon la liaison d'import.
+Les noms sont injectés par `gwen:transform-pipeline` dans `gwen()` comme dans `gwenVitePlugin()`, selon la liaison d'import. Les noms de layout et de scene-router sont un énoncé gardé par `__GWEN_DEV__`, donc les bundles de production n'en portent aucun.
 
 ```ts
 // vite.config.ts
@@ -47,8 +47,8 @@ export default defineConfig({
 | `actors.dir` | `string` | `'src/actors'` | Répertoire racine analysé pour les fichiers d'acteurs. |
 | `actors.hmr` | `boolean` | `true` | Active le HMR pour les modules d'acteurs. |
 | `layout.include` | `string[]` | — | Patterns glob des fichiers de layout à inclure. |
-| `layout.disableNameInjection` | `boolean` | `false` | Désactive l'injection du nom dans chaque définition de layout. |
-| `sceneRouter` | `GwenSceneRouterOptions` | — | Options transmises au transform du scene-router. |
+| `layout.disableNameInjection` | `boolean` | `false` | Quand la valeur est vraie, l'unité `gwen:layout-name` n'est pas enregistrée. |
+| `sceneRouter` | `GwenSceneRouterOptions` | — | Quand `disableNameInjection` est vrai, l'unité `gwen:scene-router-name` n'est pas enregistrée. |
 | `tween` | `GwenTweenOptions` | — | Options transmises au transform tween. |
 | `optimizer` | `boolean \| GwenOptimizerUserOptions` | — | Active l'optimiseur ECS en masse (voir ci-dessous). |
 

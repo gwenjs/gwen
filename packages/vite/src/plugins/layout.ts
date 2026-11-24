@@ -4,10 +4,8 @@ import type { Plugin, ViteDevServer } from "vite";
 import { walk } from "oxc-walker";
 import type { GwenViteOptions } from "../types.js";
 import { parseSource, isCallTo } from "../oxc/index.js";
-import { createAstNameInjector } from "../shared/ast-name-injector.js";
 import { createVirtualModule } from "../shared/virtual-module.js";
 import { findComponentFiles } from "../shared/find-component-files.js";
-import { devFromResolvedConfig } from "./dev-from-config.js";
 
 const { virtual: LAYOUTS_VIRTUAL, resolved: RESOLVED_LAYOUTS } =
   createVirtualModule("virtual:gwen/layouts");
@@ -22,11 +20,6 @@ export interface GwenLayoutOptions {
    */
   include?: string[];
 
-  /**
-   * Disable debug name injection (default: false).
-   * When `false`, `defineLayout(...)` calls are wrapped with `Object.assign(..., { __layoutName__: 'Name' })`.
-   * @default false
-   */
   disableNameInjection?: boolean;
 }
 
@@ -58,26 +51,6 @@ export function generateLayoutsModule(layoutMap: Map<string, string>): string {
 }
 
 /**
- * Inject `__layoutName__` metadata into each `defineLayout(...)` call by
- * wrapping it with `Object.assign(defineLayout(...), { __layoutName__: 'VarName' })`.
- *
- * Uses AST-based parsing so deeply nested callbacks inside `defineLayout` are
- * handled correctly — the regex approach broke with `spawn(prefab(x))` patterns.
- *
- * @param code     - TypeScript source code to transform.
- * @param filename - File path for the parser.
- * @returns Transformed source, or the original if no changes were made.
- */
-export const transformLayoutNames = createAstNameInjector(
-  "defineLayout",
-  (varName, _args, s, init) => {
-    s.prependLeft(init.start, "Object.assign(");
-    s.appendRight(init.end, `, { __layoutName__: '${varName}' })`);
-    return true;
-  },
-);
-
-/**
  * Extract all variable names bound to `defineLayout(...)` calls in the given source.
  * Uses AST parsing to avoid false positives in comments or strings.
  *
@@ -106,11 +79,10 @@ export function extractLayoutNames(code: string, filename = "layout.ts"): Set<st
 }
 
 /**
- * GWEN sub-plugin for layout virtual module generation and debug name injection.
+ * GWEN sub-plugin for the layout virtual module.
  *
  * **Phase 1 (current):**
  * - Provides `virtual:gwen/layouts` with a registry of layouts found in layout files
- * - Injects `__layoutName__` debug names via `Object.assign()` wrapping
  * - Optionally invalidates the virtual module on file changes
  *
  * **Phase 2 (future):**
@@ -135,9 +107,7 @@ export function gwenLayoutPlugin(options: GwenViteOptions): Plugin {
   }
 
   const include = options.layout.include ?? ["src/layouts/**/*.ts", "src/**/*.layout.ts"];
-  const disableNameInjection = options.layout.disableNameInjection ?? false;
   let root = process.cwd();
-  let dev = true;
 
   // Build a set of layout directories from include patterns
   const layoutDirs = new Set<string>();
@@ -157,7 +127,6 @@ export function gwenLayoutPlugin(options: GwenViteOptions): Plugin {
 
     configResolved(config) {
       root = config.root;
-      dev = devFromResolvedConfig(config);
       rebuildLayoutDirs(root);
     },
 
@@ -201,26 +170,6 @@ export function gwenLayoutPlugin(options: GwenViteOptions): Plugin {
         }
         break;
       }
-    },
-
-    transform(code, id) {
-      if (!dev || disableNameInjection) return;
-
-      // Check if the file is in one of our layout directories
-      let inLayoutDir = false;
-      for (const dir of layoutDirs) {
-        if (id.startsWith(dir)) {
-          inLayoutDir = true;
-          break;
-        }
-      }
-
-      if (!inLayoutDir) return;
-
-      const transformed = transformLayoutNames(code);
-      if (transformed === code) return;
-
-      return { code: transformed, map: null };
     },
   };
 }
