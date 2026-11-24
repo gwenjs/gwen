@@ -68,4 +68,11 @@ describe("evalConstInt", () => {
     expect(evalConstInt("`1`")).toBeNull();
     expect(evalConstInt("1 / 2")).toBeNull();
   });
+
+  it("a literal above uint32 or in exponent form returns null", () => {
+    expect(evalConstInt("4294967296")).toBeNull();
+    expect(evalConstInt("1e20")).toBeNull();
+    expect(evalConstInt("0x1_0000_0001")).toBeNull();
+    expect(evalConstInt("4294967295")).toBe(4294967295);
+  });
 });
