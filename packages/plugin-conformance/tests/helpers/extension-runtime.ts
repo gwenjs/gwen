@@ -8,10 +8,13 @@ import { afterEach } from "vitest";
  */
 interface FixtureHost {
   __fixtureBaseApis?: unknown;
+  __fixtureBaseNames?: unknown;
 }
 
 afterEach(() => {
-  delete (globalThis as FixtureHost).__fixtureBaseApis;
+  const host = globalThis as FixtureHost;
+  delete host.__fixtureBaseApis;
+  delete host.__fixtureBaseNames;
 });
 
 export interface GwenFields {
@@ -35,6 +38,10 @@ export interface BaseSourceOptions {
   /** Service `extensionApi`. Defaults to the plugin's major and minor. */
   readonly serviceMajor?: number;
   readonly serviceMinor?: number;
+  readonly requiresPlugins?: "none" | "string" | "object";
+  readonly requiredBase?: string;
+  readonly requiredMajor?: number;
+  readonly requiredMinor?: number;
 }
 
 export interface ExtensionSourceOptions {
@@ -129,16 +136,21 @@ export function baseModuleSource(options: BaseSourceOptions = {}): string {
       ? ""
       : `extensionApi: { major: ${String(major)}, minor: ${String(minor)} },`;
   const providesField = options.provides === false ? "" : `provides: [${JSON.stringify(key)}],`;
+  const requires = baseRequiresField(options);
   return `export function ${exportName}() {
   return {
     name: ${JSON.stringify(pluginName)},
     ${apiField}
     ${providesField}
+    ${requires}
     setup(engine) {
       const extensionApi = this.extensionApi;
       const list = globalThis.__fixtureBaseApis ?? [];
       list.push(extensionApi);
       globalThis.__fixtureBaseApis = list;
+      const names = globalThis.__fixtureBaseNames ?? [];
+      names.push(this.name);
+      globalThis.__fixtureBaseNames = names;
       let registrations = ${String(registrations)};
       const api = {
         extensionApi: { major: ${String(serviceMajor)}, minor: ${String(serviceMinor)} },
@@ -162,6 +174,16 @@ export function baseModuleSource(options: BaseSourceOptions = {}): string {
 `;
 }
 
+function baseRequiresField(options: BaseSourceOptions): string {
+  const mode = options.requiresPlugins ?? "none";
+  if (mode === "none") return "";
+  const base = options.requiredBase ?? "fixture-base";
+  if (mode === "string") return `requires: { plugins: [${JSON.stringify(base)}] },`;
+  const major = options.requiredMajor ?? 1;
+  const minor = options.requiredMinor ?? 2;
+  return `requires: { plugins: [{ name: ${JSON.stringify(base)}, extensionApi: { major: ${String(major)}, minor: ${String(minor)} } }] },`;
+}
+
 function requiresField(options: ExtensionSourceOptions): string {
   const mode = options.requiresPlugins ?? "none";
   if (mode === "none") return "";
@@ -183,8 +205,16 @@ function setupBody(options: ExtensionSourceOptions): {
   if (mode === "warn") {
     return {
       setup: `setup(engine) {
+      let seen = 0;
       engine.hooks.hook("engine:update", () => {
-        if (engine.getStats().frameCount === 1) engine.logger.warn("ext frame");
+        seen += 1;
+        if (seen === 2) {
+          engine.errors.emit({
+            level: "warning",
+            code: "FIXTURE:SECOND",
+            message: "second-frame",
+          });
+        }
       });
     }`,
       teardown: "",
@@ -193,7 +223,7 @@ function setupBody(options: ExtensionSourceOptions): {
   if (mode === "hook") {
     return {
       setup: `setup(engine) {
-      const real = engine;
+      const real = engine[Symbol.for("@gwenjs/engine")];
       real.hooks.hook("engine:update", () => {});
     }`,
       teardown: "",
@@ -304,4 +334,33 @@ export async function writeBasePackage(
     manifestFor(name, gwen, options.extensionExport === true, undefined),
     files,
   );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function hostList(value: unknown): unknown[] {
+  if (!Array.isArray(value)) return [];
+  return value;
+}
+
+/** `extensionApi` values pushed by each installed base, in install order. */
+export function recordedBaseApis(): { readonly major: number; readonly minor: number }[] {
+  const apis: { major: number; minor: number }[] = [];
+  for (const item of hostList((globalThis as FixtureHost).__fixtureBaseApis)) {
+    if (!isRecord(item)) continue;
+    if (typeof item.major !== "number" || typeof item.minor !== "number") continue;
+    apis.push({ major: item.major, minor: item.minor });
+  }
+  return apis;
+}
+
+/** Plugin names pushed by each installed base, in install order. */
+export function recordedBaseNames(): string[] {
+  const names: string[] = [];
+  for (const item of hostList((globalThis as FixtureHost).__fixtureBaseNames)) {
+    if (typeof item === "string") names.push(item);
+  }
+  return names;
 }
