@@ -584,7 +584,7 @@ Cause. Un appel d'émission (`emit`, `callHook`, `callHookParallel`, `callHookWi
 
 ### CONFORMANCE:HOOK_UNDECLARED {#conformance-hook-undeclared}
 
-Cause. Un appel d'émission utilise un nom de l'espace de noms du paquet qu'aucun fichier du paquet ne déclare, ni avec `defineHooks`, ni dans une augmentation `GwenRuntimeHooks` de `@gwenjs/schema`. La vérification est ignorée quand `gwen.hookNamespace` est absent ou invalide. Fix. Déclarez le hook avec `defineHooks`, ou ajoutez-le à une augmentation `GwenRuntimeHooks`.
+Cause. Un appel d'émission utilise un nom de l'espace de noms du paquet qu'aucun fichier du paquet ne déclare, ni avec `defineHooks`, ni dans une augmentation `GwenRuntimeHooks` de `@gwenjs/schema`. La vérification est ignorée quand `gwen.hookNamespace` est absent ou invalide. `runPluginConformance` renvoie aussi ce code quand un plugin émet à l'exécution un nom qu'il n'a pas déclaré avec `defineHooks` ni dans une augmentation `GwenRuntimeHooks` (`packages/plugin-conformance/src/hook-sources.ts:247`). Les noms des espaces `engine`, `entity`, `scene`, `plugin`, `actor`, `prefab` et `service` (`packages/schema/src/runtime-hooks.ts:234`) et des espaces du framework (`packages/schema/src/runtime-hooks.ts:251`) sont ignorés ici, parce que la vérification statique en est responsable (`packages/plugin-conformance/src/check-hooks.ts:22`). Une émission non déclarée vers un espace du framework, à l'exécution, est seulement un constat statique. Fix. Déclarez le hook avec `defineHooks`, ou ajoutez-le à une augmentation `GwenRuntimeHooks`.
 
 ### CONFORMANCE:IMPORT_DEEP {#conformance-import-deep}
 
