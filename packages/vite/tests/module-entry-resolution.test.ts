@@ -53,7 +53,7 @@ async function loadConfig(modules: string[], setup: (root: string) => void): Pro
       `export default { modules: ${JSON.stringify(modules)} };\n`,
     );
     setup(root);
-    const plugin = gwen({ watch: false })[0];
+    const plugin = gwen()[0];
     if (!plugin) throw new Error("gwen() returned no plugin");
     const hook = plugin.config;
     if (typeof hook !== "function") throw new Error("config hook missing");
