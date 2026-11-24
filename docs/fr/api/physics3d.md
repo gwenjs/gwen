@@ -9,6 +9,39 @@ description: "Référence API pour @gwenjs/physics3d."
 
 Module de moteur physique 3D propulsé par Rapier3D. Fournit la dynamique des corps rigides, la détection de collisions, les événements de capteur, le filtrage par calques et les colliders de maillage accélérés par BVH.
 
+```ts check
+import { defineComponent, Types } from "@gwenjs/core";
+import { defineActor, definePrefab } from "@gwenjs/core/actor";
+import {
+  Physics3DPlugin,
+  onSensorEnter,
+  useBoxCollider,
+  useDynamicBody,
+} from "@gwenjs/physics3d";
+import type { BoxColliderHandle3D, DynamicBodyHandle3D } from "@gwenjs/physics3d";
+
+const plugin = Physics3DPlugin({ gravity: { y: -9.81 } });
+
+const Position = defineComponent({
+  name: "DocsPhysics3dPos",
+  schema: { x: Types.f32, y: Types.f32, z: Types.f32 },
+  defaults: { x: 0, y: 0, z: 0 },
+});
+
+const CratePrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0, z: 0 } }]);
+
+export const CrateActor = defineActor(CratePrefab, () => {
+  const body: DynamicBodyHandle3D = useDynamicBody({ mass: 5, fixedRotation: true });
+  const zone: BoxColliderHandle3D = useBoxCollider({ w: 1, h: 1, d: 1, isSensor: true });
+  onSensorEnter(zone.colliderId, (entityId) => {
+    void entityId;
+    void body;
+  });
+});
+
+void plugin;
+```
+
 ## Configuration du module
 
 Enregistrez le module dans `gwen.config.ts` :
@@ -65,19 +98,20 @@ Tous les composables sont importés depuis `@gwenjs/physics3d` et doivent être 
 #### useDynamicBody(options?)
 
 ```ts
-function useDynamicBody(options?: Physics3DBodyOptions): DynamicBodyHandle
+function useDynamicBody(options?: DynamicBodyOptions3D): DynamicBodyHandle3D
 ```
 
-Ajoute un corps rigide dynamique affecté par la gravité et les forces.
+Ajoute un corps dynamique. Champs copiés : `mass?`, `gravityScale?`, `linearDamping?`, `angularDamping?`, `ccdEnabled?`, `initialPosition?`, `initialRotation?`, `initialLinearVelocity?`, `initialAngularVelocity?`, `fixedRotation?`, `quality?`. `layer`, `mask`, `material` et `isSensor` sont sur le type et ne sont pas copiés. Il n'y a pas de champ `restitution`.
 
-**Retourne :** `DynamicBodyHandle`
+**Retourne :** `DynamicBodyHandle3D`
 
 ```ts
 import { useDynamicBody, useSphereCollider } from '@gwenjs/physics3d'
 
 export const BallActor = defineActor(BallPrefab, () => {
-  const body = useDynamicBody({ mass: 5, restitution: 0.6 })
+  const body = useDynamicBody({ mass: 5, fixedRotation: true })
   useSphereCollider({ radius: 1 })
+  void body
 })
 ```
 
@@ -87,7 +121,7 @@ export const BallActor = defineActor(BallPrefab, () => {
 function useStaticBody(options?: StaticBodyOptions3D): StaticBodyHandle3D
 ```
 
-Ajoute un corps statique (immobile). À utiliser pour le terrain et les obstacles fixes. Retourne un handle avec `bodyId`, `active`, `enable()` et `disable()` pour activer/désactiver le corps.
+Ajoute un corps fixe. `StaticBodyOptions3D` liste `isSensor`, `layer`, `mask` et `material`. `useStaticBody` ne les lit pas. Le handle a `bodyId`, `active`, `enable()` et `disable()`.
 
 ```ts
 import { useStaticBody, useMeshCollider } from '@gwenjs/physics3d'
@@ -101,19 +135,20 @@ export const TerrainActor = defineActor(TerrainPrefab, () => {
 #### useKinematicBody(options?)
 
 ```ts
-function useKinematicBody(options?: Physics3DBodyOptions): KinematicBodyHandle
+function useKinematicBody(options?: KinematicBodyOptions3D): KinematicBodyHandle3D
 ```
 
-Ajoute un corps cinématique contrôlé par la vélocité, non affecté par la gravité.
+Ajoute un corps cinématique. Champs : `initialPosition?`, `initialRotation?`, `fixedRotation?`. La gravité ne le déplace pas.
 
-**Retourne :** `KinematicBodyHandle`
+**Retourne :** `KinematicBodyHandle3D`
 
 ```ts
 import { useKinematicBody, useCapsuleCollider } from '@gwenjs/physics3d'
 
 export const PlayerActor = defineActor(PlayerPrefab, () => {
-  const body = useKinematicBody()
-  useCapsuleCollider({ radius: 0.4, halfHeight: 0.9 })
+  const body = useKinematicBody({ fixedRotation: true })
+  useCapsuleCollider({ radius: 0.4, height: 1.2 })
+  void body
 })
 ```
 
@@ -122,36 +157,22 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
 #### useBoxCollider(options)
 
 ```ts
-function useBoxCollider(options: {
-  extents: Vec3
-  sensor?: boolean
-  density?: number
-}): void
+function useBoxCollider(options: BoxColliderOptions3D): BoxColliderHandle3D
 ```
 
-Ajoute un collider de boîte avec les demi-extensions données.
-
-| Paramètre | Type | Description |
-|---|---|---|
-| `options.extents` | `Vec3` | Demi-taille sur chaque axe |
-| `options.sensor` | `boolean` | Déclencheur uniquement (sans réponse physique) |
-| `options.density` | `number` | Densité du collider |
+Attache une boîte au corps déjà enregistré par `useStaticBody` ou `useDynamicBody`. `w`, `h` et `d` sont des tailles pleines. `d` vaut `w` par défaut. Les demi-tailles sont ces tailles divisées par 2. Optionnels : `offsetX`, `offsetY`, `offsetZ`, `isSensor`, `layer`, `mask`, `material`.
 
 ```ts
-useBoxCollider({ extents: { x: 1, y: 2, z: 1 } })
+useBoxCollider({ w: 1, h: 2, d: 1 })
 ```
 
 #### useSphereCollider(options)
 
 ```ts
-function useSphereCollider(options: {
-  radius: number
-  sensor?: boolean
-  density?: number
-}): void
+function useSphereCollider(options: SphereColliderOptions3D): SphereColliderHandle3D
 ```
 
-Ajoute un collider de sphère.
+Attache une sphère au corps déjà enregistré sur cette entité. Champs : `radius`, et en option `offsetX`, `offsetY`, `offsetZ`, `isSensor`, `layer`, `mask`, `material`.
 
 ```ts
 useSphereCollider({ radius: 0.5 })
@@ -160,18 +181,13 @@ useSphereCollider({ radius: 0.5 })
 #### useCapsuleCollider(options)
 
 ```ts
-function useCapsuleCollider(options: {
-  radius: number
-  halfHeight: number
-  sensor?: boolean
-  density?: number
-}): void
+function useCapsuleCollider(options: CapsuleColliderOptions3D): CapsuleColliderHandle3D
 ```
 
-Ajoute un collider de capsule (cylindre coiffé d'hémisphères). Couramment utilisé pour les corps de personnages.
+Attache une capsule au corps déjà enregistré sur cette entité. `height` est la longueur du cylindre. La demi-hauteur stockée est `height / 2`. `axis` est accepté et n'est pas appliqué. Les autres champs optionnels sont ceux de la sphère.
 
 ```ts
-useCapsuleCollider({ radius: 0.4, halfHeight: 0.9 })
+useCapsuleCollider({ radius: 0.4, height: 1.2 })
 ```
 
 #### useMeshCollider(path | options)
@@ -214,15 +230,15 @@ useConvexCollider({ vertices: new Float32Array(12) })
 
 ### Événements
 
-Tous les composables d'événements sont automatiquement nettoyés à la destruction de l'acteur.
+Les callbacks de capteur inscrits dans un acteur sont retirés à la destruction de cet acteur. `onContact` reste jusqu'à l'appel de la fonction qu'il renvoie, ou jusqu'au teardown du plugin.
 
-#### onContact(handler)
+#### onContact(callback)
 
 ```ts
-function onContact(handler: (event: CollisionContact) => void): () => void
+function onContact(callback: (contact: CollisionContact) => void): () => void
 ```
 
-Enregistre un gestionnaire appelé lorsque le collider de cet acteur entre ou sort de contact avec un autre.
+Enregistre un callback pour chaque contact de ce moteur. Il n'est pas limité à un acteur. Le callback reçoit `entityA`, `entityB`, `aColliderId` et `bColliderId` optionnels, et `started`.
 
 ```ts
 import { onContact } from '@gwenjs/physics3d'
@@ -236,32 +252,33 @@ export const EnemyActor = defineActor(EnemyPrefab, () => {
 })
 ```
 
-#### onSensorEnter(handler)
+#### onSensorEnter(sensorId, callback)
 
 ```ts
-function onSensorEnter(handler: (otherId: number) => void): void
+function onSensorEnter(sensorId: number, callback: (entityId: bigint) => void): () => void
 ```
 
-Appelé lorsqu'un autre collider entre dans le collider capteur de cet acteur.
+Appelé quand une entité entre dans le capteur `sensorId`. Dans un acteur, le callback est stocké pour cet acteur. La valeur de retour retire le callback.
 
 ```ts
-import { useBoxCollider, onSensorEnter } from '@gwenjs/physics3d'
+import { useStaticBody, useBoxCollider, onSensorEnter } from '@gwenjs/physics3d'
 
 export const TriggerZone = defineActor(TriggerPrefab, () => {
-  useBoxCollider({ extents: { x: 3, y: 1, z: 3 }, sensor: true })
-  onSensorEnter((otherId) => {
-    console.log('Entity entered zone:', otherId)
+  useStaticBody()
+  const zone = useBoxCollider({ w: 3, h: 1, d: 3, isSensor: true })
+  onSensorEnter(zone.colliderId, (entityId) => {
+    console.log('Entity entered zone:', entityId)
   })
 })
 ```
 
-#### onSensorExit(handler)
+#### onSensorExit(sensorId, callback)
 
 ```ts
-function onSensorExit(handler: (otherId: number) => void): void
+function onSensorExit(sensorId: number, callback: (entityId: bigint) => void): () => void
 ```
 
-Appelé lorsqu'un autre collider quitte le collider capteur de cet acteur.
+Appelé quand une entité quitte le capteur `sensorId`. Même portée d'acteur et même valeur de retour que `onSensorEnter`.
 
 ### Calques
 
@@ -280,8 +297,9 @@ const Layers = defineLayers({ default: 1, player: 2, enemy: 4 })
 // Layers.default === 1, Layers.player === 2, Layers.enemy === 4
 
 useBoxCollider({
-  extents: { x: 1, y: 1, z: 1 },
-  // les appartenances et filtres utilisent des valeurs de masque de bits
+  w: 1,
+  h: 1,
+  d: 1,
 })
 ```
 
@@ -447,3 +465,11 @@ Dans toute cette page, les formes de vecteur et de rotation sont `Vec3` et `Quat
 ```ts
 type QualityPreset = 'low' | 'medium' | 'high' | 'esport'
 ```
+
+### DynamicBodyOptions3D
+
+Champs copiés sur le corps : `mass?`, `gravityScale?`, `linearDamping?`, `angularDamping?`, `ccdEnabled?`, `initialPosition?` (`Partial<Vec3>`), `initialRotation?` (`Partial<Quat>`), `initialLinearVelocity?`, `initialAngularVelocity?`, `fixedRotation?`, `quality?` (`QualityPreset`). `layer`, `mask`, `material` et `isSensor` sont sur le type et ne sont pas copiés. Il n'y a pas de champ `restitution`.
+
+### ColliderHandle3D
+
+`useBoxCollider`, `useSphereCollider` et `useCapsuleCollider` renvoient `BoxColliderHandle3D`, `SphereColliderHandle3D` et `CapsuleColliderHandle3D`. Chacun de ces noms est `ColliderHandle3D` : `colliderId` et `remove()`.

@@ -31,7 +31,7 @@ export default defineConfig({
 
 ## What the plugin provides
 
-- `physics` service (runtime API): bodies, colliders, velocity, impulses, collision batches.
+- `physics2d` service (runtime API): bodies, colliders, velocity, impulses, collision batches.
 - Global hooks: `physics:collision`, `physics:collision:batch`, `physics:sensor:changed`, `physics2d:body-disabled`.
 - Prefab extension `extensions.physics2d` with legacy bridge + vNext `colliders[]`.
 - Material presets: `default`, `ice`, `rubber`.
@@ -108,8 +108,8 @@ export const BulletPrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 
 
 ## Documentation index
 
-- API: `docs/API.md`
-- Migration: `docs/MIGRATION.md`
+- API: [docs/api/physics2d.md](../../docs/api/physics2d.md)
+- Migration: [docs/api/physics-core.md#migration](../../docs/api/physics-core.md#migration)
 - Tilemap: `docs/TILEMAP.md`
 - Hooks: `docs/hooks.md`
 - Systems: `docs/systems.md`

@@ -9,26 +9,73 @@ description: "Référence API pour @gwenjs/physics2d."
 
 Plugin de moteur de physique 2D alimenté par Rapier2D. Fournit la dynamique des corps rigides, les colliders et les capteurs pour les jeux 2D.
 
+```ts check
+import { defineComponent, Types } from "@gwenjs/core";
+import { defineActor, definePrefab } from "@gwenjs/core/actor";
+import {
+  Physics2DPlugin,
+  onContact,
+  useBoxCollider,
+  useDynamicBody,
+} from "@gwenjs/physics2d";
+import type {
+  BoxColliderHandle,
+  BoxColliderOptions,
+  DynamicBodyHandle,
+  DynamicBodyOptions,
+  KinematicBodyOptions,
+  Physics2DConfig,
+  StaticBodyOptions,
+} from "@gwenjs/physics2d";
+
+const options: Physics2DConfig = { gravity: { y: -9.81 } };
+const plugin = Physics2DPlugin(options);
+
+const Position = defineComponent({
+  name: "DocsPhysics2dPos",
+  schema: { x: Types.f32, y: Types.f32 },
+  defaults: { x: 0, y: 0 },
+});
+
+const BallPrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }]);
+
+export const BallActor = defineActor(BallPrefab, () => {
+  const bodyOptions: DynamicBodyOptions = { mass: 2, fixedRotation: true };
+  const body: DynamicBodyHandle = useDynamicBody(bodyOptions);
+  const pose: KinematicBodyOptions<"2d"> = {
+    initialPosition: { x: 0, y: 2 },
+    initialRotation: 0,
+  };
+  const ground: StaticBodyOptions = { shape: "box", isSensor: false };
+  onContact((contact) => {
+    void contact.started;
+    void body;
+    void pose;
+    void ground;
+  });
+});
+
+export const BoxActor = defineActor(BallPrefab, () => {
+  const boxOptions: BoxColliderOptions<"2d"> = { w: 1, h: 1, isSensor: false };
+  const box: BoxColliderHandle = useBoxCollider(boxOptions);
+  void box;
+});
+
+void plugin;
+```
+
 ## Configuration du plugin
 
 ### Physics2DPlugin()
 
-**Signature:**
-```ts
-function Physics2DPlugin(options?: Physics2DPluginOptions): PluginDef
-```
-
-**Description.** Crée le plugin de physique 2D. Enregistrez dans votre config d'app pour activer la simulation physique.
+`Physics2DPlugin` est la valeur que `createPhysicsPlugin` construit pour `@gwenjs/physics2d` et la clé de service `physics2d`. Les options sont `Physics2DConfig`. Voir [Plugin](./physics-core#plugin).
 
 `options.layers` associe chaque nom à un indice de bit dans `[0, 31]`, au plus 32 noms. Un bit hors de cet intervalle, ou plus de 32 couches, fait rejeter `CORE:PLUGIN_OPTIONS_INVALID` par `engine.use(Physics2DPlugin(...))`. Le chemin est `layers.<name>` pour un bit et `layers` pour le nombre. L'appel `Physics2DPlugin(...)` ne lève pas pour les couches.
 
-**Retourne:** `PluginDef` — définition du plugin de physique.
-
-**Exemple:**
+**Exemple :**
 ```ts
 export default defineConfig({
-  plugins: [Physics2DPlugin()],
-  // ...
+  plugins: [Physics2DPlugin({ gravity: { y: -9.81 } })],
 });
 ```
 
@@ -43,70 +90,60 @@ Utilisez ceux-ci à l'intérieur de `defineActor` pour ajouter des composants de
 function useShape(options: ShapeOptions): void
 ```
 
-**Description.** Ajoute une forme (collider) à l'entité courante.
+**Description.** Range `w`, `h`, `radius` et `depth` sur l'entité (`ShapeOptions`). `useStaticBody` lit `w`, `h` et `radius`. `useDynamicBody` ne les lit pas. Il ajoute toujours une boîte ou une balle de demi-étendue 0,5.
 
-**Paramètres:**
-| Paramètre | Type | Description |
-|---|---|---|
-| options | `ShapeOptions` | Configuration de la forme |
-
-**Retourne:** `void`
+**Retourne :** `void`
 
 ### useDynamicBody(options?)
 
-**Signature:**
+**Signature :**
 ```ts
-function useDynamicBody(options?: DynamicBodyOptions): void
+function useDynamicBody(options?: DynamicBodyOptions): DynamicBodyHandle
 ```
 
-**Description.** Ajoute un corps rigide dynamique (affecté par la gravité et les forces). À utiliser pour les objets de jeu en mouvement.
+**Description.** Ajoute un corps rigide dynamique. Champs : `shape?`, `layer?`, `mask?`, `mass?`, `linearDamping?`, `angularDamping?`, `fixedRotation?`, `gravityScale?`. `shape: "ball"` ajoute une balle. Toute autre forme ajoute une boîte. Les deux utilisent une demi-étendue de 0,5. Il n'y a pas de champ `restitution`.
 
-**Paramètres:**
-| Paramètre | Type | Description |
-|---|---|---|
-| options | `DynamicBodyOptions` | Configuration du corps (optionnel) |
+**Retourne :** `DynamicBodyHandle` (`bodyId`, `active`, `velocity`, `applyForce`, `applyImpulse`, `setVelocity`, `enable`, `disable`).
 
-**Retourne:** `void`
-
-**Exemple:**
+**Exemple :**
 ```ts
 const BallPrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }])
 
 export const BallActor = defineActor(BallPrefab, () => {
-  useDynamicBody({ mass: 2, restitution: 0.8 })
-  useBoxCollider({ w: 1, h: 1 })
+  const body = useDynamicBody({ mass: 2, fixedRotation: true })
+  void body
 })
 ```
 
 ### useKinematicBody(options?)
 
-**Signature:**
+**Signature :**
 ```ts
-function useKinematicBody(options?: KinematicBodyOptions<"2d">): void
+function useKinematicBody(options?: KinematicBodyOptions<"2d">): KinematicBodyHandle
 ```
 
-**Description.** Ajoute un corps cinématique (non affecté par la gravité, contrôlé par la vélocité). À utiliser pour les plates-formes, les obstacles mobiles.
+**Description.** Ajoute un corps cinématique. Champs : `initialPosition?`, `initialRotation?`, `fixedRotation?`. La gravité ne le déplace pas. On le pilote avec `setVelocity` ou `moveTo`.
 
-**Retourne:** `void`
+**Retourne :** `KinematicBodyHandle`
 
-### useStaticBody()
+### useStaticBody(options?)
 
-**Signature:**
+**Signature :**
 ```ts
-function useStaticBody(): void
+function useStaticBody(options?: StaticBodyOptions): StaticBodyHandle
 ```
 
-**Description.** Ajoute un corps statique (immobile). À utiliser pour le terrain, les murs, le sol.
+**Description.** Ajoute un corps statique. Champs : `shape?`, `layer?`, `mask?`, `isSensor?`. Quand un composant de forme est présent, une balle utilise son `radius` et une boîte utilise `w / 2` et `h / 2`. Sinon la demi-étendue est 0,5.
 
-**Retourne:** `void`
+**Retourne :** `StaticBodyHandle`
 
 **Exemple:**
 ```ts
 const GroundPrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }])
 
 export const GroundActor = defineActor(GroundPrefab, () => {
+  useShape({ w: 100, h: 1 })
   useStaticBody()
-  useBoxCollider({ w: 100, h: 1 })
 })
 ```
 
@@ -114,25 +151,14 @@ export const GroundActor = defineActor(GroundPrefab, () => {
 
 ### useBoxCollider(options)
 
-**Signature:**
+**Signature :**
 ```ts
-function useBoxCollider(options: BoxColliderOptions): void
+function useBoxCollider(options: BoxColliderOptions<"2d">): BoxColliderHandle
 ```
 
-**Description.** Ajoute un collider de boîte/rectangle à l'entité courante.
+**Description.** Enregistre un corps fixe et un collider boîte sur l'entité de l'acteur. Il n'attache pas une forme à `useDynamicBody`. `w` et `h` sont les tailles complètes. Les demi-étendues du collider sont `w / 2` et `h / 2`. Champs optionnels : `offsetX`, `offsetY`, `isSensor`, `layer`, `mask`, `material`. `material` est accepté et n'est pas appliqué. `oneWay` n'est pas un champ de ce type d'options.
 
-**Paramètres:**
-| Paramètre | Type | Description |
-|---|---|---|
-| options.w | `number` | Largeur de la boîte en unités monde |
-| options.h | `number` | Hauteur de la boîte en unités monde |
-| options.isSensor | `boolean` | Si vrai, génère des événements de chevauchement sans réponse physique |
-| options.layer | `LayerSelector` | Couche d'appartenance aux collisions : un nom de `options.layers`, un bitmask, ou une liste des deux |
-| options.mask | `LayerSelector` | Filtre de collision : un nom de `options.layers`, un bitmask, ou une liste des deux |
-| options.offsetX | `number` | Décalage X local par rapport à l'origine de l'acteur |
-| options.offsetY | `number` | Décalage Y local par rapport à l'origine de l'acteur |
-
-**Retourne:** `BoxColliderHandle`
+**Retourne :** `BoxColliderHandle` (`colliderId`, `isSensor`)
 
 **Exemple:**
 ```ts
@@ -141,42 +167,25 @@ useBoxCollider({ w: 2, h: 2, isSensor: false });
 
 ### useSphereCollider(options)
 
-**Signature:**
+**Signature :**
 ```ts
-function useSphereCollider(options: SphereColliderOptions): void
+function useSphereCollider(options: SphereColliderOptions<"2d">): CircleColliderHandle
 ```
 
-**Description.** Ajoute un collider circulaire à l'entité courante.
+**Description.** Enregistre un corps fixe et un collider cercle. Il n'attache pas une forme à `useDynamicBody`. Champs : `radius`, et les mêmes `offsetX`, `offsetY`, `isSensor`, `layer`, `mask`, `material` optionnels. `material` est accepté et n'est pas appliqué.
 
-**Paramètres:**
-| Paramètre | Type | Description |
-|---|---|---|
-| options.radius | `number` | Rayon du cercle en unités monde |
-| options.isSensor | `boolean` | Si vrai, génère des événements de chevauchement sans réponse physique |
-| options.layer | `LayerSelector` | Couche d'appartenance aux collisions : un nom de `options.layers`, un bitmask, ou une liste des deux |
-| options.mask | `LayerSelector` | Filtre de collision : un nom de `options.layers`, un bitmask, ou une liste des deux |
-
-**Retourne:** `void`
+**Retourne :** `CircleColliderHandle` (`colliderId`, `isSensor`)
 
 ### useCapsuleCollider(options)
 
-**Signature:**
+**Signature :**
 ```ts
-function useCapsuleCollider(options: CapsuleColliderOptions): void
+function useCapsuleCollider(options: CapsuleColliderOptions<"2d">): CapsuleColliderHandle
 ```
 
-**Description.** Ajoute un collider de capsule (rectangle arrondi).
+**Description.** Enregistre un corps fixe. L'API n'a pas de primitive capsule, donc ceci range une boîte. La demi-largeur est `radius`. La demi-hauteur est `height / 2`. Les champs optionnels suivent le filtre de la boîte. `material` est accepté et n'est pas appliqué.
 
-**Paramètres:**
-| Paramètre | Type | Description |
-|---|---|---|
-| options.radius | `number` | Rayon de la capsule en unités monde |
-| options.height | `number` | Hauteur totale de la capsule en unités monde |
-| options.isSensor | `boolean` | Si vrai, génère des événements de chevauchement sans réponse physique |
-| options.layer | `LayerSelector` | Couche d'appartenance aux collisions : un nom de `options.layers`, un bitmask, ou une liste des deux |
-| options.mask | `LayerSelector` | Filtre de collision : un nom de `options.layers`, un bitmask, ou une liste des deux |
-
-**Retourne:** `void`
+**Retourne :** `CapsuleColliderHandle` (`colliderId`, `isSensor`)
 
 ## Événements
 
@@ -200,7 +209,7 @@ Le plafond par défaut de 400 m/s ralentit un corps dynamique plus rapide. Un de
 
 **Signature:**
 ```ts
-function onContact(handler: (event: CollisionContact) => void, entityId?: EntityId): () => void
+function onContact(callback: (contact: CollisionContact) => void, entityId?: EntityId): () => void
 ```
 
 **Description.** Enregistre un gestionnaire pour les événements de collision (quand deux colliders entrent en collision).
@@ -228,14 +237,7 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
 
 ### CollisionContact
 
-**Signature:**
-```ts
-interface CollisionContact {
-  entityA: bigint;
-  entityB: bigint;
-  started: boolean;
-}
-```
+`CollisionContact` vient de `@gwenjs/physics-core`. Champs : `entityA`, `entityB`, `aColliderId` et `bColliderId` optionnels, et `started`.
 
 ### onSensorEnter(sensorId, callback)
 
@@ -347,23 +349,66 @@ onUpdate(() => {
 })
 ```
 
+### Requêtes spatiales
+
+`queryRadius`, `queryRect` et `pointQuery` renvoient toutes les entités qui chevauchent la forme donnée. Les trois acceptent un `QueryFilterOpts` optionnel pour restreindre par couche.
+
+```ts
+const physics = usePhysics2D();
+
+// Tous les ennemis dans les 5 mètres autour du joueur
+const nearby = physics.queryRadius(player.x, player.y, 5, {
+  mask: ['enemy'],
+})
+
+// Tout ce qui chevauche une zone de déclenchement de 4×2
+const inZone = physics.queryRect(doorX, doorY, 2, 1, {
+  mask: ['player', 'item'],
+})
+
+// Qu'y a-t-il à la position du curseur ?
+const underCursor = physics.pointQuery(worldX, worldY)
+```
+
+### setLinearDamping
+
+Règle l'amortissement linéaire d'un corps dynamique déjà créé, sans le retirer ni le recréer. Utile au passage glace / eau.
+
+```ts
+const physics = usePhysics2D();
+
+// Entrée dans l'eau — ralentir progressivement
+physics.setLinearDamping(entityId, 4.0)
+
+// Retour sur terre — rétablir la valeur par défaut
+physics.setLinearDamping(entityId, 0.0)
+```
+
+### Plates-formes à sens unique
+
+`oneWay` est un champ de `ColliderOptions`. `addBoxCollider` le lit et le passe au collider boîte. `useBoxCollider` ne l'accepte pas.
+
+```ts
+const physics = usePhysics2D()
+physics.addBoxCollider(entityId, 2, 0.1, { oneWay: true })
+```
+
 ## Systèmes
 
 ### createPhysicsKinematicSyncSystem(options)
 
-**Signature:**
+**Signature :**
 ```ts
-function createPhysicsKinematicSyncSystem(options?: {
-  pixelsPerMeter?: number; // 50 par défaut
-  positionComponent: ComponentDef;
-}): GwenPlugin
+function createPhysicsKinematicSyncSystem(
+  options?: PhysicsKinematicSyncSystemOptions,
+): GwenPlugin
 ```
 
-**Description.** Crée un plugin kit qui copie la position 2D ECS de chaque entité dans son corps cinématique avant chaque mise à jour. `positionComponent` est requis à l'exécution : sans lui, l'appel lève `Physics2DErrorCodes.POSITION_COMPONENT_REQUIRED`. Le paramètre est typé optionnel.
+**Description.** Renvoie l'objet plugin de `definePlugin`. À chaque frame il copie la position ECS dans le corps cinématique. `positionComponent` est requis à l'exécution. Sans lui, l'appel lève `Physics2DErrorCodes.POSITION_COMPONENT_REQUIRED`. Le paramètre est typé optionnel. `pixelsPerMeter` vaut 50 par défaut.
 
-Physics2DPlugin doit être installé en premier, sinon `engine.use` rejette `CORE:PLUGIN_DEPENDENCY_MISSING`.
+`Physics2DPlugin` doit être installé d'abord. Sinon `engine.use` rejette `CORE:PLUGIN_DEPENDENCY_MISSING`.
 
-**Retourne:** `GwenPlugin`
+**Retourne :** `GwenPlugin`
 
 **Exemple:**
 ```ts
@@ -373,74 +418,50 @@ await engine.use(createPhysicsKinematicSyncSystem({ pixelsPerMeter: 50, position
 
 ### createPlatformerGroundedSystem(opts)
 
-**Signature:**
+**Signature :**
 ```ts
-function createPlatformerGroundedSystem(opts?: {
-  groundLayer?: LayerMask;
-  raycastDistance?: number;
-}): SystemDef
+function createPlatformerGroundedSystem(
+  options: PlatformerGroundedSystemOptions & { physics: Physics2DAPI },
+): { isGrounded(entityId: EntityId): boolean; getSensorState(entityId: EntityId): SensorState }
 ```
 
-**Description.** Crée un système qui suivre lesquelles entités sont sur le sol (debout sur un sol solide). Utile pour les platformers.
+**Description.** Ce n'est pas une définition de système. Il lit le capteur de pied via `physics.getSensorState`. `sensorId` vaut `SENSOR_ID_FOOT` par défaut. Il n'y a ni `groundLayer` ni `raycastDistance`.
 
-**Retourne:** `SystemDef`
+**Retourne :** `{ isGrounded, getSensorState }`
 
-**Exemple:**
+**Exemple :**
 ```ts
-export const MyScene = defineScene({
-  name: 'game',
-  systems: [
-    createPlatformerGroundedSystem({ raycastDistance: 0.1 }),
-  ],
-})
+const physics = usePhysics2D()
+const grounded = createPlatformerGroundedSystem({ physics })
 ```
 
 ## Support Tilemap
 
 ### buildTilemapPhysicsChunks(opts)
 
-**Signature:**
+**Signature :**
 ```ts
-function buildTilemapPhysicsChunks(opts: {
-  tilemap: TilemapData;
-  tileSize: number;
-  solidTiles: number[];
-  chunkSize?: number;
-}): void
+function buildTilemapPhysicsChunks(
+  input: BuildTilemapPhysicsChunksInput,
+): TilemapPhysicsChunkMap
 ```
 
-**Description.** Construit les colliders de physique pour une tilemap utilisant le chunking pour la performance.
+**Description.** Cuit une grille de tuiles en chunks physiques. Champs : `tiles`, `mapWidthTiles`, `mapHeightTiles`, et en option `chunkSizeTiles`, `tileSizePx` et `isSolidTile`. Il ne prend ni `tilemap`, ni `tileSize`, ni `solidTiles`.
 
-**Paramètres:**
-| Paramètre | Type | Description |
-|---|---|---|
-| opts.tilemap | `TilemapData` | Données de tilemap |
-| opts.tileSize | `number` | Taille des tuiles en unités |
-| opts.solidTiles | `number[]` | IDs des tuiles qui sont solides |
-| opts.chunkSize | `number` | Taille de la grille de chunks (optionnel) |
-
-**Retourne:** `void`
+**Retourne :** `TilemapPhysicsChunkMap`
 
 ### patchTilemapPhysicsChunk(opts)
 
-**Signature:**
+**Signature :**
 ```ts
-function patchTilemapPhysicsChunk(opts: {
-  tilemap: TilemapData;
-  chunkX: number;
-  chunkY: number;
-}): void
+function patchTilemapPhysicsChunk(
+  input: PatchTilemapPhysicsChunkInput,
+): TilemapPhysicsChunkMap
 ```
 
-**Description.** Reconstruit la physique pour un seul chunk de tilemap (pour les éditions de tilemap dynamiques).
+**Description.** Reconstruit un chunk. Champs : `source` (`BuildTilemapPhysicsChunksInput`), `chunkX`, `chunkY` et `previous` (`TilemapPhysicsChunkMap`).
 
-**Paramètres:**
-| Paramètre | Type | Description |
-|---|---|---|
-| opts.chunkX | `number` | Chunk grille X |
-| opts.chunkY | `number` | Chunk grille Y |
-
-**Retourne:** `void`
+**Retourne :** `TilemapPhysicsChunkMap`
 
 ## Intégration Vite
 
@@ -448,7 +469,7 @@ function patchTilemapPhysicsChunk(opts: {
 
 **Signature:**
 ```ts
-function physics2dVitePlugin(options?: Physics2DVitePluginOptions): VitePlugin
+function physics2dVitePlugin(options?: Physics2DVitePluginOptions): Plugin
 // import { physics2dVitePlugin } from '@gwenjs/physics2d/module'
 ```
 
@@ -459,7 +480,7 @@ function physics2dVitePlugin(options?: Physics2DVitePluginOptions): VitePlugin
 |---|---|---|
 | options | `Physics2DVitePluginOptions` | Vide. Le plugin ne prend aucune option |
 
-**Retourne:** `VitePlugin`
+**Retourne :** `Plugin` (le type de plugin Vite). `Physics2DVitePluginOptions` est un enregistrement vide.
 
 > **Note :** `Physics2DConfig` n'a pas de clé `vite`. Le module appelle `physics2dVitePlugin()` sans option.
 > ```ts
@@ -487,67 +508,27 @@ Des itérations de solveur en plus ajoutent des sous-pas pour toute l'île qui c
 
 ### BoxColliderOptions
 
-```ts
-interface BoxColliderOptions {
-  width: number;
-  height: number;
-  sensor?: boolean;
-  density?: number;
-}
-```
+`BoxColliderOptions<"2d">` est le filtre partagé (`layer?`, `mask?`, `isSensor?`, `material?`) plus `w`, `h`, `offsetX?` et `offsetY?`. Il n'y a pas de champ `width`. `d` n'existe que sur la forme 3D.
 
 ### SphereColliderOptions
 
-```ts
-interface SphereColliderOptions {
-  radius: number;
-  sensor?: boolean;
-  density?: number;
-}
-```
+`SphereColliderOptions<"2d">` est le même filtre plus `radius`, `offsetX?` et `offsetY?`.
 
 ### CapsuleColliderOptions
 
-```ts
-interface CapsuleColliderOptions {
-  halfHeight: number;
-  radius: number;
-  sensor?: boolean;
-  density?: number;
-}
-```
+`CapsuleColliderOptions<"2d">` est le même filtre plus `radius`, `height`, `offsetX?` et `offsetY?`.
 
 ### DynamicBodyOptions
 
-```ts
-interface DynamicBodyOptions {
-  mass?: number;
-  linearDamping?: number;
-  angularDamping?: number;
-  gravityScale?: number;
-  restitution?: number;
-  friction?: number;
-  ccdEnabled?: boolean;
-}
-```
+Champs : `shape?` (`"box"` ou `"ball"`), `layer?`, `mask?`, `mass?`, `linearDamping?`, `angularDamping?`, `fixedRotation?`, `gravityScale?`.
 
 ### KinematicBodyOptions<"2d">
 
-```ts
-interface KinematicBodyOptions<"2d"> {
-  initialPosition?: { x: number; y: number };
-  initialRotation?: number;
-  fixedRotation?: boolean;
-}
-```
+Utilisez `KinematicBodyOptions<"2d">`. Champs : `initialPosition?` (`Vec2`), `initialRotation?` (radians), `fixedRotation?`. Le type est déclaré une fois, dans `@gwenjs/physics-core`.
 
 ### StaticBodyOptions
 
-```ts
-interface StaticBodyOptions {
-  friction?: number;
-}
-```
+Champs : `shape?` (`"box"` ou `"ball"`), `layer?`, `mask?`, `isSensor?`.
 
 ### QueryFilterOpts
 

@@ -9,6 +9,28 @@ description: API centré sur les composables pour la physique de corps rigides 3
 
 Les composables Physics 3D ajoutent la dynamique des corps rigides et les collisions aux acteurs dans l'espace tridimensionnel. Comme pour la 2D, ils sont appelés à l'intérieur de `defineActor()` et fonctionnent avec le graphe de scène. La physique 3D inclut des fonctionnalités avancées comme les raycasts, les shape casts et les colliders de mesh pour les environnements complexes.
 
+```ts check
+import { defineComponent, Types } from "@gwenjs/core";
+import { defineActor, definePrefab } from "@gwenjs/core/actor";
+import { useCapsuleCollider, useDynamicBody } from "@gwenjs/physics3d";
+import type { CapsuleColliderHandle3D, DynamicBodyHandle3D } from "@gwenjs/physics3d";
+
+const Position = defineComponent({
+  name: "DocsPhysics3dComposablePos",
+  schema: { x: Types.f32, y: Types.f32, z: Types.f32 },
+  defaults: { x: 0, y: 0, z: 0 },
+});
+
+const HeroPrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0, z: 0 } }]);
+
+export const HeroActor = defineActor(HeroPrefab, () => {
+  const body: DynamicBodyHandle3D = useDynamicBody({ mass: 1, fixedRotation: true });
+  const capsule: CapsuleColliderHandle3D = useCapsuleCollider({ radius: 0.4, height: 1.2 });
+  void body;
+  void capsule;
+});
+```
+
 ## Les bases
 
 Déclarez la physique 3D à l'intérieur de `defineActor()` — une fois par type d'acteur :
@@ -110,7 +132,7 @@ Ajoutez des formes de collision avec des composables collider. Un acteur peut av
 // Personnage avec capsule
 const CharacterActor = defineActor(CharacterPrefab, () => {
   useDynamicBody({ mass: 1 })
-  useCapsuleCollider({ radius: 0.4, length: 1.8 })
+  useCapsuleCollider({ radius: 0.4, height: 1.8 })
 })
 
 // Astéroïde avec enveloppe convexe
@@ -127,9 +149,9 @@ const RobotActor = defineActor(RobotPrefab, () => {
   useDynamicBody({ mass: 50 })
   useCompoundCollider({
     shapes: [
-      { type: 'box', w: 1, h: 2, d: 1, offsetY: 0.5 },    // corps
-      { type: 'sphere', radius: 0.5, offsetY: 2 },         // tête
-      { type: 'capsule', radius: 0.2, length: 1, offsetY: -0.5 } // jambes
+      { type: "box", halfX: 0.5, halfY: 1, halfZ: 0.5, offsetY: 0.5 },
+      { type: "sphere", radius: 0.5, offsetY: 2 },
+      { type: "capsule", radius: 0.2, halfHeight: 0.5, offsetY: -0.5 },
     ]
   })
 })
@@ -147,7 +169,7 @@ const TerrainActor = defineActor(TerrainPrefab, () => {
 **Boîte, sphère et capsule acceptent :**
 - `offsetX?: number`, `offsetY?: number`, `offsetZ?: number` — Décalage de position locale
 - `isSensor?: boolean` — Événements de chevauchement uniquement, pas de réponse physique
-- `layer?: number | string | Array<number | string>` — Appartenance. Un nombre est un masque brut. Une chaîne est un nom de bit de `Physics3DConfig.layers`. Un tableau est combiné par OU. Appliqué sur le backend WASM seulement.
+- `layer?: number | string | Array<number | string>` — Appartenance. Un nombre est un masque brut. Une chaîne est un nom de bit de `Physics3DConfig.layers`. Un tableau est combiné par OU.
 - `mask?: number | string | Array<number | string>` — Filtre de collision. Mêmes formes que `layer`.
 - `material?: string` — Nom de preset : `default`, `ice`, `rubber` ou `metal`. Un nom inconnu lève `PHYSICS3D:UNKNOWN_MATERIAL`. Résolu sur le backend WASM seulement.
 
@@ -162,13 +184,13 @@ const TerrainActor = defineActor(TerrainPrefab, () => {
 **Collider de boîte :**
 - `w: number` — Largeur (X)
 - `h: number` — Hauteur (Y)
-- `d: number` — Profondeur (Z)
+- `d?: number` — Profondeur (Z). Vaut `w` par défaut
 
 **Sphère et capsule :**
 - `radius: number` — Rayon
 
 **Capsule :**
-- `length: number` — Longueur de la section cylindrique
+- `height: number` — Longueur du cylindre. La demi-hauteur stockée est `height / 2`. `axis` est accepté et n'est pas appliqué
 
 **Collider convexe :**
 - `vertices: Float32Array` — Positions des sommets [x, y, z, x, y, z, ...]
@@ -327,9 +349,9 @@ Une articulation dont un ancrage, un axe, un ressort, une valeur de moteur ou un
 
 ## Couches de collision
 
-Un `layer` ou un `mask` de collider est un nombre, une chaîne ou un tableau. Un nombre est un masque brut. Une chaîne est un nom de bit de `Physics3DConfig.layers` (la valeur y est un index de bit, et le masque vaut `1 << index`). Un tableau est combiné par OU. Un filtre omis, ou un tableau vide, couvre tous les bits. Le filtre est appliqué sur le backend WASM seulement.
+Un `layer` ou un `mask` de collider est un nombre, une chaîne ou un tableau. Un nombre est un masque brut. Une chaîne est un nom de bit de `Physics3DConfig.layers` (la valeur y est un index de bit, et le masque vaut `1 << index`). Un tableau est combiné par OU. Un filtre omis, ou un tableau vide, couvre tous les bits.
 
-`defineLayers` renvoie les masques que vous passez (des masques de bits tels que `1 << 0`), prêts à servir de `layer` ou de `mask` numérique.
+`defineLayers` renvoie une copie superficielle du dictionnaire de masques que vous passez (des masques de bits tels que `1 << 0`), prêts à servir de `layer` ou de `mask` numérique.
 
 Utilisez les couches pour contrôler quels objets entrent en collision :
 
@@ -348,7 +370,7 @@ export const Layers = defineLayers({
 const PlayerActor = defineActor(PlayerPrefab, () => {
   useDynamicBody()
   useCapsuleCollider({
-    radius: 0.4, length: 1.8,
+    radius: 0.4, height: 1.8,
     layer: Layers.player,
     mask: Layers.terrain
   })
@@ -450,15 +472,19 @@ const TerrainActor = defineActor(TerrainPrefab, () => {
 - `angularDamping?: number` — Amortissement de la rotation (défaut: 0)
 - `ccdEnabled?: boolean` — Détection de collision continue (défaut: false)
 - `fixedRotation?: boolean` — Verrouiller la rotation (défaut: false)
-- `initialPosition?: Vec3` — Position initiale
-- `initialRotation?: Quat` — Rotation initiale (quaternion)
-- `initialLinearVelocity?: Vec3` — Vélocité initiale
-- `initialAngularVelocity?: Vec3` — Vélocité angulaire initiale
-- `quality?: 'fast' | 'medium' | 'high'` — Qualité du solveur (défaut: 'medium')
+- `initialPosition?: Partial<Vec3>` — Position initiale
+- `initialRotation?: Partial<Quat>` — Rotation initiale
+- `initialLinearVelocity?: Partial<Vec3>` — Vélocité initiale
+- `initialAngularVelocity?: Partial<Vec3>` — Vélocité angulaire initiale
+- `quality?: QualityPreset` — `'low'`, `'medium'`, `'high'` ou `'esport'` (défaut : `'medium'`)
+- `layer?`, `mask?`, `material?`, `isSensor?` — Sur le type, et non copiés sur le corps
 
 **Corps cinématique :**
 - `initialPosition?: Vec3`
 - `initialRotation?: Quat`
+- `fixedRotation?` — Quand c'est vrai, les appels de vélocité angulaire sont ignorés
+
+`useStaticBody` accepte `StaticBodyOptions3D` (`isSensor`, `layer`, `mask`, `material`) et ne lit pas ces champs.
 
 ### Application des forces
 
@@ -510,7 +536,7 @@ const TerrainActor = defineActor(TerrainPrefab, () => {
 
 | Fonction | Retours | Objectif |
 |---|---|---|
-| `useStaticBody()` | `void` | Corps statique (immobile). |
+| `useStaticBody(opts?)` | `StaticBodyHandle3D` | Corps statique (immobile). Les options ne sont pas lues. |
 | `useDynamicBody(opts?)` | `DynamicBodyHandle3D` | Corps entièrement simulé. |
 | `useKinematicBody(opts?)` | `KinematicBodyHandle3D` | Corps piloté manuellement. |
 | `useBoxCollider(opts)` | `BoxColliderHandle3D` | Collider en forme de boîte. |
@@ -530,7 +556,7 @@ const TerrainActor = defineActor(TerrainPrefab, () => {
 
 | Fonction | Signature du callback | Objectif |
 |---|---|---|
-| `onContact(callback)` | `(contact: CollisionContact) => void` | Événement de collision. |
+| `onContact(callback)` | `(contact: CollisionContact) => void` | Chaque contact de ce moteur. Retourne `() => void`. |
 | `onSensorEnter(sensorId, cb)` | `(entityId: bigint) => void` | Entrée de capteur. |
 | `onSensorExit(sensorId, cb)` | `(entityId: bigint) => void` | Sortie de capteur. |
 
