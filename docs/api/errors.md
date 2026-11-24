@@ -642,6 +642,10 @@ Cause. `publint --strict` reports a message, and warnings count as errors. The f
 
 Cause. A name listed in `public-api.snap.json` (a value or a type, of any subpath) is not written in the package `README.md` as a whole identifier: `readyState` does not mention `ready`. One finding per distinct name, for the first subpath that lists it. The name `default` is never required. A missing `README.md` is one finding, `README.md is missing`; a `README.md` that exists and cannot be read (for example, a directory) is one finding, `README.md cannot be read (<code>)`. The check reads the snapshot after a write and runs only when `exports` has no finding. Fix. Document the name in `README.md`, or stop exporting it.
 
+### CONFORMANCE:RUNTIME_COMPOSABLE_CONTEXT {#conformance-runtime-composable-context}
+
+Cause. A function export of the built root entry whose name matches `use` or `on` followed by a capital letter (`packages/plugin-conformance/src/composable-surface.ts:7`, `packages/plugin-conformance/src/composable-surface.ts:40`) does not throw, when called with no arguments, an error whose `code` is a value of `GwenContextErrorCodes` (`packages/kit/src/context-errors.ts:14`) and whose `composable` equals that export name (`packages/kit/src/context-errors.ts:103`). The comparison reads `code` and `composable`. It does not use `instanceof`. An entry with no such export passes. The message names the export, and names both names when `composable` is another name. Fix. Throw that error from the export, with `composable` set to its name.
+
 ### CONFORMANCE:RUNTIME_DEV_WARNING {#conformance-runtime-dev-warning}
 
 Cause. The engine logger recorded an entry at level `warn` or `error` during the run (`packages/schema/src/logger-structured.ts:2`). The message names that entry. `debug` and `info` are not reported. The engine copies a bus event onto the logger (`packages/core/src/engine/engine-error-policy.ts:408`) with the same message and `payload.code` set to the event code. That copy is not a second finding. Fix. Remove the `warn` or `error` call.
@@ -649,6 +653,10 @@ Cause. The engine logger recorded an entry at level `warn` or `error` during the
 ### CONFORMANCE:RUNTIME_FRAME_EVENT {#conformance-runtime-frame-event}
 
 Cause. `engine.errors` emitted an event at level `warning`, `error`, or `fatal` during the frames, and the code was not `CORE:QUERY_PER_ENTITY_PATH`. The message names the event code, the event message, and the frame. The frame is the 1-based index of that `engine:update`: the third frame is 3. `engine.frameCount` during the hook is still the previous count, because `frameCompleted` runs after the hook (`packages/core/src/engine/engine-loop.ts:385`, `packages/core/src/engine/engine-loop.ts:427`, `packages/core/src/engine/engine-stats.ts:73`). Fix. Stop emitting that event, or lower its level below `warning`.
+
+### CONFORMANCE:RUNTIME_MODULE {#conformance-runtime-module}
+
+Cause. The check runs only when `package.json` `exports` has `"./module"` (`packages/plugin-conformance/src/runtime/package-manifest.ts:105`, `packages/plugin-conformance/src/runtime/load-package.ts:116`). The default export's `meta.name` is read the way `validateGwenModule` reads it (`packages/kit/src/define-module.ts:69`) and must equal the package name. `setup` is called with the module `defaults`, or `{}`, and a recording kit (`packages/schema/src/module.ts:193`): `addPlugin` records, `addAutoImports`, `addVitePlugin`, `extendViteConfig`, and `hook` are inert, and `options` is `{}`. Each recorded value must be a plain object (`packages/app/src/app.ts:433`) with string `src` equal to the package name (`packages/app/src/app.ts:434`), no function value (`packages/app/src/app.ts:357`), and string `export` naming one entry of `spec.factories`. A plugin instance (`name` and `setup`) is one finding. The message names the package and the observed value. `name`, `requires`, and `provides` of a declaration are not checked yet (`packages/schema/src/module.ts:162`). Fix. Set `meta.name` to the package name, and pass `addPlugin` a declaration `{ src, export }` for a factory of this package.
 
 ### CONFORMANCE:RUNTIME_PER_ENTITY_PATH {#conformance-runtime-per-entity-path}
 

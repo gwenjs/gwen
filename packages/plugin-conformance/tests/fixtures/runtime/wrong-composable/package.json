@@ -1,0 +1,9 @@
+{
+  "name": "@fixture/wrong-composable",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js"
+    }
+  }
+}
