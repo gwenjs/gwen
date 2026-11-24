@@ -1,11 +1,19 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { PluginConformanceSpec } from "@gwenjs/plugin-conformance/runtime";
+import {
+  runPluginConformance,
+  type PluginConformanceSpec,
+} from "@gwenjs/plugin-conformance/runtime";
 import { describe, expect, it } from "vitest";
 import { registerPluginConformance } from "../../src/run-plugin-conformance-suite.js";
-import { writeBasePackage, writeExtensionPackage } from "../helpers/extension-runtime.js";
+import {
+  baseModuleSource,
+  writeBasePackage,
+  writeBaseSurfacePackage,
+  writeExtensionPackage,
+} from "../helpers/extension-runtime.js";
 import { withPrivateTmpdir } from "../helpers/fixture.js";
-import { factorySource, spec, writePluginPackage } from "../helpers/runtime.js";
+import { factorySource, findingsOfCode, spec, writePluginPackage } from "../helpers/runtime.js";
 
 interface RecordedRow {
   readonly name: string;
@@ -273,8 +281,7 @@ describe("registerPluginConformance", () => {
       "RX1-RX5 extension (Beta)",
       "RX6 requirement form (Alpha)",
       "RX6 requirement form (Beta)",
-      "RB1 base surface (Alpha)",
-      "RB1 base surface (Beta)",
+      "RB1 base surface",
       ...plainNames.slice(18),
     ];
 
@@ -325,6 +332,35 @@ describe("registerPluginConformance", () => {
         }),
       );
       expect(rows.map((row) => row.name)).toEqual(plainNames);
+    });
+  });
+
+  it("the RB1 row passes when a second factory is not a base", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      const packageName = "fixture-two-factories";
+      const source = `${baseModuleSource({
+        exportName: "Base",
+        packageName,
+        pluginName: packageName,
+        hookNamespace: packageName,
+      })}${factorySource("Helper")}`;
+      await writeBaseSurfacePackage(dir, { name: packageName, source });
+      const input = spec({
+        root: dir,
+        packageName,
+        factories: [{ export: "Base" }, { export: "Helper" }],
+      });
+      const report = await runPluginConformance(input);
+      expect(findingsOfCode(report, "CONFORMANCE:RUNTIME_EXTENSION_API")).toEqual([]);
+      const { rows } = record(input);
+      const rb1 = rows.filter((row) => row.name.startsWith("RB1"));
+      const thrown: string[] = [];
+      for (const row of rb1) {
+        const message = await thrownMessage(row);
+        if (message !== undefined) thrown.push(`${row.name}: ${message}`);
+      }
+      expect(thrown).toEqual([]);
+      expect(rb1.map((row) => row.name)).toEqual(["RB1 base surface"]);
     });
   });
 
