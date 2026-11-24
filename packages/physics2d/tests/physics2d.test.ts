@@ -116,7 +116,7 @@ vi.mock("@gwenjs/core/internal", async (importOriginal) => {
 import { createEntityId, createLogger } from "@gwenjs/core";
 import type { GwenLogEntry } from "@gwenjs/schema";
 import { engineContext, getWasmBridge } from "@gwenjs/core/internal";
-import { Physics2DPlugin } from "../src";
+import { onContact, Physics2DPlugin } from "../src";
 import { physics2D } from "../src/plugin/index.js";
 
 function slotId(slot: number) {
@@ -295,11 +295,36 @@ describe("Physics2DPlugin", () => {
     expect(mockWasmPlugin.physics_step).toHaveBeenCalledTimes(1);
   });
 
+  it("does not step on a NaN delta", async () => {
+    const plugin = Physics2DPlugin();
+    await initPlugin(plugin, mockBridge, mockEngine);
+    await mockEngine.hooks._trigger("engine:before-update", Number.NaN);
+    expect(mockWasmPlugin.physics_step).toHaveBeenCalledTimes(0);
+  });
+
   // ── teardown ──────────────────────────────────────────────────────────────
 
   it("teardown is safe to call before setup", () => {
     const plugin = Physics2DPlugin();
     expect(() => plugin.teardown!()).not.toThrow();
+  });
+
+  it("Physics2DPlugin().teardown() outside an engine does not throw", () => {
+    engineContext.unset();
+    const plugin = Physics2DPlugin();
+    let code = "";
+    try {
+      plugin.teardown?.();
+      code = "none";
+    } catch (error: unknown) {
+      if (typeof error === "object" && error !== null && "code" in error) {
+        const value = error.code;
+        code = typeof value === "string" ? value : "thrown";
+      } else {
+        code = "thrown";
+      }
+    }
+    expect(code).toBe("none");
   });
 
   it("getCollisionEventsBatch on a held service returns an empty batch after teardown", async () => {
@@ -1494,6 +1519,41 @@ describe("Physics2DPlugin — onUpdate policy", () => {
       expect.arrayContaining([expect.objectContaining({ started: true })]),
     );
     expect(onCollision).toHaveBeenCalled();
+  });
+
+  it("prefab onCollision callbacks run after every onContact callback of the frame", async () => {
+    const plugin = Physics2DPlugin();
+    const engine = makeMockEngine(mockWasmPlugin);
+    const entityA = createEntityId(7, 0);
+    const order: string[] = [];
+    await initPlugin(plugin, mockBridge, engine);
+    onContact(() => {
+      order.push("onContact");
+    }, entityA);
+    await engine.hooks._trigger("prefab:instantiate", entityA, {
+      physics2d: {
+        colliders: [{ shape: "ball", radius: 6 }],
+        onCollision: () => {
+          order.push("onCollision");
+        },
+      },
+    });
+    await publishOwners(engine, [8]);
+    const memory = mockBridge.getLinearMemory();
+    const view = new DataView(memory.buffer);
+    for (let index = 0; index < 2; index += 1) {
+      const base = index * 20;
+      view.setUint32(base, 7, true);
+      view.setUint32(base + 4, 8, true);
+      view.setUint32(base + 8, 0xffffffff, true);
+      view.setUint32(base + 12, 0xffffffff, true);
+      view.setUint8(base + 16, 1);
+    }
+    mockWasmPlugin.physics_get_collision_events_ptr.mockReturnValue(0);
+    mockWasmPlugin.physics_get_collision_event_count.mockReturnValue(2);
+    await engine.hooks._trigger("engine:before-update", 0.016);
+    await engine.hooks._trigger("engine:update", 0.016);
+    expect(order).toEqual(["onContact", "onContact", "onCollision", "onCollision"]);
   });
 });
 
