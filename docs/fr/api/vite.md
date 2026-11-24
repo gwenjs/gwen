@@ -179,7 +179,7 @@ export default defineConfig({
 Plugin Vite de build pour le support de la physique 3D. Fournit deux fonctionnalités :
 
 1. **Inlining des layers** — l'unité `gwen:layer-inline`, enregistrée sur `gwen:transform-pipeline`. Les références de layers nommés deviennent leurs valeurs numériques. L'usage manuel exige que `gwen()` soit dans la config Vite.
-2. **Pré-baking BVH** — lorsque `bvhPrebake: true`, détecte les patterns d'appel `useMeshCollider('./file.glb')` et pré-compile la structure d'accélération BVH au moment du build. L'argument chaîne est remplacé par `{ __bvhUrl: 'bvh-<hash>.bin' }`, de sorte que le calcul BVH coûteux est effectué une seule fois lors du build plutôt qu'à l'exécution.
+2. **Pré-baking BVH** — lorsque `bvhPrebake: true`, l'unité `gwen:bvh-prebake` réécrit `useMeshCollider` quand son premier argument est une chaîne `.glb` relative (`./` ou `../`). Les arguments deviennent `{ __bvhUrl: "bvh-<hash>.bin" }`. Un build émet ce nom de fichier. En dev, les mêmes octets sont servis en mémoire sur `GET <base><name>`. Un fichier absent ou un calcul en échec lève `VITE:BVH_PREBAKE_FAILED`. `useConvexCollider` n'est pas réécrit. Les autres clés du second argument sont abandonnées.
 
 :::tip Enregistrement automatique
 Lorsque vous utilisez le module `@gwenjs/physics3d` dans `gwen.config.ts`, ce plugin est enregistré automatiquement. Vous n'avez pas besoin de l'ajouter manuellement dans la plupart des cas.
@@ -219,7 +219,7 @@ export default defineConfig({
 
 | Option | Type | Défaut | Description |
 |---|---|---|---|
-| `bvhPrebake` | `boolean` | `false` | Pré-compile les structures BVH pour les mesh colliders au moment du build. |
+| `bvhPrebake` | `boolean` | `false` | Réécrit un chemin `.glb` relatif de `useMeshCollider`. En dev, l'asset calculé est servi depuis la mémoire. |
 
 ---
 

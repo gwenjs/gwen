@@ -72,9 +72,10 @@ function createContext(
   comments: TransformContext["comments"],
   autoImports: readonly AutoImport[],
   followed: ReadonlyMap<string, GwenImportBinding>,
+  emitFile: TransformContext["emitFile"],
 ): TransformContext {
   const resolver = createModuleResolver({ program, code, autoImports, followed });
-  return {
+  const context: TransformContext = {
     id,
     code,
     comments,
@@ -82,16 +83,22 @@ function createContext(
     calls: resolver.calls,
     resolveImport: resolver.resolveImport,
     isModuleScopeBinding: resolver.isModuleScopeBinding,
-    raise(errorCode, node, what, hint): never {
+    raise(errorCode, node, what, hint, cause): never {
       const place = lineColumn(code, node.start);
       const hintText = hint === undefined ? undefined : devHint(hint);
-      const error = new GwenError(errorCode, what, { composable: "gwen", hint: hintText });
+      const error = new GwenError(errorCode, what, {
+        composable: "gwen",
+        hint: hintText,
+        cause,
+      });
       // Vite's `generateCodeFrame` and `originalPositionFor` take a 0-based column.
       throw Object.assign(error, {
         loc: { file: id, line: place.line, column: place.column - 1 },
       });
     },
   };
+  if (emitFile === undefined) return context;
+  return { ...context, emitFile };
 }
 
 export function createTransformPipeline(options: {
@@ -105,6 +112,7 @@ export function createTransformPipeline(options: {
   let frozen = false;
   let projectRoot = "";
   let projectAliases: readonly Alias[] = [];
+  let command = "serve";
   const barrelCache = new Map<string, Barrels>();
 
   function orderUnits(
@@ -162,6 +170,7 @@ export function createTransformPipeline(options: {
     configResolved(config) {
       projectRoot = config.root;
       projectAliases = config.resolve.alias;
+      command = config.command;
     },
     buildStart() {
       ordered = orderUnits(builtIns, registered);
@@ -182,6 +191,11 @@ export function createTransformPipeline(options: {
                 cache: barrelCache,
                 resolve: (specifier, importer) => this.resolve(specifier, importer),
               });
+        const emitFile =
+          command === "build"
+            ? (asset: { type: "asset"; fileName: string; source: Uint8Array }): string =>
+                this.emitFile({ type: "asset", fileName: asset.fileName, source: asset.source })
+            : undefined;
         const context = createContext(
           id,
           code,
@@ -189,6 +203,7 @@ export function createTransformPipeline(options: {
           parsed.comments,
           autoImports,
           followed,
+          emitFile,
         );
         const tagged: Array<TransformEdit & { unit: string }> = [];
         for (const unit of units) {

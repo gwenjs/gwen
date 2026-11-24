@@ -194,20 +194,22 @@ useMeshCollider('./terrain.glb')
 useMeshCollider({ vertices: myFloat32Array, indices: myUint32Array })
 ```
 
-#### useConvexCollider(path | options)
+#### useConvexCollider(options)
 
 ```ts
-function useConvexCollider(source: string | {
+function useConvexCollider(options: {
   vertices: Float32Array
-  sensor?: boolean
-  density?: number
-}): void
+  isSensor?: boolean
+  layer?: number | string | readonly (number | string)[]
+  mask?: number | string | readonly (number | string)[]
+  material?: string
+}): { colliderId: number; remove(): void }
 ```
 
-Ajoute un collider d'enveloppe convexe. Plus rapide que le trimesh ; adapté aux corps dynamiques.
+Ajoute un collider d'enveloppe convexe à partir d'un nuage de sommets (`packages/physics3d/src/composables/use-convex-collider.ts:21`). Plus rapide qu'un trimesh ; adapté aux corps dynamiques. Un chemin `.glb` n'est pas accepté.
 
 ```ts
-useConvexCollider('./rock.glb')
+useConvexCollider({ vertices: new Float32Array(12) })
 ```
 
 ### Événements
@@ -413,7 +415,7 @@ interface GwenPhysics3DPluginOptions {
 Le plugin fait deux travaux au moment du build :
 
 1. **Intégration des calques** — enregistre `gwen:layer-inline` sur `gwen:transform-pipeline`. `Layers.player` devient son masque de bits. Une config Vite manuelle exige `gwen()` dans la config Vite.
-2. **Pré-calcul BVH** (opt-in) — détecte les occurrences de `useMeshCollider('./terrain.glb')`, compile le BVH au moment du build et remplace le chemin par `{ __bvhUrl: 'bvh-<hash>.bin' }`.
+2. **Pré-calcul BVH** (opt-in) — `useMeshCollider('./terrain.glb')` (un chemin `../` aussi) est réécrit en `useMeshCollider({ __bvhUrl: "bvh-<hash>.bin" })`. Le build émet ce fichier. En dev, les mêmes octets sont servis en mémoire. Un fichier absent ou un calcul en échec lève `VITE:BVH_PREBAKE_FAILED`. `useConvexCollider` n'est pas réécrit.
 
 :::tip Flux de travail BVH pre-bake
 Activez `bvhPrebake: true` (via `vite.bvhPrebake` dans la configuration du module) pour les grands maillages de terrain. Le BVH est compilé une seule fois au moment du build et servi sous forme d'asset binaire, de sorte que l'initialisation du raycast à l'exécution est quasi instantanée — sans coût de reconstruction BVH par frame.

@@ -18,7 +18,7 @@ export interface Physics3DConfig extends PhysicsConfigBase<"3d"> {
   vite?: {
     /**
      * Pre-bake BVH acceleration structures for `useMeshCollider('./file.glb')`
-     * and `useConvexCollider('./file.glb')` patterns at build time.
+     * patterns at build time.
      *
      * Requires the `physics3d/build-tools` Node.js WASM to be built first
      * (`pnpm run build:wasm` inside `packages/physics3d`).

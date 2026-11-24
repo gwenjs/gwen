@@ -91,12 +91,13 @@ export interface TransformContext {
   calls(): readonly GwenCallSite[];
   resolveImport(node: Node): GwenImportBinding | null;
   isModuleScopeBinding(name: string, at: number): boolean;
-  emitFile?(asset: { type: "asset"; name: string; source: Uint8Array }): string;
+  emitFile?(asset: { type: "asset"; fileName: string; source: Uint8Array }): string;
   raise(
     code: ViteErrorCode,
     node: { start: number; end: number },
     what: string,
     hint?: string | undefined,
+    cause?: unknown,
   ): never;
 }
 

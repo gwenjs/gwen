@@ -242,7 +242,7 @@ Cause. Thrown from four sites. `register()` was called after `gwen:transform-pip
 
 ### VITE:BVH_PREBAKE_FAILED {#vite-bvh-prebake-failed}
 
-Cause. Declared on `ViteErrorCodes` for the later BVH prebake step. This code has no throw site yet. Fix. Read the prebake message when that step throws it.
+Cause. `gwen:bvh-prebake` throws this when a relative `useMeshCollider` `.glb` is not on disk (`packages/vite/src/transforms/bvh-prebake.ts:134`), or when reading that file or baking it throws (`packages/vite/src/transforms/bvh-prebake.ts:102`). An absent file names the absolute path. A thrown bake names the relative path and keeps the original error as `cause`. The `Fix:` line is present only when `NODE_ENV` is not `production` (`packages/vite/src/pipeline/dev-hint.ts:7`). Fix. Check the path relative to the importing file. Export the mesh as triangles.
 
 ## @gwenjs/math
 
