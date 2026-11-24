@@ -5,6 +5,7 @@ import {
   useSystem,
   onEnter,
   onExit,
+  onPreload,
   onTransitionExit,
   onTransitionEnter,
 } from "../../src/scene/runtime/scene-context";
@@ -89,6 +90,33 @@ describe("defineScene composable API", () => {
 
   it("onTransitionEnter throws GwenContextError if called outside a factory", () => {
     expect(() => onTransitionEnter(() => {})).toThrow(GwenContextError);
+  });
+
+  it("onPreload throws GwenContextError CORE:OUTSIDE_SCENE_CONTEXT naming onPreload outside a factory", () => {
+    let error: unknown;
+    try {
+      onPreload(() => {});
+    } catch (caught) {
+      error = caught;
+    }
+    expect(error).toBeInstanceOf(GwenContextError);
+    if (!(error instanceof GwenContextError)) return;
+    expect(error.code).toBe("CORE:OUTSIDE_SCENE_CONTEXT");
+    expect(error.composable).toBe("onPreload");
+  });
+
+  it("onPreload accumulates in call order and is stored on the definition", () => {
+    const a = (): void => {};
+    const b = (): void => {};
+    const WithPreload = defineScene("WithPreload", () => {
+      onPreload(a);
+      onPreload(b);
+    });
+    const def = WithPreload(REGISTRY);
+    expect(def.onPreload).toEqual([a, b]);
+
+    const WithoutPreload = defineScene("WithoutPreload", () => {});
+    expect("onPreload" in WithoutPreload(REGISTRY)).toBe(false);
   });
 
   it("onTransitionExit callback is captured and stored", () => {

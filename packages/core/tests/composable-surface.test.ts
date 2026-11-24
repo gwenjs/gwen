@@ -142,6 +142,7 @@ const SURFACE: Record<EntryName, Classification> = {
       "onExit",
       "onTransitionExit",
       "onTransitionEnter",
+      "onPreload",
     ],
     allowlist: {},
   },
