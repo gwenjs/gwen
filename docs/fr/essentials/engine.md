@@ -79,7 +79,7 @@ Vite est une pile à part. La base GWEN passe d'abord, puis les extensions enreg
 | `APP:CONFIG_LOAD_FAILED` | `[GWEN] No gwen.config.ts (or .js / .mjs / .cjs) found in <cwd>.` et `See https://gwenjs.github.io/gwen/api/errors#app-config-load-failed (APP:CONFIG_LOAD_FAILED)` |
 | `CORE:INVALID_CONFIG` | `Invalid config "maxEntities": -1.` |
 
-Sources : `packages/app/src/app.ts:459`, `packages/app/src/config.ts:79-91`, `packages/app/src/config.ts:93-99`, `packages/vite/src/index.ts:491-513`, `packages/app/src/app.ts:200-202`, `packages/app/src/app.ts:257`, `packages/app/src/merge.ts:21-22`, `packages/app/src/config-error.ts:14-22`, `packages/app/tests/config-layering.test.ts:128-130`, `packages/app/tests/config-layering.test.ts:133-138`, `packages/app/tests/config-layering.test.ts:541-549`, `packages/app/tests/config-layering.test.ts:154-157`, `packages/app/src/config-loader.ts:118`, `packages/app/tests/config-loader.test.ts:123-126`, `packages/core/src/engine/config-error.ts:30`, `packages/core/tests/engine/config-validator.test.ts:33`.
+Sources : `packages/app/src/app.ts:459`, `packages/app/src/config.ts:79-91`, `packages/app/src/config.ts:93-99`, `packages/vite/src/index.ts:134-166`, `packages/app/src/app.ts:200-202`, `packages/app/src/app.ts:257`, `packages/app/src/merge.ts:21-22`, `packages/app/src/config-error.ts:14-22`, `packages/app/tests/config-layering.test.ts:128-130`, `packages/app/tests/config-layering.test.ts:133-138`, `packages/app/tests/config-layering.test.ts:541-549`, `packages/app/tests/config-layering.test.ts:154-157`, `packages/app/src/config-loader.ts:118`, `packages/app/tests/config-loader.test.ts:123-126`, `packages/core/src/engine/config-error.ts:30`, `packages/core/tests/engine/config-validator.test.ts:33`.
 
 ## Étendre Vite
 
@@ -370,7 +370,7 @@ L'import `GwenCoreGlueFactoryModule` ne sert qu'à typer la fonction. Le vrai co
 
 `wasmInstance: "isolated"` donne à chaque moteur sa propre instance WASM et sa propre mémoire linéaire. Pour compiler une fois et partager le résultat, passez `wasmModule: await WebAssembly.compile(wasmBytes)` à la place de `wasmBytes`. Utilisez `variant: "physics2d"` ou `"physics3d"` avec l'import `@gwenjs/core/wasm/<variant>/factory` correspondant.
 
-`engine.loadWasmModule({ name, bytes })` charge un module communautaire sur un serveur sans téléchargement. Passez `module` pour un `WebAssembly.Module` déjà compilé. Passez exactement un parmi `url`, `bytes` ou `module`. Zéro ou plusieurs, ou des octets invalides, rejettent avec `CORE:WASM_LOAD_ERROR`.
+`engine.loadWasmModule({ name, bytes })` charge un module communautaire sur un serveur sans téléchargement. Passez `module` pour un `WebAssembly.Module` déjà compilé. Passez exactement un parmi `url`, `bytes` ou `module`. Zéro ou plusieurs, ou des octets invalides, rejettent avec `CORE:WASM_LOAD_ERROR`. Une source `url` est à vous de servir : le plugin Vite ne sert plus `/wasm/` et ne copie plus le wasm d'un plugin. Pointez `url` vers `new URL("./x.wasm", import.meta.url)`.
 
 ### Plusieurs rooms sur des worker threads
 

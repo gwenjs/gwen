@@ -1,8 +1,8 @@
 # @gwenjs/vite
 
-**GWEN Vite Plugin — WASM hot-reload, asset management, and scene auto-discovery**
+**GWEN Vite Plugin — manifest injection, virtual entry, and scene scan**
 
-Integrate GWEN with Vite for seamless development with WASM hot-reloading.
+Integrate GWEN with Vite: inject the manifest, resolve the virtual entry, and scan scenes.
 
 ## Installation
 
@@ -21,8 +21,7 @@ import { gwen } from "@gwenjs/vite";
 export default defineConfig({
   plugins: [
     gwen({
-      cratePath: "./crates/gwen-core",
-      watch: true,
+      manifestPath: "./gwen-manifest.json",
     }),
   ],
 });
@@ -42,19 +41,7 @@ export default defineConfig({
 
 ## Features
 
-### 1. **WASM Hot-Reload**
-
-Automatically rebuilds Rust/WASM code when `.rs` files change, then triggers HMR.
-
-```typescript
-gwen({
-  cratePath: "../crates/gwen-core",
-  watch: true,
-  wasmMode: "debug", // 'debug' for dev, 'release' for build
-});
-```
-
-### 2. **Scene Auto-Discovery**
+### 1. **Scene Auto-Discovery**
 
 Scans `src/scenes/` and generates scene registry automatically.
 
@@ -63,7 +50,7 @@ Scans `src/scenes/` and generates scene registry automatically.
 // Example: src/scenes/GameScene.ts → auto-registered
 ```
 
-### 3. **Manifest Injection**
+### 2. **Manifest Injection**
 
 Injects `gwen-manifest.json` as a virtual module.
 
@@ -74,7 +61,7 @@ console.log(manifest.version);
 console.log(manifest.buildDate);
 ```
 
-### 4. **RFC-008 Transform (incremental)**
+### 3. **RFC-008 Transform (incremental)**
 
 `gwenTransform()` exposes the compile-time transform contract used by RFC-008.
 Current implemented behavior is intentionally safe and incremental:
@@ -108,23 +95,8 @@ import { gwenTransform } from "@gwenjs/vite";
 
 ```typescript
 interface GwenPluginOptions {
-  // Path to Rust crate (containing Cargo.toml)
-  cratePath?: string;
-
-  // URL prefix for served WASM files (default: '/wasm')
-  wasmPublicPath?: string;
-
-  // Enable WASM file watching (default: true in dev, false in build)
-  watch?: boolean;
-
-  // Compilation mode: 'debug' (fast) or 'release' (optimized)
-  wasmMode?: "release" | "debug";
-
   // Path to gwen-manifest.json (optional)
   manifestPath?: string;
-
-  // Enable verbose logging
-  verbose?: boolean;
 }
 
 interface GwenTransformOptions {
@@ -157,25 +129,7 @@ import { gwen } from "@gwenjs/vite";
 export default defineConfig({
   plugins: [
     gwen({
-      cratePath: "./crates/gwen-core",
-      watch: process.env.NODE_ENV === "development",
-      wasmMode: "debug",
-      verbose: true,
-    }),
-  ],
-});
-```
-
-### Production Optimized Build
-
-```typescript
-// vite.config.ts
-export default defineConfig({
-  plugins: [
-    gwen({
-      cratePath: "./crates/gwen-core",
-      wasmMode: "release", // Optimized binary
-      watch: false,
+      manifestPath: "./gwen-manifest.json",
     }),
   ],
 });
@@ -212,28 +166,14 @@ import manifest from "virtual:gwen-manifest";
 
 console.log(manifest.version); // Package version
 console.log(manifest.buildDate); // Build timestamp
-console.log(manifest.wasmPath); // Path to WASM binary
 ```
 
 ## Troubleshooting
-
-### WASM Files Not Updating
-
-- Ensure `watch: true` is set in dev mode
-- Check that `cratePath` points to the correct Cargo.toml
-- Verify WASM builds succeed with `cargo build --target wasm32-unknown-unknown`
 
 ### Scene Discovery Not Working
 
 - Place scenes in `src/scenes/` directory
 - Call `defineScene()` with a string literal name. A helper file starts with `_`
-- Check browser console for auto-discovery logs with `verbose: true`
-
-## Performance Tips
-
-- Use `wasmMode: 'debug'` during development (faster rebuilds)
-- Use `wasmMode: 'release'` for production builds
-- Enable `watch: false` in production configuration
 
 ## See Also
 
