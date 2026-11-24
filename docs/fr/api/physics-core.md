@@ -10,16 +10,16 @@ description: Types physiques partagés, masques de calques et lecture des évén
 Une seule déclaration pour une option de collider, un callback de capteur et un masque de calques. `@gwenjs/physics2d` et `@gwenjs/physics3d` adaptent ce paquet.
 
 ```ts check
-import { defineLayers } from '@gwenjs/physics-core'
-import type { KinematicBodyOptions } from '@gwenjs/physics-core'
+import { defineLayers } from "@gwenjs/physics-core";
+import type { KinematicBodyOptions } from "@gwenjs/physics-core";
 
-const masks = defineLayers({ ground: 1 << 0, player: 1 << 1 })
-const player: number = masks.player
+const masks = defineLayers({ ground: 1 << 0, player: 1 << 1 });
+const player: number = masks.player;
 
-const pose: KinematicBodyOptions<'2d'> = {
+const pose: KinematicBodyOptions<"2d"> = {
   initialPosition: { x: 0, y: 2 },
   initialRotation: 0,
-}
+};
 ```
 
 ## Calques
@@ -40,7 +40,7 @@ Un compte de 0 n'écrit rien. Un compte au-delà du pool s'arrête au pool.
 
 ## Callbacks
 
-`onContact`, `onSensorEnter` et `onSensorExit` utilisent le moteur courant. Hors de ce contexte, ils lèvent `GwenContextError` avec le code `CORE:OUTSIDE_ENGINE_CONTEXT`. La liste d'un moteur disparaît avec son `stop()`. Un retrait pendant `emit` attend la fin du `emit` le plus extérieur, et l'entrée reste dans la liste pendant ce parcours. Hors de `emit`, l'entrée part tout de suite. `clearEngineContacts` et `stop()` vident les listes tout de suite, même pendant un parcours. `ContactRegistry.removeEntity` retire chaque entrée de cette entité. `SensorRegistry.remove` retire chaque entrée dont le callback est dans la liste. Un `remove` vide ne retire rien.
+`onContact`, `onSensorEnter` et `onSensorExit` utilisent le moteur courant. Hors de ce contexte, ils lèvent `GwenContextError` avec le code `CORE:OUTSIDE_ENGINE_CONTEXT`. La liste d'un moteur disparaît avec son `stop()`. Un retrait pendant `emit` attend la fin du `emit` le plus extérieur, et l'entrée reste dans la liste pendant ce parcours. Hors de `emit`, l'entrée part tout de suite. `clearEngineContacts` et `stop()` vident les listes tout de suite, même pendant un parcours. `ContactRegistry.removeEntity` retire chaque entrée de cette entité. `SensorRegistry.remove` retire chaque entrée dont le callback est dans la liste. Un `remove` vide ne retire rien. `onSensorEnter` et `onSensorExit` prennent un `ownerEntityId` optionnel. Quand il est passé, le callback ne part que pour cette entité. Quand il est omis, le callback part pour chaque entité. `emit` garde l'ordre d'inscription et ignore un propriétaire qui n'est pas l'entité de l'événement. `SensorRegistry.removeOwned(entityId, sensorId?)` retire les callbacks de ce propriétaire. Un `sensorId` ne retire que ce capteur. Un second appel ne retire rien. Pendant `emit`, le retrait attend la fin du `emit` le plus extérieur.
 
 ## Module
 

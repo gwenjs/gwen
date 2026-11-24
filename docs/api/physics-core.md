@@ -10,16 +10,16 @@ description: Shared physics types, layer masks and collision-event readers for b
 One declaration of a collider option, a sensor callback and a layer mask. `@gwenjs/physics2d` and `@gwenjs/physics3d` adapt this package. They do not declare those shapes again.
 
 ```ts check
-import { defineLayers } from '@gwenjs/physics-core'
-import type { KinematicBodyOptions } from '@gwenjs/physics-core'
+import { defineLayers } from "@gwenjs/physics-core";
+import type { KinematicBodyOptions } from "@gwenjs/physics-core";
 
-const masks = defineLayers({ ground: 1 << 0, player: 1 << 1 })
-const player: number = masks.player
+const masks = defineLayers({ ground: 1 << 0, player: 1 << 1 });
+const player: number = masks.player;
 
-const pose: KinematicBodyOptions<'2d'> = {
+const pose: KinematicBodyOptions<"2d"> = {
   initialPosition: { x: 0, y: 2 },
   initialRotation: 0,
-}
+};
 ```
 
 ## Layers
@@ -40,7 +40,7 @@ A count of 0 writes nothing. A count past the pool stops at the pool.
 
 ## Callbacks
 
-`onContact`, `onSensorEnter` and `onSensorExit` use the current engine. Outside that context they throw `GwenContextError` with code `CORE:OUTSIDE_ENGINE_CONTEXT`. Each engine's list dies with that engine's `stop()`. A removal during `emit` waits until the outermost `emit` returns, and that entry stays in the list for the walk. Outside `emit` the entry drops at once. `clearEngineContacts` and `stop()` empty the lists at once, even during a walk. `ContactRegistry.removeEntity` drops every entry for that entity. `SensorRegistry.remove` drops every entry whose callback is in the list. An empty `remove` drops nothing.
+`onContact`, `onSensorEnter` and `onSensorExit` use the current engine. Outside that context they throw `GwenContextError` with code `CORE:OUTSIDE_ENGINE_CONTEXT`. Each engine's list dies with that engine's `stop()`. A removal during `emit` waits until the outermost `emit` returns, and that entry stays in the list for the walk. Outside `emit` the entry drops at once. `clearEngineContacts` and `stop()` empty the lists at once, even during a walk. `ContactRegistry.removeEntity` drops every entry for that entity. `SensorRegistry.remove` drops every entry whose callback is in the list. An empty `remove` drops nothing. `onSensorEnter` and `onSensorExit` take an optional `ownerEntityId`. When it is passed, the callback runs only for that entity. When it is omitted, the callback runs for every entity. `emit` keeps registration order and skips a set owner that is not the event entity. `SensorRegistry.removeOwned(entityId, sensorId?)` drops that owner's callbacks. A `sensorId` drops only that sensor. A second call drops nothing. During `emit` the drop waits until the outermost `emit` returns.
 
 ## Module
 

@@ -3,23 +3,10 @@
  *
  * Callbacks live on the current engine. Engine A never receives engine B's contacts.
  */
-import { createEngineLocal } from "@gwenjs/core";
-import { GwenContextError } from "@gwenjs/kit";
+import { useEngine } from "@gwenjs/core";
 import type { GwenEngine } from "@gwenjs/core";
+import { createContactRegistry, onContact as coreOnContact } from "@gwenjs/physics-core";
 import type { CollisionContact } from "../types";
-
-type ContactCallback = (e: CollisionContact) => void;
-
-const contacts = createEngineLocal<ContactCallback[]>(() => []);
-
-function listOrNull(): ContactCallback[] | undefined {
-  try {
-    return contacts.use();
-  } catch (error) {
-    if (error instanceof GwenContextError) return undefined;
-    throw error;
-  }
-}
 
 /**
  * Register a callback to be invoked for every 3D contact event dispatched this frame.
@@ -47,12 +34,7 @@ function listOrNull(): ContactCallback[] | undefined {
  * @since 1.0.0
  */
 export function onContact(callback: (contact: CollisionContact) => void): () => void {
-  const list = contacts.use();
-  list.push(callback);
-  return () => {
-    const idx = list.indexOf(callback);
-    if (idx !== -1) list.splice(idx, 1);
-  };
+  return coreOnContact(callback);
 }
 
 /**
@@ -65,9 +47,7 @@ export function onContact(callback: (contact: CollisionContact) => void): () => 
  * @internal
  */
 export function _dispatchContactEvent(event: CollisionContact): void {
-  const list = listOrNull();
-  if (!list) return;
-  for (const cb of list) cb(event);
+  createContactRegistry().peek(useEngine("Physics3DPlugin"))?.emit(event);
 }
 
 /**
@@ -78,14 +58,14 @@ export function _dispatchContactEvent(event: CollisionContact): void {
  * @internal
  */
 export function _clearContactCallbacks(): void {
-  const list = listOrNull();
-  if (!list) return;
-  list.length = 0;
+  const registry = createContactRegistry().peek(useEngine("Physics3DPlugin"));
+  if (registry === undefined) return;
+  registry.entries.length = 0;
 }
 
 /** Drop every contact callback owned by `engine`. */
 export function clearEngineContacts(engine: GwenEngine): void {
-  const list = contacts.peek(engine);
-  if (!list) return;
-  list.length = 0;
+  const registry = createContactRegistry().peek(engine);
+  if (registry === undefined) return;
+  registry.entries.length = 0;
 }
