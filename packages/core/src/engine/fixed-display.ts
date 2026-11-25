@@ -27,6 +27,8 @@ export interface FixedStepState {
   frame: MutableEngineFrame;
   history: HistoryViews | null;
   sumPhases: boolean;
+  /** True from the first step to the end of the render pass of one display frame. */
+  inDisplay: boolean;
 }
 
 /** Debug timestamps for one display frame. `t0` is the first step's start. */
@@ -49,6 +51,7 @@ export function createFixedStepState(): FixedStepState {
     },
     history: null,
     sumPhases: false,
+    inDisplay: false,
   };
 }
 
@@ -89,6 +92,7 @@ export async function runFixedDisplay(
   state.accumulator += Math.min(finiteElapsed(rawSeconds), deps.config.maxDeltaSeconds);
   let steps = 0;
   state.sumPhases = true;
+  state.inDisplay = true;
   timing.timed = false;
   try {
     while (
@@ -125,6 +129,7 @@ export async function runFixedDisplay(
     }
   } finally {
     state.sumPhases = false;
+    state.inDisplay = false;
     timing.timed = false;
   }
 }

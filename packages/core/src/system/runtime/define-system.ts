@@ -35,8 +35,18 @@ import type {
 } from "../../engine/engine-types";
 import type { EntityId } from "../../engine/engine-api";
 import type { ComponentDefinition, ComponentSchema, InferComponent } from "../../schema";
-import { ScopedHookable } from "../../hooks/scoped-hookable.js";
-import { isIsolated } from "../../engine/error-isolation.js";
+import { ScopedHookable, releaseSlots, type HookSlots } from "../../hooks/scoped-hookable.js";
+import { forgetTarget, isIsolated, targetFromScopeMeta } from "../../engine/error-isolation.js";
+import {
+  DefinitionRecord,
+  HOT_CONTROL,
+  HOT_RECORD,
+  systemInstalls,
+  type HotControl,
+  type RebuildResult,
+  type RetiredSystem,
+  type SystemInstall,
+} from "../../hmr/installs.js";
 import { GwenScope } from "../../context/scope.js";
 import { releaseChunkQuery, type Query } from "../../engine/chunk-query.js";
 
@@ -256,50 +266,143 @@ export function defineSystem<Args extends unknown[]>(
     );
   }
 
-  return (...args: Args): DiscoverablePlugin => {
+  const pluginName = systemName || "anonymous-system";
+  // Dev only: a production build builds no record.
+  const record = __GWEN_DEV__ ? new DefinitionRecord<Args>(pluginName) : null;
+
+  const factory = (...args: Args): DiscoverablePlugin => {
     let _scope: ScopedHookable | null = null;
     let _gwenScope: GwenScope | null = null;
     let _engine: object | null = null;
     let _discovered = false;
+    // Dev only: what a hot swap needs. Unused in a production build.
+    let _install: SystemInstall<Args> | null = null;
+    let _root: HotControl | null = null;
+    let _forward: DiscoverablePlugin | null = null;
+    let _parked: RetiredSystem | null = null;
+
+    /** Create the scope and run the setup. `adopt` carries the slots of a swapped-out body. */
+    const begin = (adopt?: HookSlots): void => {
+      const engine = useEngine();
+      _engine = engine;
+      _scope = new ScopedHookable(engine.hooks, adopt);
+      _gwenScope = new GwenScope(
+        engine,
+        {
+          type: "system",
+          name: pluginName,
+        },
+        null,
+        _scope, // Pass _scope so pause/resume work correctly
+      );
+      _gwenScope.run(() => setupTemplate(...args));
+    };
+
+    /** Record this instance on its definition and on its engine. */
+    const track = (): void => {
+      const id = _gwenScope?.meta.id;
+      const engine = useEngine();
+      if (id === undefined || control === null || record === null) return;
+      _install = { id, engine, args, control, root: _root ?? control };
+      record.installs.add(_install);
+      if (!engine.disposables.closed) systemInstalls.get(engine).set(id, { id, name: pluginName });
+    };
+
+    const untrack = (): void => {
+      if (_install === null) return;
+      record?.installs.delete(_install);
+      systemInstalls.peek(_install.engine)?.delete(_install.id);
+      _install = null;
+    };
+
+    /** Drop the isolation entry of a failed swap. */
+    const dropIsolation = (): void => {
+      const id = _gwenScope?.meta.id;
+      if (id !== undefined && _engine !== null) forgetTarget(_engine, id);
+    };
+
+    // Dev only: a production build builds no control.
+    const control: HotControl | null = __GWEN_DEV__
+      ? {
+          retire(): RetiredSystem {
+            untrack();
+            const parked = _parked;
+            if (parked !== null) {
+              _parked = null;
+              dropIsolation();
+              return parked;
+            }
+            const retired = {
+              slots: _scope?.handOff() ?? new Map(),
+              paused: _scope?.paused === true,
+            };
+            _scope = null;
+            _gwenScope?.dispose();
+            _gwenScope = null;
+            return retired;
+          },
+
+          rebuild(from: RetiredSystem, root: HotControl): RebuildResult {
+            _root = root;
+            try {
+              begin(from.slots);
+            } catch (error) {
+              // The scope may hold a half-run setup. Park every slot and dispose the rest.
+              _parked = { slots: _scope?.park() ?? from.slots, paused: from.paused };
+              _scope = null;
+              _gwenScope?.dispose();
+              track();
+              const meta = _gwenScope?.meta;
+              if (meta === undefined) throw error;
+              return { ok: false, error, target: targetFromScopeMeta(meta) };
+            }
+            _scope?.finishAdopt();
+            if (from.paused) _scope?.pause();
+            track();
+            return { ok: true };
+          },
+
+          redirect(to: DiscoverablePlugin): void {
+            _forward = to;
+          },
+        }
+      : null;
 
     const plugin: DiscoverablePlugin = {
-      name: systemName || "anonymous-system",
+      name: pluginName,
 
-      setup(): void {
+      setup(engine): void {
         if (_discovered) return;
-        const engine = useEngine();
-        _engine = engine;
-        _scope = new ScopedHookable(engine.hooks);
-        _gwenScope = new GwenScope(
-          engine,
-          {
-            type: "system",
-            name: systemName || "anonymous-system",
-          },
-          null,
-          _scope, // Pass _scope so pause/resume work correctly
-        );
-        _gwenScope.run(() => setupTemplate(...args));
+        // A swapped-in body stays installed after a teardown: a later setup runs the newest body.
+        if (__GWEN_DEV__) {
+          if (_forward !== null) {
+            void _forward.setup(engine);
+            return;
+          }
+        }
+        begin();
+        if (__GWEN_DEV__) track();
       },
 
       _discover(): void {
         _discovered = true;
-        const engine = useEngine();
-        _engine = engine;
-        _scope = new ScopedHookable(engine.hooks);
-        _gwenScope = new GwenScope(
-          engine,
-          {
-            type: "system",
-            name: systemName || "anonymous-system",
-          },
-          null,
-          _scope, // Pass _scope so pause/resume work correctly
-        );
-        _gwenScope.run(() => setupTemplate(...args));
+        begin();
+        if (__GWEN_DEV__) track();
       },
 
       teardown(): void {
+        if (__GWEN_DEV__) {
+          if (_forward !== null) {
+            _forward.teardown?.();
+            return;
+          }
+          untrack();
+          if (_parked !== null) {
+            releaseSlots(_parked.slots);
+            _parked = null;
+            dropIsolation();
+          }
+        }
         _scope?.dispose();
         _scope = null;
         _gwenScope?.dispose();
@@ -307,14 +410,25 @@ export function defineSystem<Args extends unknown[]>(
       },
 
       _pause(): void {
+        if (__GWEN_DEV__) {
+          if (_forward !== null) return _forward._pause();
+          if (_parked !== null) _parked.paused = true;
+        }
         _scope?.pause();
       },
 
       _resume(): void {
+        if (__GWEN_DEV__) {
+          if (_forward !== null) return _forward._resume();
+          if (_parked !== null) _parked.paused = false;
+        }
         _scope?.resume();
       },
 
       _isIsolated(): boolean {
+        if (__GWEN_DEV__) {
+          if (_forward !== null) return _forward._isIsolated();
+        }
         const id = _gwenScope?.meta.id;
         if (!id || !_engine) return false;
         return isIsolated(_engine, id);
@@ -324,8 +438,13 @@ export function defineSystem<Args extends unknown[]>(
       // Dispatch goes through engine.hooks → scope → registered handlers.
     };
 
+    if (control !== null) Object.defineProperty(plugin, HOT_CONTROL, { value: control });
     return plugin;
   };
+  // Hot swaps and dev tooling read the factory name.
+  Object.defineProperty(factory, "name", { value: pluginName });
+  if (record !== null) Object.defineProperty(factory, HOT_RECORD, { value: record });
+  return factory;
 }
 
 // ─── useQuery ─────────────────────────────────────────────────────────────────
