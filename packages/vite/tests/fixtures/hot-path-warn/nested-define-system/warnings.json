@@ -1,0 +1,6 @@
+{
+  "warnings": [
+    { "composable": "useService", "callback": "onUpdate", "line": 8 },
+    { "composable": "useService", "callback": "onUpdate", "line": 15 }
+  ]
+}

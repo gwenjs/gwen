@@ -43,6 +43,7 @@ const BUILT_IN_NAMES = [
   "gwen:layout-name",
   "gwen:scene-router-name",
   "gwen:query-hoist",
+  "gwen:hot-path-warn",
 ] as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {

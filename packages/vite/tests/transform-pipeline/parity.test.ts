@@ -313,6 +313,16 @@ describe("gwen:transform-pipeline parity", () => {
     expect(pluginNames(gwenVitePlugin()).filter((name) => name === "gwen:query-hoist")).toEqual([]);
   });
 
+  it("gwen() and gwenVitePlugin() list gwen:hot-path-warn once, after gwen:query-hoist, and no other plugin has that name", () => {
+    const unit = "gwen:hot-path-warn";
+    for (const option of [gwen(), gwenVitePlugin()]) {
+      const names = findPipeline(option)?.api.names ?? [];
+      expect(names.filter((name: string) => name === unit)).toEqual([unit]);
+      expect(names.indexOf(unit)).toBeGreaterThan(names.indexOf("gwen:query-hoist"));
+      expect(pluginNames(option).filter((name) => name === unit)).toEqual([]);
+    }
+  });
+
   it("gwen() and gwenVitePlugin() list gwen:layout-name and gwen:scene-router-name once, between gwen:actor-name and gwen:query-hoist", () => {
     const expected = [
       "gwen:async-context",
@@ -321,6 +331,7 @@ describe("gwen:transform-pipeline parity", () => {
       "gwen:layout-name",
       "gwen:scene-router-name",
       "gwen:query-hoist",
+      "gwen:hot-path-warn",
     ];
     expect(findPipeline(gwen())?.api.names).toEqual(expected);
     expect(findPipeline(gwenVitePlugin())?.api.names).toEqual(expected);
@@ -354,6 +365,7 @@ describe("gwen:transform-pipeline parity", () => {
     expect(bothOff).not.toContain("gwen:scene-router-name");
     expect(bothOff).toContain("gwen:actor-name");
     expect(bothOff).toContain("gwen:query-hoist");
+    expect(bothOff).toContain("gwen:hot-path-warn");
   });
 
   it("the CLI plugin list hoists a useQuery array in a system", async () => {

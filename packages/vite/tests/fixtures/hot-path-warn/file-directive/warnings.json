@@ -1,0 +1,4 @@
+{
+  "warnings": [],
+  "control": [{ "composable": "useService", "callback": "onUpdate", "line": 6 }]
+}

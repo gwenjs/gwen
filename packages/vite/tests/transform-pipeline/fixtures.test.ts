@@ -144,6 +144,11 @@ for (const item of cases) {
     }
     const output = fixture.output;
     const settled = await pending;
+    // A module the pipeline leaves untouched returns null, never its own code.
+    if (output === fixture.input) {
+      expect(settled).toBeNull();
+      return;
+    }
     expect(settled?.code).toBe(output);
     if (typeof output !== "string") return;
     mapCheck(fixture.input, output, settled?.map);
@@ -155,10 +160,12 @@ it("idempotent", async () => {
     const fixture = fixtureCase(item.dir);
     const output = fixture.output;
     if (typeof output !== "string") continue;
-    expect(
-      await runCase(item.dir, fixture.input, item.unit),
-      `${item.unit}/${item.name}`,
-    ).not.toBeNull();
+    if (output !== fixture.input) {
+      expect(
+        await runCase(item.dir, fixture.input, item.unit),
+        `${item.unit}/${item.name}`,
+      ).not.toBeNull();
+    }
     expect(await runCase(item.dir, output, item.unit), `${item.unit}/${item.name}`).toBeNull();
   }
 });
@@ -333,7 +340,7 @@ function hoistNames(code: string): string[] {
 it("query-hoist/hoisted calls carry one argument and each name is declared once before its use", async () => {
   const root = join(fixturesRoot, "query-hoist");
   const dirs = readdirSync(root, { withFileTypes: true }).filter((entry) => entry.isDirectory());
-  expect(dirs.length).toBe(33);
+  expect(dirs.length).toBe(35);
   let checked = 0;
   for (const entry of dirs) {
     const dir = join(root, entry.name);
