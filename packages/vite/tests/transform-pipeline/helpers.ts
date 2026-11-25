@@ -10,7 +10,7 @@ import { originalPositionFor, TraceMap } from "@jridgewell/trace-mapping";
 import type { AutoImport } from "@gwenjs/kit";
 import { walk } from "oxc-walker";
 import { expect } from "vitest";
-import type { Alias, Plugin, ResolvedConfig } from "vite";
+import type { Alias, Logger, Plugin, ResolvedConfig } from "vite";
 import { resolveConfig } from "vite";
 import { createTransformPipeline } from "../../src/pipeline/transform-pipeline.js";
 import type { GwenCallSite, GwenSourceTransform, TransformEdit } from "../../src/pipeline/types.js";
@@ -216,13 +216,15 @@ export async function preparePipeline(
   resolveId?: RunOptions["resolveId"],
   root?: string,
   aliases?: RunOptions["aliases"],
+  logger?: Logger,
 ): Promise<void> {
   const host = createHost(resolveId);
   const loaded = await cachedServeConfig(root);
-  const config =
+  const aliased =
     aliases === undefined
       ? loaded
       : { ...loaded, resolve: { ...loaded.resolve, alias: [...aliases] } };
+  const config = logger === undefined ? aliased : { ...aliased, logger };
   const configResolved = plugin.configResolved;
   if (typeof configResolved === "function") {
     await configResolved.call(host as never, config);
