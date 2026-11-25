@@ -346,6 +346,8 @@ async function runServer(): Promise<number> {
 
 La suite tourne sur Node 22. Bun et Deno avec la compatibilité Node ne sont pas testés.
 
+Dans un build SSR Vite, gardez `@gwenjs/core` externe. Si le build l'embarque, le serveur cherche `wasm/` relativement au fichier embarqué et non dans `@gwenjs/core`, ne le trouve pas et échoue avec `CORE:WASM_LOAD_ERROR`. Vite garde externe par défaut une dépendance installée dans `node_modules`. Un paquet de workspace lié est embarqué par défaut : forcez-le avec `ssr.external: ["@gwenjs/core"]`, qui prime aussi sur une entrée `noExternal`. Quand `ssr.noExternal` couvre `@gwenjs/core`, le plugin écrit un avertissement à la configuration. Le build réussit quand même. L'avertissement s'applique à `vite build --ssr`, pas au serveur de dev.
+
 Pour maîtriser toutes les sources vous-même, utilisez le `setupGwen` bas niveau de `@gwenjs/core`. Lisez les octets `.wasm` depuis le binaire livré dans le paquet. Passez-les avec le glue importé à l'avance. Rien n'est téléchargé.
 
 ```ts check

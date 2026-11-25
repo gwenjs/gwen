@@ -385,6 +385,8 @@ async function runServer(): Promise<number> {
 
 The suite runs on Node 22. Bun and Deno with Node compatibility are not tested.
 
+In a Vite SSR build, keep `@gwenjs/core` external. If the build bundles it, the server looks for `wasm/` relative to the bundled file instead of inside `@gwenjs/core`, does not find it, and fails with `CORE:WASM_LOAD_ERROR`. Vite keeps a dependency installed in `node_modules` external by default. A linked workspace package is bundled by default: force it with `ssr.external: ["@gwenjs/core"]`, which also takes priority over a `noExternal` entry. When `ssr.noExternal` covers `@gwenjs/core`, the plugin logs a warning at config time. The build still succeeds. The warning applies to `vite build --ssr`, not to the dev server.
+
 To control every source yourself, use the low-level `setupGwen` from `@gwenjs/core`. Read the `.wasm` bytes from the packaged binary. Pass them with the pre-imported glue. Nothing is fetched.
 
 ```ts check
