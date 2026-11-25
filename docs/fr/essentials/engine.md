@@ -32,9 +32,9 @@ export default defineConfig({
 
 Ce fichier est traité au moment du build par le plugin Vite.
 
-Le bootstrap généré importe `@gwenjs/core/wasm/<variant>/factory`. En dev, le binaire est servi à côté de ce module. Un build émet le binaire comme un asset hashé. `engine.maxEntities` dimensionne le moteur WASM.
+Le bootstrap généré importe `@gwenjs/core/wasm/<variant>/factory`, ou `@gwenjs/core/wasm/<variant>-dev/factory` sous `vite dev`. En dev, le binaire est servi à côté de ce module. Un build émet le binaire comme un asset hashé. `engine.maxEntities` dimensionne le moteur WASM.
 
-`@gwenjs/core` fournit aussi un cœur vérifié pour chaque variante, sous `@gwenjs/core/wasm/<variant>-dev` (`opt-level=1`, assertions de debug et contrôles de dépassement activés). Rien ne le charge encore.
+`@gwenjs/core` fournit aussi un cœur vérifié pour chaque variante, sous `@gwenjs/core/wasm/<variant>-dev` (`opt-level=1`, assertions de debug et contrôles de dépassement activés). Le serveur de dev (`vite dev`) le charge. `vite build` charge toujours le binaire release, quel que soit le mode. Un dossier `-dev` absent échoue avec une erreur de résolution Vite : lancez `pnpm build:wasm` pour le produire.
 
 ## Référence de configuration
 

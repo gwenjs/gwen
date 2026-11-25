@@ -24,7 +24,12 @@ import {
 } from "./plugins/index.js";
 import type { LocalPluginsDirOption } from "./plugins/local-plugins.js";
 import type { GwenOptimizerUserOptions } from "./types.js";
-import { generateEntryModule, generateScenesModule, toRootRelative } from "./entry-gen.js";
+import {
+  generateEntryModule,
+  generateScenesModule,
+  toRootRelative,
+  type EntryProfile,
+} from "./entry-gen.js";
 import { resolveMainScene, scanScenes } from "./scanners/index.js";
 import { BUILT_IN_UNITS, OPTIMIZER_UNITS, optimizerEnabled } from "./pipeline/registry.js";
 import { createTransformPipeline } from "./pipeline/transform-pipeline.js";
@@ -89,6 +94,7 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
   const { manifestPath } = options;
 
   let projectRoot = process.cwd();
+  let entryProfile: EntryProfile = "release";
   let _declarations: PluginDeclaration[] = [];
   let _resolved: ResolvedGwenConfig | undefined;
   let _app: GwenApp | undefined;
@@ -184,6 +190,9 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
             "@gwenjs/core/wasm/light/factory",
             "@gwenjs/core/wasm/physics2d/factory",
             "@gwenjs/core/wasm/physics3d/factory",
+            "@gwenjs/core/wasm/light-dev/factory",
+            "@gwenjs/core/wasm/physics2d-dev/factory",
+            "@gwenjs/core/wasm/physics3d-dev/factory",
           ],
         },
         resolve: {
@@ -196,6 +205,8 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
 
     configResolved(config) {
       projectRoot = config.root;
+      // The command picks the core build, not the mode: `vite build --mode development` stays release.
+      entryProfile = config.command === "serve" ? "dev" : "release";
       if (config.build.ssr && coversCore(config.ssr.noExternal, config.ssr.external)) {
         config.logger.warn(SSR_NO_EXTERNAL_WARNING);
       }
@@ -235,7 +246,13 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
           const cssFiles = (_resolved.globalCss ?? []).map((file) =>
             toRootRelative(file, projectRoot),
           );
-          return generateEntryModule(hasScenesDir, _declarations, cssFiles, _resolved);
+          return generateEntryModule(
+            hasScenesDir,
+            _declarations,
+            cssFiles,
+            _resolved,
+            entryProfile,
+          );
         }
 
         if (id === RESOLVED_SCENES) {
