@@ -27,6 +27,7 @@ import { generateEntryModule, generateScenesModule, toRootRelative } from "./ent
 import { resolveMainScene, scanScenes } from "./scanners/index.js";
 import { BUILT_IN_UNITS } from "./pipeline/registry.js";
 import { createTransformPipeline } from "./pipeline/transform-pipeline.js";
+import { createVariantGuard } from "./transforms/variant-guard.js";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -128,6 +129,13 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
     for (const transform of app.sourceTransforms) {
       pipeline.api.registerKit(transform);
     }
+    pipeline.api.register(
+      createVariantGuard({
+        root,
+        variant: gwenConfig.engine.variant,
+        declaredModules: gwenConfig.modules,
+      }),
+    );
     _app = app;
     _declarations = app.pluginDeclarations;
     _sharedAutoImports.push(...app.autoImports);
@@ -182,8 +190,9 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
     },
 
     async buildStart() {
-      // Fallback when `config` did not run. Kit transforms need that hook:
-      // this `buildStart` runs after the pipeline froze, so `registerKit` throws.
+      // Fallback when `config` did not run. `config` registers the kit transforms and the
+      // variant guard: this `buildStart` runs after the pipeline froze, so for every
+      // project, not only those with kit transforms, the registration throws.
       await _loadModules(projectRoot);
       const scenes = scanScenes(projectRoot, { autoImports: _sharedAutoImports });
       writeScenesDts(

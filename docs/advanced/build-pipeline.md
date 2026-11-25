@@ -29,12 +29,15 @@ description: How GWEN rewrites your source at build time, which calls it recogni
 | `gwen:scene-router-name` | Names `const AppRouter = defineSceneRouter(...)`. |
 | `gwen:query-hoist` | Hoists the array of `useQuery([A, B])` to a module constant. |
 
-A plugin can add a unit before `buildStart` with `register()` on the pipeline. The physics plugins do this:
+A plugin can add a unit before `buildStart` with `register()` on the pipeline. The physics plugins and `gwen()` do this:
 
 | Unit | Registered by | What it does |
 |---|---|---|
 | `gwen:layer-inline` | `physics2d` and `physics3d` (`packages/physics2d/src/vite-plugin.ts:68`, `packages/physics3d/src/vite-plugin.ts:181`) | Replaces `L.name`, from `const L = defineLayers({ ... })`, with its numeric value. |
 | `gwen:bvh-prebake` | `physics3d`, when `bvhPrebake` is `true` (`packages/physics3d/src/vite-plugin.ts:182`) | Rewrites a relative `.glb` path given to `useMeshCollider`. |
+| `gwen:variant-guard` | `gwen()`, once the config is resolved (`packages/vite/src/index.ts:132`) | Raises `VITE:VARIANT_REQUIRED` for a value import of `@gwenjs/physics2d` or `@gwenjs/physics3d` that the resolved variant or `modules` does not allow. It never edits. |
+
+`gwenVitePlugin()` has no resolved config, so it does not run the guard (`packages/vite/tests/transform-pipeline/variant-guard.test.ts:275`). Only modules under the project root are checked.
 
 ## Which calls are recognised
 
@@ -63,6 +66,7 @@ The pipeline raises these codes. Each page entry gives the cause and the fix.
 | [`VITE:TRANSFORM_EDIT_CONFLICT`](/api/errors#vite-transform-edit-conflict) | Two units edit overlapping ranges in one module. |
 | [`VITE:TRANSFORM_UNSUPPORTED`](/api/errors#vite-transform-unsupported) | `register()` is called after `buildStart`, or a unit meets a shape it cannot rewrite, such as a nested `await`. |
 | [`VITE:BVH_PREBAKE_FAILED`](/api/errors#vite-bvh-prebake-failed) | The BVH bake of a `.glb` mesh failed. |
+| [`VITE:VARIANT_REQUIRED`](/api/errors#vite-variant-required) | A module value-imports `@gwenjs/physics2d` or `@gwenjs/physics3d` that the resolved variant or `modules` does not allow. |
 
 ## Scanners
 

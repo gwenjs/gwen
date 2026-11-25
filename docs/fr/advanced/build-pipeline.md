@@ -29,12 +29,15 @@ description: Comment GWEN réécrit votre source au build, quels appels il recon
 | `gwen:scene-router-name` | Nomme `const AppRouter = defineSceneRouter(...)`. |
 | `gwen:query-hoist` | Remonte le tableau de `useQuery([A, B])` dans une constante de module. |
 
-Un plugin peut ajouter une unité avant `buildStart` avec `register()` sur le pipeline. Les plugins de physique le font :
+Un plugin peut ajouter une unité avant `buildStart` avec `register()` sur le pipeline. Les plugins de physique et `gwen()` le font :
 
 | Unité | Enregistrée par | Rôle |
 |---|---|---|
 | `gwen:layer-inline` | `physics2d` et `physics3d` (`packages/physics2d/src/vite-plugin.ts:68`, `packages/physics3d/src/vite-plugin.ts:181`) | Remplace `L.name`, issu de `const L = defineLayers({ ... })`, par sa valeur numérique. |
 | `gwen:bvh-prebake` | `physics3d`, quand `bvhPrebake` vaut `true` (`packages/physics3d/src/vite-plugin.ts:182`) | Réécrit un chemin `.glb` relatif passé à `useMeshCollider`. |
+| `gwen:variant-guard` | `gwen()`, une fois la config résolue (`packages/vite/src/index.ts:132`) | Lève `VITE:VARIANT_REQUIRED` pour un import par valeur de `@gwenjs/physics2d` ou `@gwenjs/physics3d` que le variant résolu ou `modules` n'autorise pas. Elle n'édite jamais. |
+
+`gwenVitePlugin()` n'a pas de config résolue : il n'exécute pas la garde (`packages/vite/tests/transform-pipeline/variant-guard.test.ts:275`). Seuls les modules sous la racine du projet sont vérifiés.
 
 ## Quels appels sont reconnus
 
@@ -63,6 +66,7 @@ Le pipeline lève ces codes. Chaque entrée de la page donne la cause et le corr
 | [`VITE:TRANSFORM_EDIT_CONFLICT`](/fr/api/errors#vite-transform-edit-conflict) | Deux unités éditent des plages qui se chevauchent dans un module. |
 | [`VITE:TRANSFORM_UNSUPPORTED`](/fr/api/errors#vite-transform-unsupported) | `register()` est appelé après `buildStart`, ou une unité rencontre une forme qu'elle ne sait pas réécrire, comme un `await` imbriqué. |
 | [`VITE:BVH_PREBAKE_FAILED`](/fr/api/errors#vite-bvh-prebake-failed) | Le calcul BVH d'un maillage `.glb` a échoué. |
+| [`VITE:VARIANT_REQUIRED`](/fr/api/errors#vite-variant-required) | Un module importe par valeur `@gwenjs/physics2d` ou `@gwenjs/physics3d` que le variant résolu ou `modules` n'autorise pas. |
 
 ## Scanners
 
