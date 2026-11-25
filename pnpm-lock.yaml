@@ -42,6 +42,33 @@ importers:
         specifier: ^1.6.4
         version: 1.6.4(@algolia/client-search@5.50.1)(@types/node@25.6.0)(lightningcss@1.32.0)(postcss@8.5.8)(search-insights@2.17.3)(typescript@6.0.2)
 
+  examples/_harness:
+    devDependencies:
+      '@types/node':
+        specifier: ^20
+        version: 20.19.39
+      vitest:
+        specifier: ^4.1.2
+        version: 4.1.2(@types/node@20.19.39)(happy-dom@18.0.1)(vite@8.0.5(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@20.19.39)(jiti@2.6.1))
+
+  examples/hello-3d:
+    devDependencies:
+      '@types/node':
+        specifier: ^20
+        version: 20.19.39
+      vitest:
+        specifier: ^4.1.2
+        version: 4.1.2(@types/node@20.19.39)(happy-dom@18.0.1)(vite@8.0.5(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@20.19.39)(jiti@2.6.1))
+
+  examples/hello-light:
+    devDependencies:
+      '@types/node':
+        specifier: ^20
+        version: 20.19.39
+      vitest:
+        specifier: ^4.1.2
+        version: 4.1.2(@types/node@20.19.39)(happy-dom@18.0.1)(vite@8.0.5(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@20.19.39)(jiti@2.6.1))
+
   packages/app:
     dependencies:
       '@gwenjs/core':

@@ -1,0 +1,9 @@
+{
+  "name": "example-harness",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@types/node": "^20",
+    "vitest": "^4.1.2"
+  }
+}
