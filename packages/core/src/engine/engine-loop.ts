@@ -73,6 +73,8 @@ export interface EngineLoopDeps {
  */
 export class EngineLoop {
   private _advancing = false;
+  private _inFrame = false;
+  private readonly _idle: Array<() => void> = [];
   private _rafHandle: number | ReturnType<typeof setTimeout> = 0;
   private _lastFrameTime = 0;
   private readonly _fixed = createFixedStepState();
@@ -80,6 +82,41 @@ export class EngineLoop {
   private _lastPhaseMs?: EngineFramePhaseMs;
 
   constructor(private readonly deps: EngineLoopDeps) {}
+
+  /**
+   * True from the first to the last line of a frame. With `physicsHz > 0` that is the whole
+   * display frame: every step and the render pass. A hot swap waits for it to clear.
+   */
+  get inFrame(): boolean {
+    return this._inFrame || this._fixed.inDisplay;
+  }
+
+  /** Resolves when the frame in flight has ended. Allocates only when called. */
+  whenIdle(): Promise<void> {
+    return new Promise((resolve) => void this._idle.push(resolve));
+  }
+
+  private _flushIdle(): void {
+    if (this._idle.length === 0 || this.inFrame) return;
+    for (const resolve of this._idle.splice(0)) resolve();
+  }
+
+  /** One display frame: fixed steps, then the render pass. */
+  private async _runDisplay(rawSeconds: number): Promise<void> {
+    try {
+      await runFixedDisplay(
+        this._fixed,
+        this.deps,
+        rawSeconds,
+        (scaledDt) => this._runFrame(scaledDt, false),
+        () => this._phaseSlot(),
+        this._timing,
+        () => performance.now(),
+      );
+    } finally {
+      this._flushIdle();
+    }
+  }
 
   get lastPhaseMs(): EngineFramePhaseMs | undefined {
     return this._lastPhaseMs;
@@ -126,15 +163,7 @@ export class EngineLoop {
           this._lastFrameTime = now;
           this.deps.stats.recordRawFrameTime(rawSeconds);
           try {
-            await runFixedDisplay(
-              this._fixed,
-              this.deps,
-              rawSeconds,
-              (scaledDt) => this._runFrame(scaledDt, false),
-              () => this._phaseSlot(),
-              this._timing,
-              () => performance.now(),
-            );
+            await this._runDisplay(rawSeconds);
           } catch (err) {
             this.deps.policy.handleFrameLoopError(err);
           }
@@ -189,15 +218,7 @@ export class EngineLoop {
     this.deps.stats.recordRawFrameTime(dt);
     if (this._fixed.fixedDt > 0) {
       try {
-        await runFixedDisplay(
-          this._fixed,
-          this.deps,
-          dt,
-          (scaledDt) => this._runFrame(scaledDt, false),
-          () => this._phaseSlot(),
-          this._timing,
-          () => performance.now(),
-        );
+        await this._runDisplay(dt);
       } catch (err) {
         this.deps.policy.handleFrameLoopError(err);
       } finally {
@@ -313,6 +334,7 @@ export class EngineLoop {
     let t7 = 0;
     let t8 = 0;
     if (instrument) t0 = performance.now();
+    this._inFrame = true;
     try {
       // Phase 1 — engine:tick hook (fires before any plugin work)
       if (instrument) t1 = performance.now();
@@ -453,6 +475,8 @@ export class EngineLoop {
         this._timing.t0 = next.displayT0;
       }
     } finally {
+      this._inFrame = false;
+      this._flushIdle();
       // Inner finally clears each phase. This covers a throw between those tries.
       setFramePhase(this.deps.owner, null);
       popEngine(this.deps.owner, previousEngine);

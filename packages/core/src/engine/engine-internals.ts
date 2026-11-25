@@ -8,6 +8,8 @@ interface EngineInternalOps {
   queryIds(components: readonly ComponentDef[]): readonly EntityId[];
   structuralCompares(): number;
   loopDepth(): number;
+  inFrame(): boolean;
+  whenIdle(): Promise<void>;
 }
 
 const engineInternals = new WeakMap<object, EngineInternalOps>();
@@ -53,6 +55,16 @@ export function readLoopDepth(engine: GwenEngine): number {
   const ops = engineInternals.get(engine);
   if (!ops) return -1;
   return ops.loopDepth();
+}
+
+/** True while a frame is running. A hot swap waits for it. False for a non-engine. @internal */
+export function readInFrame(engine: GwenEngine): boolean {
+  return engineInternals.get(engine)?.inFrame() ?? false;
+}
+
+/** Resolves when the frame in flight has ended. At once for a non-engine. @internal */
+export function whenFrameIdle(engine: GwenEngine): Promise<void> {
+  return engineInternals.get(engine)?.whenIdle() ?? Promise.resolve();
 }
 
 /**

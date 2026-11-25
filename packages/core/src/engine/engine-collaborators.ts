@@ -231,6 +231,8 @@ export abstract class EngineCollaborators {
       queryIds: (components) => this._entities.resolveIds(components),
       structuralCompares: () => this._entities.readStructuralCompares(),
       loopDepth: () => this._entities.readLoopDepth(),
+      inFrame: () => this._loop.inFrame,
+      whenIdle: () => this._loop.whenIdle(),
     });
   }
 }
