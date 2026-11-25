@@ -175,6 +175,40 @@ fn a_refused_body_creates_no_node() -> Result<(), Physics2DError> {
 }
 
 #[test]
+fn an_existing_node_and_its_parent_are_left_unchanged() -> Result<(), Physics2DError> {
+    let mut engine = engine_with_world()?;
+    let parent = engine
+        .create_entity()
+        .map_err(Physics2DError::Core)?
+        .index();
+    let child = engine
+        .create_entity()
+        .map_err(Physics2DError::Core)?
+        .index();
+    engine.add_entity_transform(parent, 0.0, 10.0, 0.0, 1.0, 1.0);
+    engine.add_entity_transform(child, 0.0, 1.0, 0.0, 1.0, 1.0);
+    engine
+        .set_entity_parent(child, parent, false)
+        .map_err(Physics2DError::Core)?;
+    // This commit clears the pending snap of the new nodes.
+    engine.update_transforms();
+    engine
+        .transform_history_commit()
+        .map_err(Physics2DError::Core)?;
+
+    add_body(&mut engine, child, 7.0, 7.0, DYNAMIC)?;
+    engine.update_transforms();
+
+    assert_eq!(engine.get_entity_world_y(child), 11.0);
+    assert_eq!(engine.get_entity_local_x(child), 0.0);
+    let after = engine
+        .transform_history_commit()
+        .map_err(Physics2DError::Core)?;
+    assert_eq!(flags_of(&engine, after, child), FLAG_HAS_TRANSFORM);
+    Ok(())
+}
+
+#[test]
 fn removing_the_body_keeps_its_node() -> Result<(), Physics2DError> {
     let mut engine = engine_with_world()?;
     let id = engine.create_entity().map_err(Physics2DError::Core)?;
@@ -185,5 +219,24 @@ fn removing_the_body_keeps_its_node() -> Result<(), Physics2DError> {
     engine.update_transforms();
 
     assert_eq!(engine.get_entity_world_x(index), 3.0);
+    Ok(())
+}
+
+#[test]
+fn a_slot_without_a_live_entity_gets_no_node() -> Result<(), Physics2DError> {
+    let mut engine = engine_with_world()?;
+    // Slot 5 never had `create_entity`.
+    add_body(&mut engine, 5, 3.0, 4.0, FIXED)?;
+
+    let dead = engine.create_entity().map_err(Physics2DError::Core)?;
+    let deleted = engine
+        .delete_entity(dead.index(), dead.generation())
+        .map_err(Physics2DError::Core)?;
+    assert_eq!(u32::from(deleted), 1);
+    add_body(&mut engine, dead.index(), 6.0, 7.0, FIXED)?;
+    engine.update_transforms();
+
+    assert_eq!(engine.get_entity_world_x(5), 0.0);
+    assert_eq!(engine.get_entity_world_x(dead.index()), 0.0);
     Ok(())
 }
