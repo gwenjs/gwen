@@ -1,0 +1,12 @@
+{
+  "name": "@gwenjs/fixture-app-physics2d-uses-3d",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@gwenjs/app": "workspace:*",
+    "@gwenjs/core": "workspace:*",
+    "@gwenjs/physics2d": "workspace:*",
+    "@gwenjs/physics3d": "workspace:*",
+    "@gwenjs/vite": "workspace:*"
+  }
+}

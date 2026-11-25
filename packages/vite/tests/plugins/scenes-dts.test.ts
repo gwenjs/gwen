@@ -210,7 +210,7 @@ describe("scenes.d.ts", () => {
 
     const configResolved = plugin.configResolved;
     if (typeof configResolved !== "function") throw new Error("gwen plugin has no configResolved");
-    Reflect.apply(configResolved, plugin, [{ root }]);
+    Reflect.apply(configResolved, plugin, [{ root, build: { ssr: false } }]);
 
     const buildStart = plugin.buildStart;
     if (typeof buildStart !== "function") throw new Error("gwen plugin has no buildStart");
@@ -274,7 +274,7 @@ describe("scenes.d.ts", () => {
 
     const configResolved = plugin.configResolved;
     if (typeof configResolved !== "function") throw new Error("gwen plugin has no configResolved");
-    Reflect.apply(configResolved, plugin, [{ root }]);
+    Reflect.apply(configResolved, plugin, [{ root, build: { ssr: false } }]);
 
     const buildStart = plugin.buildStart;
     if (typeof buildStart !== "function") throw new Error("gwen plugin has no buildStart");
@@ -372,7 +372,7 @@ async function scenesTextFromBuild(projectRoot: string): Promise<ScanOutcome<str
   if (typeof configResolved !== "function") {
     return { code: "SETUP", message: "gwen plugin has no configResolved", cause: undefined };
   }
-  Reflect.apply(configResolved, plugin, [{ root: projectRoot }]);
+  Reflect.apply(configResolved, plugin, [{ root: projectRoot, build: { ssr: false } }]);
   const buildStart = plugin.buildStart;
   if (typeof buildStart !== "function") {
     return { code: "SETUP", message: "gwen plugin has no buildStart", cause: undefined };

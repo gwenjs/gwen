@@ -789,8 +789,8 @@ function loadHook(plugin: Plugin): LoadHook {
 function applyResolvedRoot(plugin: Plugin, root: string): void {
   const hook = plugin.configResolved;
   if (typeof hook !== "function") throw new Error(`${plugin.name} configResolved missing`);
-  const resolved = hook as (this: void, config: { root: string }) => void;
-  resolved({ root });
+  const resolved = hook as (this: void, config: { root: string; build: { ssr: boolean } }) => void;
+  resolved({ root, build: { ssr: false } });
 }
 
 function pluginNamed(name: string): Plugin {

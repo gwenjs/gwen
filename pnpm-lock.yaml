@@ -499,6 +499,24 @@ importers:
         specifier: workspace:*
         version: link:../../..
 
+  packages/vite/tests/fixtures/app-physics2d-uses-3d:
+    dependencies:
+      '@gwenjs/app':
+        specifier: workspace:*
+        version: link:../../../../app
+      '@gwenjs/core':
+        specifier: workspace:*
+        version: link:../../../../core
+      '@gwenjs/physics2d':
+        specifier: workspace:*
+        version: link:../../../../physics2d
+      '@gwenjs/physics3d':
+        specifier: workspace:*
+        version: link:../../../../physics3d
+      '@gwenjs/vite':
+        specifier: workspace:*
+        version: link:../../..
+
   packages/vite/tests/fixtures/app-physics3d:
     dependencies:
       '@gwenjs/app':
@@ -510,6 +528,30 @@ importers:
       '@gwenjs/physics3d':
         specifier: workspace:*
         version: link:../../../../physics3d
+      '@gwenjs/vite':
+        specifier: workspace:*
+        version: link:../../..
+
+  packages/vite/tests/fixtures/app-ssr:
+    dependencies:
+      '@gwenjs/app':
+        specifier: workspace:*
+        version: link:../../../../app
+      '@gwenjs/core':
+        specifier: workspace:*
+        version: link:../../../../core
+      '@gwenjs/vite':
+        specifier: workspace:*
+        version: link:../../..
+
+  packages/vite/tests/fixtures/app-ssr-noexternal:
+    dependencies:
+      '@gwenjs/app':
+        specifier: workspace:*
+        version: link:../../../../app
+      '@gwenjs/core':
+        specifier: workspace:*
+        version: link:../../../../core
       '@gwenjs/vite':
         specifier: workspace:*
         version: link:../../..
