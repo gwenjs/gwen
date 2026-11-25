@@ -96,12 +96,15 @@ describe("gwen() config hook — optimizeDeps", () => {
     expect(config.optimizeDeps?.include).toContain("@gwenjs/core > @gwenjs/kit");
   });
 
-  it("gwen() config excludes the three core factory subpaths from optimizeDeps and keeps them out of include", async () => {
+  it("gwen() config excludes the six core factory subpaths from optimizeDeps and keeps them out of include", async () => {
     const config = await configFromTmp();
     const factories = [
       "@gwenjs/core/wasm/light/factory",
       "@gwenjs/core/wasm/physics2d/factory",
       "@gwenjs/core/wasm/physics3d/factory",
+      "@gwenjs/core/wasm/light-dev/factory",
+      "@gwenjs/core/wasm/physics2d-dev/factory",
+      "@gwenjs/core/wasm/physics3d-dev/factory",
     ];
     expect(config.optimizeDeps?.exclude).toEqual(factories);
     const include = config.optimizeDeps?.include ?? [];
@@ -689,6 +692,28 @@ describe("generateEntryModule — bootstrap correctness", () => {
     }
   });
 
+  it("the entry imports <variant>-dev/factory for the dev profile and <variant>/factory for the release profile", () => {
+    for (const variant of ["light", "physics2d", "physics3d"] as const) {
+      const resolved = { engine: { variant, loop: "internal" } } as const;
+      const initCall = `await bridge.init("${variant}", { glue: __gwenGlue,`;
+      const dev = generateEntryModule(false, [], [], resolved, "dev");
+      expect(dev.split("@gwenjs/core/wasm/").length - 1).toBe(1);
+      expect(dev).toContain(
+        `import * as __gwenGlue from "@gwenjs/core/wasm/${variant}-dev/factory";`,
+      );
+      expect(dev).toContain(initCall);
+      const release = generateEntryModule(false, [], [], resolved, "release");
+      const omitted = generateEntryModule(false, [], [], resolved);
+      for (const code of [release, omitted]) {
+        expect(code.split("@gwenjs/core/wasm/").length - 1).toBe(1);
+        expect(code).toContain(
+          `import * as __gwenGlue from "@gwenjs/core/wasm/${variant}/factory";`,
+        );
+        expect(code).toContain(initCall);
+      }
+    }
+  });
+
   it("the entry passes the imported factory as glue to init with the same variant literal", () => {
     for (const variant of ["light", "physics2d", "physics3d"] as const) {
       const code = entryForVariant(variant, false);
@@ -793,6 +818,20 @@ function applyResolvedRoot(plugin: Plugin, root: string): void {
   resolved({ root, build: { ssr: false } });
 }
 
+function applyResolvedCommand(
+  plugin: Plugin,
+  root: string,
+  env: { command: "build" | "serve"; mode: string },
+): void {
+  const hook = plugin.configResolved;
+  if (typeof hook !== "function") throw new Error(`${plugin.name} configResolved missing`);
+  const resolved = hook as (
+    this: void,
+    config: { root: string; build: { ssr: boolean }; command: string; mode: string },
+  ) => void;
+  resolved({ root, build: { ssr: false }, command: env.command, mode: env.mode });
+}
+
 function pluginNamed(name: string): Plugin {
   const found = gwen().find((plugin) => plugin.name === name);
   if (!found) throw new Error(`missing plugin ${name}`);
@@ -825,6 +864,30 @@ async function withRoot(run: (root: string) => Promise<void>): Promise<void> {
 function field(value: unknown, key: string): unknown {
   return isRecord(value) ? value[key] : undefined;
 }
+
+describe("the entry profile follows the Vite command", () => {
+  const devImport = 'import * as __gwenGlue from "@gwenjs/core/wasm/light-dev/factory";';
+
+  it("load of the entry imports light-dev/factory after configResolved sees command serve in mode development", async () => {
+    await withRoot(async (root) => {
+      writeConfig(root, "export default { modules: [] };\n");
+      const plugin = pluginNamed("gwen");
+      await configHook(plugin)({ root }, { command: "serve", mode: "development" });
+      applyResolvedCommand(plugin, root, { command: "serve", mode: "development" });
+      expect(await loadHook(plugin)(RESOLVED_ENTRY_ID)).toContain(devImport);
+    });
+  });
+
+  it("load of the entry imports light-dev/factory after configResolved sees command serve in mode production", async () => {
+    await withRoot(async (root) => {
+      writeConfig(root, "export default { modules: [] };\n");
+      const plugin = pluginNamed("gwen");
+      await configHook(plugin)({ root }, { command: "serve", mode: "production" });
+      applyResolvedCommand(plugin, root, { command: "serve", mode: "production" });
+      expect(await loadHook(plugin)(RESOLVED_ENTRY_ID)).toContain(devImport);
+    });
+  });
+});
 
 describe("resolved config is the build source", () => {
   it("the entry inlines the resolved engine block with the resolved variant", async () => {

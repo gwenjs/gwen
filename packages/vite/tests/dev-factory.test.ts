@@ -33,7 +33,7 @@ function filesystemPath(file: string): string {
 }
 
 describe("dev factory", () => {
-  it("the dev server serves the factory unbundled next to its binary", async () => {
+  it("the dev server serves the dev-checked factory unbundled next to its binary", async () => {
     const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), "gwen-dev-factory-"));
     let server: ViteDevServer | undefined;
     try {
@@ -59,6 +59,7 @@ describe("dev factory", () => {
       if (typeof file !== "string") return;
       const factoryFile = filesystemPath(file);
       expect(path.basename(factoryFile)).toBe("gwen_core_factory.js");
+      expect(path.basename(path.dirname(factoryFile))).toBe("light-dev");
       expect(fs.existsSync(path.join(path.dirname(factoryFile), "gwen_core_bg.wasm"))).toBe(true);
     } finally {
       if (server !== undefined) await server.close();

@@ -109,6 +109,12 @@ export function toRootRelative(filePath: string, projectRoot: string): string {
 }
 
 /**
+ * Which core build the generated entry imports.
+ * `"dev"` selects the dev-checked core (`<variant>-dev`), `"release"` the release core.
+ */
+export type EntryProfile = "dev" | "release";
+
+/**
  * Generates the `/@gwenjs/gwen-entry` virtual module source.
  *
  * Imports `@gwenjs/core` directly to prevent
@@ -119,12 +125,14 @@ export function toRootRelative(filePath: string, projectRoot: string): string {
  * @param declarations - Path-based plugin declarations collected at build time.
  * @param cssFiles     - Root-relative CSS paths to inject as top-level imports.
  * @param resolved     - Resolved GWEN config. Engine values and module sections are inlined.
+ * @param _profile     - Core build the entry imports. Defaults to `"release"`.
  */
 export function generateEntryModule(
   hasScenesDir: boolean,
   declarations: PluginDeclaration[] = [],
   cssFiles: string[] = [],
   resolved: EntryResolvedConfig,
+  _profile: EntryProfile = "release",
 ): string {
   const lines: string[] = [];
   const variant = resolved.engine.variant;
