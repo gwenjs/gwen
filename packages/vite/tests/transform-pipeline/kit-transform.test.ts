@@ -758,7 +758,12 @@ describe("kit source transforms", () => {
       let server: ViteDevServer | undefined;
       try {
         server = await openServer(root, [pipeline, late]);
-        expect(pipelineNames(pipeline)).toEqual([...BUILT_IN_NAMES, "tint:inline", "gwen:late"]);
+        expect(pipelineNames(pipeline)).toEqual([
+          ...BUILT_IN_NAMES,
+          "tint:inline",
+          "gwen:variant-guard",
+          "gwen:late",
+        ]);
         let lateError: unknown;
         try {
           const register = api?.["register"];
