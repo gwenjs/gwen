@@ -1023,6 +1023,51 @@ describe("resolved config is the build source", () => {
     });
   });
 
+  it("the entry installs the inserted provider before its consumer", async () => {
+    await withRoot(async (root) => {
+      writeModule(
+        root,
+        "cam-mod",
+        `export default { meta: { name: "cam-mod" }, setup(_options, gwen) { gwen.addPlugin({ src: "cam-pkg", export: "CamPlugin", requires: { plugins: ["camera-core"] } }); } };\n`,
+      );
+      writeConfig(root, `export default { modules: ["cam-mod"] };\n`);
+      const plugin = pluginNamed("gwen");
+      await configHook(plugin)({ root }, serveEnv);
+      const code = await loadHook(plugin)(RESOLVED_ENTRY_ID);
+      const provider = 'import { CameraCorePlugin as _gwenPlugin2 } from "@gwenjs/camera-core";';
+      const consumer = 'import { CamPlugin as _gwenPlugin3 } from "cam-pkg";';
+      expect(code).toContain(provider);
+      expect(code?.indexOf(provider)).toBeLessThan(code?.indexOf(consumer) ?? -1);
+      const installs = [...(code ?? "").matchAll(/await engine\.use\((_gwenPlugin\d+)\(/g)];
+      expect(installs.map((match) => match[1])).toEqual([
+        "_gwenPlugin0",
+        "_gwenPlugin1",
+        "_gwenPlugin2",
+        "_gwenPlugin3",
+      ]);
+    });
+  });
+
+  it("config() rejects with the provider-absent code for a module whose requires.services is provided by nothing", async () => {
+    await withRoot(async (root) => {
+      writeModule(
+        root,
+        "needs-mod",
+        `export default { meta: { name: "needs-mod" }, setup(_options, gwen) { gwen.addPlugin({ src: "needs-pkg", export: "NeedsPlugin", requires: { services: ["logger", "audio:mixer"] } }); } };\n`,
+      );
+      writeConfig(root, `export default { modules: ["needs-mod"] };\n`);
+      const plugin = pluginNamed("gwen");
+      const caught: unknown = await configHook(plugin)({ root }, serveEnv).then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+      expect(caught).toMatchObject({ code: "APP:SERVICE_PROVIDER_MISSING" });
+      expect(caught instanceof Error ? caught.message : "").toContain(
+        'Module "needs-mod" requires service "audio:mixer"',
+      );
+    });
+  });
+
   it("a module that throws in setup rejects config() with the module name", async () => {
     await withRoot(async (root) => {
       writeModule(
