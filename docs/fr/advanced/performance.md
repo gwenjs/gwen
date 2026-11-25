@@ -1,11 +1,11 @@
 ---
 title: Patterns de performance
-description: Boucles de chunks pour le travail en masse, fonctions partagées, et une option optimizer réservée.
+description: Boucles de chunks pour le travail en masse, fonctions partagées, et l'option optimizer qui remonte les lectures de colonnes.
 ---
 
 # Patterns de performance
 
-Utilisez un acteur pour un objet nommé. Utilisez une boucle de chunks dans un système quand la même logique s'applique à beaucoup d'entités. L'option `optimizer` est réservée et ignorée jusqu'à #69.
+Utilisez un acteur pour un objet nommé. Utilisez une boucle de chunks dans un système quand la même logique s'applique à beaucoup d'entités. Avec `optimizer: true`, le build lit pour vous les colonnes d'une boucle de lignes de chunk une seule fois, pour les boucles qui remplissent ses préconditions.
 
 ## 1. Architecture hybride acteur / système
 
@@ -211,6 +211,8 @@ Ajouter un composant qui n'est pas déjà sur l'entité écrit les valeurs par d
 
 `query.each()` est le chemin par entité. Pendant une phase d'update, il journalise `CORE:QUERY_PER_ENTITY_PATH`.
 
+`chunk.get(Def)` coûte une recherche à chaque appel. Appelez-le une fois par chunk, avant la boucle de lignes, et indexez les colonnes renvoyées dans la boucle. Une boucle qui l'appelle à chaque ligne paie cette recherche à chaque ligne. La section suivante décrit l'étape de build qui le fait pour vous.
+
 Une écriture dans la boucle de chunks d'un système est visible pour un système plus tard dans la même frame :
 
 ```ts run
@@ -257,9 +259,22 @@ await engine.advance(0.016);
 assert.equal(readBack, 11);
 ```
 
-## 4. L'option optimizer réservée
+## 4. L'option optimizer
 
-L'option `optimizer` est réservée. `optimizer: true` ne fait rien jusqu'à #69.
+Avec `optimizer: true`, `gwen:hoist-chunk-columns` sort de la boucle chaque `chunk.get(Def)` d'une boucle de lignes de chunk. Il le lit une fois, dans un `const` placé avant la boucle de lignes, et la boucle utilise ce local. La réécriture garde les résultats de la boucle. Elle ne s'applique qu'aux boucles qui passent ses préconditions. Une boucle qui en manque une reste telle que vous l'avez écrite, et le build n'avertit pas. Voir [Remonter les lectures de colonnes](/fr/advanced/build-pipeline#hoisting-column-lookups) pour les préconditions et les noms générés, et [`gwenVitePlugin`](/fr/api/vite) pour l'option.
+
+Deux outils vous laissent le contrôle :
+
+- `// @gwen-no-optimize` avant une boucle, ou avant une instruction qui l'entoure, garde cette boucle telle qu'écrite. Voir [Désactiver une optimisation](/fr/advanced/build-pipeline#opting-out).
+- `optimizer: { debug: true }` journalise une ligne pour chaque boucle de lignes de chunk qu'elle inspecte et laisse intacte, avec la première précondition manquée. Voir [Boucles ignorées](/fr/advanced/build-pipeline#skipped-loops) pour les boucles qui ne journalisent rien. Un avertissement de build voisin, [`VITE:HOT_PATH_LOOKUP`](/fr/api/errors#vite-hot-path-lookup), signale un appel à `useQuery`, `useService` ou `useWasmModule` dans un callback de frame.
+
+### Ce qui est mesuré
+
+Les durées dépendent de la machine : cette page n'en cite aucune. Trois fichiers portent la preuve. Vous pouvez exécuter les deux premiers, et `pnpm test:alloc` lit le troisième :
+
+- `packages/core/bench/system-iteration.bench.ts` exécute une boucle de chunks deux fois sur un vrai moteur : telle qu'écrite, et telle que la transformation l'écrit. Chaque ligne mesure un appel à `advance`, pour deux nombres d'entités. Une boucle qui lit déjà ses colonnes une seule fois n'a rien à changer pour l'unité.
+- `packages/core/tests/integration-wasm/p69-hot-path-parity.test.ts` exécute les deux versions sur un vrai moteur et compare chaque valeur de `Position` et de `Velocity`. Les valeurs sont égales bit à bit.
+- La ligne `update.system.optimized` de `packages/core/bench/alloc-thresholds.json` enregistre la barrière d'allocation de la boucle réécrite. La barrière échoue quand les octets par entité et par frame dépassent la valeur enregistrée de plus de sa marge.
 
 ## Chemin chaud
 
