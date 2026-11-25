@@ -125,14 +125,14 @@ export type EntryProfile = "dev" | "release";
  * @param declarations - Path-based plugin declarations collected at build time.
  * @param cssFiles     - Root-relative CSS paths to inject as top-level imports.
  * @param resolved     - Resolved GWEN config. Engine values and module sections are inlined.
- * @param _profile     - Core build the entry imports. Defaults to `"release"`.
+ * @param profile      - Core build the entry imports. Defaults to `"release"`.
  */
 export function generateEntryModule(
   hasScenesDir: boolean,
   declarations: PluginDeclaration[] = [],
   cssFiles: string[] = [],
   resolved: EntryResolvedConfig,
-  _profile: EntryProfile = "release",
+  profile: EntryProfile = "release",
 ): string {
   const lines: string[] = [];
   const variant = resolved.engine.variant;
@@ -147,7 +147,7 @@ export function generateEntryModule(
       ? 'import { WasmBridgeImpl, runScenePreload } from "@gwenjs/core/internal";'
       : 'import { WasmBridgeImpl } from "@gwenjs/core/internal";',
     'import { createViewportsPlugin, createScreenPlugin } from "@gwenjs/app";',
-    `import * as __gwenGlue from ${JSON.stringify(`@gwenjs/core/wasm/${variant}/factory`)};`,
+    `import * as __gwenGlue from ${JSON.stringify(`@gwenjs/core/wasm/${variant}${profile === "dev" ? "-dev" : ""}/factory`)};`,
     'import gwenConfig from "/gwen.config.ts";',
     'import { plugins as _localPlugins } from "virtual:gwen/local-plugins";',
   );
