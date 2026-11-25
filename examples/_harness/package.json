@@ -2,8 +2,15 @@
   "name": "example-harness",
   "private": true,
   "type": "module",
+  "scripts": {
+    "example:typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@gwenjs/vite": "workspace:*"
+  },
   "devDependencies": {
     "@types/node": "^20",
+    "vite": "^8.0.3",
     "vitest": "^4.1.2"
   }
 }
