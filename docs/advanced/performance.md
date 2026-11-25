@@ -1,11 +1,11 @@
 ---
 title: Performance Patterns
-description: Chunk loops for bulk work, shared functions, and a reserved optimizer option.
+description: Chunk loops for bulk work, shared functions, and the optimizer option that hoists column lookups.
 ---
 
 # Performance Patterns
 
-Use an actor for one named object. Use a system chunk loop when the same logic applies to many entities. The `optimizer` option is reserved and ignored until #69.
+Use an actor for one named object. Use a system chunk loop when the same logic applies to many entities. With `optimizer: true`, the build reads the columns of a chunk row loop once for you, for the loops that meet its preconditions.
 
 ## 1. Hybrid actor / system architecture
 
@@ -211,6 +211,8 @@ Adding a component that is not already on the entity writes the defaults, then t
 
 `query.each()` is the per-entity path. During an update phase it logs `CORE:QUERY_PER_ENTITY_PATH`.
 
+`chunk.get(Def)` costs a lookup each time it is called. Call it once per chunk, before the row loop, and index the returned columns inside the loop. A loop that calls it on every row pays that lookup on every row. The next section covers the build step that does this for you.
+
 A write in one system's chunk loop is visible to a later system in the same frame:
 
 ```ts run
@@ -257,9 +259,22 @@ await engine.advance(0.016);
 assert.equal(readBack, 11);
 ```
 
-## 4. The reserved optimizer option
+## 4. The optimizer option
 
-The `optimizer` option is reserved. `optimizer: true` does nothing until #69.
+With `optimizer: true`, `gwen:hoist-chunk-columns` moves each `chunk.get(Def)` of a chunk row loop out of the loop. It reads it once, in a `const` before the row loop, and the loop uses that local. The rewrite keeps the loop's results. It runs only on loops that pass its preconditions. A loop that fails one stays as you wrote it, and the build does not warn. See [Hoisting column lookups](/advanced/build-pipeline#hoisting-column-lookups) for the preconditions and the generated names, and [`gwenVitePlugin`](/api/vite) for the option.
+
+Two tools keep you in control:
+
+- `// @gwen-no-optimize` before a loop, or before a statement around it, keeps that loop as written. See [Opting out](/advanced/build-pipeline#opting-out).
+- `optimizer: { debug: true }` logs one line for each chunk row loop it inspects and leaves alone, with the first precondition it failed. See [Skipped loops](/advanced/build-pipeline#skipped-loops) for the loops that log nothing. A related build warning, [`VITE:HOT_PATH_LOOKUP`](/api/errors#vite-hot-path-lookup), flags a `useQuery`, `useService` or `useWasmModule` call inside a frame callback.
+
+### What is measured
+
+Timings depend on the machine, so this page quotes none. Three files hold the evidence. You can run the first two, and `pnpm test:alloc` reads the third:
+
+- `packages/core/bench/system-iteration.bench.ts` runs one chunk loop twice on a real engine: as written, and as the transform writes it. Each row measures one `advance` call, at two entity counts. A loop that already reads its columns once has nothing for the unit to change.
+- `packages/core/tests/integration-wasm/p69-hot-path-parity.test.ts` runs both versions on a real engine and compares every `Position` and `Velocity` value. The values are equal bit for bit.
+- The `update.system.optimized` row of `packages/core/bench/alloc-thresholds.json` records the allocation gate for the rewritten loop. The gate fails when the bytes per entity per frame rise above the recorded value by more than its margin.
 
 ## Hot path
 
