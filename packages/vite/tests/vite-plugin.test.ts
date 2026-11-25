@@ -887,6 +887,29 @@ describe("the entry profile follows the Vite command", () => {
       expect(await loadHook(plugin)(RESOLVED_ENTRY_ID)).toContain(devImport);
     });
   });
+
+  it("load of the entry imports light/factory after configResolved sees command build in mode development", async () => {
+    await withRoot(async (root) => {
+      writeConfig(root, "export default { modules: [] };\n");
+      const plugin = pluginNamed("gwen");
+      await configHook(plugin)({ root }, { command: "build", mode: "development" });
+      applyResolvedCommand(plugin, root, { command: "build", mode: "development" });
+      const code = await loadHook(plugin)(RESOLVED_ENTRY_ID);
+      expect(code).toContain('import * as __gwenGlue from "@gwenjs/core/wasm/light/factory";');
+      expect(code).not.toContain("-dev/");
+    });
+  });
+
+  it("load of the entry imports the release factory when configResolved never ran", async () => {
+    await withRoot(async (root) => {
+      writeConfig(root, "export default { modules: [] };\n");
+      const plugin = pluginNamed("gwen");
+      await configHook(plugin)({ root }, { command: "serve", mode: "development" });
+      const code = await loadHook(plugin)(RESOLVED_ENTRY_ID);
+      expect(code).toContain('import * as __gwenGlue from "@gwenjs/core/wasm/light/factory";');
+      expect(code).not.toContain("-dev/");
+    });
+  });
 });
 
 describe("resolved config is the build source", () => {
