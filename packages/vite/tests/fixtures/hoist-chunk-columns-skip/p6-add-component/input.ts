@@ -1,0 +1,16 @@
+import { defineSystem, onUpdate, useQuery } from "@gwenjs/core/system";
+import { Position, Velocity } from "./components";
+
+declare function addComponent(id: number, def: object): void;
+
+export const Mover = defineSystem("Mover", () => {
+  const q = useQuery([Position, Velocity]);
+  onUpdate((dt) => {
+    for (const chunk of q) {
+      for (let i = 0; i < chunk.count; i++) {
+        chunk.get(Position).x[i] += chunk.get(Velocity).vx[i] * dt;
+        addComponent(i, Velocity);
+      }
+    }
+  });
+});
