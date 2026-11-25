@@ -43,8 +43,6 @@ onStart(async () => {
 
 - `CORE:INTROSPECTION_PAGE_INVALID` {#core-introspection-page-invalid}
 - `APP:PLUGIN_REQUIREMENT_MISSING` {#app-plugin-requirement-missing}
-- `APP:PLUGIN_REQUIREMENT_ORDER` {#app-plugin-requirement-order}
-- `APP:SERVICE_PROVIDER_MISSING` {#app-service-provider-missing}
 
 ## @gwenjs/core
 
@@ -194,7 +192,15 @@ Cause. Un paquet de module ne déclare pas d'export `./module`. Le message nomme
 
 ### APP:PLUGIN_NOT_DECLARATIVE {#app-plugin-not-declarative}
 
-Cause. `kit.addPlugin()` a reçu quelque chose qui n'est pas une `PluginDeclaration { src, export?, options? }` (une instance, une fonction, ou un objet sans `src` de type chaîne), ou les `options` ne sont pas sérialisables en JSON (message `Plugin declaration "<src>" has options that are not JSON-serializable.`). L'échec est enveloppé dans `APP:MODULE_SETUP_FAILED`, dont le `cause` est cette erreur. Fix. Déclarez le paquet et son export, `kit.addPlugin({ src: "<pkg>", export: "<Factory>", options })`, et ne passez que des données JSON.
+Cause. `kit.addPlugin()` a reçu quelque chose qui n'est pas une `PluginDeclaration { src, export?, options?, requires?, provides? }` (une instance, une fonction, ou un objet sans `src` de type chaîne), ou les `options` ne sont pas sérialisables en JSON (message `Plugin declaration "<src>" has options that are not JSON-serializable.`), ou `requires` ou `provides` a une forme invalide (`requires` est un objet de listes `plugins`, `services` et `optional` ; `provides` est une liste de chaînes). L'échec est enveloppé dans `APP:MODULE_SETUP_FAILED`, dont le `cause` est cette erreur. Fix. Déclarez le paquet et son export, `kit.addPlugin({ src: "<pkg>", export: "<Factory>", options })`, et ne passez que des données JSON.
+
+### APP:PLUGIN_REQUIREMENT_ORDER {#app-plugin-requirement-order}
+
+Cause. Une déclaration requiert un fournisseur qu'une déclaration plus tardive enregistre. Le message est `Module "<consumer>" requires "<name>", which module "<provider>" declares later.` Le build insère lui-même un fournisseur du framework, et garde celui que l'auteur a déclaré plus tôt. Il ne réordonne jamais les modules de l'auteur. Fix. Placez le module fournisseur avant le consommateur dans `modules`, ou, quand c'est un fournisseur du framework comme `camera-core`, retirez-le : le build l'insère.
+
+### APP:SERVICE_PROVIDER_MISSING {#app-service-provider-missing}
+
+Cause. Une déclaration liste une clé `requires.services` obligatoire que ni un module, ni un plugin de config, ni un plugin de bootstrap, ni une clé du moteur, ni un fournisseur du framework ne fournit. Le message est `Module "<module>" requires service "<key>", which no module, config plugin or framework provider installs.` Fix. Ajoutez le module qui fournit la clé (sa déclaration porte `provides`), ou déplacez la clé dans `requires.optional` si le plugin fonctionne sans elle.
 
 ### APP:CONFIG_LOAD_FAILED {#app-config-load-failed}
 
@@ -673,7 +679,7 @@ Cause. `engine.errors` a émis un événement de niveau `warning`, `error` ou `f
 
 ### CONFORMANCE:RUNTIME_MODULE {#conformance-runtime-module}
 
-Cause. La vérification ne s'exécute que si `package.json` `exports` a `"./module"`. Un `./module` qui ne s'importe pas, ou dont l'export par défaut n'est pas un objet, donne un constat. `meta.name` de l'export par défaut est lu comme `validateGwenModule` le lit (`packages/kit/src/define-module.ts:69`) et doit être égal au nom du paquet. `setup` est appelé avec les `defaults` du module, ou `{}`, et un kit d'enregistrement (`packages/schema/src/module.ts:193`) : `addPlugin` enregistre, `addAutoImports`, `addVitePlugin`, `extendViteConfig` et `hook` sont inertes, et `options` vaut `{}`. Un `setup` qui lève donne un constat, et le message nomme la vérification et le texte levé. Chaque valeur enregistrée doit être un objet simple (`packages/app/src/app.ts:433`) avec `src` chaîne égal au nom du paquet (`packages/app/src/app.ts:434`), aucune valeur fonction (`packages/app/src/app.ts:357`), et `export` chaîne nommant une entrée de `spec.factories`. Une instance de plugin (`name` et `setup`) donne un constat. Le message nomme le paquet et la valeur observée. Quand la déclaration enregistrée a sa propre clé `name`, cette valeur doit être égale au nom de plugin de la fabrique nommée par `export`, et une différence donne un constat. La lecture n'est pas typée : une clé `name` absente n'est pas comparée (`packages/schema/src/module.ts:162`). `provides` n'est pas un champ de cette déclaration. Une clé `requires` sur la déclaration est comparée sous `RUNTIME_REQUIRES`. Fix. Mettez `meta.name` au nom du paquet, passez à `addPlugin` une déclaration `{ src, export }` pour une fabrique de ce paquet, et mettez `name` au nom de plugin de cette fabrique quand la clé est présente.
+Cause. La vérification ne s'exécute que si `package.json` `exports` a `"./module"`. Un `./module` qui ne s'importe pas, ou dont l'export par défaut n'est pas un objet, donne un constat. `meta.name` de l'export par défaut est lu comme `validateGwenModule` le lit (`packages/kit/src/define-module.ts:69`) et doit être égal au nom du paquet. `setup` est appelé avec les `defaults` du module, ou `{}`, et un kit d'enregistrement (`packages/schema/src/module.ts:193`) : `addPlugin` enregistre, `addAutoImports`, `addVitePlugin`, `extendViteConfig` et `hook` sont inertes, et `options` vaut `{}`. Un `setup` qui lève donne un constat, et le message nomme la vérification et le texte levé. Chaque valeur enregistrée doit être un objet simple (`packages/app/src/app.ts:433`) avec `src` chaîne égal au nom du paquet (`packages/app/src/app.ts:434`), aucune valeur fonction (`packages/app/src/app.ts:357`), et `export` chaîne nommant une entrée de `spec.factories`. Une instance de plugin (`name` et `setup`) donne un constat. Le message nomme le paquet et la valeur observée. Quand la déclaration enregistrée a sa propre clé `name`, cette valeur doit être égale au nom de plugin de la fabrique nommée par `export`, et une différence donne un constat. La lecture n'est pas typée : une clé `name` absente n'est pas comparée (`packages/schema/src/module.ts:162`). `provides` n'est pas comparé par cette vérification. Une clé `requires` sur la déclaration est comparée sous `RUNTIME_REQUIRES`. Fix. Mettez `meta.name` au nom du paquet, passez à `addPlugin` une déclaration `{ src, export }` pour une fabrique de ce paquet, et mettez `name` au nom de plugin de cette fabrique quand la clé est présente.
 
 ### CONFORMANCE:RUNTIME_OPTIONS {#conformance-runtime-options}
 

@@ -12,7 +12,12 @@ export default {
   meta: { name: "@gwenjs/core:tween", configKey: "tween" },
   defaults: { poolSize: 256 } satisfies TweenPluginOptions,
   setup(opts: TweenPluginOptions, gwen) {
-    gwen.addPlugin({ src: "@gwenjs/core/internal", export: "TweenPlugin", options: opts });
+    gwen.addPlugin({
+      src: "@gwenjs/core/internal",
+      export: "TweenPlugin",
+      options: opts,
+      provides: ["tween:manager"],
+    });
     gwen.addAutoImports([
       { name: "useTween", from: "@gwenjs/core/tween" },
       { name: "useSequence", from: "@gwenjs/core/tween" },

@@ -5,7 +5,8 @@
  * The viewport and camera services come from `gwen:viewports`.
  * The orthographic bounds provider is registered when `gwen:screen` is installed before it.
  * This plugin reads those services. It does not provide them.
- * Called automatically by Camera2DPlugin and Camera3DPlugin.
+ * A declaration that requires `camera-core` gets this plugin installed first by the build
+ * (`@gwenjs/app`). Camera plugins that do not declare it still install it themselves.
  * Users do not install this plugin manually unless building a custom camera composable.
  *
  * @example

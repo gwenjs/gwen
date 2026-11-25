@@ -43,8 +43,6 @@ onStart(async () => {
 
 - `CORE:INTROSPECTION_PAGE_INVALID` {#core-introspection-page-invalid}
 - `APP:PLUGIN_REQUIREMENT_MISSING` {#app-plugin-requirement-missing}
-- `APP:PLUGIN_REQUIREMENT_ORDER` {#app-plugin-requirement-order}
-- `APP:SERVICE_PROVIDER_MISSING` {#app-service-provider-missing}
 
 ## @gwenjs/core
 
@@ -194,7 +192,15 @@ Cause. A module package declares no `./module` export. The message names the pac
 
 ### APP:PLUGIN_NOT_DECLARATIVE {#app-plugin-not-declarative}
 
-Cause. `kit.addPlugin()` received something that is not a `PluginDeclaration { src, export?, options? }` (an instance, a function, or an object without a string `src`), or the `options` are not JSON-serializable (message `Plugin declaration "<src>" has options that are not JSON-serializable.`). The failure is wrapped in `APP:MODULE_SETUP_FAILED`, whose `cause` is this error. Fix. Declare the package and its export, `kit.addPlugin({ src: "<pkg>", export: "<Factory>", options })`, and pass JSON data only.
+Cause. `kit.addPlugin()` received something that is not a `PluginDeclaration { src, export?, options?, requires?, provides? }` (an instance, a function, or an object without a string `src`), or the `options` are not JSON-serializable (message `Plugin declaration "<src>" has options that are not JSON-serializable.`), or `requires` or `provides` has the wrong shape (`requires` is a record of `plugins`, `services` and `optional` lists; `provides` is a list of strings). The failure is wrapped in `APP:MODULE_SETUP_FAILED`, whose `cause` is this error. Fix. Declare the package and its export, `kit.addPlugin({ src: "<pkg>", export: "<Factory>", options })`, and pass JSON data only.
+
+### APP:PLUGIN_REQUIREMENT_ORDER {#app-plugin-requirement-order}
+
+Cause. A declaration requires a provider that a later declaration registers. The message is `Module "<consumer>" requires "<name>", which module "<provider>" declares later.` The build inserts a framework provider itself, and keeps one the author declared earlier. It never reorders the author's modules. Fix. Move the provider module before the consumer in `modules`, or, when it is a framework provider such as `camera-core`, remove it: the build inserts it.
+
+### APP:SERVICE_PROVIDER_MISSING {#app-service-provider-missing}
+
+Cause. A declaration lists a hard `requires.services` key that no module, config plugin, bootstrap plugin, engine key or framework provider provides. The message is `Module "<module>" requires service "<key>", which no module, config plugin or framework provider installs.` Fix. Add the module that provides the key (its declaration carries `provides`), or move the key to `requires.optional` if the plugin works without it.
 
 ### APP:CONFIG_LOAD_FAILED {#app-config-load-failed}
 
@@ -673,7 +679,7 @@ Cause. `engine.errors` emitted an event at level `warning`, `error`, or `fatal` 
 
 ### CONFORMANCE:RUNTIME_MODULE {#conformance-runtime-module}
 
-Cause. The check runs only when `package.json` `exports` has `"./module"`. A `./module` that fails to import, or whose default export is not an object, is one finding. The default export's `meta.name` is read the way `validateGwenModule` reads it (`packages/kit/src/define-module.ts:69`) and must equal the package name. `setup` is called with the module `defaults`, or `{}`, and a recording kit (`packages/schema/src/module.ts:193`): `addPlugin` records, `addAutoImports`, `addVitePlugin`, `extendViteConfig`, and `hook` are inert, and `options` is `{}`. A `setup` that throws is one finding, and the message names the check and the thrown text. Each recorded value must be a plain object (`packages/app/src/app.ts:433`) with string `src` equal to the package name (`packages/app/src/app.ts:434`), no function value (`packages/app/src/app.ts:357`), and string `export` naming one entry of `spec.factories`. A plugin instance (`name` and `setup`) is one finding. The message names the package and the observed value. When the recorded declaration has its own `name` key, that value must equal the plugin name of the factory named by `export`, and a difference is one finding. The read is untyped: a `name` key that is absent is not compared (`packages/schema/src/module.ts:162`). `provides` is not a field of that declaration. A `requires` key on the declaration is compared under `RUNTIME_REQUIRES`. Fix. Set `meta.name` to the package name, pass `addPlugin` a declaration `{ src, export }` for a factory of this package, and set `name` to that factory's plugin name when the key is present.
+Cause. The check runs only when `package.json` `exports` has `"./module"`. A `./module` that fails to import, or whose default export is not an object, is one finding. The default export's `meta.name` is read the way `validateGwenModule` reads it (`packages/kit/src/define-module.ts:69`) and must equal the package name. `setup` is called with the module `defaults`, or `{}`, and a recording kit (`packages/schema/src/module.ts:193`): `addPlugin` records, `addAutoImports`, `addVitePlugin`, `extendViteConfig`, and `hook` are inert, and `options` is `{}`. A `setup` that throws is one finding, and the message names the check and the thrown text. Each recorded value must be a plain object (`packages/app/src/app.ts:433`) with string `src` equal to the package name (`packages/app/src/app.ts:434`), no function value (`packages/app/src/app.ts:357`), and string `export` naming one entry of `spec.factories`. A plugin instance (`name` and `setup`) is one finding. The message names the package and the observed value. When the recorded declaration has its own `name` key, that value must equal the plugin name of the factory named by `export`, and a difference is one finding. The read is untyped: a `name` key that is absent is not compared (`packages/schema/src/module.ts:162`). `provides` is not compared by this check. A `requires` key on the declaration is compared under `RUNTIME_REQUIRES`. Fix. Set `meta.name` to the package name, pass `addPlugin` a declaration `{ src, export }` for a factory of this package, and set `name` to that factory's plugin name when the key is present.
 
 ### CONFORMANCE:RUNTIME_OPTIONS {#conformance-runtime-options}
 

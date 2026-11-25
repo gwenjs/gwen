@@ -250,7 +250,29 @@ Register runtime plugins to be loaded:
 gwen.addPlugin({ src: "@my-scope/my-module", export: "MyPlugin" })
 ```
 
-`addPlugin` takes declarations only. `options` must be JSON-serializable. An instance, a factory, or options that are not JSON-serializable throw `APP:PLUGIN_NOT_DECLARATIVE`. Migrate with `kit.addPlugin({ src: "<pkg>", export: "<Factory>", options })`.
+`addPlugin` takes declarations only. `options` must be JSON-serializable. An instance, a factory, options that are not JSON-serializable, or a malformed `requires` / `provides` throw `APP:PLUGIN_NOT_DECLARATIVE`. Migrate with `kit.addPlugin({ src: "<pkg>", export: "<Factory>", options })`.
+
+### Requirements of a declaration
+
+A declaration may carry `requires` and `provides`. Both are data, read at build time. Keep them equal to the `requires` and `provides` of the plugin the declaration builds.
+
+```ts
+gwen.addPlugin({
+  src: "@my-scope/my-camera",
+  export: "MyCameraPlugin",
+  requires: { plugins: ["camera-core"], optional: ["audio:mixer"] },
+})
+```
+
+After every module has run its `setup`, the build walks the declarations in install order:
+
+- A `requires.plugins` name that is a framework provider (`camera-core`) gets its declaration inserted right before the first declaration that requires it. Any number of consumers share one insertion.
+- A provider you declared earlier is kept with your options. A provider declared later fails with `APP:PLUGIN_REQUIREMENT_ORDER`.
+- A `requires.services` key must be provided by the engine, by `gwen:viewports` or `gwen:screen`, by a config plugin, by the `provides` of an earlier declaration, or by a framework provider. Otherwise the build fails with `APP:SERVICE_PROVIDER_MISSING`.
+- `requires.optional` never inserts a provider and never fails the build.
+- A plugin name with no framework provider and no installed plugin is not checked by the build. `engine.use()` rejects it at runtime with `CORE:PLUGIN_DEPENDENCY_MISSING`.
+
+The generated entry imports an inserted provider by its package name, for example `@gwenjs/camera-core`, from the project root. Install that package in the project. The framework providers add nothing to the browser bundle until a declaration requires one.
 
 ### Auto-Imports
 
@@ -468,7 +490,7 @@ export default defineGwenModule<Options>({
 
 | Method | Purpose |
 |--------|---------|
-| `addPlugin(declaration)` | Declare a runtime plugin: { src, export?, options? } |
+| `addPlugin(declaration)` | Declare a runtime plugin: { src, export?, options?, requires?, provides? } |
 | `addAutoImports(imports)` | Declare auto-imported utilities |
 | `addVitePlugin(plugin)` | Add a Vite plugin to the build |
 | `addSourceTransform(transform)` | Register a build transform named `<namespace>:<transform>` |
