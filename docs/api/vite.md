@@ -39,7 +39,7 @@ export default defineConfig({
 |---|---|---|---|
 | `autoImports` | `AutoImport[]` | `[]` | Additional auto-import entries injected into the virtual module. |
 | `gwenDir` | `string` | `'.gwen'` | Directory where generated files (dts, virtual modules) are written. |
-| `dts` | `boolean` | `true` | Emit a `gwen.d.ts` type declaration file. |
+| `dts` | `boolean` | `true` | Emit `.d.ts` files (auto-imports, wasm modules). |
 | `actors.dir` | `string` | `'src/actors'` | Root directory scanned for actor files. |
 | `actors.hmr` | `boolean` | `true` | Enable HMR for actor modules. |
 | `layout.include` | `string[]` | — | Glob patterns of layout files to include. |
@@ -153,13 +153,20 @@ export default defineConfig({
 `@gwenjs/vite/scanners` reads project files and returns facts about them (`packages/vite/package.json:22`). It has no Vite import, so an app or a CLI can call it without a Vite peer. The pipeline rewrites one module at a time; see [Build Pipeline](/advanced/build-pipeline).
 
 ```ts
-import { scanScenes, scanDefineHooks, scanLayoutNames, scanEasingNames } from '@gwenjs/vite/scanners'
+import {
+  scanScenes,
+  scanDefineHooks,
+  scanLayoutNames,
+  scanEasingNames,
+  scanWasmModuleNames,
+} from '@gwenjs/vite/scanners'
 
 const root = '/path/to/project'
 const scenes = scanScenes(root)
 const hooks = scanDefineHooks(root)
 const layouts = scanLayoutNames(root, ['src/layouts/**/*.ts'])
 const easings = scanEasingNames(root)
+const wasmModules = scanWasmModuleNames(root, ['src'])
 ```
 
 | Function | Reads | Returns |
@@ -168,14 +175,16 @@ const easings = scanEasingNames(root)
 | `scanDefineHooks(root, options?)` | `src/hooks.ts`, then `src/hooks/*.ts` in name order (`packages/vite/src/scanners/index.ts:288`) | `HookExport[]`: `{ file, name }` per binding |
 | `scanLayoutNames(root, include, options?)` | the files under the base directory of each `include` glob, the text before its first `**` (`packages/vite/src/scanners/index.ts:320`) | `LayoutName[]`: `{ file, name }` per `defineLayout` binding, sorted by file |
 | `scanEasingNames(root, options?)` | `src/**` (`packages/vite/src/scanners/index.ts:356`) | `string[]`, sorted and unique |
+| `scanWasmModuleNames(root, dirs)` | every `.ts`, `.tsx`, `.js` and `.jsx` file under each directory of `dirs` (`packages/vite/src/scanners/index.ts:532`) | `WasmModuleScan`: `{ hits, skipped }` |
 
 `resolveMainScene(scenes, fromConfig?)` returns the given `mainScene` when it was discovered (`packages/vite/src/scanners/index.ts:222`), and the first scene when `mainScene` is omitted (`packages/vite/src/scanners/index.ts:224`).
 
 - **Hooks.** A binding counts when it is `export const X = defineHooks(...)`, or a top-level `const X = defineHooks(...)` named in `export { X }`. A default export is not typed. `options.file` and `options.dir` replace the default paths, relative to `root`.
 - **Easings.** A name counts when it is the string literal of `easing:` in an object argument of a `useTween` call. A template literal or an identifier is not read.
-- **Strict parse.** Every scanner parses with `parseModule`. A file with a syntax error throws `VITE:TRANSFORM_PARSE_FAILED` and names `<file>:<line>:<column>`. A file that cannot be read throws the same code, with the Node error as `cause` (`packages/vite/src/scanners/read.ts:37`). No file is skipped.
+- **Wasm module names.** A call counts when it is `<object>.loadWasmModule<T>({ name: '<literal>' })`, or a bare call of a `loadWasmModule` bound by a destructuring pattern. This scanner matches the method name, not an import binding. A local function with that name, an aliased method, `.call`, `.apply`, `Reflect.apply` and a computed property are not seen. `T` must be a type imported by name. A call with a name that is not a string literal, with no type argument, or with a type that is not importable (declared in the same file, generic, inline or namespaced) goes to `skipped`, with the reason `non-literal name`, `no type argument` or `type not importable`. A `node_modules` directory is never entered. Each hit is `{ name, typeImport: { from, name }, file, line }`; `from` is the specifier as written and `name` is the original export name. [Typed names](/kit/custom-plugin#typed-names) shows what the Vite plugin writes from it.
+- **Strict parse.** Every scanner parses with `parseModule`. A file with a syntax error throws `VITE:TRANSFORM_PARSE_FAILED` and names `<file>:<line>:<column>`. A file that cannot be read throws the same code, with the Node error as `cause` (`packages/vite/src/scanners/read.ts:39`). No file is skipped.
 - **`autoImports`.** Callees match through import bindings, never by text. Pass `options.autoImports` (type `ScanOptions`) to match a bare `defineScene(...)` that relies on an auto-import. Without it, only an explicit import from a GWEN package matches. An alias and a namespace import match. A local function with the same name, or a function from another package, does not.
-- **No barrels.** A scanner does not follow a re-export (`packages/vite/src/scanners/read.ts:48`). A scanned file must import the GWEN function from its package, or rely on `autoImports`.
+- **No barrels.** A scanner does not follow a re-export (`packages/vite/src/scanners/read.ts:50`). A scanned file must import the GWEN function from its package, or rely on `autoImports`.
 
 ## `ViteErrorCodes`
 
@@ -186,6 +195,7 @@ Exported from `@gwenjs/vite`.
 | `SCENE_NAME_UNRESOLVED` | `VITE:SCENE_NAME_UNRESOLVED` |
 | `SCENE_NAME_DUPLICATE` | `VITE:SCENE_NAME_DUPLICATE` |
 | `MAIN_SCENE_UNKNOWN` | `VITE:MAIN_SCENE_UNKNOWN` |
+| `WASM_MODULE_DUPLICATE` | `VITE:WASM_MODULE_DUPLICATE` |
 
 `scanScenes` throws `VITE:SCENE_NAME_UNRESOLVED` and `VITE:SCENE_NAME_DUPLICATE`. `resolveMainScene` throws `VITE:MAIN_SCENE_UNKNOWN`. Those three hints are present when `process.env["NODE_ENV"]` is not `"production"` (`packages/vite/src/scanners/index.ts:162`, `packages/vite/src/scanners/index.ts:177`, `packages/vite/src/scanners/index.ts:216`).
 

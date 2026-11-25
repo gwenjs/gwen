@@ -39,7 +39,7 @@ export default defineConfig({
 |---|---|---|---|
 | `autoImports` | `AutoImport[]` | `[]` | Entrées d'auto-import supplémentaires injectées dans le module virtuel. |
 | `gwenDir` | `string` | `'.gwen'` | Répertoire où les fichiers générés (dts, modules virtuels) sont écrits. |
-| `dts` | `boolean` | `true` | Émet un fichier de déclaration de types `gwen.d.ts`. |
+| `dts` | `boolean` | `true` | Émet les fichiers `.d.ts` (auto-imports, modules wasm). |
 | `actors.dir` | `string` | `'src/actors'` | Répertoire racine analysé pour les fichiers d'acteurs. |
 | `actors.hmr` | `boolean` | `true` | Active le HMR pour les modules d'acteurs. |
 | `layout.include` | `string[]` | — | Patterns glob des fichiers de layout à inclure. |
@@ -153,13 +153,20 @@ export default defineConfig({
 `@gwenjs/vite/scanners` lit les fichiers du projet et renvoie des faits à leur sujet (`packages/vite/package.json:22`). Il n'importe pas Vite : une app ou un CLI peut l'appeler sans pair Vite. Le pipeline réécrit un module à la fois ; voir [Pipeline de build](/fr/advanced/build-pipeline).
 
 ```ts
-import { scanScenes, scanDefineHooks, scanLayoutNames, scanEasingNames } from '@gwenjs/vite/scanners'
+import {
+  scanScenes,
+  scanDefineHooks,
+  scanLayoutNames,
+  scanEasingNames,
+  scanWasmModuleNames,
+} from '@gwenjs/vite/scanners'
 
 const root = '/path/to/project'
 const scenes = scanScenes(root)
 const hooks = scanDefineHooks(root)
 const layouts = scanLayoutNames(root, ['src/layouts/**/*.ts'])
 const easings = scanEasingNames(root)
+const wasmModules = scanWasmModuleNames(root, ['src'])
 ```
 
 | Fonction | Lit | Renvoie |
@@ -168,14 +175,16 @@ const easings = scanEasingNames(root)
 | `scanDefineHooks(root, options?)` | `src/hooks.ts`, puis `src/hooks/*.ts` par ordre de nom (`packages/vite/src/scanners/index.ts:288`) | `HookExport[]` : `{ file, name }` par liaison |
 | `scanLayoutNames(root, include, options?)` | les fichiers sous le dossier de base de chaque glob `include`, le texte avant son premier `**` (`packages/vite/src/scanners/index.ts:320`) | `LayoutName[]` : `{ file, name }` par liaison `defineLayout`, triés par fichier |
 | `scanEasingNames(root, options?)` | `src/**` (`packages/vite/src/scanners/index.ts:356`) | `string[]`, trié et sans doublon |
+| `scanWasmModuleNames(root, dirs)` | chaque fichier `.ts`, `.tsx`, `.js` et `.jsx` sous chaque dossier de `dirs` (`packages/vite/src/scanners/index.ts:532`) | `WasmModuleScan` : `{ hits, skipped }` |
 
 `resolveMainScene(scenes, fromConfig?)` renvoie le `mainScene` donné quand il a été découvert (`packages/vite/src/scanners/index.ts:222`), et la première scène quand `mainScene` est omis (`packages/vite/src/scanners/index.ts:224`).
 
 - **Hooks.** Une liaison compte quand c'est `export const X = defineHooks(...)`, ou un `const X = defineHooks(...)` de premier niveau nommé dans `export { X }`. Un export par défaut n'est pas typé. `options.file` et `options.dir` remplacent les chemins par défaut, relatifs à `root`.
 - **Easings.** Un nom compte quand c'est le littéral de `easing:` dans un argument objet d'un appel `useTween`. Un littéral gabarit ou un identifiant n'est pas lu.
-- **Analyse stricte.** Chaque scanner analyse avec `parseModule`. Un fichier avec une erreur de syntaxe lève `VITE:TRANSFORM_PARSE_FAILED` et nomme `<fichier>:<ligne>:<colonne>`. Un fichier illisible lève le même code, avec l'erreur Node en `cause` (`packages/vite/src/scanners/read.ts:37`). Aucun fichier n'est ignoré.
+- **Noms de modules wasm.** Un appel compte quand c'est `<objet>.loadWasmModule<T>({ name: '<littéral>' })`, ou un appel nu d'un `loadWasmModule` lié par un motif de déstructuration. Ce scanner reconnaît le nom de la méthode, pas une liaison d'import. Une fonction locale de même nom, une méthode aliasée, `.call`, `.apply`, `Reflect.apply` et une propriété calculée ne sont pas vus. `T` doit être un type importé par son nom. Un appel dont le nom n'est pas un littéral, sans argument de type, ou dont le type n'est pas importable (déclaré dans le même fichier, générique, en ligne ou d'espace de noms) va dans `skipped`, avec la raison `non-literal name`, `no type argument` ou `type not importable`. Un dossier `node_modules` n'est jamais parcouru. Chaque hit est `{ name, typeImport: { from, name }, file, line }` ; `from` est le specifier tel qu'écrit et `name` le nom d'export d'origine. [Noms typés](/fr/kit/custom-plugin#typed-names) montre ce que le plugin Vite en écrit.
+- **Analyse stricte.** Chaque scanner analyse avec `parseModule`. Un fichier avec une erreur de syntaxe lève `VITE:TRANSFORM_PARSE_FAILED` et nomme `<fichier>:<ligne>:<colonne>`. Un fichier illisible lève le même code, avec l'erreur Node en `cause` (`packages/vite/src/scanners/read.ts:39`). Aucun fichier n'est ignoré.
 - **`autoImports`.** Les appelés se reconnaissent par les liaisons d'import, jamais par le texte. Passez `options.autoImports` (type `ScanOptions`) pour reconnaître un `defineScene(...)` sans import qui repose sur un auto-import. Sans elle, seul un import explicite depuis un paquet GWEN est reconnu. Un alias et un import d'espace de noms sont reconnus. Une fonction locale de même nom, ou une fonction d'un autre paquet, ne l'est pas.
-- **Pas de barrels.** Un scanner ne suit pas un ré-export (`packages/vite/src/scanners/read.ts:48`). Un fichier scanné doit importer la fonction GWEN depuis son paquet, ou compter sur `autoImports`.
+- **Pas de barrels.** Un scanner ne suit pas un ré-export (`packages/vite/src/scanners/read.ts:50`). Un fichier scanné doit importer la fonction GWEN depuis son paquet, ou compter sur `autoImports`.
 
 ## `ViteErrorCodes`
 
@@ -186,6 +195,7 @@ Exporté par `@gwenjs/vite`.
 | `SCENE_NAME_UNRESOLVED` | `VITE:SCENE_NAME_UNRESOLVED` |
 | `SCENE_NAME_DUPLICATE` | `VITE:SCENE_NAME_DUPLICATE` |
 | `MAIN_SCENE_UNKNOWN` | `VITE:MAIN_SCENE_UNKNOWN` |
+| `WASM_MODULE_DUPLICATE` | `VITE:WASM_MODULE_DUPLICATE` |
 
 `scanScenes` lève `VITE:SCENE_NAME_UNRESOLVED` et `VITE:SCENE_NAME_DUPLICATE`. `resolveMainScene` lève `VITE:MAIN_SCENE_UNKNOWN`. Ces trois indices sont présents quand `process.env["NODE_ENV"]` n'est pas `"production"` (`packages/vite/src/scanners/index.ts:162`, `packages/vite/src/scanners/index.ts:177`, `packages/vite/src/scanners/index.ts:216`).
 

@@ -7,6 +7,7 @@ import { gwenHooksPlugin } from "./hooks.js";
 import { gwenLocalPluginsPlugin } from "./local-plugins.js";
 import { gwenLocalModulesPlugin } from "./local-modules.js";
 import { gwenDevStripPlugin } from "./dev-strip.js";
+import { gwenWasmModulesDtsPlugin } from "./wasm-modules-dts.js";
 import { BUILT_IN_UNITS } from "../pipeline/registry.js";
 import { createTransformPipeline } from "../pipeline/transform-pipeline.js";
 import type { GwenViteOptions } from "../types.js";
@@ -31,6 +32,7 @@ export {
   generateLocalModulesModule,
 } from "./local-modules.js";
 export { gwenDevStripPlugin, type GwenDevStripReport } from "./dev-strip.js";
+export { gwenWasmModulesDtsPlugin, type WasmModulesDtsOptions } from "./wasm-modules-dts.js";
 
 /** Built-in units, minus the name units a `disableNameInjection` option turns off. */
 function enabledUnits(options: GwenViteOptions): typeof BUILT_IN_UNITS {
@@ -60,6 +62,7 @@ function enabledUnits(options: GwenViteOptions): typeof BUILT_IN_UNITS {
  * - `gwen:hooks` — generates `hooks.d.ts` from `src/hooks.ts`
  * - `gwen:local-plugins` — auto-discovers `src/plugins/`, generates `virtual:gwen/local-plugins`
  * - `gwen:local-modules` — auto-discovers `src/modules/`, generates `virtual:gwen/local-modules`
+ * - `gwen:wasm-modules-dts` — generates `wasm-modules.d.ts` from `loadWasmModule<T>({ name })` calls
  *
  * @param options - Plugin configuration. All sub-options are optional.
  *
@@ -87,6 +90,13 @@ export function gwenVitePlugin(options: GwenViteOptions = {}): PluginOption {
     gwenHooksPlugin(options),
     gwenLocalPluginsPlugin(options),
     gwenLocalModulesPlugin(options),
+    gwenWasmModulesDtsPlugin({
+      ...options,
+      dirs: () => [
+        options.localPlugins === false ? false : options.localPlugins?.dir,
+        options.localModules === false ? false : options.localModules?.dir,
+      ],
+    }),
     gwenDevStripPlugin(),
   ];
 }

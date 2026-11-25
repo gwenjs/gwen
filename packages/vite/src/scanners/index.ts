@@ -4,8 +4,8 @@
  */
 import fs from "node:fs";
 import * as path from "node:path";
-import { walk } from "oxc-walker";
-import type { Expression, ModuleExportName, Program } from "oxc-parser";
+import { ScopeTracker, walk } from "oxc-walker";
+import type { CallExpression, Expression, ModuleExportName, Program, TSType } from "oxc-parser";
 import { GwenError } from "@gwenjs/schema";
 import type { AutoImport } from "@gwenjs/kit";
 import { getCallArgs, getObjectProperties, getPropertyKeyName } from "../oxc/index.js";
@@ -408,10 +408,143 @@ export interface WasmModuleScan {
   skipped: WasmModuleSkip[];
 }
 
+/** Source suffixes read by `scanWasmModuleNames`. */
+const WASM_SCAN_SUFFIXES = [".ts", ".tsx", ".js", ".jsx"];
+
+/** A type reachable from an import: `local` name to the specifier and the original export name. */
+type TypeImportTable = ReadonlyMap<string, { from: string; name: string }>;
+
+function importedTypes(program: Program): TypeImportTable {
+  const table = new Map<string, { from: string; name: string }>();
+  for (const statement of program.body) {
+    if (statement.type !== "ImportDeclaration") continue;
+    const from = statement.source.value;
+    for (const specifier of statement.specifiers) {
+      if (specifier.type === "ImportSpecifier") {
+        table.set(specifier.local.name, { from, name: moduleExportName(specifier.imported) });
+      } else if (specifier.type === "ImportDefaultSpecifier") {
+        table.set(specifier.local.name, { from, name: "default" });
+      }
+    }
+  }
+  return table;
+}
+
+/** True when `callee` is the `loadWasmModule` property of a non-computed member access. */
+function isMethodCallee(callee: Expression): boolean {
+  if (callee.type !== "MemberExpression" || callee.computed) return false;
+  return callee.property.type === "Identifier" && callee.property.name === "loadWasmModule";
+}
+
+/** The string literal given as `name` in the options object, or `null`. */
+function literalName(call: CallExpression): string | null {
+  const [options] = getCallArgs(call);
+  if (options === undefined || options.type !== "ObjectExpression") return null;
+  for (const property of getObjectProperties(options)) {
+    if (getPropertyKeyName(property) !== "name") continue;
+    const { value } = property;
+    return value.type === "Literal" && typeof value.value === "string" ? value.value : null;
+  }
+  return null;
+}
+
+/** The import behind the first type argument, `undefined` when it is a local, generic or inline type. */
+function importedTypeOf(
+  typeArgument: TSType,
+  imports: TypeImportTable,
+): { from: string; name: string } | undefined {
+  if (typeArgument.type !== "TSTypeReference") return undefined;
+  if (typeArgument.typeArguments !== null && typeArgument.typeArguments !== undefined) {
+    return undefined;
+  }
+  if (typeArgument.typeName.type !== "Identifier") return undefined;
+  return imports.get(typeArgument.typeName.name);
+}
+
+/** 1-based line of `offset`. A line break is `\n` only. */
+function lineOf(code: string, offset: number): number {
+  return code.slice(0, offset).split("\n").length;
+}
+
+function scanWasmModuleFile(file: string, found: WasmModuleScan): void {
+  const { program, code } = readScanned(file, "scanWasmModuleNames", []);
+  const imports = importedTypes(program);
+  const tracker = new ScopeTracker({ preserveExitedScopes: true });
+  /** Start offsets of the bindings that receive `loadWasmModule` from an object pattern. */
+  const bindings = new Set<number>();
+
+  function isBoundByPattern(name: string): boolean {
+    const declaration = tracker.getDeclaration(name);
+    return (
+      declaration !== undefined && declaration !== null && bindings.has(declaration.node.start)
+    );
+  }
+
+  function skip(call: CallExpression, reason: string): void {
+    found.skipped.push({ file, line: lineOf(code, call.start), reason });
+  }
+
+  function record(call: CallExpression): void {
+    const name = literalName(call);
+    if (name === null) return skip(call, "non-literal name");
+    const typeArgument = call.typeArguments?.params[0];
+    if (typeArgument === undefined) return skip(call, "no type argument");
+    const typeImport = importedTypeOf(typeArgument, imports);
+    if (typeImport === undefined) return skip(call, "type not importable");
+    found.hits.push({ name, typeImport, file, line: lineOf(code, call.start) });
+  }
+
+  // Pass 1 declares every scope and collects the pattern bindings: a call placed before its
+  // declaration (a hoisted function, a `const` used inside a function) still resolves in pass 2.
+  walk(program, {
+    scopeTracker: tracker,
+    enter(node) {
+      if (node.type !== "ObjectPattern") return;
+      for (const property of node.properties) {
+        if (property.type !== "Property" || property.computed) continue;
+        const { key } = property;
+        if (key.type !== "Identifier" || key.name !== "loadWasmModule") continue;
+        const target =
+          property.value.type === "AssignmentPattern" ? property.value.left : property.value;
+        if (target.type === "Identifier") bindings.add(target.start);
+      }
+    },
+  });
+  tracker.freeze();
+  walk(program, {
+    scopeTracker: tracker,
+    enter(node) {
+      if (node.type !== "CallExpression") return;
+      const { callee } = node;
+      if (callee.type === "Identifier" ? isBoundByPattern(callee.name) : isMethodCallee(callee)) {
+        record(node);
+      }
+    },
+  });
+}
+
 /**
- * `loadWasmModule` calls under `dirs`, each resolved against `root`.
- * Not implemented yet: always returns no hit and no skip.
+ * Names given to `loadWasmModule` under `dirs`, each resolved against `root`.
+ * A call matches by method name, not by import: `<any object>.loadWasmModule<T>(...)`, or a bare
+ * callee bound by a destructuring pattern, even one declared after the call. A local function
+ * named `loadWasmModule` (hoisted ones included), an aliased method, `.call`, `.apply`, `Reflect.apply` and a computed property are not seen.
+ * A call whose `name` is not a string literal, that has no type argument, or whose type argument
+ * is not a type imported by name (a local, generic, inline or namespaced type) is listed in
+ * `skipped` with its reason and never dropped silently.
+ * A `.d.ts`, `.test.` and `.spec.` file and a `node_modules` directory are skipped and never read.
+ * A directory given twice, nested or missing reads each file once. A file that cannot be read or
+ * parsed throws `VITE:TRANSFORM_PARSE_FAILED`.
  */
-export function scanWasmModuleNames(_root: string, _dirs: readonly string[]): WasmModuleScan {
-  return { hits: [], skipped: [] };
+export function scanWasmModuleNames(root: string, dirs: readonly string[]): WasmModuleScan {
+  const unique = new Set<string>();
+  for (const dir of dirs) {
+    for (const file of sourceFilesUnder(path.resolve(root, dir), WASM_SCAN_SUFFIXES, {
+      skipSpec: true,
+    })) {
+      unique.add(file);
+    }
+  }
+  const found: WasmModuleScan = { hits: [], skipped: [] };
+  for (const file of [...unique].sort()) scanWasmModuleFile(file, found);
+  return found;
 }

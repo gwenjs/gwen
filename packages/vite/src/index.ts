@@ -20,6 +20,7 @@ import {
   gwenLocalPluginsPlugin,
   gwenAutoImportsPlugin,
   gwenDevStripPlugin,
+  gwenWasmModulesDtsPlugin,
 } from "./plugins/index.js";
 import type { LocalPluginsDirOption } from "./plugins/local-plugins.js";
 import type { GwenOptimizerUserOptions } from "./types.js";
@@ -334,6 +335,9 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
     gwenDevStripPlugin(),
     gwenAutoImportsPlugin({ autoImports: _sharedAutoImports }),
     gwenLocalPluginsPlugin(localPluginsScan),
+    gwenWasmModulesDtsPlugin({
+      dirs: () => [_resolved?.localPluginsDir, _resolved?.localModulesDir],
+    }),
   ];
 }
 

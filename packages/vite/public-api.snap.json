@@ -26,9 +26,18 @@
       "scanDefineHooks",
       "scanEasingNames",
       "scanLayoutNames",
-      "scanScenes"
+      "scanScenes",
+      "scanWasmModuleNames"
     ],
-    "types": ["HookExport", "LayoutName", "ScanOptions", "SceneInfo"]
+    "types": [
+      "HookExport",
+      "LayoutName",
+      "ScanOptions",
+      "SceneInfo",
+      "WasmModuleHit",
+      "WasmModuleScan",
+      "WasmModuleSkip"
+    ]
   },
   "./internal": {
     "values": ["generateEntryModule", "generateScenesModule"],

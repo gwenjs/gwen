@@ -70,11 +70,11 @@ Le pipeline lève ces codes. Chaque entrée de la page donne la cause et le corr
 
 ## Scanners
 
-Certaines étapes du build ont besoin de faits sur plusieurs fichiers à la fois, pas d'une réécriture. `@gwenjs/vite/scanners` y répond : noms de scènes, exports `defineHooks`, noms `defineLayout` et noms d'easing. Les scanners suivent les règles du pipeline :
+Certaines étapes du build ont besoin de faits sur plusieurs fichiers à la fois, pas d'une réécriture. `@gwenjs/vite/scanners` y répond : noms de scènes, exports `defineHooks`, noms `defineLayout`, noms d'easing et noms `loadWasmModule`. Les scanners suivent les règles du pipeline :
 
 - Ils analysent avec `parseModule` : un fichier avec une erreur de syntaxe lève `VITE:TRANSFORM_PARSE_FAILED`. Aucun fichier n'est ignoré.
-- Un fichier illisible lève le même code. Le message est `<file> could not be read.` et `cause` est l'erreur Node (`packages/vite/src/scanners/read.ts:37`).
-- Ils reconnaissent les appelés par les liaisons d'import. Un appel sans import demande l'option `autoImports`.
-- Ils ne suivent pas les barrels : `followed` est vide (`packages/vite/src/scanners/read.ts:48`). Importez la fonction GWEN depuis son paquet dans un fichier scanné, ou comptez sur les auto-imports.
+- Un fichier illisible lève le même code. Le message est `<file> could not be read.` et `cause` est l'erreur Node (`packages/vite/src/scanners/read.ts:39`).
+- Ils reconnaissent les appelés par les liaisons d'import. Un appel sans import demande l'option `autoImports`. L'exception est `scanWasmModuleNames` : il reconnaît le nom de méthode `loadWasmModule` sur n'importe quel objet.
+- Ils ne suivent pas les barrels : `followed` est vide (`packages/vite/src/scanners/read.ts:50`). Importez la fonction GWEN depuis son paquet dans un fichier scanné, ou comptez sur les auto-imports.
 
 Voir [`@gwenjs/vite/scanners`](/fr/api/vite#vite-scanners) pour les signatures.

@@ -224,7 +224,7 @@ Cause. `resolveMainScene` (`packages/vite/src/scanners/index.ts:183`) received a
 
 ### VITE:TRANSFORM_PARSE_FAILED {#vite-transform-parse-failed}
 
-Cause. `parseModule` could not parse the module. The message starts with the id, the 1-based line, and the 1-based column. `loc.column` is 0-based, which is what Vite reads. The scanners of `@gwenjs/vite/scanners` throw it for a file they cannot parse (`packages/vite/src/scanners/read.ts:43`). For a file they cannot read, the message is `<file> could not be read.` and `cause` is the Node error (`packages/vite/src/scanners/read.ts:37`). Fix. Fix the syntax error; the GWEN build never skips a module it cannot parse.
+Cause. `parseModule` could not parse the module. The message starts with the id, the 1-based line, and the 1-based column. `loc.column` is 0-based, which is what Vite reads. The scanners of `@gwenjs/vite/scanners` throw it for a file they cannot parse (`packages/vite/src/scanners/read.ts:45`). For a file they cannot read, the message is `<file> could not be read.` and `cause` is the Node error (`packages/vite/src/scanners/read.ts:39`). Fix. Fix the syntax error; the GWEN build never skips a module it cannot parse.
 
 ### VITE:TRANSFORM_EDIT_CONFLICT {#vite-transform-edit-conflict}
 
@@ -241,6 +241,9 @@ Cause. A pipeline unit threw a value that was not raised with `ctx.raise`. The m
 ### VITE:BVH_PREBAKE_FAILED {#vite-bvh-prebake-failed}
 
 Cause. `gwen:bvh-prebake` throws this when a relative `useMeshCollider` `.glb` is not on disk (`packages/vite/src/transforms/bvh-prebake.ts:134`), or when reading that file or baking it throws (`packages/vite/src/transforms/bvh-prebake.ts:102`). An absent file names the absolute path. A thrown bake names the relative path and keeps the original error as `cause`. The `Fix:` line is present only when `NODE_ENV` is not `production` (`packages/vite/src/pipeline/dev-hint.ts:7`). Fix. Check the path relative to the importing file. Export the mesh as triangles.
+### VITE:WASM_MODULE_DUPLICATE {#vite-wasm-module-duplicate}
+
+Cause. `gwen:wasm-modules-dts` throws this when two `loadWasmModule` calls give one name two different types. The message is `loadWasmModule name "<name>" is declared with two types (<file>:<line>, <file>:<line>).` with paths relative to the project root (`packages/vite/src/plugins/wasm-modules-dts.ts`). The error is raised before any write, so the previous `wasm-modules.d.ts` stays. The `Fix:` line is present only when `NODE_ENV` is not `production`. Fix. Give each name one type, or rename one of the modules.
 
 ### VITE:VARIANT_REQUIRED {#vite-variant-required}
 
