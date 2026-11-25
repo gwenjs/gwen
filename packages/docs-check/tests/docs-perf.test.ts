@@ -62,6 +62,20 @@ describe("performance pages", () => {
     }
   });
 
+  it("performance pages describe optimizer: true and link the bench and the alloc path", () => {
+    for (const page of PERF_PAGES) {
+      const text = pageText(page);
+      expect(text, page).not.toContain("until #69");
+      expect(text, page).not.toContain("jusqu'à #69");
+      expect(text, page).toContain("optimizer: true");
+      expect(text, page).toContain("@gwen-no-optimize");
+      expect(text, page).toContain("system-iteration.bench.ts");
+      expect(text, page).toContain("update.system.optimized");
+    }
+    expect(pageText("docs/advanced/performance.md"), "EN page").not.toContain("reserved");
+    expect(pageText("docs/fr/advanced/performance.md"), "FR page").not.toContain("réservé");
+  });
+
   it("actor pool pages drop the indexed component writes and the no-allocation bullets", () => {
     for (const page of POOL_PAGES) {
       const text = pageText(page);
