@@ -14,6 +14,8 @@ export interface WritePluginPackageOptions {
     Record<string, string | { readonly types?: string; readonly import?: string }>
   >;
   readonly files?: Readonly<Record<string, string>>;
+  /** Written as the `gwen` key after `exports`. Any value, so a malformed field can be tested. */
+  readonly gwen?: unknown;
 }
 
 /**
@@ -74,6 +76,7 @@ export async function writePluginPackage(
     exports: options.exports ?? {
       ".": { types: "./dist/index.d.ts", import: "./dist/index.js" },
     },
+    ...(options.gwen === undefined ? {} : { gwen: options.gwen }),
   };
   await mkdir(dir, { recursive: true });
   await writeFile(path.join(dir, "package.json"), `${JSON.stringify(manifest, null, 2)}\n`);
@@ -119,6 +122,7 @@ export function spec(overrides: SpecOverrides = {}): PluginConformanceSpec {
  * remove, reentry, two-engines, stop.
  * `options` follows `stop` when `options.options` is true.
  * `module` follows that when `options.module` is true.
+ * `manifest-contract` follows `module` when `manifestContract` is true.
  * `requirement-form`, `extension`, and `base-surface` follow `module`
  * when `requirementForm`, `extension`, or `extensionExport` is true.
  * `hooks` is always present, once per run.
@@ -127,6 +131,8 @@ export function spec(overrides: SpecOverrides = {}): PluginConformanceSpec {
 export function ranChecks(options?: {
   readonly options?: boolean;
   readonly module?: boolean;
+  /** `manifest-contract`, when `package.json` has `gwen.type` `plugin`. */
+  readonly manifestContract?: boolean;
   readonly requirementForm?: boolean;
   readonly extension?: boolean;
   /** `base-surface`, when the package exports `./extension`. */
@@ -144,6 +150,7 @@ export function ranChecks(options?: {
   ];
   if (options?.options === true) checks.push("options");
   if (options?.module === true) checks.push("module");
+  if (options?.manifestContract === true) checks.push("manifest-contract");
   if (options?.requirementForm === true) checks.push("requirement-form");
   if (options?.extension === true) checks.push("extension");
   if (options?.extensionExport === true) checks.push("base-surface");
@@ -153,7 +160,12 @@ export function ranChecks(options?: {
 }
 
 /** Check ids the helper can list before those ids are on `RuntimeCheckId`. */
-type ListedCheck = RuntimeCheckId | "requirement-form" | "extension" | "base-surface";
+type ListedCheck =
+  | RuntimeCheckId
+  | "requirement-form"
+  | "extension"
+  | "base-surface"
+  | "manifest-contract";
 
 /** Findings of `report` whose code is `code`. */
 export function findingsWithCode(

@@ -53,7 +53,7 @@ describe("runPluginConformance hooks", () => {
     expect(findings[0]?.message ?? "").toContain("myplug:secret");
     expect(findings[0]?.message ?? "").toContain("@fixture/hooks-alias-secret");
     expect(findings[0]?.message ?? "").toContain("Leak");
-    expect(report.checks).toEqual(ranChecks());
+    expect(report.checks).toEqual(ranChecks({ manifestContract: true }));
   });
 
   it("accepts a hook declared with defineHooks and emitted through emit()", async () => {
@@ -65,7 +65,7 @@ describe("runPluginConformance hooks", () => {
       }),
     );
     expect(report.findings).toEqual([]);
-    expect(report.checks).toEqual(ranChecks());
+    expect(report.checks).toEqual(ranChecks({ manifestContract: true }));
   });
 
   it("ignores the engine and framework names fired during the frames", async () => {
@@ -78,7 +78,7 @@ describe("runPluginConformance hooks", () => {
     );
     expect(report.findings).toEqual([]);
     expect(mentions(report, "engine:update")).toBe(false);
-    expect(report.checks).toEqual(ranChecks());
+    expect(report.checks).toEqual(ranChecks({ manifestContract: true }));
   });
 
   it("reports an emit made during setup", async () => {
@@ -94,7 +94,7 @@ describe("runPluginConformance hooks", () => {
     expect(findings[0]?.message ?? "").toContain("myplug:setup");
     expect(findings[0]?.message ?? "").toContain("@fixture/hooks-setup-emit");
     expect(findings[0]?.message ?? "").toContain("Plugin");
-    expect(report.checks).toEqual(ranChecks());
+    expect(report.checks).toEqual(ranChecks({ manifestContract: true }));
   });
 
   it("a plugin that only listens records no emit", async () => {
@@ -106,7 +106,7 @@ describe("runPluginConformance hooks", () => {
       }),
     );
     expect(report.findings).toEqual([]);
-    expect(report.checks).toEqual(ranChecks());
+    expect(report.checks).toEqual(ranChecks({ manifestContract: true }));
   });
 
   it("two engines record separately", async () => {
@@ -128,8 +128,8 @@ describe("runPluginConformance hooks", () => {
     expect(leaked).toHaveLength(1);
     expect(leaked[0]?.message ?? "").toContain("myplug:secret");
     expect(findingsWithCode(clean, ConformanceErrorCodes.HOOK_UNDECLARED)).toEqual([]);
-    expect(leak.checks).toEqual(ranChecks());
-    expect(clean.checks).toEqual(ranChecks());
+    expect(leak.checks).toEqual(ranChecks({ manifestContract: true }));
+    expect(clean.checks).toEqual(ranChecks({ manifestContract: true }));
   });
 
   // Relies on report.findings being the array checkHooks pushes into
@@ -153,8 +153,8 @@ describe("runPluginConformance hooks", () => {
     expect(fired).toBe(true);
     expect(mentions(first, "myplug:late")).toBe(false);
     expect(mentions(second, "myplug:late")).toBe(false);
-    expect(first.checks).toEqual(ranChecks());
-    expect(second.checks).toEqual(ranChecks());
+    expect(first.checks).toEqual(ranChecks({ manifestContract: true }));
+    expect(second.checks).toEqual(ranChecks({ manifestContract: true }));
   });
 
   it("reports an undeclared hook emitted on every frame once", async () => {
