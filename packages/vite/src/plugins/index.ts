@@ -8,7 +8,12 @@ import { gwenLocalPluginsPlugin } from "./local-plugins.js";
 import { gwenLocalModulesPlugin } from "./local-modules.js";
 import { gwenDevStripPlugin } from "./dev-strip.js";
 import { gwenWasmModulesDtsPlugin } from "./wasm-modules-dts.js";
-import { BUILT_IN_UNITS, OPTIMIZER_UNITS, optimizerEnabled } from "../pipeline/registry.js";
+import {
+  BUILT_IN_UNITS,
+  OPTIMIZER_UNITS,
+  optimizerDebug,
+  optimizerEnabled,
+} from "../pipeline/registry.js";
 import { createTransformPipeline } from "../pipeline/transform-pipeline.js";
 import type { GwenViteOptions } from "../types.js";
 import type { PluginOption } from "vite";
@@ -84,6 +89,7 @@ export function gwenVitePlugin(options: GwenViteOptions = {}): PluginOption {
         ...(optimizerEnabled(options.optimizer) ? OPTIMIZER_UNITS : []),
       ],
       autoImports: options.autoImports ?? [],
+      debug: optimizerDebug(options.optimizer),
     }),
     gwenAutoImportsPlugin(options),
     gwenVirtualPlugin(),

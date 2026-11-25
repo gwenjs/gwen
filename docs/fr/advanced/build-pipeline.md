@@ -90,6 +90,18 @@ Une boucle n'est réécrite que si les sept préconditions sont réunies. Sinon 
 
 `// @gwen-no-optimize` avant le `for` externe, avant l'appel de frame, avant une instruction qui les englobe, avant un `for` interne ou avant une instruction dans un `for` interne garde la boucle telle qu'écrite ; une boucle interne qui porte la directive, ou dont une instruction imbriquée la porte, reste entière, et ses voisines sont toujours hissées (`packages/vite/src/transforms/hoist-chunk-columns.ts:528`, `packages/vite/src/transforms/hoist-chunk-columns.ts:599`). Voir [Désactiver une optimisation](#opting-out).
 
+### Boucles ignorées {#skipped-loops}
+
+Avec `optimizer: { debug: true }`, l'unité journalise une ligne pour chaque boucle de lignes de chunk qu'elle inspecte et laisse telle quelle, par le logger de Vite. `vite dev` et `vite build` journalisent les mêmes lignes, dans l'ordre du source :
+
+```text
+[gwen:hot-path] skip src/systems/skipped.ts:8 — P5
+```
+
+`src/systems/skipped.ts` est le chemin du module relatif à la racine de Vite, `8` est la ligne de la boucle, et `P5` est la première précondition qu'elle a manquée. Une boucle interne est jugée dans l'ordre P7, P6, P3, P5. La ligne est celle du `for...of` externe pour P1, P2 et P4, celle du `for` interne pour P3, P5 et P6, et l'une ou l'autre pour P7. Avec `optimizer: true`, `{ debug: false }` ou sans option, rien n'est journalisé.
+
+Certaines boucles ne journalisent rien. Un `// @gwen-no-optimize` avant la première instruction du module, avant l'appel de frame, ou avant l'instruction de la fabrique qui contient la boucle externe cache la boucle à l'unité : aucune ligne n'est journalisée (seule une directive sur le `for...of` externe lui-même journalise P7). Un callback de frame passé par référence, comme `onUpdate(step)`, n'a aucune boucle à inspecter. Une boucle interne sans `chunk.get(Def)` qui passe toutes les préconditions n'a rien à remonter, donc elle ne journalise rien non plus.
+
 ## Quels appels sont reconnus
 
 Une unité ne reconnaît jamais un appel par son texte. Elle résout l'appelé par la liaison d'import du module. Un appel compte quand il résout vers un export GWEN listé dans `CANONICAL` (`packages/vite/src/pipeline/canonical.ts:36`).

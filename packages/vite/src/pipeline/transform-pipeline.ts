@@ -91,6 +91,8 @@ function createContext(
   emitFile: TransformContext["emitFile"],
   program: Program,
   pending: PendingWarning[],
+  debugLines: string[] | undefined,
+  root: string,
 ): TransformContext {
   const isOptedOut = createOptOut(code, comments, program);
   const warned = new Set<string>();
@@ -103,6 +105,13 @@ function createContext(
     resolveImport: resolver.resolveImport,
     isModuleScopeBinding: resolver.isModuleScopeBinding,
     isOptedOut,
+    debug(node, what): void {
+      if (debugLines === undefined) return;
+      const file = id.startsWith(`${root}/`) ? id.slice(root.length + 1) : id;
+      debugLines.push(
+        `[gwen:hot-path] skip ${file}:${lineColumn(code, node.start).line} — ${what}`,
+      );
+    },
     warn(errorCode, node, what, options): void {
       const key = `${errorCode}:${node.start}`;
       if (warned.has(key)) return;
@@ -143,6 +152,7 @@ function createContext(
 export function createTransformPipeline(options: {
   units: GwenSourceTransform[];
   autoImports?: readonly AutoImport[];
+  debug?: boolean;
 }): Plugin & { api: GwenTransformPipelineApi } {
   const autoImports = options.autoImports ?? [];
   const builtIns = [...options.units];
@@ -156,6 +166,7 @@ export function createTransformPipeline(options: {
   let projectRoot = "";
   let projectAliases: readonly Alias[] = [];
   let command = "serve";
+  let logger: { info(message: string): void } | undefined;
   const barrelCache = new Map<string, Barrels>();
 
   function liveNames(): readonly { readonly name: string }[] {
@@ -230,6 +241,7 @@ export function createTransformPipeline(options: {
       projectRoot = config.root;
       projectAliases = config.resolve.alias;
       command = config.command;
+      logger = config.logger;
     },
     buildStart() {
       frozenBuiltIns = [...builtIns];
@@ -268,6 +280,7 @@ export function createTransformPipeline(options: {
           followed,
         });
         const pending: PendingWarning[] = [];
+        const debugLines: string[] | undefined = options.debug === true ? [] : undefined;
         const context = createContext(
           id,
           code,
@@ -276,6 +289,8 @@ export function createTransformPipeline(options: {
           emitFile,
           parsed.program,
           pending,
+          debugLines,
+          projectRoot,
         );
         const tagged: Array<TransformEdit & { unit: string }> = [];
         for (const unit of activeBuiltIns) {
@@ -333,6 +348,7 @@ export function createTransformPipeline(options: {
           for (const edit of produced) tagged.push(tagEdit(edit, unit.name));
         }
         for (const log of pending) this.warn(log);
+        for (const line of debugLines ?? []) logger?.info(line);
         const applied = applyEdits(id, code, tagged);
         if (applied === null) return null;
         return {
