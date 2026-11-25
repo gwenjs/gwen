@@ -1796,6 +1796,424 @@ test("ci-status needs and reads stack-pack", () => {
   assert.equal(report.jobs.includes("stack-pack"), true);
 });
 
+const CONFORMANCE_WORKFLOW = ".github/workflows/plugin-conformance.yml";
+const SELFTEST_DIR = ".github/selftest/plugin";
+// installSatellite (scripts/stack/registry.mjs) rewrites these to the stack stamp.
+const STACK_PLACEHOLDER = "1.0.0-integration.0.g0000000";
+
+/**
+ * The lines below `header` (exact line, indentation included) that are indented deeper.
+ *
+ * @param {string} yaml
+ * @param {string} header
+ * @returns {string}
+ */
+function childLines(yaml, header) {
+  const lines = yaml.split(/\r?\n/);
+  const start = lines.indexOf(header);
+  if (start === -1) return "";
+  const depth = header.length - header.trimStart().length;
+  let end = start + 1;
+  while (end < lines.length) {
+    const line = lines[end] ?? "";
+    if (line.trim() !== "" && line.length - line.trimStart().length <= depth) break;
+    end++;
+  }
+  return lines.slice(start + 1, end).join("\n");
+}
+
+/**
+ * The steps of one job, one string per `- ` item.
+ *
+ * @param {string} job
+ * @returns {string[]}
+ */
+function jobSteps(job) {
+  /** @type {string[]} */
+  const steps = [];
+  for (const line of childLines(job, "    steps:").split("\n")) {
+    if (line.startsWith("      - ")) steps.push(line);
+    else if (steps.length > 0) steps[steps.length - 1] += `\n${line}`;
+  }
+  return steps;
+}
+
+/**
+ * The shell text of every `run:` key, block scalars included.
+ *
+ * @param {string} yaml
+ * @returns {string[]}
+ */
+function runTexts(yaml) {
+  const lines = yaml.split(/\r?\n/);
+  /** @type {string[]} */
+  const runs = [];
+  for (let index = 0; index < lines.length; index++) {
+    const found = /^(\s*)(?:- )?run:\s*(.*)$/.exec(lines[index] ?? "");
+    if (!found) continue;
+    const value = found[2] ?? "";
+    if (!/^[|>](?:[-+]?\d*|\d+[-+])$/.test(value)) {
+      runs.push(value);
+      continue;
+    }
+    const depth = (found[1] ?? "").length;
+    /** @type {string[]} */
+    const body = [];
+    while (index + 1 < lines.length) {
+      const next = lines[index + 1] ?? "";
+      if (next.trim() !== "" && next.length - next.trimStart().length <= depth) break;
+      body.push(next);
+      index++;
+    }
+    runs.push(body.join("\n"));
+  }
+  return runs;
+}
+
+/** @returns {string} */
+function readConformanceWorkflow() {
+  const file = join(root, CONFORMANCE_WORKFLOW);
+  assert.equal(existsSync(file), true, CONFORMANCE_WORKFLOW);
+  return readFileSync(file, "utf8");
+}
+
+/** @param {string} step @returns {string} */
+function stepIf(step) {
+  return /^ {8}if: (.*)$/m.exec(step)?.[1] ?? "";
+}
+
+// Every condition a stack step may carry: a look-alike such as `inputs.stack-from-current-run`
+// alone or `!inputs.stack` would run it, or skip it, on the wrong path.
+const STACK_CONDITIONS = [
+  "inputs.stack",
+  "inputs.stack && !inputs.stack-from-current-run",
+  "inputs.stack && inputs.stack-from-current-run",
+  "always() && inputs.stack",
+];
+
+// Escaped: the outer bash keeps "$PROFILE" as text, and the harness shell reads it from env.
+const STACK_CHECK_CMD = String.raw`--cmd "pnpm exec gwen-conformance check --profile \"\$PROFILE\" --lockfile-base HEAD"`;
+
+test("plugin-conformance.yml checks the profile input in its first step, on every path", () => {
+  const first = jobSteps(jobBlock(readConformanceWorkflow(), "conformance"))[0] ?? "";
+  assert.doesNotMatch(first, /^ {8}if:/m);
+  const lines = first.split("\n").map((line) => line.trim());
+  for (const line of ['case "$PROFILE" in', "plugin | package) ;;"]) {
+    assert.equal(lines.includes(line), true, line);
+  }
+  assert.match(first, /^\s*\*\).*\bexit 1 ;;$/m);
+});
+
+test("plugin-conformance.yml is workflow_call, pins verdaccio 6.10.6 and SHA-pins every action", () => {
+  const yaml = readConformanceWorkflow();
+  const triggers = [...childLines(yaml, "on:").matchAll(/^ {2}([\w-]+):/gm)].map((m) => m[1]);
+  assert.deepEqual(triggers, ["workflow_call"]);
+  const uses = [...yaml.matchAll(/^\s*(?:- )?uses:\s*(.*)$/gm)].map((m) => m[1] ?? "");
+  assert.notEqual(uses.length, 0);
+  for (const value of uses) {
+    assert.doesNotMatch(value, /^\.\//, value);
+    assert.match(value, /^[\w.-]+\/[\w./-]+@[0-9a-f]{40} # v\d+$/, value);
+  }
+  // The pin lives in the stack harness once; a comment there names the same version.
+  const registry = readFileSync(join(root, "scripts/stack/registry.mjs"), "utf8");
+  assert.equal(registry.split('"verdaccio@6.10.6"').length - 1, 1);
+  const versions = [...registry.matchAll(/verdaccio@([^\s"'`]+)/g)].map((m) => m[1]);
+  assert.deepEqual([...new Set(versions)], ["6.10.6"]);
+  assert.match(yaml, /scripts\/stack\/registry\.mjs" run /);
+  assert.doesNotMatch(yaml, /verdaccio@/);
+});
+
+const CONFORMANCE_INPUTS = [
+  ["gwen-ref", "string", "v1-alpha"],
+  ["stack", "boolean", "true"],
+  ["stack-from-current-run", "boolean", "false"],
+  ["profile", "string", "plugin"],
+  ["node-version", "string", '"22"'],
+  ["working-directory", "string", '"."'],
+];
+
+test("plugin-conformance.yml declares its inputs, the optional stack-token secret and read-only permissions", () => {
+  const yaml = readConformanceWorkflow();
+  const call = childLines(yaml, "  workflow_call:");
+  const inputs = childLines(call, "    inputs:");
+  const names = [...inputs.matchAll(/^ {6}([\w-]+):$/gm)].map((m) => m[1]);
+  assert.deepEqual(
+    names,
+    CONFORMANCE_INPUTS.map(([name]) => name),
+  );
+  for (const [name, type, value] of CONFORMANCE_INPUTS) {
+    const input = childLines(inputs, `      ${name}:`).split("\n");
+    assert.equal(input.includes(`        type: ${type}`), true, name);
+    assert.equal(input.includes(`        default: ${value}`), true, name);
+  }
+  const secrets = childLines(call, "    secrets:");
+  assert.deepEqual(
+    [...secrets.matchAll(/^ {6}([\w-]+):$/gm)].map((m) => m[1]),
+    ["stack-token"],
+  );
+  assert.equal(
+    childLines(secrets, "      stack-token:").split("\n").includes("        required: false"),
+    true,
+  );
+  assert.equal(childLines(yaml, "permissions:").trim(), "contents: read");
+  const jobs = [...childLines(yaml, "jobs:").matchAll(/^ {2}([\w-]+):$/gm)].map((m) => m[1]);
+  assert.deepEqual(jobs, ["conformance"]);
+  const job = jobBlock(yaml, "conformance");
+  assert.match(job, /^ {4}name: conformance$/m);
+  assert.match(job, /^ {4}timeout-minutes: [1-9]\d*$/m);
+  assert.doesNotMatch(job, /^ {4}permissions:/m);
+});
+
+test("plugin-conformance.yml downloads stack-tarballs from the latest green run, or from this run for the self-test", () => {
+  const steps = jobSteps(jobBlock(readConformanceWorkflow(), "conformance"));
+  const downloads = steps.filter((step) => step.includes("actions/download-artifact@"));
+  assert.equal(downloads.length, 2);
+  for (const step of downloads) assert.match(step, /^ {10}name: stack-tarballs$/m);
+  const otherRun = downloads.find((step) => /^ {10}run-id:/m.test(step)) ?? "";
+  const thisRun = downloads.find((step) => step !== otherRun) ?? "";
+  assert.match(otherRun, /^ {10}repository: gwenjs\/gwen$/m);
+  assert.equal(
+    otherRun.includes("          github-token: ${{ secrets.stack-token || github.token }}"),
+    true,
+  );
+  assert.equal(stepIf(otherRun), "inputs.stack && !inputs.stack-from-current-run");
+  for (const key of ["repository", "run-id", "github-token"]) {
+    assert.doesNotMatch(thisRun, new RegExp(`^\\s+${key}:`, "m"), key);
+  }
+  assert.equal(stepIf(thisRun), "inputs.stack && inputs.stack-from-current-run");
+
+  const lookups = steps.filter((step) => step.includes("gh run list"));
+  assert.equal(lookups.length, 1);
+  const lookup = lookups[0] ?? "";
+  const runId = /^ {10}run-id: \$\{\{ steps\.([\w-]+)\.outputs\.run-id \}\}$/m.exec(otherRun);
+  assert.ok(runId, "run-id comes from a step output");
+  assert.match(lookup, new RegExp(`^ {8}id: ${runId[1]}$`, "m"));
+  assert.equal(stepIf(lookup), "inputs.stack && !inputs.stack-from-current-run");
+  assert.equal(lookup.includes("GH_TOKEN: ${{ secrets.stack-token || github.token }}"), true);
+  for (const flag of [
+    "--repo gwenjs/gwen",
+    "--workflow ci.yml",
+    '--branch "$GWEN_REF"',
+    "--event push",
+    "--status success",
+  ]) {
+    assert.equal(lookup.includes(flag), true, flag);
+  }
+  assert.match(lookup, /\.expired == false/);
+  assert.match(lookup, /exit 1/);
+});
+
+test("plugin-conformance.yml builds before the check and passes --lockfile-base HEAD to that same check call", () => {
+  const steps = jobSteps(jobBlock(readConformanceWorkflow(), "conformance"));
+  const stackSteps = steps.filter((step) => STACK_CONDITIONS.includes(stepIf(step)));
+  const checks = stackSteps.flatMap((step) => step.match(/gwen-conformance check/g) ?? []);
+  assert.equal(checks.length, 1);
+  const run = stackSteps.find((step) => step.includes('registry.mjs" run')) ?? "";
+  assert.equal(run.includes(STACK_CHECK_CMD), true, STACK_CHECK_CMD);
+  const buildAt = run.indexOf('--cmd "pnpm build"');
+  const checkAt = run.indexOf(STACK_CHECK_CMD);
+  assert.equal(buildAt >= 0 && checkAt > buildAt, true);
+});
+
+test("plugin-conformance.yml skips the stack steps with stack false and installs from the lockfile", () => {
+  const steps = jobSteps(jobBlock(readConformanceWorkflow(), "conformance"));
+  const stackSteps = steps.filter((step) =>
+    /\.gwen-stack|stack-tarballs|registry\.mjs|gh run list|stack-manifest/.test(step),
+  );
+  assert.equal(stackSteps.length >= 5, true);
+  for (const step of stackSteps) {
+    assert.equal(STACK_CONDITIONS.includes(stepIf(step)), true, step.split("\n")[0]);
+  }
+  const noStack = steps.filter((step) => stepIf(step) === "inputs.stack == false");
+  assert.equal(noStack.length, 1);
+  const step = noStack[0] ?? "";
+  assert.match(step, /^ {8}working-directory: \$\{\{ inputs\.working-directory \}\}$/m);
+  assert.match(step, /pnpm install --frozen-lockfile/);
+  assert.match(step, /gwen-conformance check --profile "\$PROFILE"/);
+  assert.doesNotMatch(step, /--lockfile-base|--no-frozen-lockfile|registry\.mjs/);
+});
+
+test("plugin-conformance.yml passes inputs through env and never through run text", () => {
+  const yaml = readConformanceWorkflow();
+  // The scan must read the body of every block scalar header (`|-`, `>+`, `|2`), or a run text hides there.
+  const sample = [
+    "  - run: |-",
+    "      echo a",
+    "  - run: >+",
+    "      echo b",
+    "  - run: |2",
+    "      echo c",
+    "  - run: echo d",
+  ].join("\n");
+  assert.deepEqual(
+    runTexts(sample).map((text) => text.trim()),
+    ["echo a", "echo b", "echo c", "echo d"],
+  );
+  const runs = runTexts(yaml);
+  assert.notEqual(runs.length, 0);
+  for (const text of runs) assert.doesNotMatch(text, /\$\{\{\s*(?:inputs|secrets)\./);
+  const env = childLines(jobBlock(yaml, "conformance"), "    env:")
+    .split("\n")
+    .map((line) => line.trim());
+  for (const line of [
+    "PROFILE: ${{ inputs.profile }}",
+    "WORKDIR: ${{ inputs.working-directory }}",
+    "GWEN_REF: ${{ inputs.gwen-ref }}",
+  ]) {
+    assert.equal(env.includes(line), true, line);
+  }
+  // A stale .npmrc in the caller checkout breaks npm publish: the harness runs from RUNNER_TEMP.
+  const run = runs.find((text) => text.includes('registry.mjs" run')) ?? "";
+  const cdAt = run.indexOf('cd "$RUNNER_TEMP"');
+  const callAt = run.indexOf('registry.mjs" run');
+  assert.equal(cdAt >= 0 && callAt > cdAt, true);
+});
+
+test("plugin-conformance.yml runs the repository tests only for the plugin profile", () => {
+  const runs = runTexts(readConformanceWorkflow()).filter((text) =>
+    text.includes("gwen-conformance check"),
+  );
+  assert.equal(runs.length, 2);
+  for (const text of runs) {
+    const lines = text.split("\n").map((line) => line.trim());
+    const gate = lines.indexOf('if [ "$PROFILE" = plugin ]; then');
+    const close = lines.indexOf("fi", gate + 1);
+    assert.equal(gate >= 0 && close > gate, true);
+    const guarded = lines.slice(gate + 1, close);
+    assert.equal(
+      guarded.some((line) => line.includes("pnpm test")),
+      true,
+    );
+    assert.equal(
+      guarded.some((line) => line.includes("test:wasm")),
+      true,
+    );
+    lines.forEach((line, index) => {
+      if (/pnpm test\b|test:wasm/.test(line))
+        assert.equal(index > gate && index < close, true, line);
+    });
+    const checkAt = lines.findIndex((line) => line.includes("gwen-conformance check"));
+    assert.equal(checkAt >= 0 && checkAt < gate, true);
+  }
+});
+
+test("plugin-conformance-selftest calls the reusable workflow after stack-pack on the fixture", () => {
+  const yaml = readCi();
+  const job = jobBlock(yaml, "plugin-conformance-selftest");
+  assert.match(job, /^ {4}needs: \[changes, stack-pack\]$/m);
+  assert.match(job, /^ {4}name: Plugin conformance self-test$/m);
+  assert.match(job, /^ {4}if: needs\.changes\.outputs\.stack == 'true'$/m);
+  assert.match(job, /^ {4}uses: \.\/\.github\/workflows\/plugin-conformance\.yml$/m);
+  const inputs = childLines(job, "    with:")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .sort();
+  assert.deepEqual(inputs, [
+    "gwen-ref: ${{ github.sha }}",
+    "stack-from-current-run: true",
+    "working-directory: .github/selftest/plugin",
+  ]);
+  for (const key of ["runs-on", "steps", "timeout-minutes", "permissions"]) {
+    assert.doesNotMatch(job, new RegExp(`^ {4}${key}:`, "m"), key);
+  }
+  assert.equal(
+    yaml.indexOf("\n  plugin-conformance-selftest:\n") > yaml.indexOf("\n  stack-pack:\n"),
+    true,
+  );
+});
+
+test("ci-status needs and reads plugin-conformance-selftest", () => {
+  const yaml = readCi();
+  const report = evaluateCiStatus(yaml);
+  assert.equal(report.jobs.includes("plugin-conformance-selftest"), true);
+  const unlisted = report.jobs.filter((job) => job !== "ci-status" && !report.needs.includes(job));
+  assert.deepEqual(unlisted, []);
+  assert.deepEqual(report.unread, []);
+  assert.match(jobBlock(yaml, "ci-status"), /needs\['plugin-conformance-selftest'\]\.result/);
+});
+
+test("the stack filter matches the self-test fixture and the reusable workflow", () => {
+  const step = filterOwner(jobBlock(readCi(), "changes"), "stack");
+  const patterns = step.filters.stack ?? [];
+  const positive = patterns.filter((pattern) => !pattern.startsWith("!"));
+  assert.equal(positive.length, 1);
+  const pattern = positive[0] ?? "";
+  assert.equal(pattern.includes(".github/selftest/**"), true);
+  assert.equal(pattern.includes(".github/workflows/plugin-conformance.yml"), true);
+  // Path matches need picomatch; the assertions above still run when it is absent.
+  if (picomatch) {
+    assert.equal(matches("stack", [".github/selftest/plugin/src/index.ts"]), true);
+    assert.equal(matches("stack", [".github/workflows/plugin-conformance.yml"]), true);
+    assert.equal(matches("stack", [".github/selftest/plugin/README.md"]), false);
+  }
+});
+
+const SELFTEST_FILES = [
+  "package.json",
+  "pnpm-workspace.yaml",
+  "vitest.config.mjs",
+  "pnpm-lock.yaml",
+  "public-api.snap.json",
+  "tests/plugin.conformance.test.ts",
+  "src/index.ts",
+  "src/module.ts",
+  "tsconfig.json",
+  "README.md",
+  "LICENSE",
+];
+
+test("the self-test fixture is a standalone plugin package", () => {
+  for (const file of SELFTEST_FILES) {
+    assert.equal(existsSync(join(root, SELFTEST_DIR, file)), true, file);
+  }
+  const raw = readFileSync(join(root, SELFTEST_DIR, "package.json"), "utf8");
+  assert.doesNotMatch(raw, /workspace:/);
+  const pkg = JSON.parse(raw);
+  assert.equal(pkg.gwen?.type, "plugin");
+  assert.deepEqual(Object.keys(pkg.exports ?? {}), [".", "./module"]);
+  // A committed stamp means the harness rewrite was committed with the lockfile.
+  const framework = Object.entries(pkg.devDependencies ?? {}).filter(([name]) =>
+    name.startsWith("@gwenjs/"),
+  );
+  assert.equal(
+    framework.some(([name]) => name === "@gwenjs/plugin-conformance"),
+    true,
+  );
+  for (const [name, range] of framework) assert.equal(range, STACK_PLACEHOLDER, name);
+  const lock = readFileSync(join(root, SELFTEST_DIR, "pnpm-lock.yaml"), "utf8");
+  assert.equal(lock.startsWith("lockfileVersion: '9.0'\n"), true);
+  const ownWorkspace = readFileSync(join(root, SELFTEST_DIR, "pnpm-workspace.yaml"), "utf8");
+  assert.deepEqual(childLines(ownWorkspace, "packages:").trim(), '- "."');
+  const workspace = readFileSync(join(root, "pnpm-workspace.yaml"), "utf8");
+  const globs = [
+    ...childLines(workspace, "packages:").matchAll(/^\s+- ['"]?([^'"\n]+)['"]?$/gm),
+  ].map((m) => m[1] ?? "");
+  assert.notEqual(globs.length, 0);
+  for (const glob of globs) assert.equal(glob.startsWith(".github"), false, glob);
+  if (picomatch) assert.equal(picomatch(globs)(SELFTEST_DIR), false);
+});
+
+test("the self-test lockfile lists every third-party dependency of @gwenjs/plugin-conformance", () => {
+  const lockFile = join(root, SELFTEST_DIR, "pnpm-lock.yaml");
+  assert.equal(existsSync(lockFile), true);
+  const lock = readFileSync(lockFile, "utf8");
+  const pkg = JSON.parse(
+    readFileSync(join(root, "packages/plugin-conformance/package.json"), "utf8"),
+  );
+  const dependencies = Object.entries(pkg.dependencies ?? {});
+  assert.notEqual(dependencies.length, 0);
+  for (const [name, range] of dependencies) {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
+    assert.match(lock, new RegExp(`^ {2}'?${escaped}@[^:\\s']+'?:`, "m"), name);
+    // An exact pin must resolve to that version, or the stack install drifts.
+    if (/^\d+\.\d+\.\d+$/.test(String(range))) {
+      const pinned = `${escaped}@${String(range).replace(/\./g, "\\.")}`;
+      assert.match(lock, new RegExp(`^ {2}'?${pinned}'?:`, "m"), `${name}@${range}`);
+    }
+  }
+});
+
 // The script name is split so this file does not contain it.
 const deletedPublishScript = "verdaccio-publish" + ".sh";
 
@@ -1937,7 +2355,7 @@ const PATHS_FILTER_USES = "dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176
 
 const CODE_PATTERNS = ["**", "!**/*.md", "!docs/**", "!notes/**", "!internals-docs/**"];
 const STACK_PATTERNS =
-  "{packages/**,crates/**,scripts/stack/**,scripts/fix-dts-extensions.mjs,scripts/build-wasm.sh,pnpm-lock.yaml,pnpm-workspace.yaml,package.json,.github/workflows/ci.yml,.github/actions/**}|!**/*.md|!docs/**".split(
+  "{packages/**,crates/**,scripts/stack/**,scripts/fix-dts-extensions.mjs,scripts/build-wasm.sh,pnpm-lock.yaml,pnpm-workspace.yaml,package.json,.github/workflows/ci.yml,.github/actions/**,.github/workflows/plugin-conformance.yml,.github/selftest/**}|!**/*.md|!docs/**".split(
     "|",
   );
 const RUST_PATTERNS =
