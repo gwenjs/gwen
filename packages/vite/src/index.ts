@@ -26,7 +26,7 @@ import type { LocalPluginsDirOption } from "./plugins/local-plugins.js";
 import type { GwenOptimizerUserOptions } from "./types.js";
 import { generateEntryModule, generateScenesModule, toRootRelative } from "./entry-gen.js";
 import { resolveMainScene, scanScenes } from "./scanners/index.js";
-import { BUILT_IN_UNITS } from "./pipeline/registry.js";
+import { BUILT_IN_UNITS, OPTIMIZER_UNITS, optimizerEnabled } from "./pipeline/registry.js";
 import { createTransformPipeline } from "./pipeline/transform-pipeline.js";
 import { createVariantGuard } from "./transforms/variant-guard.js";
 import { coversCore } from "./ssr-no-external.js";
@@ -43,7 +43,8 @@ export interface GwenPluginOptions {
   manifestPath?: string;
 
   /**
-   * Reserved for #69, same type as `GwenViteOptions.optimizer`. Accepted and ignored (no-op).
+   * Same type as `GwenViteOptions.optimizer`. `true` or an options object registers
+   * `gwen:hoist-chunk-columns` after the built-in units.
    *
    * @default false
    */
@@ -95,7 +96,9 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
   const localPluginsScan: LocalPluginsDirOption = { root: process.cwd() };
   const _sharedAutoImports: AutoImport[] = [];
   const pipeline = createTransformPipeline({
-    units: BUILT_IN_UNITS,
+    units: optimizerEnabled(options.optimizer)
+      ? [...BUILT_IN_UNITS, ...OPTIMIZER_UNITS]
+      : BUILT_IN_UNITS,
     autoImports: _sharedAutoImports,
   });
 

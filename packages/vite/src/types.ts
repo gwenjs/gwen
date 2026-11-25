@@ -135,8 +135,9 @@ export interface GwenViteOptions {
   localModules?: LocalModulesOptions | false;
 
   /**
-   * Reserved. A no-op until the hot-path rewrite of #69; accepted so existing
-   * configs keep typechecking.
+   * `true` or an options object registers `gwen:hoist-chunk-columns`, after the built-in units.
+   * It reads each `chunk.get(Def)` of a chunk row loop once, before that loop.
+   * `false` or unset leaves the pipeline unchanged.
    *
    * @default false
    */
@@ -144,10 +145,10 @@ export interface GwenViteOptions {
 }
 
 /**
- * Reserved, a no-op until #69 (see GwenViteOptions.optimizer); the field is
- * accepted and ignored.
+ * Options of the optimizer. Passing an object turns it on, like `true` (see
+ * GwenViteOptions.optimizer).
  */
 export interface GwenOptimizerUserOptions {
-  /** Accepted and ignored. */
+  /** Accepted. It does not change the output. */
   debug?: boolean;
 }

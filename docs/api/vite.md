@@ -46,11 +46,11 @@ export default defineConfig({
 | `layout.disableNameInjection` | `boolean` | `false` | When true, the `gwen:layout-name` unit is not registered. |
 | `sceneRouter` | `GwenSceneRouterOptions` | — | When `disableNameInjection` is true, the `gwen:scene-router-name` unit is not registered. |
 | `tween` | `GwenTweenOptions` | — | Options forwarded to the tween transform. |
-| `optimizer` | `boolean \| GwenOptimizerUserOptions` | — | Reserved. Accepted and ignored until the hot-path rewrite of #69. |
+| `optimizer` | `boolean \| GwenOptimizerUserOptions` | — | `true` or an object registers `gwen:hoist-chunk-columns`. See below. |
 
 ### The `optimizer` option
 
-Reserved. Accepted and ignored until the hot-path rewrite of #69. It accepts `boolean` or `{ debug?: boolean }` and is a no-op today. `gwen()` accepts the same option (`GwenPluginOptions.optimizer`), also ignored.
+`true` or an object registers `gwen:hoist-chunk-columns` after the built-in units (`packages/vite/src/pipeline/registry.ts:24`, `packages/vite/src/pipeline/registry.ts:27`). The unit reads each `chunk.get(Def)` of a chunk row loop once, before the loop. See [Hoisting column lookups](/advanced/build-pipeline#hoisting-column-lookups). `false` or no option leaves the pipeline unchanged. The option accepts `boolean` or `{ debug?: boolean }`; `debug` is accepted and does not change the output. `gwen()` accepts the same option (`GwenPluginOptions.optimizer`).
 
 ```ts
 gwenVitePlugin()

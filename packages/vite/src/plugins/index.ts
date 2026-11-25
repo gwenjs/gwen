@@ -8,7 +8,7 @@ import { gwenLocalPluginsPlugin } from "./local-plugins.js";
 import { gwenLocalModulesPlugin } from "./local-modules.js";
 import { gwenDevStripPlugin } from "./dev-strip.js";
 import { gwenWasmModulesDtsPlugin } from "./wasm-modules-dts.js";
-import { BUILT_IN_UNITS } from "../pipeline/registry.js";
+import { BUILT_IN_UNITS, OPTIMIZER_UNITS, optimizerEnabled } from "../pipeline/registry.js";
 import { createTransformPipeline } from "../pipeline/transform-pipeline.js";
 import type { GwenViteOptions } from "../types.js";
 import type { PluginOption } from "vite";
@@ -57,7 +57,7 @@ function enabledUnits(options: GwenViteOptions): typeof BUILT_IN_UNITS {
  * - `gwen:virtual` — injects `virtual:gwen/env` constants
  * - `gwen:actor` — actor auto-discovery and the actors virtual module
  * - `gwen:layout` — layout virtual module
- * - `gwen:transform-pipeline` — AST units: system and actor names, layout and scene-router names, actor dependency lists, async-context await wrapping, query hoisting
+ * - `gwen:transform-pipeline` — AST units: system and actor names, layout and scene-router names, actor dependency lists, async-context await wrapping, query hoisting, and column hoisting with `optimizer`
  * - `gwen:tween` — easing tree-shake analysis via `virtual:gwen/used-easings`
  * - `gwen:hooks` — generates `hooks.d.ts` from `src/hooks.ts`
  * - `gwen:local-plugins` — auto-discovers `src/plugins/`, generates `virtual:gwen/local-plugins`
@@ -79,7 +79,10 @@ function enabledUnits(options: GwenViteOptions): typeof BUILT_IN_UNITS {
 export function gwenVitePlugin(options: GwenViteOptions = {}): PluginOption {
   return [
     createTransformPipeline({
-      units: enabledUnits(options),
+      units: [
+        ...enabledUnits(options),
+        ...(optimizerEnabled(options.optimizer) ? OPTIMIZER_UNITS : []),
+      ],
       autoImports: options.autoImports ?? [],
     }),
     gwenAutoImportsPlugin(options),

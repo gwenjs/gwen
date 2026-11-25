@@ -67,7 +67,7 @@ console.log(manifest.buildDate);
 interface GwenPluginOptions {
   // Path to gwen-manifest.json (optional)
   manifestPath?: string;
-  // Reserved. Accepted and ignored until #69.
+  // true or an object registers gwen:hoist-chunk-columns.
   optimizer?: boolean | { debug?: boolean };
 }
 ```

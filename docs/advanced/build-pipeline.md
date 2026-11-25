@@ -5,7 +5,7 @@ description: How GWEN rewrites your source at build time, which calls it recogni
 
 # Build Pipeline
 
-`@gwenjs/vite` rewrites your game source before Vite bundles it. It injects readable names, wraps `await` in context callbacks, and hoists query arrays. You write plain GWEN code. The pipeline does the rest.
+`@gwenjs/vite` rewrites your game source before Vite bundles it. It injects readable names, wraps `await` in context callbacks, and hoists query arrays. With `optimizer` on, it also reads the columns of a chunk row loop once. You write plain GWEN code. The pipeline does the rest.
 
 ## How it works
 
@@ -18,7 +18,7 @@ description: How GWEN rewrites your source at build time, which calls it recogni
 
 ## Units
 
-`BUILT_IN_UNITS` lists the units that always run, in application order (`packages/vite/src/pipeline/registry.ts:11`).
+`BUILT_IN_UNITS` lists the units that always run, in application order (`packages/vite/src/pipeline/registry.ts:13`).
 
 | Unit | What it does |
 |---|---|
@@ -36,9 +36,59 @@ A plugin can add a unit before `buildStart` with `register()` on the pipeline. T
 |---|---|---|
 | `gwen:layer-inline` | `physics2d` and `physics3d` (`packages/physics2d/src/vite-plugin.ts:68`, `packages/physics3d/src/vite-plugin.ts:181`) | Replaces `L.name`, from `const L = defineLayers({ ... })`, with its numeric value. |
 | `gwen:bvh-prebake` | `physics3d`, when `bvhPrebake` is `true` (`packages/physics3d/src/vite-plugin.ts:182`) | Rewrites a relative `.glb` path given to `useMeshCollider`. |
-| `gwen:variant-guard` | `gwen()`, once the config is resolved (`packages/vite/src/index.ts:132`) | Raises `VITE:VARIANT_REQUIRED` for a value import of `@gwenjs/physics2d` or `@gwenjs/physics3d` that the resolved variant or `modules` does not allow. It never edits. |
+| `gwen:variant-guard` | `gwen()`, once the config is resolved (`packages/vite/src/index.ts:136`) | Raises `VITE:VARIANT_REQUIRED` for a value import of `@gwenjs/physics2d` or `@gwenjs/physics3d` that the resolved variant or `modules` does not allow. It never edits. |
 
 `gwenVitePlugin()` has no resolved config, so it does not run the guard (`packages/vite/tests/transform-pipeline/variant-guard.test.ts:275`). Only modules under the project root are checked.
+
+`OPTIMIZER_UNITS` lists the units that run only when the `optimizer` option is `true` or an object. They run after the built-in units (`packages/vite/src/pipeline/registry.ts:24`, `packages/vite/src/plugins/index.ts:84`). With `false` or no option they are not registered.
+
+| Unit | What it does |
+|---|---|
+| `gwen:hoist-chunk-columns` | Reads each `chunk.get(Def)` of a chunk row loop once, before the loop. See [Hoisting column lookups](#hoisting-column-lookups). |
+
+## Hoisting column lookups {#hoisting-column-lookups}
+
+`chunk.get(Def)` inside a row loop is called again on every row. With `optimizer` on, `gwen:hoist-chunk-columns` reads each distinct `chunk.get(Def)` of an inner `for` once, in a `const` placed right before that `for`, and the loop uses the local. A `const pos = chunk.get(Position)` of your own keeps its name and becomes `const pos = _gwen_c0;`. The unit does not read `chunk.count` into a local, adds no number to the output, and finds nothing to change in its own output. Each generated name `_gwen_c<N>` is unique in the module: `N` counts up across systems and skips a name that the module already uses (`packages/vite/src/transforms/hoist-chunk-columns.ts:142`).
+
+```ts
+import { defineSystem, onUpdate, useQuery } from "@gwenjs/core/system";
+import { Position, Velocity } from "./components";
+
+export const Mover = defineSystem("Mover", () => {
+  const q = useQuery([Position, Velocity]);
+  onUpdate((dt) => {
+    for (const chunk of q) {
+      for (let i = 0; i < chunk.count; i++) {
+        chunk.get(Position).x[i] += chunk.get(Velocity).vx[i] * dt;
+      }
+    }
+  });
+});
+```
+
+The loop above becomes:
+
+```ts
+for (const chunk of q) {
+  const _gwen_c0 = chunk.get(Position);
+  const _gwen_c1 = chunk.get(Velocity);
+  for (let i = 0; i < chunk.count; i++) {
+    _gwen_c0.x[i] += _gwen_c1.vx[i] * dt;
+  }
+}
+```
+
+A loop is rewritten only when all seven preconditions hold. Otherwise it stays as you wrote it, and the build does not warn:
+
+1. **Outer loop.** `for (const chunk of q)` with one `const` variable and no `await`. It is a direct statement of the function given to `onBeforeUpdate`, `onUpdate`, `onAfterUpdate` or `onRender`, and that call is a direct statement of a `defineSystem` or `defineActor` factory (`packages/vite/src/transforms/hoist-chunk-columns.ts:501`, `packages/vite/src/transforms/hoist-chunk-columns.ts:514`).
+2. **Query.** `q` is a `const` that is a direct statement of the same factory, set by `useQuery([A, B])` with one array of plain names (`packages/vite/src/transforms/hoist-chunk-columns.ts:428`).
+3. **Definitions.** Every `chunk.get(D)` has one name `D`, taken from that array, that is an import or a module-level `const`. `chunk` is the loop variable itself, not a local of the same name (`packages/vite/src/transforms/hoist-chunk-columns.ts:396`).
+4. **Inner loop.** A `for` that is a direct statement of the outer body. Each one is judged alone.
+5. **Body.** Only the forms of a plain numeric loop: arithmetic, `let` and `const`, assignment, `if`, nested `for`, `Math.*` calls, `chunk.count`, and member reads and writes on `chunk.get(D)` values. `as`, `satisfies`, `!` and parentheses are kept. Any other form, such as a call, a template string, `await`, a function, `try`, a label or a destructuring, leaves the loop unchanged. The list is closed: a node type that is not named is refused (`packages/vite/src/transforms/hoist-chunk-columns.ts:310`).
+6. **No structural call.** A call named `addComponent`, `removeComponent`, `destroyEntity` or `createEntity` in the loop, since it moves rows and the columns can change (`packages/vite/src/transforms/hoist-chunk-columns.ts:369`).
+7. **No opt-out.** See below.
+
+`// @gwen-no-optimize` before the outer `for`, before the frame call, before any statement around them, before an inner `for`, or before a statement inside an inner `for` keeps the loop as written; an inner loop with the directive on it or on a statement nested in it is left whole, and its siblings are still hoisted (`packages/vite/src/transforms/hoist-chunk-columns.ts:528`, `packages/vite/src/transforms/hoist-chunk-columns.ts:599`). See [Opting out](#opting-out).
 
 ## Which calls are recognised
 
@@ -88,7 +138,7 @@ Each transform of a module logs its own warnings (`packages/vite/src/pipeline/tr
 
 ## Opting out {#opting-out}
 
-`// @gwen-no-optimize` turns the optimisation units off where it applies (`packages/vite/src/pipeline/opt-out.ts:27`). Only `gwen:query-hoist` (`packages/vite/src/transforms/query-hoist.ts:191`) and `gwen:hot-path-warn` (`packages/vite/src/transforms/hot-path-warn.ts:70`) read it.
+`// @gwen-no-optimize` turns the optimisation units off where it applies (`packages/vite/src/pipeline/opt-out.ts:27`). Only `gwen:query-hoist` (`packages/vite/src/transforms/query-hoist.ts:191`), `gwen:hot-path-warn` (`packages/vite/src/transforms/hot-path-warn.ts:70`) and `gwen:hoist-chunk-columns` (`packages/vite/src/transforms/hoist-chunk-columns.ts:599`) read it.
 
 - **Exact token.** The comment text must be `@gwen-no-optimize` and nothing else. `// @gwen-no-optimize-later` and `// @gwen-no-optimize please` are not directives (`packages/vite/src/pipeline/opt-out.ts:32`).
 - **Comment forms.** `// ...` and `/* ... */` work. A JSDoc `/** ... */` does not.
