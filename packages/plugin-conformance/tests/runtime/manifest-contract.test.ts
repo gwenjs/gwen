@@ -280,6 +280,21 @@ describe("runPluginConformance manifest contract", () => {
     });
   });
 
+  it("skips every key when the gwen field has a shape problem", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      // `requires.optionalServices` is malformed; `provides` drifts on another key.
+      const report = await runPackage(
+        dir,
+        "@fixture/cross-key",
+        pluginSource({ exportName: "Plugin", provides: ["fixture:svc"] }),
+        { type: "plugin", provides: [], requires: { optionalServices: [] } },
+        ["Plugin"],
+      );
+      expect(report.checks).toEqual(ranChecks({ manifestContract: true }));
+      expect(manifestFindings(report)).toEqual([]);
+    });
+  });
+
   it("pins each finding to the package.json line of its key", async () => {
     await withPrivateTmpdir(async (dir) => {
       // writePluginPackage: `name` line 2, `type` 3, `exports` 4-9, then `gwen` at line 10.

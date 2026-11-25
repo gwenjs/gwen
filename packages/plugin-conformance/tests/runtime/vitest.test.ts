@@ -1,3 +1,4 @@
+import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -471,6 +472,23 @@ describe("registerPluginConformance", () => {
         spec({ root: dir, packageName, factories: [{ export: "Alpha" }, { export: "Beta" }] }),
       );
       expect(rows.filter((row) => row.name.startsWith("RD1"))).toEqual([]);
+    });
+
+    await withPrivateTmpdir(async (dir) => {
+      const packageName = "@fixture/rd1-rows-bom";
+      await writePluginPackage(dir, {
+        name: packageName,
+        gwen: { type: "plugin" },
+        files: { "dist/index.js": `${factorySource("Alpha")}${factorySource("Beta")}` },
+      });
+      const manifestPath = path.join(dir, "package.json");
+      await writeFile(manifestPath, `\uFEFF${await readFile(manifestPath, "utf8")}`);
+      const { rows } = record(
+        spec({ root: dir, packageName, factories: [{ export: "Alpha" }, { export: "Beta" }] }),
+      );
+      expect(rows.filter((row) => row.name.startsWith("RD1")).map((row) => row.name)).toEqual([
+        "RD1 manifest contract",
+      ]);
     });
   });
 
