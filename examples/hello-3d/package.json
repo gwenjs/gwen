@@ -3,10 +3,21 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "example:build": "node ../_harness/run.mjs hello-3d build",
+    "example:prepare": "node ../_harness/run.mjs hello-3d prepare",
+    "example:typecheck": "pnpm example:prepare && tsc --noEmit",
     "example:test": "vitest run --config ../_harness/vitest.config.mjs"
+  },
+  "dependencies": {
+    "@gwenjs/app": "workspace:*",
+    "@gwenjs/core": "workspace:*",
+    "@gwenjs/physics3d": "workspace:*",
+    "@gwenjs/renderer-core": "workspace:*",
+    "@gwenjs/vite": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20",
+    "example-harness": "workspace:*",
     "vitest": "^4.1.2"
   }
 }
