@@ -667,3 +667,160 @@ it("a built-in unit throwing a plain value fails with VITE:TRANSFORM_UNIT_FAILED
   expect(errorMessage).toContain(`Transform "gwen:boom" failed on ${id}.`);
   expect(causeReaches(errorThrown, origin)).toBe(true);
 });
+
+type NodeRange = { start: number; end: number };
+
+interface PipelineWarn {
+  (
+    code: ViteErrorCode,
+    node: NodeRange,
+    what: string,
+    options?: { composable?: string; hint?: string },
+  ): void;
+}
+
+function isPipelineWarn(value: unknown): value is PipelineWarn {
+  return typeof value === "function";
+}
+
+function isOptedOutProbe(value: unknown): value is (node: { start: number }) => boolean {
+  return typeof value === "function";
+}
+
+/** `ctx.warn` is absent on the base: probe it without a type escape and call it only when present. */
+function warnUnit(name: `gwen:${string}`, sites: readonly number[]): GwenSourceTransform {
+  return {
+    name,
+    run(_program, ctx) {
+      const warn: unknown = Reflect.get(ctx, "warn");
+      if (!isPipelineWarn(warn)) return [];
+      for (const start of sites) {
+        Reflect.apply(warn, ctx, [
+          ViteErrorCodes.TRANSFORM_UNSUPPORTED,
+          { start, end: start + 1 },
+          "what",
+          { composable: "probe" },
+        ]);
+      }
+      return [];
+    },
+  };
+}
+
+it("ctx.warn reaches the host once per site after every unit ran, with the code, the file and a 0-based column", async () => {
+  const id = "/src/warned.ts";
+  const code = "export const a = 1;\nexport const b = 2;\n";
+  const second = code.indexOf("b = 2");
+  const order: string[] = [];
+  const logs: unknown[] = [];
+  const after: GwenSourceTransform = {
+    name: "gwen:after",
+    run() {
+      order.push("unit2");
+      return [];
+    },
+  };
+  await runPipeline(code, {
+    id,
+    units: [warnUnit("gwen:warn", [0, 0, second]), after],
+    onWarn(log) {
+      order.push("warn");
+      logs.push(log);
+    },
+  });
+  expect(order).toEqual(["unit2", "warn", "warn"]);
+  expect(
+    logs.map((log) => ({
+      code: readString(log, "code"),
+      id: readString(log, "id"),
+      loc: readLoc(log),
+      what: (readString(log, "message") ?? "").split("\n")[0],
+    })),
+  ).toEqual([
+    {
+      code: ViteErrorCodes.TRANSFORM_UNSUPPORTED,
+      id,
+      loc: { file: id, line: 1, column: 0 },
+      what: "[probe()] what",
+    },
+    {
+      code: ViteErrorCodes.TRANSFORM_UNSUPPORTED,
+      id,
+      loc: { file: id, line: 2, column: second - code.indexOf("\n") - 1 },
+      what: "[probe()] what",
+    },
+  ]);
+});
+
+it("a unit failure after ctx.warn emits no warning", async () => {
+  const code = "export const value = 1;\n";
+  const boom: GwenSourceTransform = {
+    name: "gwen:boom",
+    run() {
+      throw new Error("unit failed");
+    },
+  };
+  const control: unknown[] = [];
+  await runPipeline(code, {
+    units: [warnUnit("gwen:warn", [0])],
+    onWarn: (log) => control.push(log),
+  });
+  // Without the throw the same probe warns once: the zero below is a real absence.
+  expect(control).toHaveLength(1);
+  const logs: unknown[] = [];
+  const failed: unknown = await runPipeline(code, {
+    units: [warnUnit("gwen:warn", [0]), boom],
+    onWarn: (log) => logs.push(log),
+  }).then(
+    () => undefined,
+    (error: unknown) => error,
+  );
+  expect(readString(failed, "code")).toBe(ViteErrorCodes.TRANSFORM_UNIT_FAILED);
+  expect(logs).toHaveLength(0);
+});
+
+it("ctx.isOptedOut is true for every node after a leading directive and only for the annotated node otherwise", async () => {
+  const starts = ["import ", "export const A", "export const B", "export const C"];
+  const lines = (head: string[]): string =>
+    [
+      ...head,
+      "export const A = 1;",
+      "export const B = 2;",
+      "// @gwen-no-optimize-later",
+      "export const C = 3;",
+      "",
+    ].join("\n");
+  const importLine = 'import { x } from "./x";';
+  const annotated = lines([importLine, "// @gwen-no-optimize"]);
+  const leading = lines(["// @gwen-no-optimize", importLine]);
+  const plain = lines([importLine]).split("@gwen-no-optimize-later").join("note");
+  const probe = async (source: string): Promise<(boolean | "absent")[]> => {
+    const seen: (boolean | "absent")[] = [];
+    const unit: GwenSourceTransform = {
+      name: "gwen:opt-out-probe",
+      run(_program, ctx) {
+        const optedOut: unknown = Reflect.get(ctx, "isOptedOut");
+        for (const start of starts) {
+          if (!isOptedOutProbe(optedOut)) {
+            seen.push("absent");
+            continue;
+          }
+          const result: unknown = Reflect.apply(optedOut, ctx, [{ start: source.indexOf(start) }]);
+          seen.push(result === true);
+        }
+        return [];
+      },
+    };
+    await runPipeline(source, { units: [unit] });
+    return seen;
+  };
+  expect({
+    annotated: await probe(annotated),
+    leading: await probe(leading),
+    plain: await probe(plain),
+  }).toEqual({
+    annotated: [false, true, false, false],
+    leading: [true, true, true, true],
+    plain: [false, false, false, false],
+  });
+});

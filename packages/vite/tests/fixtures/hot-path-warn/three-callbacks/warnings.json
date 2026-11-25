@@ -1,0 +1,8 @@
+{
+  "warnings": [
+    { "composable": "useQuery", "callback": "onBeforeUpdate", "line": 15 },
+    { "composable": "useWasmModule", "callback": "onAfterUpdate", "line": 19 },
+    { "composable": "useService", "callback": "onRender", "line": 22 },
+    { "composable": "useService", "callback": "onRender", "line": 23 }
+  ]
+}

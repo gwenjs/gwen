@@ -1,0 +1,4 @@
+[
+  { "name": "onUpdate", "from": "@gwenjs/core/system" },
+  { "name": "useService", "from": "@gwenjs/core/system" }
+]

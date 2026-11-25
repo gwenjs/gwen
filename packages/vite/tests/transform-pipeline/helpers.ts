@@ -101,6 +101,8 @@ interface RunOptions {
     importer: string | undefined,
   ) => string | null | Promise<string | null>;
   aliases?: readonly Alias[];
+  /** Receives every `this.warn` log of the transform hook. */
+  onWarn?: (log: string | object) => void;
 }
 
 type BuildStartFn = Exclude<NonNullable<Plugin["buildStart"]>, { handler: unknown }>;
@@ -152,7 +154,10 @@ function throwPluginError(value: string | object): never {
   throw thrown;
 }
 
-function createHost(resolveId: RunOptions["resolveId"]): PipelineHost {
+function createHost(
+  resolveId: RunOptions["resolveId"],
+  onWarn?: RunOptions["onWarn"],
+): PipelineHost {
   return {
     error(value) {
       throwPluginError(value);
@@ -163,7 +168,9 @@ function createHost(resolveId: RunOptions["resolveId"]): PipelineHost {
       if (resolved === null) return null;
       return { id: resolved };
     },
-    warn(_log) {},
+    warn(log) {
+      if (onWarn !== undefined) onWarn(log);
+    },
   };
 }
 
@@ -236,8 +243,9 @@ export async function applyTransform(
   code: string,
   id: string,
   resolveId?: RunOptions["resolveId"],
+  onWarn?: RunOptions["onWarn"],
 ): Promise<PipelineCode | null> {
-  const host = createHost(resolveId);
+  const host = createHost(resolveId, onWarn);
   const transform = plugin.transform;
   if (typeof transform === "function") {
     return pipelineCode(await transform.call(host as never, code, id));
@@ -266,7 +274,7 @@ export async function runPipeline(
   options: RunOptions = {},
 ): Promise<PipelineCode | null> {
   const plugin = await openPipeline(options);
-  return applyTransform(plugin, code, options.id ?? "/src/x.ts", options.resolveId);
+  return applyTransform(plugin, code, options.id ?? "/src/x.ts", options.resolveId, options.onWarn);
 }
 
 /** Relative specifier to `<directory of the importer>/<specifier>.ts`. */
@@ -343,7 +351,7 @@ function readAutoImportEntry(item: unknown): AutoImport {
   return { name, from, as: alias };
 }
 
-function readAutoImports(dir: string): readonly AutoImport[] {
+export function readAutoImports(dir: string): readonly AutoImport[] {
   const autoPath = join(dir, "auto-imports.json");
   if (!existsSync(autoPath)) return [];
   const parsed: unknown = JSON.parse(readFileSync(autoPath, "utf8"));
