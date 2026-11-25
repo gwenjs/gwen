@@ -294,6 +294,22 @@ describe("bundle-size", () => {
     expect(gzipSum(dist, dist.wasm)).toBeLessThanOrEqual(allowedBudget(budgets[v].wasmGzipBytes));
   });
 
+  it("app-light contains no framework-provider string", async () => {
+    // The row of the provider table: its export name is the one string that no other code carries.
+    const markers = ["CameraCorePlugin"];
+    // Positive control: the built @gwenjs/app carries the table (in `resolve.js` or in a shared
+    // chunk). A renamed row would otherwise leave the absence check below with nothing to find.
+    const appDist = path.join(repoRoot, "packages/app/dist");
+    const appText = fs
+      .readdirSync(appDist)
+      .filter((f) => f.endsWith(".js"))
+      .map((f) => fs.readFileSync(path.join(appDist, f), "utf8"))
+      .join("\n");
+    expectMarkers(appText, markers, true);
+    const dist = await distOf("light");
+    expectMarkers(dist.text, markers, false);
+  });
+
   it("physics3d dist holds the BVH worker binary next to the core binary", async () => {
     const dist = await distOf("physics3d");
     const bvhSha = sha(bvhWasm);
