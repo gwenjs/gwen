@@ -17,6 +17,7 @@
  * declaration is hoisted and can run before the const.
  * Inserts at one offset keep emission order, which is source order of the calls
  * (walk pre-order) (`packages/vite/src/pipeline/apply-edits.ts:80`).
+ * `// @gwen-no-optimize` on S or on the call, or before the first statement, skips the call.
  */
 
 import type { BindingPattern, CallExpression, Program, VariableDeclaration } from "oxc-parser";
@@ -187,6 +188,7 @@ function collectEdits(program: Program, ctx: TransformContext): TransformEdit[] 
     if (!resolvesUseQuery(call, ctx)) continue;
     const site = enclosingStatement(program, call.start);
     if (site === null) continue;
+    if (ctx.isOptedOut(site) || ctx.isOptedOut(call)) continue;
     if (functionDeclarationSite(site)) continue;
     const array = readArray(call);
     if (array === null) continue;

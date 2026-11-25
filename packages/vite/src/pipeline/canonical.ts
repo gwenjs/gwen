@@ -26,6 +26,11 @@ const CALLEE_NAMES: readonly GwenCallee[] = [
   "useMeshCollider",
   "defineHooks",
   "useTween",
+  "onBeforeUpdate",
+  "onAfterUpdate",
+  "onRender",
+  "useService",
+  "useWasmModule",
 ];
 
 export const CANONICAL: Record<GwenCallee, readonly string[]> = {
@@ -48,6 +53,11 @@ export const CANONICAL: Record<GwenCallee, readonly string[]> = {
   useMeshCollider: ["@gwenjs/physics3d"],
   defineHooks: ["@gwenjs/core"],
   useTween: ["@gwenjs/core/tween"],
+  onBeforeUpdate: ["@gwenjs/core/system"],
+  onAfterUpdate: ["@gwenjs/core/system"],
+  onRender: ["@gwenjs/core/system"],
+  useService: ["@gwenjs/core/system"],
+  useWasmModule: ["@gwenjs/core/system"],
 };
 
 /** Virtual modules that re-export the auto-import list. Not canonical sources. */

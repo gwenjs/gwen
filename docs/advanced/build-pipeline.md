@@ -18,7 +18,7 @@ description: How GWEN rewrites your source at build time, which calls it recogni
 
 ## Units
 
-`BUILT_IN_UNITS` lists the units that always run, in application order (`packages/vite/src/pipeline/registry.ts:10`).
+`BUILT_IN_UNITS` lists the units that always run, in application order (`packages/vite/src/pipeline/registry.ts:11`).
 
 | Unit | What it does |
 |---|---|
@@ -28,6 +28,7 @@ description: How GWEN rewrites your source at build time, which calls it recogni
 | `gwen:layout-name` | Names `const Level1 = defineLayout(...)`. |
 | `gwen:scene-router-name` | Names `const AppRouter = defineSceneRouter(...)`. |
 | `gwen:query-hoist` | Hoists the array of `useQuery([A, B])` to a module constant. |
+| `gwen:hot-path-warn` | Warns when `useQuery`, `useService` or `useWasmModule` is called inside a frame callback. It never edits the source. |
 
 A plugin can add a unit before `buildStart` with `register()` on the pipeline. The physics plugins and `gwen()` do this:
 
@@ -41,7 +42,7 @@ A plugin can add a unit before `buildStart` with `register()` on the pipeline. T
 
 ## Which calls are recognised
 
-A unit never matches a call by its text. It resolves the callee through the import binding of the module. A call counts when it resolves to a GWEN export listed in `CANONICAL` (`packages/vite/src/pipeline/canonical.ts:31`).
+A unit never matches a call by its text. It resolves the callee through the import binding of the module. A call counts when it resolves to a GWEN export listed in `CANONICAL` (`packages/vite/src/pipeline/canonical.ts:36`).
 
 | Style | Example | Matched |
 |---|---|---|
@@ -54,11 +55,61 @@ A unit never matches a call by its text. It resolves the callee through the impo
 | Member of another object | `utils.defineSystem(...)` where `utils` is not a namespace import | No |
 | Another package | `import { defineSystem } from 'some-lib'` | No |
 
-The rules live in `packages/vite/src/pipeline/resolve-callee.ts`: a namespace member needs a namespace import (`:113-115`), a local declaration wins over the import (`:123`), and an auto-import applies only to a name with no declaration (`:122`). A source outside `CANONICAL` never matches (`packages/vite/src/pipeline/canonical.ts:71-78`). The pipeline follows project barrels before units run (`packages/vite/src/pipeline/transform-pipeline.ts:187`). The scanners do not (see below).
+The rules live in `packages/vite/src/pipeline/resolve-callee.ts`: a namespace member needs a namespace import (`:113-115`), a local declaration wins over the import (`:123`), and an auto-import applies only to a name with no declaration (`:122`). A source outside `CANONICAL` never matches (`packages/vite/src/pipeline/canonical.ts:81-88`). The pipeline follows project barrels before units run (`packages/vite/src/pipeline/transform-pipeline.ts:187`). The scanners do not (see below).
+
+## Per-frame lookups {#per-frame-lookups}
+
+`gwen:hot-path-warn` logs a build warning when `useQuery`, `useService` or `useWasmModule` is called inside the function given to `onBeforeUpdate`, `onUpdate`, `onAfterUpdate` or `onRender` (`packages/vite/src/transforms/hot-path-warn.ts:60`). That function runs every frame, so the lookup does too. The unit reads the source and moves nothing. It logs once per call site, with the code `VITE:HOT_PATH_LOOKUP`, and the build never fails because of it (`packages/vite/src/transforms/hot-path-warn.ts:94`).
+
+The rules:
+
+- Names are the resolved GWEN functions, so an alias such as `useService as svc` is found.
+- A `defineSystem` or `defineActor` inside the callback has its own setup. A lookup in that setup is not reported.
+- Another function inside the callback, such as `forEach(() => ...)`, does not change the answer: the lookup is still per frame.
+- A lookup in the arguments of the frame call, as in `onUpdate(useService("k").tick)`, runs once and is not reported.
+- A function reference, as in `onUpdate(tick)`, has no body to read here, so nothing is reported.
+
+Call the lookup once in the setup and use the captured value in the callback. For a service that may be absent or swapped, keep `optionalService(engine, key)` from the setup and read `.current` in the callback:
+
+```ts
+import { useEngine } from "@gwenjs/core";
+import { defineSystem, onUpdate } from "@gwenjs/core/system";
+import { optionalService } from "@gwenjs/kit/plugin";
+
+export const Audio = defineSystem("Audio", () => {
+  const audio = optionalService(useEngine(), "audio");
+  onUpdate(() => {
+    audio.current?.play("tick");
+  });
+});
+```
+
+Each transform of a module logs its own warnings (`packages/vite/src/pipeline/transform-pipeline.ts:335`), so a re-transform in `vite dev` logs them again.
+
+## Opting out {#opting-out}
+
+`// @gwen-no-optimize` turns the optimisation units off where it applies (`packages/vite/src/pipeline/opt-out.ts:27`). Only `gwen:query-hoist` (`packages/vite/src/transforms/query-hoist.ts:191`) and `gwen:hot-path-warn` (`packages/vite/src/transforms/hot-path-warn.ts:70`) read it.
+
+- **Exact token.** The comment text must be `@gwen-no-optimize` and nothing else. `// @gwen-no-optimize-later` and `// @gwen-no-optimize please` are not directives (`packages/vite/src/pipeline/opt-out.ts:32`).
+- **Comment forms.** `// ...` and `/* ... */` work. A JSDoc `/** ... */` does not.
+- **Whole module.** A directive before the first statement of the module, including the leading comment of that statement, covers the whole module (`packages/vite/src/pipeline/opt-out.ts:38`).
+- **One node.** Elsewhere, a directive covers the node that follows it: a top-level statement, a frame call such as `onUpdate(...)`, or a statement inside a callback. For `gwen:hot-path-warn`, a directive above a statement inside a callback silences the lookups in that statement. For `gwen:query-hoist`, a directive counts on the top-level statement that holds the call, on the `useQuery(...)` call itself, or before the first statement; a directive on an inner statement of a callback silences `gwen:hot-path-warn` only. `isOptedOut` answers for the node it receives and does not consult its ancestors: each unit checks the enclosing nodes it cares about (`packages/vite/src/pipeline/opt-out.ts:41`).
+- **Leading comment only.** Only the comment right before the node counts. If another comment sits between the directive and the node, the directive does not apply.
+
+```ts
+export const Audio = defineSystem("Audio", () => {
+  onUpdate(() => {
+    // @gwen-no-optimize
+    const sfx = useService("audio");
+  });
+});
+```
+
+The other units do not read the directive: `gwen:async-context` wraps `await`, the name units insert names and `gwen:variant-guard` protects the build, so they are not optimisations. Kit source transforms do not see it: only the internal pipeline context has `isOptedOut` (`packages/vite/src/pipeline/types.ts:86`).
 
 ## Errors
 
-The pipeline raises these codes. Each page entry gives the cause and the fix.
+The pipeline raises or logs these codes. Each page entry gives the cause and the fix.
 
 | Code | When |
 |---|---|
@@ -67,6 +118,7 @@ The pipeline raises these codes. Each page entry gives the cause and the fix.
 | [`VITE:TRANSFORM_UNSUPPORTED`](/api/errors#vite-transform-unsupported) | `register()` is called after `buildStart`, or a unit meets a shape it cannot rewrite, such as a nested `await`. |
 | [`VITE:BVH_PREBAKE_FAILED`](/api/errors#vite-bvh-prebake-failed) | The BVH bake of a `.glb` mesh failed. |
 | [`VITE:VARIANT_REQUIRED`](/api/errors#vite-variant-required) | A module value-imports `@gwenjs/physics2d` or `@gwenjs/physics3d` that the resolved variant or `modules` does not allow. |
+| [`VITE:HOT_PATH_LOOKUP`](/api/errors#vite-hot-path-lookup) | A warning, not an error: a lookup runs inside a frame callback. The build goes on. |
 
 ## Scanners
 

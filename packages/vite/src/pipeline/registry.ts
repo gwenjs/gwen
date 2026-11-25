@@ -1,6 +1,7 @@
 import type { GwenSourceTransform } from "./types.js";
 import { actorName } from "../transforms/actor-name.js";
 import { asyncContext } from "../transforms/async-context.js";
+import { hotPathWarn } from "../transforms/hot-path-warn.js";
 import { layoutName } from "../transforms/layout-name.js";
 import { queryHoist } from "../transforms/query-hoist.js";
 import { sceneRouterName } from "../transforms/scene-router-name.js";
@@ -14,4 +15,5 @@ export const BUILT_IN_UNITS: GwenSourceTransform[] = [
   layoutName,
   sceneRouterName,
   queryHoist,
+  hotPathWarn,
 ];
