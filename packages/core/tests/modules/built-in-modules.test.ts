@@ -38,14 +38,29 @@ async function recorded(setup: (kit: GwenKit) => void | Promise<void>): Promise<
 describe("built-in scene and tween modules", () => {
   it("scene and tween modules declare their plugins from @gwenjs/core/internal", async () => {
     expect(await recorded((kit) => sceneModule.setup({}, kit))).toEqual([
-      { src: "@gwenjs/core/internal", export: "SceneEnginePlugin" },
+      {
+        src: "@gwenjs/core/internal",
+        export: "SceneEnginePlugin",
+        provides: ["scene:hook-registry"],
+      },
     ]);
     expect(await recorded((kit) => tweenModule.setup({ poolSize: 256 }, kit))).toEqual([
       {
         src: "@gwenjs/core/internal",
         export: "TweenPlugin",
         options: { poolSize: 256 },
+        provides: ["tween:manager"],
       },
+    ]);
+  });
+
+  it("the declared provides equal the provides of the plugin instances", async () => {
+    const mod = await import("../../src/internal.js");
+    expect(await recorded((kit) => sceneModule.setup({}, kit))).toMatchObject([
+      { provides: mod.SceneEnginePlugin().provides },
+    ]);
+    expect(await recorded((kit) => tweenModule.setup({ poolSize: 256 }, kit))).toMatchObject([
+      { provides: mod.TweenPlugin().provides },
     ]);
   });
 

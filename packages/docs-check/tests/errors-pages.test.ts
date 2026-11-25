@@ -35,4 +35,18 @@ describe("errors pages", () => {
     expect(pull(english, new RegExp(prefix))).toEqual(PREFIXES);
     expect(pull(french, new RegExp(prefix))).toEqual(PREFIXES);
   });
+
+  it.each(["docs/api/errors.md", "docs/fr/api/errors.md"])(
+    "%s has a section for each provider code and does not list it as reserved",
+    (rel) => {
+      const page = text(rel);
+      for (const [code, anchor] of [
+        ["APP:PLUGIN_REQUIREMENT_ORDER", "app-plugin-requirement-order"],
+        ["APP:SERVICE_PROVIDER_MISSING", "app-service-provider-missing"],
+      ] as const) {
+        expect(page).toContain(`### ${code} {#${anchor}}`);
+        expect(page).not.toContain(`- \`${code}\` {#${anchor}}`);
+      }
+    },
+  );
 });

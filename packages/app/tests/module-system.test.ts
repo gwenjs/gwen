@@ -15,7 +15,7 @@ import { defineGwenModule, GwenModuleDefinitionError } from "@gwenjs/kit/module"
 import type { GwenModule } from "@gwenjs/kit/module";
 import type { AutoImport } from "@gwenjs/kit";
 import { GwenError } from "@gwenjs/schema";
-import type { GwenKit, GwenSourceTransform, PluginDeclaration } from "@gwenjs/schema";
+import type { GwenKit, GwenSourceTransform } from "@gwenjs/schema";
 import { GwenApp } from "../src/app.js";
 import { BUILT_IN_MODULES } from "../src/built-in-modules.js";
 import { resolveLoadedConfig as resolveConfig } from "../src/config.js";
@@ -39,14 +39,16 @@ function addUnknown(gwen: GwenKit, value: unknown): void {
   Reflect.apply(gwen.addPlugin, gwen, [value]);
 }
 
-const SCENE_DECLARATION: PluginDeclaration = {
+const SCENE_DECLARATION = {
   src: "@gwenjs/core/internal",
   export: "SceneEnginePlugin",
+  provides: ["scene:hook-registry"],
 };
-const TWEEN_DECLARATION: PluginDeclaration = {
+const TWEEN_DECLARATION = {
   src: "@gwenjs/core/internal",
   export: "TweenPlugin",
   options: { poolSize: 256 },
+  provides: ["tween:manager"],
 };
 
 async function runModule(
