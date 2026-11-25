@@ -823,6 +823,36 @@ const handle = await engine.loadWasmModule({ name: 'my-physics', bytes: await re
 
 `maxBytes` caps a `url` or `bytes` source before compile (default `16 MiB`, `16777216` bytes). A `module` source is already compiled and is not checked (`packages/core/src/engine/engine-types.ts:74`).
 
+### Typed names {#typed-names}
+
+The Vite plugin `gwen:wasm-modules-dts` reads the `loadWasmModule` calls of your source and writes `.gwen/types/wasm-modules.d.ts`. That file augments `GwenWasmModules` from `@gwenjs/core`, so `engine.getWasmModule('nav')` and `useWasmModule('nav')` are typed with no hand-written entry, and a name that is not listed is a type error.
+
+```typescript
+import type { NavExports } from './nav-types'
+
+const handle = await engine.loadWasmModule<NavExports>({ name: 'nav', url })
+```
+
+The file is written when Vite starts, and again when a saved source file changes. It is rewritten only when its content changes. With `gwenVitePlugin`, `dts: false` writes nothing and `gwenDir` moves it. `gwen()` takes neither option and always writes `.gwen/types/wasm-modules.d.ts`. The plugin scans `src`, plus `localPluginsDir` and `localModulesDir` when they point outside `src`.
+
+A call is listed when `name` is a string literal and `T` is a type imported by name. Import the type from its own module. An import specifier is copied as written, so an alias such as `@/x` must resolve in your own tsconfig; a relative one is rewritten from the generated file. A call that cannot be listed is not dropped silently. It becomes a `// skipped <file>:<line>: <reason>` line in the generated file:
+
+| Reason | Cause |
+|---|---|
+| `non-literal name` | `name` is a variable, a template literal or missing |
+| `no type argument` | the call has no `<T>`, so `getWasmModule('nav')` stays a type error |
+| `type not importable` | `T` is declared in the same file, is generic, is written inline or comes from a namespace import |
+
+The same name with the same type in several files is one entry. The same name with two different types throws `VITE:WASM_MODULE_DUPLICATE`, names both locations, and keeps the previous file.
+
+Limits:
+
+- The plugin matches the method name `loadWasmModule` on any object, and a bare call bound by a destructuring pattern. A local function with that name, an aliased method, `.call`, `.apply`, `Reflect.apply` and `engine['loadWasmModule']` are not seen.
+- `.d.ts`, test and spec files, `node_modules`, `.vue` and `.svelte` sources are not read. A module shipped by an npm package declares its own entry: nothing is generated for it.
+- Vite 8 reports no file creation or deletion to `handleHotUpdate`. After you add or delete a file that holds a call, restart the dev server, as for scenes.
+- The file is written by the Vite plugin only. `gwen prepare` does not write it.
+- Remove any hand-written `GwenWasmModules` entry for a listed name. A second declaration with another type is TS2717.
+
 ### WasmModuleOptions
 
 | Field | Type | Description |

@@ -409,7 +409,7 @@ The `GwenCoreGlueFactoryModule` import only types the helper. Real code passes `
 
 `wasmInstance: "isolated"` gives each engine its own WASM instance and linear memory. To compile once and share the result, pass `wasmModule: await WebAssembly.compile(wasmBytes)` instead of `wasmBytes`. Use `variant: "physics2d"` or `"physics3d"` with the matching `@gwenjs/core/wasm/<variant>/factory` import.
 
-`engine.loadWasmModule({ name, bytes })` loads a community module in a server with no fetch. Pass `module` for a compiled `WebAssembly.Module`. Pass exactly one of `url`, `bytes` or `module`. Zero or several, or invalid bytes, reject with `CORE:WASM_LOAD_ERROR`. A `url` source is yours to serve: the Vite plugin no longer serves `/wasm/` and no longer copies plugin wasm. Point `url` at `new URL("./x.wasm", import.meta.url)`.
+`engine.loadWasmModule({ name, bytes })` loads a community module in a server with no fetch. Pass `module` for a compiled `WebAssembly.Module`. Pass exactly one of `url`, `bytes` or `module`. Zero or several, or invalid bytes, reject with `CORE:WASM_LOAD_ERROR`. A `url` source is yours to serve: the Vite plugin no longer serves `/wasm/` and no longer copies plugin wasm. Point `url` at `new URL("./x.wasm", import.meta.url)`. The Vite plugin types `getWasmModule("name")` from the `loadWasmModule<T>` calls it finds; see [Typed names](/kit/custom-plugin#typed-names).
 
 ### Many rooms on worker threads
 

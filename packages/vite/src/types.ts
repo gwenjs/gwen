@@ -97,7 +97,7 @@ export interface GwenViteOptions {
   gwenDir?: string;
 
   /**
-   * Whether to generate `.d.ts` files for auto-imports.
+   * Whether to generate the auto-import `.d.ts` files and `wasm-modules.d.ts`.
    * Set to `false` to opt out.
    * @default true
    */

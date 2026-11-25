@@ -17,6 +17,8 @@ import type { GwenImportBinding } from "../pipeline/types.js";
 export interface ScannedModule {
   readonly program: Program;
   readonly resolver: ModuleResolver;
+  /** The file text, for line numbers. */
+  readonly code: string;
 }
 
 /**
@@ -47,7 +49,7 @@ export function readScanned(
     autoImports,
     followed: new Map<string, GwenImportBinding>(),
   });
-  return { program, resolver };
+  return { program, resolver, code };
 }
 
 function hasSuffix(name: string, suffixes: readonly string[]): boolean {
@@ -72,6 +74,7 @@ function isSkipped(name: string, skipSpec: boolean): boolean {
  * Every file under `dir` whose name ends with one of `suffixes`, sorted by full path.
  * A file name ending with `.d.ts` or containing `.test.` is skipped, so is one containing
  * `.spec.` when `options.skipSpec` is set; a skipped file is never read.
+ * A directory named `node_modules` is not entered.
  * A name that matches is returned even when it is a directory: reading it then fails loudly.
  * A missing `dir` yields no file.
  */
@@ -96,7 +99,7 @@ function collect(
     const full = join(dir, entry.name);
     if (hasSuffix(entry.name, suffixes) && !isSkipped(entry.name, skipSpec)) {
       found.push(full);
-    } else if (entry.isDirectory()) {
+    } else if (entry.isDirectory() && entry.name !== "node_modules") {
       collect(full, suffixes, skipSpec, found);
     }
   }

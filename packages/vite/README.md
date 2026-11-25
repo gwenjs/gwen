@@ -154,9 +154,9 @@ Types: none
 
 ### `./scanners`
 
-Values: `resolveMainScene`, `scanDefineHooks`, `scanEasingNames`, `scanLayoutNames`, `scanScenes`
+Values: `resolveMainScene`, `scanDefineHooks`, `scanEasingNames`, `scanLayoutNames`, `scanScenes`, `scanWasmModuleNames`
 
-Types: `HookExport`, `LayoutName`, `ScanOptions`, `SceneInfo`
+Types: `HookExport`, `LayoutName`, `ScanOptions`, `SceneInfo`, `WasmModuleHit`, `WasmModuleScan`, `WasmModuleSkip`
 
 ### `./internal`
 

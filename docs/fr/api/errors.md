@@ -224,7 +224,7 @@ Cause. `resolveMainScene` (`packages/vite/src/scanners/index.ts:183`) a reçu un
 
 ### VITE:TRANSFORM_PARSE_FAILED {#vite-transform-parse-failed}
 
-Cause. `parseModule` n'a pas pu analyser le module. Le message commence par l'id, la ligne et la colonne, toutes deux à base 1. `loc.column` est à base 0, comme Vite la lit. Les scanners de `@gwenjs/vite/scanners` le lèvent pour un fichier qu'ils ne peuvent pas analyser (`packages/vite/src/scanners/read.ts:43`). Pour un fichier qu'ils ne peuvent pas lire, le message est `<file> could not be read.` et `cause` est l'erreur Node (`packages/vite/src/scanners/read.ts:37`). Fix. Corrigez l'erreur de syntaxe ; le build GWEN ne saute jamais un module qu'il ne peut pas analyser.
+Cause. `parseModule` n'a pas pu analyser le module. Le message commence par l'id, la ligne et la colonne, toutes deux à base 1. `loc.column` est à base 0, comme Vite la lit. Les scanners de `@gwenjs/vite/scanners` le lèvent pour un fichier qu'ils ne peuvent pas analyser (`packages/vite/src/scanners/read.ts:45`). Pour un fichier qu'ils ne peuvent pas lire, le message est `<file> could not be read.` et `cause` est l'erreur Node (`packages/vite/src/scanners/read.ts:39`). Fix. Corrigez l'erreur de syntaxe ; le build GWEN ne saute jamais un module qu'il ne peut pas analyser.
 
 ### VITE:TRANSFORM_EDIT_CONFLICT {#vite-transform-edit-conflict}
 
@@ -241,6 +241,9 @@ Cause. Une unité du pipeline a levé une valeur qui ne passait pas par `ctx.rai
 ### VITE:BVH_PREBAKE_FAILED {#vite-bvh-prebake-failed}
 
 Cause. `gwen:bvh-prebake` lève ce code quand un `.glb` relatif passé à `useMeshCollider` n'est pas sur le disque (`packages/vite/src/transforms/bvh-prebake.ts:134`), ou quand la lecture ou le calcul lève (`packages/vite/src/transforms/bvh-prebake.ts:102`). Un fichier absent nomme le chemin absolu. Un calcul qui lève nomme le chemin relatif et garde l'erreur d'origine dans `cause`. La ligne `Fix:` n'est présente que si `NODE_ENV` n'est pas `production` (`packages/vite/src/pipeline/dev-hint.ts:7`). Fix. Vérifiez le chemin par rapport au fichier qui importe. Exportez le maillage en triangles.
+### VITE:WASM_MODULE_DUPLICATE {#vite-wasm-module-duplicate}
+
+Cause. `gwen:wasm-modules-dts` lève ce code quand deux appels `loadWasmModule` donnent deux types différents à un même nom. Le message est `loadWasmModule name "<name>" is declared with two types (<file>:<line>, <file>:<line>).` avec des chemins relatifs à la racine du projet (`packages/vite/src/plugins/wasm-modules-dts.ts`). L'erreur est levée avant toute écriture : le `wasm-modules.d.ts` précédent reste en place. La ligne `Fix:` n'est présente que si `NODE_ENV` n'est pas `production`. Fix. Donnez un seul type à chaque nom, ou renommez l'un des modules.
 
 ### VITE:VARIANT_REQUIRED {#vite-variant-required}
 

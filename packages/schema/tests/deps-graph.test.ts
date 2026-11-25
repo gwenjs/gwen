@@ -131,10 +131,12 @@ const KIT_CONTRACTS = new Set([
  * `hooks.ts` writes the project's generated `.gwen` type file, which is a project file
  * (Q1), not a package contract: the generated text has to contain the augmentation.
  * `scenes-dts.ts` likewise writes the project's generated `.gwen` type file.
+ * `wasm-modules-dts.ts` likewise writes the project's generated `.gwen/types/wasm-modules.d.ts`.
  */
 const R10_ALLOWED_FILES: ReadonlySet<string> = new Set([
   "packages/vite/src/plugins/hooks.ts",
   "packages/app/src/scenes-dts.ts",
+  "packages/vite/src/plugins/wasm-modules-dts.ts",
 ]);
 
 // ── helpers ──────────────────────────────────────────────────────────────────

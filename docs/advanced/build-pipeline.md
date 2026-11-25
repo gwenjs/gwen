@@ -70,11 +70,11 @@ The pipeline raises these codes. Each page entry gives the cause and the fix.
 
 ## Scanners
 
-Some build steps need facts about many files at once, not a rewrite of one. `@gwenjs/vite/scanners` answers them: scene names, `defineHooks` exports, `defineLayout` names and easing names. The scanners share the pipeline rules:
+Some build steps need facts about many files at once, not a rewrite of one. `@gwenjs/vite/scanners` answers them: scene names, `defineHooks` exports, `defineLayout` names, easing names and `loadWasmModule` names. The scanners share the pipeline rules:
 
 - They parse with `parseModule`, so a file with a syntax error throws `VITE:TRANSFORM_PARSE_FAILED`. No file is skipped.
-- An unreadable file throws the same code. The message is `<file> could not be read.` and `cause` is the Node error (`packages/vite/src/scanners/read.ts:37`).
-- They match callees through import bindings. Bare calls need the `autoImports` option.
-- They do not follow barrels: `followed` is empty (`packages/vite/src/scanners/read.ts:48`). Import the GWEN function from its package in a scanned file, or rely on auto-imports.
+- An unreadable file throws the same code. The message is `<file> could not be read.` and `cause` is the Node error (`packages/vite/src/scanners/read.ts:39`).
+- They match callees through import bindings. Bare calls need the `autoImports` option. The exception is `scanWasmModuleNames`: it matches the method name `loadWasmModule` on any object.
+- They do not follow barrels: `followed` is empty (`packages/vite/src/scanners/read.ts:50`). Import the GWEN function from its package in a scanned file, or rely on auto-imports.
 
 See [`@gwenjs/vite/scanners`](/api/vite#vite-scanners) for the signatures.
