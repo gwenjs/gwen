@@ -4,6 +4,8 @@ import { ConformanceErrorCodes } from "./error-codes.js";
 import type { ExtensionBase, ExtensionListing, ExtensionProblem } from "./extension-manifest.js";
 import { readExtensionManifest } from "./extension-manifest.js";
 import { FRAMEWORK_PACKAGES } from "./framework-packages.js";
+import { readGwenContract } from "./gwen-contract.js";
+import type { GwenProblem } from "./gwen-contract.js";
 import { installedHookNamespace, resolveInstalledPackage } from "./installed-package.js";
 import { isRecord } from "./json.js";
 import { manifestFinding } from "./manifest-finding.js";
@@ -74,6 +76,9 @@ export async function checkManifest(
     for (const item of await baseExtensibleFindings(context.root, base)) {
       findings.push(item);
     }
+  }
+  for (const problem of readGwenContract(context.manifest, context.text).problems) {
+    findings.push(gwenProblemFinding(problem));
   }
   return findings;
 }
@@ -160,6 +165,17 @@ function baseNotExtensible(base: ExtensionBase, message: string, hint: string): 
 }
 
 function extendsProblemFinding(problem: ExtensionProblem): ConformanceFinding {
+  const pinned = manifestFinding(problem.message, problem.hint);
+  return {
+    code: pinned.code,
+    message: pinned.message,
+    hint: pinned.hint,
+    file: pinned.file ?? "package.json",
+    line: problem.line,
+  };
+}
+
+function gwenProblemFinding(problem: GwenProblem): ConformanceFinding {
   const pinned = manifestFinding(problem.message, problem.hint);
   return {
     code: pinned.code,
