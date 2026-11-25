@@ -230,6 +230,7 @@ describe("runPluginConformance manifest contract", () => {
         ["Plugin"],
       );
       expect(report.checks).toEqual(ranChecks({ manifestContract: true }));
+      expect(report.checks).toContain("manifest-contract");
       expect(manifestFindings(report)).toEqual([]);
     });
   });
@@ -276,6 +277,7 @@ describe("runPluginConformance manifest contract", () => {
         ["Plugin"],
       );
       expect(report.checks).toEqual(ranChecks({ manifestContract: true }));
+      expect(report.checks).toContain("manifest-contract");
       expect(manifestFindings(report)).toEqual([]);
     });
   });
@@ -291,6 +293,7 @@ describe("runPluginConformance manifest contract", () => {
         ["Plugin"],
       );
       expect(report.checks).toEqual(ranChecks({ manifestContract: true }));
+      expect(report.checks).toContain("manifest-contract");
       expect(manifestFindings(report)).toEqual([]);
     });
   });
@@ -354,6 +357,7 @@ describe("runPluginConformance manifest contract", () => {
         ["Bad", "Good"],
       );
       expect(report.checks).toEqual(ranChecks({ manifestContract: true }));
+      expect(report.checks).toContain("manifest-contract");
       expect(manifestFindings(report)).toEqual([]);
       const shape = findingsWithCode(report, ConformanceErrorCodes.RUNTIME_SHAPE);
       expect(shape.map((finding) => finding.message)).toEqual([
