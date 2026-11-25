@@ -53,7 +53,7 @@ jobs:
               - '!notes/**'
               - '!internals-docs/**'
             stack:
-              - '{packages/**,crates/**,scripts/stack/**,scripts/fix-dts-extensions.mjs,scripts/build-wasm.sh,pnpm-lock.yaml,pnpm-workspace.yaml,package.json,.github/workflows/ci.yml,.github/actions/**}'
+              - '{packages/**,crates/**,scripts/stack/**,scripts/fix-dts-extensions.mjs,scripts/build-wasm.sh,pnpm-lock.yaml,pnpm-workspace.yaml,package.json,.github/workflows/ci.yml,.github/actions/**,.github/workflows/plugin-conformance.yml,.github/selftest/**}'
               - '!**/*.md'
               - '!docs/**'
       # Alternatives: a file must match some pattern.
@@ -888,10 +888,22 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
+  # Runs the reusable workflow on the fixture with the stack-tarballs of this run.
+  # No timeout-minutes here: a job that calls a workflow cannot set it.
+  plugin-conformance-selftest:
+    name: Plugin conformance self-test
+    needs: [changes, stack-pack]
+    if: needs.changes.outputs.stack == 'true'
+    uses: ./.github/workflows/plugin-conformance.yml
+    with:
+      gwen-ref: ${{ github.sha }}
+      stack-from-current-run: true
+      working-directory: .github/selftest/plugin
+
   ci-status:
     name: CI Status
     runs-on: ubuntu-latest
-    needs: [changes, lint, rust, rust-lint, typescript, bench, api-surface, storage-bench, alloc-gate, agent-hygiene, verify-red, rust-miri, rust-miri-step, rust-miri-full, wasm-size, rust-deny, docs-check, browser-wasm, glue-shape, npm-audit, wasm-capacity, stack-pack]
+    needs: [changes, lint, rust, rust-lint, typescript, bench, api-surface, storage-bench, alloc-gate, agent-hygiene, verify-red, rust-miri, rust-miri-step, rust-miri-full, wasm-size, rust-deny, docs-check, browser-wasm, glue-shape, npm-audit, wasm-capacity, stack-pack, plugin-conformance-selftest]
     if: always()
     steps:
       # A skipped job (draft, docs only, no Rust change, bench outside a full run) is not a failure.
@@ -919,7 +931,8 @@ jobs:
             "${{ needs['glue-shape'].result }}" \
             "${{ needs['npm-audit'].result }}" \
             "${{ needs['wasm-capacity'].result }}" \
-            "${{ needs['stack-pack'].result }}"; do
+            "${{ needs['stack-pack'].result }}" \
+            "${{ needs['plugin-conformance-selftest'].result }}"; do
             case "$result" in
               success|skipped) ;;
               *) echo "❌ CI failed"; exit 1 ;;
