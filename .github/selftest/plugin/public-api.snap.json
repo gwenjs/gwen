@@ -1,0 +1,14 @@
+{
+  ".": {
+    "values": [
+      "SelftestPlugin"
+    ],
+    "types": []
+  },
+  "./module": {
+    "values": [
+      "default"
+    ],
+    "types": []
+  }
+}

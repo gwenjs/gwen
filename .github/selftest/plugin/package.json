@@ -1,0 +1,39 @@
+{
+  "name": "@selftest/plugin",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Fixture plugin of the plugin-conformance self-test in gwen CI",
+  "license": "MPL-2.0",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./module": {
+      "types": "./dist/module.d.ts",
+      "import": "./dist/module.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "@gwenjs/kit": "^1.0.0-alpha.0"
+  },
+  "devDependencies": {
+    "@gwenjs/core": "1.0.0-integration.0.g0000000",
+    "@gwenjs/kit": "1.0.0-integration.0.g0000000",
+    "@gwenjs/plugin-conformance": "1.0.0-integration.0.g0000000",
+    "@gwenjs/schema": "1.0.0-integration.0.g0000000",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.2"
+  },
+  "gwen": {
+    "type": "plugin"
+  }
+}
