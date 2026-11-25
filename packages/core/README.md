@@ -379,9 +379,9 @@ Types: `CreateRealEngineOptions`, `RealEngineHandle`
 
 no semver guarantee — framework packages and generated code only
 
-Values: `EASING_MAP`, `FLAGS_OFFSET`, `FLAG_HAS_TRANSFORM`, `GwenScope`, `MAX_SAB_BYTES`, `SENTINEL`, `SceneEnginePlugin`, `SharedMemoryManager`, `StringPool`, `StringPoolManager`, `stringPoolFor`, `TRANSFORM3D_STRIDE`, `TRANSFORM_OFFSETS`, `TRANSFORM_STRIDE`, `Transform3D`, `TweenManager`, `TweenPlugin`, `TweenPool`, `WasmBridgeImpl`, `_getActorContext`, `_getActorEntityId`, `asFullEngine`, `buildTransformImports`, `createDisposable`, `createGwenHooks`, `detectCoreVariant`, `engineContext`, `entityIndex`, `executeAsync`, `getTweenManager`, `getWasmBridge`, `invalidateWasmModule`, `autoProvider`, `isolatedProvider`, `poisonWasmBridge`, `readTransform3DPosition`, `readTransform3DRotation`, `readTransform3DScale`, `reportRejectedHook`, `runScenePreload`, `sharedProvider`, `toGwenWasmError`, `writeTransform3DPosition`, `writeTransform3DRotation`, `writeTransform3DScale`
+Values: `EASING_MAP`, `FLAGS_OFFSET`, `FLAG_HAS_TRANSFORM`, `GwenScope`, `MAX_SAB_BYTES`, `SENTINEL`, `SceneEnginePlugin`, `SharedMemoryManager`, `StringPool`, `StringPoolManager`, `stringPoolFor`, `TRANSFORM3D_STRIDE`, `TRANSFORM_OFFSETS`, `TRANSFORM_STRIDE`, `Transform3D`, `TweenManager`, `TweenPlugin`, `TweenPool`, `WasmBridgeImpl`, `_getActorContext`, `_getActorEntityId`, `asFullEngine`, `buildTransformImports`, `createDisposable`, `createGwenHooks`, `detectCoreVariant`, `engineContext`, `entityIndex`, `executeAsync`, `getTweenManager`, `getWasmBridge`, `hotCompareComponent`, `hotReplaceSystem`, `invalidateWasmModule`, `autoProvider`, `isolatedProvider`, `poisonWasmBridge`, `readTransform3DPosition`, `readTransform3DRotation`, `readTransform3DScale`, `reportRejectedHook`, `runScenePreload`, `sharedProvider`, `toGwenWasmError`, `writeTransform3DPosition`, `writeTransform3DRotation`, `writeTransform3DScale`
 
-Types: `GwenCoreGlueFactoryModule`, `GwenCoreGlueInstance`, `GwenCoreWasm`, `GwenTransformImports`, `InitWasmOptions`, `TweenPluginOptions`, `TweenPoolPolicy`, `TweenSlot`, `WasmEngine`, `WasmEnginePhysics2D`, `WasmEnginePhysics3D`, `WasmEntityId`, `WasmInstanceMode`, `WasmInstanceProvider`
+Types: `GwenCoreGlueFactoryModule`, `GwenCoreGlueInstance`, `GwenCoreWasm`, `GwenHotKind`, `GwenHotReloadReason`, `GwenHotReport`, `GwenTransformImports`, `InitWasmOptions`, `TweenPluginOptions`, `TweenPoolPolicy`, `TweenSlot`, `WasmEngine`, `WasmEnginePhysics2D`, `WasmEnginePhysics3D`, `WasmEntityId`, `WasmInstanceMode`, `WasmInstanceProvider`
 
 `GwenCoreGlueFactoryModule` — Creates one glue instance through `createGlue`.
 
@@ -394,6 +394,10 @@ Types: `GwenCoreGlueFactoryModule`, `GwenCoreGlueInstance`, `GwenCoreWasm`, `Gwe
 `WasmInstanceProvider` — Acquires a glue and its memory for a compiled module, and releases that glue.
 
 `_getActorContext` — Actor context for the spawn in progress, or `null` when no factory is running.
+
+`hotCompareComponent` — Dev only: compares two definitions of one component and reports `reload` when the name or a field layout differs.
+
+`hotReplaceSystem` — Dev only: swaps the body of a system in place on every engine that installed it, and reports `reload` when an engine is not `idle` or `running`.
 
 `invalidateWasmModule` — Drops the module cached for a URL and reports whether an entry was removed.
 

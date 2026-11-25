@@ -71,3 +71,6 @@ export type { TweenPluginOptions } from "./tween/engine-plugin";
 export { _getActorContext, _getActorEntityId } from "./actor/runtime/define-actor";
 
 export { GwenScope } from "./context/scope";
+
+export { hotCompareComponent, hotReplaceSystem } from "./hmr";
+export type { GwenHotKind, GwenHotReloadReason, GwenHotReport } from "./hmr";
