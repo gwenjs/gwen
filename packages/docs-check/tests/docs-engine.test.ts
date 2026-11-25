@@ -128,4 +128,27 @@ describe("engine page run fences", () => {
       expect(section).toContain(needle);
     }
   });
+
+  it("the engine page tells an ssr build to keep @gwenjs/core external, EN and FR", () => {
+    const pages = [
+      { file: "docs/essentials/engine.md", heading: "## Headless / server" },
+      { file: "docs/fr/essentials/engine.md", heading: "## Sans affichage / serveur" },
+    ];
+    for (const { file, heading } of pages) {
+      const text = readFileSync(path.join(repoRoot, file), "utf8");
+      const start = text.indexOf(`\n${heading}\n`);
+      expect([file, start >= 0]).toEqual([file, true]);
+      const end = text.indexOf("\n## ", start + heading.length + 2);
+      expect([file, end > start]).toEqual([file, true]);
+      const section = text.slice(start, end);
+      for (const needle of [
+        "ssr.noExternal",
+        "ssr.external",
+        "@gwenjs/core",
+        "CORE:WASM_LOAD_ERROR",
+      ]) {
+        expect([file, needle, section.includes(needle)]).toEqual([file, needle, true]);
+      }
+    }
+  });
 });

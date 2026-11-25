@@ -5,13 +5,14 @@
  * artifacts (`pnpm build:ts`, `pnpm build:wasm`).
  */
 
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import * as path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { gzipSync } from "node:zlib";
-import { build } from "vite";
+import { build, createLogger, type InlineConfig } from "vite";
 import { afterAll, describe, expect, it } from "vitest";
 import { gwen } from "../src/index.js";
 
@@ -41,8 +42,17 @@ const fixtureRoot = (v: Variant): string =>
   path.join(repoRoot, "packages/vite/tests/fixtures", `app-${v}`);
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "gwen-bundle-"));
 
+const ssrFixtures = ["app-ssr", "app-ssr-noexternal"] as const;
+type SsrFixture = (typeof ssrFixtures)[number];
+const ssrFixtureRoot = (name: SsrFixture): string =>
+  path.join(repoRoot, "packages/vite/tests/fixtures", name);
+
 afterAll(() => {
   fs.rmSync(tmp, { recursive: true, force: true });
+  // An SSR output stays inside its fixture, where the external `@gwenjs/core` resolves.
+  for (const name of ssrFixtures) {
+    fs.rmSync(path.join(ssrFixtureRoot(name), "dist"), { recursive: true, force: true });
+  }
 });
 
 const sha = (file: string): string =>
@@ -92,6 +102,58 @@ async function buildVariant(v: Variant): Promise<Dist> {
     wasm: files.filter((f) => f.endsWith(".wasm")),
     text: js.map((f) => fs.readFileSync(path.join(out, f), "utf8")).join("\n"),
   };
+}
+
+interface SsrRun {
+  /** Every warning the build logged. */
+  warnings: string[];
+  status: number | null;
+  stdout: string;
+  stderr: string;
+}
+
+/**
+ * The `ssr` option is the only difference between the two SSR fixtures. `@gwenjs/core` is a
+ * workspace link outside node_modules here, so Vite bundles it unless the build says otherwise.
+ */
+const ssrOptions: Record<SsrFixture, NonNullable<InlineConfig["ssr"]>> = {
+  "app-ssr": { external: ["@gwenjs/core"] },
+  "app-ssr-noexternal": { noExternal: ["@gwenjs/core"] },
+};
+
+const ssrRuns = new Map<SsrFixture, Promise<SsrRun>>();
+
+/** One SSR build and one server run per fixture. */
+function ssrRunOf(name: SsrFixture): Promise<SsrRun> {
+  const known = ssrRuns.get(name);
+  if (known) return known;
+  const made = buildAndRunServer(name);
+  ssrRuns.set(name, made);
+  return made;
+}
+
+async function buildAndRunServer(name: SsrFixture): Promise<SsrRun> {
+  const root = ssrFixtureRoot(name);
+  const out = path.join(root, "dist/ssr");
+  const warnings: string[] = [];
+  const logger = createLogger("warn");
+  logger.warn = (message) => {
+    warnings.push(message);
+  };
+  await build({
+    root,
+    configFile: false,
+    plugins: gwen(),
+    customLogger: logger,
+    mode: "production",
+    ssr: ssrOptions[name],
+    build: { ssr: "src/server.ts", outDir: out, emptyOutDir: true },
+  });
+  const run = spawnSync(process.execPath, [path.join(out, "server.js")], {
+    encoding: "utf8",
+    timeout: 60_000,
+  });
+  return { warnings, status: run.status, stdout: run.stdout, stderr: run.stderr };
 }
 
 /** The same function the library gate uses (scripts/check-wasm-size.mjs `allowedBudget`). */
@@ -226,5 +288,46 @@ describe("bundle-size", () => {
     const bvhSha = sha(bvhWasm);
     expect(dist.wasm.filter((f) => sha(path.join(dist.out, f)) === bvhSha)).toHaveLength(1);
     expect(dist.files.filter((f) => /^assets\/bvh-worker-[^/]+\.js$/.test(f))).toHaveLength(1);
+  });
+
+  it("app-physics2d-uses-3d fails the build with VITE:VARIANT_REQUIRED naming physics3d", async () => {
+    const failure = await build({
+      root: path.join(repoRoot, "packages/vite/tests/fixtures/app-physics2d-uses-3d"),
+      configFile: false,
+      plugins: gwen(),
+      logLevel: "silent",
+      mode: "production",
+      build: { outDir: path.join(tmp, "uses-3d"), emptyOutDir: true },
+    }).then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+    expect(failure).toBeInstanceOf(Error);
+    const message = failure instanceof Error ? failure.message : "";
+    for (const token of [
+      "VITE:VARIANT_REQUIRED",
+      "src/probe.ts",
+      "@gwenjs/physics3d",
+      '"physics3d" variant',
+    ]) {
+      expect([token, message.includes(token)]).toEqual([token, true]);
+    }
+  });
+
+  it("app-ssr builds with @gwenjs/core external and the server runs", async () => {
+    const run = await ssrRunOf("app-ssr");
+    expect([run.status, run.stdout]).toEqual([0, "frames:1\n"]);
+    expect(run.warnings.filter((warning) => warning.includes("ssr.noExternal"))).toEqual([]);
+  });
+
+  it("app-ssr-noexternal warns at config time", async () => {
+    const run = await ssrRunOf("app-ssr-noexternal");
+    expect(run.warnings.filter((warning) => warning.includes("ssr.noExternal"))).toHaveLength(1);
+  });
+
+  it("app-ssr-noexternal bundled server fails with CORE:WASM_LOAD_ERROR", async () => {
+    const run = await ssrRunOf("app-ssr-noexternal");
+    expect(run.status).not.toBe(0);
+    expect(run.stderr).toContain("CORE:WASM_LOAD_ERROR");
   });
 });
