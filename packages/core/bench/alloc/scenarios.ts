@@ -10,23 +10,14 @@ import type { EntityId } from "../../src/engine/engine-api";
 import { unwrapEngine } from "../../src/engine/engine-local";
 import type { WasmBridgeImpl } from "../../src/engine/wasm-bridge";
 import { createEntityId, entityGeneration, entityIndex } from "../../src/types/entity";
-import { defineComponent, Types } from "../../src/schema";
 import { defineSystem, onUpdate, useQuery } from "../../src/system/runtime/define-system";
 import { TweenPlugin } from "../../src/tween/engine-plugin";
 import { useTween } from "../../src/tween/runtime/use-tween";
 import type { RealEngineHandle } from "../../tests/integration-wasm/harness";
 import type { AllocPathName } from "./evaluate-alloc-gate";
 import type { AllocScenario } from "./measure";
-
-const Position = defineComponent({
-  name: "AllocPosition",
-  schema: { x: Types.f32, y: Types.f32 },
-});
-
-const Velocity = defineComponent({
-  name: "AllocVelocity",
-  schema: { vx: Types.f32, vy: Types.f32 },
-});
+import { Position, Velocity } from "../fixtures/system-iteration.components";
+import { Mover } from "../fixtures/system-iteration.optimized";
 
 /** Read from the gate tests so per-frame stores stay observable. */
 let sink = 0;
@@ -153,6 +144,17 @@ export function createScenario(path: AllocPathName, options?: ScenarioOptions): 
       };
     case "update.system":
       return updateSystem(options?.extraObject === true);
+    case "update.system.optimized":
+      return {
+        name: path,
+        async build(handle, entities) {
+          spawnEngineEntities(handle, entities, true);
+          await handle.engine.use(Mover());
+          // Same cold window as update.system: the 8 gate warmup frames are not enough.
+          await handle.advance(400, 1 / 60);
+          sink = entities;
+        },
+      };
     case "update.actor":
       return {
         name: path,

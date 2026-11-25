@@ -6,6 +6,7 @@
 export const ALLOC_PATH_NAMES = [
   "frame.empty",
   "update.system",
+  "update.system.optimized",
   "update.actor",
   "query.raw",
   "query.entities",
