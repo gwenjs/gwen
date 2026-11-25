@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   mkdirSync,
   mkdtempSync,
@@ -9,8 +10,10 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { build, createServer } from "vite";
 import { afterEach, describe, expect, it } from "vitest";
+import { gwen } from "../src/index.js";
 import { gwenVitePlugin } from "../src/plugins/index.js";
 
 declare const __GWEN_DEV__: boolean;
@@ -188,4 +191,39 @@ describe("names follow the dev flag", () => {
     },
     120_000,
   );
+});
+
+const pipelineApp = fileURLToPath(new URL("./fixtures/pipeline-app/", import.meta.url));
+const coreWasmDir = fileURLToPath(new URL("../../core/wasm/", import.meta.url));
+
+function sha256(bytes: string | Uint8Array): string {
+  return createHash("sha256").update(bytes).digest("hex");
+}
+
+describe("the entry binary does not follow the dev flag", () => {
+  it("vite build --mode development still imports the release factory and emits the release binary", async () => {
+    const result = await build({
+      configFile: false,
+      root: pipelineApp,
+      mode: "development",
+      logLevel: "silent",
+      plugins: gwen(),
+      build: { write: false, minify: false },
+    });
+    const groups = Array.isArray(result) ? result : [result];
+    const wasmHashes: string[] = [];
+    for (const group of groups) {
+      if (!("output" in group)) continue;
+      for (const item of group.output) {
+        if (item.type === "asset" && item.fileName.endsWith(".wasm")) {
+          wasmHashes.push(sha256(item.source));
+        }
+      }
+    }
+    expect(bundleSource(result)).not.toContain("-dev/");
+    const release = sha256(readFileSync(join(coreWasmDir, "light", "gwen_core_bg.wasm")));
+    const checked = sha256(readFileSync(join(coreWasmDir, "light-dev", "gwen_core_bg.wasm")));
+    expect(wasmHashes).toEqual([release]);
+    expect(wasmHashes).not.toContain(checked);
+  }, 120_000);
 });

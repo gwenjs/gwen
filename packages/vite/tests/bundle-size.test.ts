@@ -211,6 +211,17 @@ describe("bundle-size", () => {
     expectMarkers(dist.text, ["node:"], false);
   });
 
+  it.each(variants)("no -dev binary is in the %s prod dist", async (v) => {
+    const dist = await distOf(v);
+    expectMarkers(dist.text, ["-dev/"], false);
+    const checked = variants.map((name) =>
+      sha(path.join(repoRoot, "packages/core/wasm", `${name}-dev`, "gwen_core_bg.wasm")),
+    );
+    for (const file of dist.wasm) {
+      expect(checked).not.toContain(sha(path.join(dist.out, file)));
+    }
+  });
+
   it("light dist has no physics marker", async () => {
     const dist = await distOf("light");
     expectMarkers(
