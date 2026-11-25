@@ -6,6 +6,7 @@
  */
 
 import {
+  GWEN_INTROSPECTION_ERROR_CODES,
   GWEN_PLUGIN_LIFECYCLE_HOOKS,
   GwenError,
   type ForbiddenPluginKey,
@@ -384,6 +385,8 @@ export const CoreErrorCodes = {
   ENGINE_LOCAL_REENTRANT: "CORE:ENGINE_LOCAL_REENTRANT",
   /** Thrown by WASM instance capacity (#263). */
   WASM_CAPACITY_EXHAUSTED: "CORE:WASM_CAPACITY_EXHAUSTED",
+  /** An introspection `entities` request is outside the limits. The value is the schema constant. */
+  INTROSPECTION_PAGE_INVALID: GWEN_INTROSPECTION_ERROR_CODES.PAGE_INVALID,
 } as const;
 
 /**

@@ -129,6 +129,30 @@ export type { AssetKind, AssetRef, AssetValue, AssetValueMap, AssetsService } fr
 export { TRANSFORM_2D_SERVICE } from "./transforms";
 export type { TransformReader2D, TransformRef2D, TransformSample2D } from "./transforms";
 
+// ─── Introspection ───────────────────────────────────────────────────────────
+
+export {
+  GWEN_INTROSPECTION_DEFAULT_MAX_PAGE,
+  GWEN_INTROSPECTION_ERROR_CODES,
+  GWEN_INTROSPECTION_SERVICE,
+  GWEN_INTROSPECTION_VERSION,
+} from "./introspection";
+export type {
+  GwenIntrospection,
+  GwenIntrospectionComponent,
+  GwenIntrospectionEntity,
+  GwenIntrospectionEntityPage,
+  GwenIntrospectionHookCount,
+  GwenIntrospectionLimits,
+  GwenIntrospectionPageInvalid,
+  GwenIntrospectionPageRequest,
+  GwenIntrospectionPlugin,
+  GwenIntrospectionRevisions,
+  GwenIntrospectionService,
+  GwenIntrospectionSnapshot,
+  GwenIntrospectionSystem,
+} from "./introspection";
+
 // ─── Scope ───────────────────────────────────────────────────────────────────
 
 export type { GwenScopeType, GwenScopeMeta, IGwenScope } from "./scope";

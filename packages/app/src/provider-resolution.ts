@@ -25,15 +25,30 @@ export interface InstalledBefore {
 /** Owner recorded for an inserted row. */
 export const FRAMEWORK_OWNER = "framework provider";
 
-const ENGINE_SERVICE_KEYS: Record<GwenEngineServiceKey, true> = {
-  logger: true,
-  errors: true,
-  "wasm:bridge": true,
-  memory: true,
+/**
+ * When the engine provides a service key. `dev` = provided only under `__GWEN_DEV__`.
+ * The build-time check has no build mode, so a `dev` key never counts as installed: a
+ * declaration that requires it fails with `APP:SERVICE_PROVIDER_MISSING` unless it lists the
+ * key in `requires.optional`.
+ */
+type EngineKeyAvailability = "always" | "dev";
+
+/**
+ * Availability of every engine-owned service key. Every new engine key must state its
+ * availability here: the `Record` makes the compiler enforce it.
+ */
+const ENGINE_SERVICE_KEYS: Record<GwenEngineServiceKey, EngineKeyAvailability> = {
+  logger: "always",
+  errors: "always",
+  "wasm:bridge": "always",
+  memory: "always",
+  introspection: "dev",
 };
 
-/** Engine-owned service keys, installed before any plugin. */
-export const engineServiceKeys: readonly string[] = Object.keys(ENGINE_SERVICE_KEYS);
+/** Engine-owned service keys provided in every build, installed before any plugin. */
+export const engineServiceKeys: readonly string[] = Object.entries(ENGINE_SERVICE_KEYS)
+  .filter(([, availability]) => availability === "always")
+  .map(([key]) => key);
 
 function sameRow(left: PluginDeclaration, right: PluginDeclaration): boolean {
   return left.src === right.src && left.export === right.export;

@@ -18,6 +18,7 @@ import type { CameraStateStore, LayerHost, ScreenInfoStore, ViewportStore } from
 import type { TransformReader2D } from "./transforms.js";
 import type { AssetsService } from "./assets.js";
 import type { GwenConfigIssue } from "./engine-config.js";
+import type { GwenIntrospection } from "./introspection.js";
 
 /**
  * Augmentable interface for the typed provide/inject registry.
@@ -48,6 +49,8 @@ export interface GwenProvides {
   "transform:2d": TransformReader2D;
   /** Asset registry. Inject via `engine.inject('assets')`. */
   assets: AssetsService;
+  /** Read-only view of the engine. Dev only: absent in a prod build. Read it via `engine.tryInject('introspection')` or `requires.services`. */
+  introspection: GwenIntrospection;
 }
 
 /**
@@ -61,9 +64,9 @@ export type GwenServiceKey = keyof GwenProvides & string;
 
 /**
  * Service keys the engine itself registers. A plugin never declares them in
- * {@link GwenPlugin.provides}.
+ * {@link GwenPlugin.provides}. `introspection` only in a dev build, once the engine provides it.
  */
-export type GwenEngineServiceKey = "logger" | "errors" | "wasm:bridge" | "memory";
+export type GwenEngineServiceKey = "logger" | "errors" | "wasm:bridge" | "memory" | "introspection";
 
 /**
  * Service keys a plugin may declare in {@link GwenPlugin.provides}:
