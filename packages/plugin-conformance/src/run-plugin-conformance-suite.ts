@@ -17,7 +17,7 @@ interface FactoryRow {
   readonly title: string;
 }
 
-/** Per-factory rows, in check order. Options, module, extension, requirement-form, base-surface, hooks, and composable follow. */
+/** Per-factory rows, in check order. Options, module, manifest contract, extension, requirement-form, base-surface, hooks, and composable follow. */
 const FACTORY_ROWS: readonly FactoryRow[] = [
   { id: "shape", title: "R1 shape" },
   { id: "requires", title: "R2 installs alone" },
@@ -33,6 +33,10 @@ const OPTIONS_ROW: FactoryRow = { id: "options", title: "R9 options" };
 const EXTENSION_ROW: FactoryRow = { id: "extension", title: "RX1-RX5 extension" };
 const REQUIREMENT_FORM_ROW: FactoryRow = { id: "requirement-form", title: "RX6 requirement form" };
 const BASE_SURFACE_ROW: FactoryRow = { id: "base-surface", title: "RB1 base surface" };
+const MANIFEST_CONTRACT_ROW: FactoryRow = {
+  id: "manifest-contract",
+  title: "RD1 manifest contract",
+};
 const HOOKS_ROW: FactoryRow = { id: "hooks", title: "R11 hooks" };
 
 /** Factories the rows walk. One place, so a registration change hits every row. */
@@ -69,6 +73,22 @@ function extensionSubpathPresent(spec: PluginConformanceSpec): boolean {
     const exportsValue: unknown = parsed.exports;
     if (!isRecord(exportsValue)) return false;
     return Object.hasOwn(exportsValue, "./extension");
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * True when `package.json` at `spec.root` (or the process working directory)
+ * has `gwen.type` equal to `"plugin"` (`packages/plugin-conformance/src/runtime/check-manifest-contract.ts`).
+ */
+function gwenTypeIsPlugin(spec: PluginConformanceSpec): boolean {
+  try {
+    const text = readFileSync(path.join(runtimeRoot(spec), "package.json"), "utf8");
+    const parsed: unknown = JSON.parse(text);
+    if (!isRecord(parsed)) return false;
+    const gwen: unknown = parsed.gwen;
+    return isRecord(gwen) && gwen.type === "plugin";
   } catch {
     return false;
   }
@@ -123,6 +143,9 @@ export function registerPluginConformance(spec: PluginConformanceSpec, api: RowA
     }
     if (moduleSubpathPresent(spec)) {
       api.it("R10 module", () => assertCheck(spec, "module"));
+    }
+    if (gwenTypeIsPlugin(spec)) {
+      api.it(MANIFEST_CONTRACT_ROW.title, () => assertCheck(spec, MANIFEST_CONTRACT_ROW.id));
     }
     // RX1-RX5, then RX6, per factory. RB1 is one unscoped row for the package.
     if (basesListed(spec)) {
