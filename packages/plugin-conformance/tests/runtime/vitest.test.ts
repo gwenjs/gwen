@@ -389,4 +389,112 @@ describe("registerPluginConformance", () => {
       expect(extension?.message).toContain("CONFORMANCE:RUNTIME_EXTENSION");
     });
   });
+
+  it("registers the RD1 row for a package whose gwen.type is plugin", async () => {
+    const perFactory = [
+      "R1 shape",
+      "R2 installs alone",
+      "R3 provides",
+      "R4 quiet frames",
+      "R5 remove",
+      "R6 re-entry",
+      "R7 two engines",
+      "R8 stop",
+    ].flatMap((title) => [`${title} (Alpha)`, `${title} (Beta)`]);
+
+    await withPrivateTmpdir(async (dir) => {
+      const packageName = "@fixture/rd1-rows";
+      await writePluginPackage(dir, {
+        name: packageName,
+        gwen: { type: "plugin" },
+        files: { "dist/index.js": `${factorySource("Alpha")}${factorySource("Beta")}` },
+      });
+      const { rows } = record(
+        spec({ root: dir, packageName, factories: [{ export: "Alpha" }, { export: "Beta" }] }),
+      );
+      expect(rows.map((row) => row.name)).toEqual([
+        ...perFactory,
+        "RD1 manifest contract",
+        "R11 hooks (Alpha)",
+        "R11 hooks (Beta)",
+        "R12 composable surface",
+      ]);
+    });
+
+    await withPrivateTmpdir(async (dir) => {
+      const packageName = "@fixture/rd1-rows-module";
+      await writePluginPackage(dir, {
+        name: packageName,
+        gwen: { type: "plugin" },
+        exports: {
+          ".": { import: "./dist/index.js" },
+          "./module": { import: "./dist/module.js" },
+        },
+        files: {
+          "dist/index.js": `${factorySource("Alpha")}${factorySource("Beta")}`,
+          "dist/module.js": 'export default { meta: { name: "pkg" }, defaults: {}, setup() {} };\n',
+        },
+      });
+      const { rows } = record(
+        spec({ root: dir, packageName, factories: [{ export: "Alpha" }, { export: "Beta" }] }),
+      );
+      expect(rows.map((row) => row.name)).toEqual([
+        ...perFactory,
+        "R10 module",
+        "RD1 manifest contract",
+        "R11 hooks (Alpha)",
+        "R11 hooks (Beta)",
+        "R12 composable surface",
+      ]);
+    });
+
+    await withPrivateTmpdir(async (dir) => {
+      const packageName = "@fixture/rd1-rows-absent";
+      await writePluginPackage(dir, {
+        name: packageName,
+        files: { "dist/index.js": `${factorySource("Alpha")}${factorySource("Beta")}` },
+      });
+      const { rows } = record(
+        spec({ root: dir, packageName, factories: [{ export: "Alpha" }, { export: "Beta" }] }),
+      );
+      expect(rows.filter((row) => row.name.startsWith("RD1"))).toEqual([]);
+    });
+
+    await withPrivateTmpdir(async (dir) => {
+      const packageName = "@fixture/rd1-rows-other-type";
+      await writePluginPackage(dir, {
+        name: packageName,
+        gwen: { type: "package" },
+        files: { "dist/index.js": `${factorySource("Alpha")}${factorySource("Beta")}` },
+      });
+      const { rows } = record(
+        spec({ root: dir, packageName, factories: [{ export: "Alpha" }, { export: "Beta" }] }),
+      );
+      expect(rows.filter((row) => row.name.startsWith("RD1"))).toEqual([]);
+    });
+  });
+
+  it("a manifest contract finding fails the RD1 row only", async () => {
+    await withPrivateTmpdir(async (dir) => {
+      const packageName = "@fixture/rd1-drift";
+      await writePluginPackage(dir, {
+        name: packageName,
+        gwen: { type: "plugin" },
+        files: {
+          "dist/index.js":
+            'export function Plugin() {\n  return { name: "Plugin", provides: ["fixture:svc"], setup(engine) { engine.provide("fixture:svc", {}); } };\n}\n',
+        },
+      });
+      const { rows } = record(spec({ root: dir, packageName }));
+      const thrown: { readonly name: string; readonly message: string }[] = [];
+      for (const row of rows) {
+        const message = await thrownMessage(row);
+        if (message !== undefined) thrown.push({ name: row.name, message });
+      }
+      expect(thrown.map((entry) => entry.name)).toEqual(["RD1 manifest contract"]);
+      expect(thrown[0]?.message).toContain(
+        'gwen.provides [] differs from the provides of the plugins ["fixture:svc"]',
+      );
+    });
+  });
 });
