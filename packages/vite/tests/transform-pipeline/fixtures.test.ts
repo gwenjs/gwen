@@ -7,6 +7,7 @@ import { existsSync, readdirSync } from "node:fs";
 import { basename, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
+import * as registry from "../../src/pipeline/registry.js";
 import { BUILT_IN_UNITS } from "../../src/pipeline/registry.js";
 import type { GwenSourceTransform } from "../../src/pipeline/types.js";
 import * as layerUtils from "../../src/shared/layer-utils.js";
@@ -14,7 +15,13 @@ import {
   createVariantGuard,
   type VariantGuardOptions,
 } from "../../src/transforms/variant-guard.js";
-import { fixtureCase, mapCheck, resolveRelativeId, runPipeline } from "./helpers.js";
+import {
+  fixtureCase,
+  mapCheck,
+  readAutoImports,
+  resolveRelativeId,
+  runPipeline,
+} from "./helpers.js";
 
 const packageRoot = fileURLToPath(new URL("../../", import.meta.url));
 const fixturesRoot = fileURLToPath(new URL("../fixtures/", import.meta.url));
@@ -106,6 +113,19 @@ function bvhPrebakeUnit(): GwenSourceTransform | undefined {
   return factory({ bake, assets });
 }
 
+function isUnitList(value: unknown): value is readonly GwenSourceTransform[] {
+  return Array.isArray(value);
+}
+
+/**
+ * `OPTIMIZER_UNITS` is absent on the base (`packages/vite/src/pipeline/registry.ts`).
+ * No unit is registered then.
+ */
+function optimizerUnits(): readonly GwenSourceTransform[] {
+  const list: unknown = Reflect.get(registry, "OPTIMIZER_UNITS");
+  return isUnitList(list) ? list : [];
+}
+
 /** Default 2D project. Two cases carry their own config. */
 function guardConfig(name: string): Pick<VariantGuardOptions, "variant" | "declaredModules"> {
   if (name === "undeclared-2d-in-2d") return { variant: "physics2d", declaredModules: [] };
@@ -118,6 +138,7 @@ function extraUnits(unit: string, name: string): readonly GwenSourceTransform[] 
   if (unit === "variant-guard") {
     return [createVariantGuard({ root: packageRoot, ...guardConfig(name) })];
   }
+  if (unit === "hoist-chunk-columns") return optimizerUnits();
   if (unit !== "bvh-prebake") return [];
   const unitTransform = bvhPrebakeUnit();
   if (unitTransform === undefined) return [];
@@ -129,6 +150,7 @@ function runCase(dir: string, code: string, unit: string) {
     id: caseId(dir),
     root: packageRoot,
     resolveId: resolveRelativeId,
+    autoImports: readAutoImports(dir),
     units: [...BUILT_IN_UNITS, ...extraUnits(unit, basename(dir))],
   });
 }

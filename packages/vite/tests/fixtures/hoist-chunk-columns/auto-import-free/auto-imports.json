@@ -1,0 +1,5 @@
+[
+  { "name": "defineSystem", "from": "@gwenjs/core/system" },
+  { "name": "onUpdate", "from": "@gwenjs/core/system" },
+  { "name": "useQuery", "from": "@gwenjs/core/system" }
+]
