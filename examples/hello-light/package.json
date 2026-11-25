@@ -1,0 +1,12 @@
+{
+  "name": "example-hello-light",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "example:test": "vitest run --config ../_harness/vitest.config.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "vitest": "^4.1.2"
+  }
+}
