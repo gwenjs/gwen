@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { isRecord } from "./json.js";
+import { isPluginPackage } from "./runtime/check-manifest-contract.js";
 import { runtimeRoot } from "./runtime/load-package.js";
 import { runRuntimeChecks } from "./runtime/run-checks.js";
 import type { PluginConformanceSpec, PluginFactorySpec, RuntimeCheckId } from "./runtime/types.js";
@@ -84,11 +85,9 @@ function extensionSubpathPresent(spec: PluginConformanceSpec): boolean {
  */
 function gwenTypeIsPlugin(spec: PluginConformanceSpec): boolean {
   try {
-    const text = readFileSync(path.join(runtimeRoot(spec), "package.json"), "utf8");
-    const parsed: unknown = JSON.parse(text);
-    if (!isRecord(parsed)) return false;
-    const gwen: unknown = parsed.gwen;
-    return isRecord(gwen) && gwen.type === "plugin";
+    let text = readFileSync(path.join(runtimeRoot(spec), "package.json"), "utf8");
+    if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
+    return isPluginPackage(JSON.parse(text));
   } catch {
     return false;
   }

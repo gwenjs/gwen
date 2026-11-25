@@ -3,10 +3,11 @@ import type { PluginConformanceSpec, RuntimeConformanceReport } from "./types.js
 
 /**
  * Validate `spec`, load the built package, then run shape, requires, provides,
- * frames, remove, reentry, two-engines, stop, options, module, requirement-form,
- * extension, base-surface, hooks, and composable.
+ * frames, remove, reentry, two-engines, stop, options, module, manifest-contract,
+ * requirement-form, extension, base-surface, hooks, and composable.
  * Options runs only when a factory sets `invalidOptions`.
  * Module runs only when the loader resolved `exports["./module"]`.
+ * Manifest-contract runs only when `package.json` has `gwen.type` equal to `"plugin"`.
  * Requirement-form runs only when `spec.bases` is non-empty.
  * Extension runs only when `spec.bases` is non-empty.
  * Base-surface runs only when `exports["./extension"]` is present.

@@ -121,7 +121,7 @@ async function readPackageJson(
 }
 
 /** True when `package.json` has `gwen.type` equal to `"plugin"`. */
-function isPluginPackage(parsed: unknown): boolean {
+export function isPluginPackage(parsed: unknown): boolean {
   if (!isRecord(parsed)) return false;
   const gwen: unknown = parsed.gwen;
   return isRecord(gwen) && gwen.type === "plugin";
