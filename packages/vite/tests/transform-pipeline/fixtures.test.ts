@@ -4,12 +4,16 @@
  */
 
 import { existsSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
 import { BUILT_IN_UNITS } from "../../src/pipeline/registry.js";
 import type { GwenSourceTransform } from "../../src/pipeline/types.js";
 import * as layerUtils from "../../src/shared/layer-utils.js";
+import {
+  createVariantGuard,
+  type VariantGuardOptions,
+} from "../../src/transforms/variant-guard.js";
 import { fixtureCase, mapCheck, resolveRelativeId, runPipeline } from "./helpers.js";
 
 const packageRoot = fileURLToPath(new URL("../../", import.meta.url));
@@ -102,8 +106,18 @@ function bvhPrebakeUnit(): GwenSourceTransform | undefined {
   return factory({ bake, assets });
 }
 
-function extraUnits(unit: string): readonly GwenSourceTransform[] {
+/** Default 2D project. Two cases carry their own config. */
+function guardConfig(name: string): Pick<VariantGuardOptions, "variant" | "declaredModules"> {
+  if (name === "undeclared-2d-in-2d") return { variant: "physics2d", declaredModules: [] };
+  if (name === "light-imports-2d") return { variant: "light", declaredModules: [] };
+  return { variant: "physics2d", declaredModules: ["@gwenjs/physics2d"] };
+}
+
+function extraUnits(unit: string, name: string): readonly GwenSourceTransform[] {
   if (unit === "layer-inline" || unit === "async-context") return [layerUtils.layerInlineTransform];
+  if (unit === "variant-guard") {
+    return [createVariantGuard({ root: packageRoot, ...guardConfig(name) })];
+  }
   if (unit !== "bvh-prebake") return [];
   const unitTransform = bvhPrebakeUnit();
   if (unitTransform === undefined) return [];
@@ -115,7 +129,7 @@ function runCase(dir: string, code: string, unit: string) {
     id: caseId(dir),
     root: packageRoot,
     resolveId: resolveRelativeId,
-    units: [...BUILT_IN_UNITS, ...extraUnits(unit)],
+    units: [...BUILT_IN_UNITS, ...extraUnits(unit, basename(dir))],
   });
 }
 
@@ -344,4 +358,49 @@ it("query-hoist/hoisted calls carry one argument and each name is declared once 
     }
   }
   expect(checked).toBeGreaterThan(0);
+});
+
+/** Importer path as the guard prints it: relative to the project root, with `/`. */
+function importerPath(dir: string): string {
+  return relative(packageRoot, caseId(dir)).split(sep).join("/");
+}
+
+async function expectGuardError(name: string, source: string, what: string, fix: string) {
+  const dir = join(fixturesRoot, "variant-guard", name);
+  const fixture = fixtureCase(dir);
+  const offset = fixture.input.indexOf(`"${source}"`);
+  expect(offset).toBeGreaterThanOrEqual(0);
+  const place = callPlace(fixture.input, offset);
+  const see =
+    "See https://gwenjs.github.io/gwen/api/errors#vite-variant-required (VITE:VARIANT_REQUIRED)";
+  // Same condition as devHint (`packages/vite/src/pipeline/dev-hint.ts:7`).
+  const message =
+    process.env["NODE_ENV"] !== "production" ? `${what}\n${fix}\n${see}` : `${what}\n${see}`;
+  await expect(runCase(dir, fixture.input, "variant-guard")).rejects.toMatchObject({
+    message,
+    loc: { file: caseId(dir), line: place.line, column: place.column },
+  });
+}
+
+it("variant-guard/value-import-3d-in-2d raises with the exact message, hint and position", async () => {
+  const name = "value-import-3d-in-2d";
+  const what = `[gwen()] ${importerPath(join(fixturesRoot, "variant-guard", name))} imports @gwenjs/physics3d, which needs the "physics3d" variant; the build is "physics2d".`;
+  const fix =
+    'Fix: Add "@gwenjs/physics3d" to modules in gwen.config.ts (the variant follows), or remove the import.';
+  await expectGuardError(name, "@gwenjs/physics3d", what, fix);
+});
+
+it("variant-guard/undeclared-2d-in-2d raises with the exact message, hint and position", async () => {
+  const name = "undeclared-2d-in-2d";
+  const what = `[gwen()] ${importerPath(join(fixturesRoot, "variant-guard", name))} imports @gwenjs/physics2d, but "@gwenjs/physics2d" is not in modules (the build is "physics2d").`;
+  const fix = 'Fix: Add "@gwenjs/physics2d" to modules in gwen.config.ts, or remove the import.';
+  await expectGuardError(name, "@gwenjs/physics2d", what, fix);
+});
+
+it("variant-guard/light-imports-2d raises with the exact message, hint and position", async () => {
+  const name = "light-imports-2d";
+  const what = `[gwen()] ${importerPath(join(fixturesRoot, "variant-guard", name))} imports @gwenjs/physics2d, which needs the "physics2d" variant; the build is "light".`;
+  const fix =
+    'Fix: Add "@gwenjs/physics2d" to modules in gwen.config.ts (the variant follows), or remove the import.';
+  await expectGuardError(name, "@gwenjs/physics2d", what, fix);
 });
