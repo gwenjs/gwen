@@ -5,7 +5,7 @@ description: Comment GWEN réécrit votre source au build, quels appels il recon
 
 # Pipeline de build
 
-`@gwenjs/vite` réécrit le source de votre jeu avant que Vite ne le bundle. Il injecte des noms lisibles, enveloppe les `await` dans les callbacks de contexte et remonte les tableaux de requêtes. Vous écrivez du code GWEN ordinaire. Le pipeline fait le reste.
+`@gwenjs/vite` réécrit le source de votre jeu avant que Vite ne le bundle. Il injecte des noms lisibles, enveloppe les `await` dans les callbacks de contexte et remonte les tableaux de requêtes. Avec `optimizer` activé, il lit aussi une seule fois les colonnes d'une boucle de lignes de chunk. Vous écrivez du code GWEN ordinaire. Le pipeline fait le reste.
 
 ## Fonctionnement
 
@@ -18,7 +18,7 @@ description: Comment GWEN réécrit votre source au build, quels appels il recon
 
 ## Unités
 
-`BUILT_IN_UNITS` liste les unités qui s'exécutent toujours, dans l'ordre d'application (`packages/vite/src/pipeline/registry.ts:11`).
+`BUILT_IN_UNITS` liste les unités qui s'exécutent toujours, dans l'ordre d'application (`packages/vite/src/pipeline/registry.ts:13`).
 
 | Unité | Rôle |
 |---|---|
@@ -36,9 +36,59 @@ Un plugin peut ajouter une unité avant `buildStart` avec `register()` sur le pi
 |---|---|---|
 | `gwen:layer-inline` | `physics2d` et `physics3d` (`packages/physics2d/src/vite-plugin.ts:68`, `packages/physics3d/src/vite-plugin.ts:181`) | Remplace `L.name`, issu de `const L = defineLayers({ ... })`, par sa valeur numérique. |
 | `gwen:bvh-prebake` | `physics3d`, quand `bvhPrebake` vaut `true` (`packages/physics3d/src/vite-plugin.ts:182`) | Réécrit un chemin `.glb` relatif passé à `useMeshCollider`. |
-| `gwen:variant-guard` | `gwen()`, une fois la config résolue (`packages/vite/src/index.ts:132`) | Lève `VITE:VARIANT_REQUIRED` pour un import par valeur de `@gwenjs/physics2d` ou `@gwenjs/physics3d` que le variant résolu ou `modules` n'autorise pas. Elle n'édite jamais. |
+| `gwen:variant-guard` | `gwen()`, une fois la config résolue (`packages/vite/src/index.ts:136`) | Lève `VITE:VARIANT_REQUIRED` pour un import par valeur de `@gwenjs/physics2d` ou `@gwenjs/physics3d` que le variant résolu ou `modules` n'autorise pas. Elle n'édite jamais. |
 
 `gwenVitePlugin()` n'a pas de config résolue : il n'exécute pas la garde (`packages/vite/tests/transform-pipeline/variant-guard.test.ts:275`). Seuls les modules sous la racine du projet sont vérifiés.
+
+`OPTIMIZER_UNITS` liste les unités qui ne s'exécutent que lorsque l'option `optimizer` vaut `true` ou un objet. Elles s'exécutent après les unités intégrées (`packages/vite/src/pipeline/registry.ts:24`, `packages/vite/src/plugins/index.ts:84`). Avec `false` ou sans option, elles ne sont pas enregistrées.
+
+| Unité | Rôle |
+|---|---|
+| `gwen:hoist-chunk-columns` | Lit une seule fois, avant la boucle, chaque `chunk.get(Def)` d'une boucle de lignes de chunk. Voir [Remonter les lectures de colonnes](#hoisting-column-lookups). |
+
+## Remonter les lectures de colonnes {#hoisting-column-lookups}
+
+`chunk.get(Def)` dans une boucle de lignes est rappelé à chaque ligne. Avec `optimizer` activé, `gwen:hoist-chunk-columns` lit une seule fois chaque `chunk.get(Def)` distinct d'un `for` interne, dans une `const` placée juste avant ce `for`, et la boucle utilise la variable locale. Votre propre `const pos = chunk.get(Position)` garde son nom et devient `const pos = _gwen_c0;`. L'unité ne lit pas `chunk.count` dans une variable locale, n'ajoute aucun nombre à la sortie et ne trouve rien à changer dans sa propre sortie. Chaque nom généré `_gwen_c<N>` est unique dans le module : `N` augmente d'un système à l'autre et saute un nom que le module utilise déjà (`packages/vite/src/transforms/hoist-chunk-columns.ts:142`).
+
+```ts
+import { defineSystem, onUpdate, useQuery } from "@gwenjs/core/system";
+import { Position, Velocity } from "./components";
+
+export const Mover = defineSystem("Mover", () => {
+  const q = useQuery([Position, Velocity]);
+  onUpdate((dt) => {
+    for (const chunk of q) {
+      for (let i = 0; i < chunk.count; i++) {
+        chunk.get(Position).x[i] += chunk.get(Velocity).vx[i] * dt;
+      }
+    }
+  });
+});
+```
+
+La boucle ci-dessus devient :
+
+```ts
+for (const chunk of q) {
+  const _gwen_c0 = chunk.get(Position);
+  const _gwen_c1 = chunk.get(Velocity);
+  for (let i = 0; i < chunk.count; i++) {
+    _gwen_c0.x[i] += _gwen_c1.vx[i] * dt;
+  }
+}
+```
+
+Une boucle n'est réécrite que si les sept préconditions sont réunies. Sinon elle reste telle que vous l'avez écrite, et le build n'avertit pas :
+
+1. **Boucle externe.** `for (const chunk of q)` avec une seule variable `const` et sans `await`. C'est une instruction directe de la fonction passée à `onBeforeUpdate`, `onUpdate`, `onAfterUpdate` ou `onRender`, et cet appel est une instruction directe d'une fabrique `defineSystem` ou `defineActor` (`packages/vite/src/transforms/hoist-chunk-columns.ts:501`, `packages/vite/src/transforms/hoist-chunk-columns.ts:514`).
+2. **Requête.** `q` est une `const` qui est une instruction directe de la même fabrique, initialisée par `useQuery([A, B])` avec un seul tableau de noms simples (`packages/vite/src/transforms/hoist-chunk-columns.ts:428`).
+3. **Définitions.** Chaque `chunk.get(D)` a un seul nom `D`, pris dans ce tableau, qui est un import ou une `const` de module. `chunk` est la variable de la boucle elle-même, pas une variable locale du même nom (`packages/vite/src/transforms/hoist-chunk-columns.ts:396`).
+4. **Boucle interne.** Un `for` qui est une instruction directe du corps externe. Chacun est jugé seul.
+5. **Corps.** Seulement les formes d'une boucle numérique simple : arithmétique, `let` et `const`, affectation, `if`, `for` imbriqué, appels `Math.*`, `chunk.count`, et lectures et écritures de membres sur des valeurs `chunk.get(D)`. `as`, `satisfies`, `!` et les parenthèses sont conservés. Toute autre forme, comme un appel, une chaîne modèle, `await`, une fonction, `try`, une étiquette ou une déstructuration, laisse la boucle inchangée. La liste est fermée : un type de nœud qui n'est pas nommé est refusé (`packages/vite/src/transforms/hoist-chunk-columns.ts:310`).
+6. **Pas d'appel structurel.** Un appel nommé `addComponent`, `removeComponent`, `destroyEntity` ou `createEntity` dans la boucle, car il déplace des lignes et les colonnes peuvent changer (`packages/vite/src/transforms/hoist-chunk-columns.ts:369`).
+7. **Pas de désactivation.** Voir ci-dessous.
+
+`// @gwen-no-optimize` avant le `for` externe, avant l'appel de frame, avant une instruction qui les englobe, avant un `for` interne ou avant une instruction dans un `for` interne garde la boucle telle qu'écrite ; une boucle interne qui porte la directive, ou dont une instruction imbriquée la porte, reste entière, et ses voisines sont toujours hissées (`packages/vite/src/transforms/hoist-chunk-columns.ts:528`, `packages/vite/src/transforms/hoist-chunk-columns.ts:599`). Voir [Désactiver une optimisation](#opting-out).
 
 ## Quels appels sont reconnus
 
@@ -88,7 +138,7 @@ Chaque transformation d'un module journalise ses propres avertissements (`packag
 
 ## Désactiver une optimisation {#opting-out}
 
-`// @gwen-no-optimize` désactive les unités d'optimisation là où il s'applique (`packages/vite/src/pipeline/opt-out.ts:27`). Seules `gwen:query-hoist` (`packages/vite/src/transforms/query-hoist.ts:191`) et `gwen:hot-path-warn` (`packages/vite/src/transforms/hot-path-warn.ts:70`) le lisent.
+`// @gwen-no-optimize` désactive les unités d'optimisation là où il s'applique (`packages/vite/src/pipeline/opt-out.ts:27`). Seules `gwen:query-hoist` (`packages/vite/src/transforms/query-hoist.ts:191`), `gwen:hot-path-warn` (`packages/vite/src/transforms/hot-path-warn.ts:70`) et `gwen:hoist-chunk-columns` (`packages/vite/src/transforms/hoist-chunk-columns.ts:599`) le lisent.
 
 - **Jeton exact.** Le texte du commentaire doit être `@gwen-no-optimize` et rien d'autre. `// @gwen-no-optimize-later` et `// @gwen-no-optimize please` ne sont pas des directives (`packages/vite/src/pipeline/opt-out.ts:32`).
 - **Formes de commentaire.** `// ...` et `/* ... */` fonctionnent. Un JSDoc `/** ... */` ne fonctionne pas.
