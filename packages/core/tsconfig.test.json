@@ -13,7 +13,14 @@
     "noEmit": true,
     "types": ["vitest/globals", "node"]
   },
-  "include": ["src", "tests", "bench/alloc", "vitest.alloc.config.ts"],
+  "include": [
+    "src",
+    "tests",
+    "bench/alloc",
+    "bench/system-iteration.bench.ts",
+    "bench/fixtures",
+    "vitest.alloc.config.ts"
+  ],
   // The four integration-wasm files are excluded until their type errors are fixed (#70):
   // - determinism.test.ts: :104, :109, :114 pass a SchemaLayout whose record type does not
   //   match the parameter; :218 reads `physicsHz`, absent from the public GwenEngine type
