@@ -1324,6 +1324,17 @@ impl Engine {
 
     // ─── Physics 2D — Body management ─────────────────────────────────────────
 
+    /// Add a rigid body of `body_type` (0 fixed, 1 dynamic, 2 kinematic) for `slot` at `(x, y)`.
+    ///
+    /// A body on a live entity is always in the transform hierarchy. When the entity of `slot` is
+    /// alive and has no transform node, a root node is created at `(x, y)` with
+    /// rotation 0 and scale 1, for the three body kinds. The first history commit
+    /// snaps it. A node that already exists is left unchanged. A refused call
+    /// creates no node, and `physics_remove_rigid_body` does not remove it.
+    ///
+    /// `WorldNotInitialized` when `physics_init` has not run.
+    /// `InvalidBodyKind` when `body_type` is not 0, 1 or 2.
+    /// `BodyAlreadyExists` when the slot already has a rigid body.
     #[cfg(feature = "physics2d")]
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics_add_rigid_body(
@@ -1359,7 +1370,22 @@ impl Engine {
             ccd_enabled: ccd_enabled.map(|v| v != 0),
             additional_solver_iterations: extra_solver_iters,
         };
-        world.add_rigid_body(slot, x, y, b_type, opts)
+        let handle = world.add_rigid_body(slot, x, y, b_type, opts)?;
+        // The node is created after the add succeeded, so a refusal leaves the hierarchy untouched.
+        let entity = EntityId::from_parts(slot, self.get_entity_generation(slot));
+        if self.entity_manager.is_alive(entity)
+            && self.transform_system.get_transform(entity).is_none()
+        {
+            self.transform_system.add_transform(
+                entity,
+                Transform {
+                    position: Vec2::new(x, y),
+                    rotation: 0.0,
+                    scale: Vec2::new(1.0, 1.0),
+                },
+            );
+        }
+        Ok(handle)
     }
 
     /// Lock or unlock rotation for the body in `slot`.
