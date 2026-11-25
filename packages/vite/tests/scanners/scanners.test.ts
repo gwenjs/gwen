@@ -9,7 +9,9 @@ import {
   scanEasingNames,
   scanLayoutNames,
   scanScenes,
+  scanWasmModuleNames,
   type LayoutName,
+  type WasmModuleScan,
 } from "../../src/scanners/index.js";
 
 type Failure = { code: string; message: string; cause: unknown };
@@ -76,6 +78,16 @@ function makeDir(rel: string): void {
 function sceneNames(outcome: Outcome<readonly { sceneName: string }[]>): string[] {
   return isFailure(outcome) ? [] : outcome.value.map((scene) => scene.sceneName);
 }
+
+function wasmNames(outcome: Outcome<WasmModuleScan>): string[] {
+  return isFailure(outcome) ? [] : outcome.value.hits.map((hit) => hit.name);
+}
+
+function wasmSkips(outcome: Outcome<WasmModuleScan>): WasmModuleScan["skipped"] {
+  return isFailure(outcome) ? [] : outcome.value.skipped;
+}
+
+const TYPE_A = 'import type { A } from "./a";';
 
 describe("scanners", () => {
   it("scanScenes throws VITE:TRANSFORM_PARSE_FAILED on an unparsable scene file", () => {
@@ -325,6 +337,209 @@ describe("scanners", () => {
   it("scanEasingNames raises VITE:TRANSFORM_PARSE_FAILED with a cause on a directory entry", () => {
     makeDir("src/bad.ts");
     const outcome = outcomeOf(() => scanEasingNames(root));
+    expect(codeOf(outcome)).toBe(ViteErrorCodes.TRANSFORM_PARSE_FAILED);
+    expect(isFailure(outcome) ? outcome.cause : undefined).toBeDefined();
+  });
+
+  it("scanWasmModuleNames returns the literal name, the importable type, the file and the line of engine.loadWasmModule<T>", () => {
+    const file = write(
+      "src/nav.ts",
+      [
+        'import type { NavExports } from "./nav-types";',
+        'const url = "nav.wasm";',
+        'engine.loadWasmModule<NavExports>({ name: "nav", url });',
+        "",
+      ].join("\n"),
+    );
+    const outcome = outcomeOf(() => scanWasmModuleNames(root, ["src"]));
+    expect(isFailure(outcome) ? outcome : outcome.value).toEqual({
+      hits: [
+        { name: "nav", typeImport: { from: "./nav-types", name: "NavExports" }, file, line: 3 },
+      ],
+      skipped: [],
+    });
+  });
+
+  it("scanWasmModuleNames matches useEngine().loadWasmModule, this.engine.loadWasmModule and an optional chain", () => {
+    write(
+      "src/shapes.ts",
+      [
+        TYPE_A,
+        'useEngine().loadWasmModule<A>({ name: "a" });',
+        "class Host {",
+        '  start() { this.engine.loadWasmModule<A>({ name: "b" }); }',
+        "}",
+        'engine?.loadWasmModule<A>({ name: "c" });',
+        "",
+      ].join("\n"),
+    );
+    const outcome = outcomeOf(() => scanWasmModuleNames(root, ["src"]));
+    expect(wasmNames(outcome)).toEqual(["a", "b", "c"]);
+    expect(wasmSkips(outcome)).toEqual([]);
+  });
+
+  it("scanWasmModuleNames matches a destructured loadWasmModule, a renamed one, a parameter pattern, a default value and a binding declared after its use", () => {
+    write(
+      "src/pattern.ts",
+      [
+        TYPE_A,
+        "const { loadWasmModule } = engine;",
+        'loadWasmModule<A>({ name: "a" });',
+        "const { loadWasmModule: load } = engine;",
+        'load<A>({ name: "b" });',
+        'function f({ loadWasmModule: lw }: Engine) { lw<A>({ name: "c" }); }',
+        'function h() { const { loadWasmModule = fallback } = engine; loadWasmModule<A>({ name: "d" }); }',
+        'function early() { late<A>({ name: "e" }); }',
+        "const { loadWasmModule: late } = engine;",
+        "",
+      ].join("\n"),
+    );
+    const outcome = outcomeOf(() => scanWasmModuleNames(root, ["src"]));
+    expect(wasmNames(outcome)).toEqual(["a", "b", "c", "d", "e"]);
+    expect(wasmSkips(outcome)).toEqual([]);
+  });
+
+  it("scanWasmModuleNames does not match a local function named loadWasmModule, even one hoisted after its use", () => {
+    write(
+      "src/local.ts",
+      [
+        TYPE_A,
+        "function loadWasmModule<T>(_options: { name: string }): void {}",
+        'loadWasmModule<A>({ name: "local" });',
+        'engine.loadWasmModule<A>({ name: "method" });',
+        "",
+      ].join("\n"),
+    );
+    write(
+      "src/hoisted.ts",
+      [
+        TYPE_A,
+        "const { loadWasmModule } = engine;",
+        'loadWasmModule<A>({ name: "outer" });',
+        "function g() {",
+        '  loadWasmModule<A>({ name: "falsepos" });',
+        "  function loadWasmModule(_options: { name: string }): void {}",
+        "}",
+        "",
+      ].join("\n"),
+    );
+    const outcome = outcomeOf(() => scanWasmModuleNames(root, ["src"]));
+    expect(wasmNames(outcome)).toEqual(["outer", "method"]);
+    expect(wasmSkips(outcome)).toEqual([]);
+  });
+
+  it("scanWasmModuleNames does not see an aliased method, a call or apply, or a computed property", () => {
+    write(
+      "src/unseen.ts",
+      [
+        TYPE_A,
+        "const f = engine.loadWasmModule;",
+        'f<A>({ name: "alias" });',
+        'engine.loadWasmModule.call(engine, { name: "call" });',
+        'engine.loadWasmModule.apply(engine, [{ name: "apply" }]);',
+        'engine["loadWasmModule"]<A>({ name: "computed" });',
+        'Reflect.apply(engine.loadWasmModule, engine, [{ name: "reflect" }]);',
+        "const { [loadWasmModule]: viaKey } = engine;",
+        'viaKey<A>({ name: "keyed" });',
+        'engine.loadWasmModule<A>({ name: "seen" });',
+        "",
+      ].join("\n"),
+    );
+    const outcome = outcomeOf(() => scanWasmModuleNames(root, ["src"]));
+    expect(wasmNames(outcome)).toEqual(["seen"]);
+    expect(wasmSkips(outcome)).toEqual([]);
+  });
+
+  it("scanWasmModuleNames records a non-literal name as skipped and keeps the other hits", () => {
+    const file = write(
+      "src/dynamic.ts",
+      [
+        TYPE_A,
+        'const dynamic = "x";',
+        "engine.loadWasmModule<A>({ name: dynamic });",
+        'engine.loadWasmModule<A>({ name: "kept" });',
+        "",
+      ].join("\n"),
+    );
+    const outcome = outcomeOf(() => scanWasmModuleNames(root, ["src"]));
+    expect(wasmSkips(outcome)).toEqual([{ file, line: 3, reason: "non-literal name" }]);
+    expect(wasmNames(outcome)).toEqual(["kept"]);
+  });
+
+  it("scanWasmModuleNames skips a call whose type argument is absent, generic or not importable", () => {
+    const file = write(
+      "src/types.ts",
+      [
+        'import * as ns from "./ns";',
+        'import type { G } from "./g";',
+        "interface Local { f(): void }",
+        'engine.loadWasmModule({ name: "a" });',
+        'engine.loadWasmModule<Local>({ name: "b" });',
+        'engine.loadWasmModule<{ f(): void }>({ name: "c" });',
+        'engine.loadWasmModule<ns.T>({ name: "d" });',
+        'engine.loadWasmModule<G<number>>({ name: "e" });',
+        "",
+      ].join("\n"),
+    );
+    const outcome = outcomeOf(() => scanWasmModuleNames(root, ["src"]));
+    expect(wasmSkips(outcome)).toEqual([
+      { file, line: 4, reason: "no type argument" },
+      { file, line: 5, reason: "type not importable" },
+      { file, line: 6, reason: "type not importable" },
+      { file, line: 7, reason: "type not importable" },
+      { file, line: 8, reason: "type not importable" },
+    ]);
+    expect(wasmNames(outcome)).toEqual([]);
+  });
+
+  it("scanWasmModuleNames keeps the original export name of an aliased type import and reads a default import", () => {
+    const file = write(
+      "src/imports.ts",
+      [
+        'import type { Nav as N } from "./nav";',
+        'import type Def from "./def";',
+        'engine.loadWasmModule<N>({ name: "a" });',
+        'engine.loadWasmModule<Def>({ name: "b" });',
+        "",
+      ].join("\n"),
+    );
+    const outcome = outcomeOf(() => scanWasmModuleNames(root, ["src"]));
+    expect(isFailure(outcome) ? outcome : outcome.value.hits).toEqual([
+      { name: "a", typeImport: { from: "./nav", name: "Nav" }, file, line: 3 },
+      { name: "b", typeImport: { from: "./def", name: "default" }, file, line: 4 },
+    ]);
+  });
+
+  it("scanWasmModuleNames skips declaration, test and spec files and a node_modules directory", () => {
+    const call = (name: string): string =>
+      [TYPE_A, `engine.loadWasmModule<A>({ name: "${name}" });`, ""].join("\n");
+    write("src/a.d.ts", call("dts"));
+    write("src/a.test.ts", call("test"));
+    write("src/a.spec.ts", call("spec"));
+    write("src/node_modules/pkg/index.ts", call("x"));
+    write("src/real.ts", call("real"));
+    const outcome = outcomeOf(() => scanWasmModuleNames(root, ["src"]));
+    expect(wasmNames(outcome)).toEqual(["real"]);
+    expect(wasmSkips(outcome)).toEqual([]);
+  });
+
+  it("scanWasmModuleNames reads a file once when the given directories overlap and ignores an absent one", () => {
+    write("src/plugins/p.ts", [TYPE_A, 'engine.loadWasmModule<A>({ name: "p" });', ""].join("\n"));
+    const outcome = outcomeOf(() => scanWasmModuleNames(root, ["src", "src/plugins", "missing"]));
+    expect(wasmNames(outcome)).toEqual(["p"]);
+    expect(wasmSkips(outcome)).toEqual([]);
+  });
+
+  it("scanWasmModuleNames throws VITE:TRANSFORM_PARSE_FAILED on an unparsable file", () => {
+    const file = write("src/broken.ts", "engine.loadWasmModule<A>({ name: ;\n");
+    const outcome = outcomeOf(() => scanWasmModuleNames(root, ["src"]));
+    expect(codeOf(outcome)).toBe(ViteErrorCodes.TRANSFORM_PARSE_FAILED);
+    expect(isFailure(outcome) ? outcome.message.includes(file) : false).toBe(true);
+  });
+
+  it("scanWasmModuleNames raises VITE:TRANSFORM_PARSE_FAILED with a cause on a directory entry", () => {
+    makeDir("src/folder.ts");
+    const outcome = outcomeOf(() => scanWasmModuleNames(root, ["src"]));
     expect(codeOf(outcome)).toBe(ViteErrorCodes.TRANSFORM_PARSE_FAILED);
     expect(isFailure(outcome) ? outcome.cause : undefined).toBeDefined();
   });

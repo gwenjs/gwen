@@ -9,6 +9,7 @@ import { GwenApp, type ResolvedGwenConfig } from "@gwenjs/app/resolve";
 import type { GwenModule } from "@gwenjs/kit/module";
 import { scanScenes } from "../src/scanners/index.js";
 import { gwenHooksPlugin } from "../src/plugins/hooks.js";
+import { gwenWasmModulesDtsPlugin } from "../src/plugins/wasm-modules-dts.js";
 
 const require = createRequire(import.meta.url);
 const tscBin = require.resolve("typescript/bin/tsc");
@@ -121,8 +122,21 @@ function writeHooks(runDir: string): void {
   Reflect.apply(buildStart, plugin, []);
 }
 
+function writeWasmModules(runDir: string): void {
+  const plugin = gwenWasmModulesDtsPlugin({});
+  const configResolved = plugin.configResolved;
+  if (typeof configResolved !== "function") {
+    throw new Error("gwen:wasm-modules-dts has no configResolved");
+  }
+  Reflect.apply(configResolved, plugin, [{ root: runDir }]);
+  const buildStart = plugin.buildStart;
+  if (typeof buildStart !== "function") throw new Error("gwen:wasm-modules-dts has no buildStart");
+  Reflect.apply(buildStart, plugin, []);
+}
+
 async function writeGeneratedTypes(runDir: string, sceneNames: readonly string[]): Promise<void> {
   writeHooks(runDir);
+  writeWasmModules(runDir);
   const appInstance = new GwenApp();
   await appInstance.setupModules(makeConfig(), loadPhysics2dModule, { root: runDir });
   await appInstance.prepare(runDir, { sceneNames });
@@ -163,6 +177,7 @@ const NEGATIVE_LINES: readonly NegativeLine[] = [
   { source: 'defineScene("boss", () => {});', literal: '"boss"', code: "TS2345" },
   { source: 'useService("audoi");', literal: '"audoi"', code: "TS2345" },
   { source: 'useHook("nav:toGmae", () => {});', literal: '"nav:toGmae"', code: "TS2345" },
+  { source: 'useWasmModule("nvv");', literal: '"nvv"', code: "TS2345" },
 ];
 
 const SCENE_LINES = NEGATIVE_LINES.slice(0, 2);
@@ -197,13 +212,16 @@ function expectNoDiagnostic(runDir: string, result: { stdout: string }, entry: N
 }
 
 describe("typed names fixture", () => {
-  it("the typed-names fixture reports exactly the four negative diagnostics", async () => {
+  it("the typed-names fixture reports exactly the five negative diagnostics", async () => {
     const runDir = copyFixture();
     try {
       const names = scanScenes(runDir).map((scene) => scene.sceneName);
       await writeGeneratedTypes(runDir, names);
       const autoImports = readFileSync(join(runDir, ".gwen", "types", "auto-imports.d.ts"), "utf8");
       expect(autoImports).toContain("typeof import('@gwenjs/physics2d')");
+      const wasmFile = join(runDir, ".gwen", "types", "wasm-modules.d.ts");
+      expect(existsSync(wasmFile)).toBe(true);
+      expect(readFileSync(wasmFile, "utf8")).toContain('"nav": _T0;');
       const userSources = [
         readFileSync(join(runDir, "src", "use.ts"), "utf8"),
         readFileSync(join(runDir, "gwen.config.ts"), "utf8"),
@@ -252,6 +270,27 @@ describe("typed names fixture", () => {
       expect(outside, result.stdout).toEqual([]);
       for (const entry of SCENE_LINES) expectNoDiagnostic(runDir, result, entry);
       for (const entry of OTHER_LINES) expectDiagnostic(runDir, result, entry);
+    } finally {
+      rmSync(runDir, { recursive: true, force: true });
+    }
+  }, 120_000);
+
+  it("a project with no loadWasmModule call still compiles against @gwenjs/core", async () => {
+    const runDir = copyFixture();
+    try {
+      rmSync(join(runDir, "src", "plugins", "nav.ts"), { force: true });
+      rmSync(join(runDir, "src", "wasm-use.ts"), { force: true });
+      const names = scanScenes(runDir).map((scene) => scene.sceneName);
+      await writeGeneratedTypes(runDir, names);
+      const file = join(runDir, ".gwen", "types", "wasm-modules.d.ts");
+      expect(existsSync(file)).toBe(true);
+      const written = readFileSync(file, "utf8");
+      expect(written).toContain("interface GwenWasmModules {}");
+      expect(written).toContain("export {};");
+      const result = runTsc(runDir);
+      const diagnostics = parseDiagnostics(result.stdout);
+      const outside = diagnostics.filter((item) => item.file !== "src/negative.ts");
+      expect(outside, result.stdout).toEqual([]);
     } finally {
       rmSync(runDir, { recursive: true, force: true });
     }
