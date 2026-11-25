@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ALLOC_PATH_NAMES,
   formatAllocFailure,
   evaluateAllocGate,
   parseAllocThresholds,
@@ -12,19 +13,7 @@ import {
 } from "../../bench/alloc/evaluate-alloc-gate";
 import recordedFile from "../../bench/alloc-thresholds.json" with { type: "json" };
 
-const PATHS: AllocPathName[] = [
-  "frame.empty",
-  "update.system",
-  "update.actor",
-  "query.raw",
-  "query.entities",
-  "bulk.query",
-  "bulk.components",
-  "pool.cycle",
-  "tween.tick",
-  "entity.index",
-  "render.interpolate2d",
-];
+const PATHS: AllocPathName[] = [...ALLOC_PATH_NAMES];
 
 function thresholds(overrides?: {
   nodeMajor?: number;
@@ -213,6 +202,13 @@ function overBudget(path: MeasuredPath): AllocGateReport {
 }
 
 describe("recorded alloc thresholds", () => {
+  it("update.system.optimized is recorded at 0 B per entity per frame", () => {
+    const names: readonly string[] = ALLOC_PATH_NAMES;
+    const rows: Record<string, unknown> = parseAllocThresholds(recordedFile).paths;
+    expect(names).toContain("update.system.optimized");
+    expect(rows["update.system.optimized"]).toMatchObject({ bytesPerEntityFrame: 0 });
+  });
+
   it("frame.empty fails 1025 B/frame above its measured value", () => {
     const report = overBudget("frame.empty");
     expect(report.failures.map((f) => `${f.path} ${f.metric}`)).toEqual([
