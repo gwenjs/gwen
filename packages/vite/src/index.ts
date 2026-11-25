@@ -29,6 +29,7 @@ import { resolveMainScene, scanScenes } from "./scanners/index.js";
 import { BUILT_IN_UNITS } from "./pipeline/registry.js";
 import { createTransformPipeline } from "./pipeline/transform-pipeline.js";
 import { createVariantGuard } from "./transforms/variant-guard.js";
+import { coversCore } from "./ssr-no-external.js";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -63,6 +64,10 @@ const RESOLVED_ENTRY = "\0/@gwenjs/gwen-entry";
 const RESOLVED_SCENES = "\0/@gwenjs/gwen-scenes";
 
 // ── Plugin principal ──────────────────────────────────────────────────────────
+
+/** Logged when an SSR build's `ssr.noExternal` covers `@gwenjs/core`: the server then cannot find its `wasm/` directory. */
+const SSR_NO_EXTERNAL_WARNING =
+  "[gwen-vite] ssr.noExternal covers @gwenjs/core: the bundled server will not find the packaged wasm/ directory of @gwenjs/core (CORE:WASM_LOAD_ERROR). Keep @gwenjs/core external.";
 
 /** Adapts Vite's `mergeConfig` to `ViteUserConfig`. */
 const deepMergeVite = (config: ViteUserConfig, patch: Partial<ViteUserConfig>): ViteUserConfig =>
@@ -188,6 +193,9 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
 
     configResolved(config) {
       projectRoot = config.root;
+      if (config.build.ssr && coversCore(config.ssr.noExternal, config.ssr.external)) {
+        config.logger.warn(SSR_NO_EXTERNAL_WARNING);
+      }
     },
 
     async buildStart() {
