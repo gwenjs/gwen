@@ -1,0 +1,144 @@
+# Reusable conformance job for a GWEN plugin repository (#281). A plugin repository calls it
+# with one line:
+#   uses: gwenjs/gwen/.github/workflows/plugin-conformance.yml@v1-alpha
+# With the stack, it installs the plugin against the framework tarballs of a green gwen run,
+# served by the throw-away registry of scripts/stack/registry.mjs, then builds, runs
+# gwen-conformance and the plugin tests. gwen CI calls it on .github/selftest/plugin.
+name: Plugin conformance
+
+on:
+  workflow_call:
+    inputs:
+      gwen-ref:
+        description: Ref of gwenjs/gwen for scripts/stack. A branch name when the stack run is looked up.
+        type: string
+        default: v1-alpha
+      stack:
+        description: Install the framework from the stack tarballs. False installs from the lockfile.
+        type: boolean
+        default: true
+      stack-from-current-run:
+        description: Take stack-tarballs from this workflow run (the gwen self-test).
+        type: boolean
+        default: false
+      profile:
+        description: gwen-conformance profile, plugin or package. Package runs the check only.
+        type: string
+        default: plugin
+      node-version:
+        description: Node.js version.
+        type: string
+        default: "22"
+      working-directory:
+        description: Directory of the package, relative to the repository root.
+        type: string
+        default: "."
+    secrets:
+      stack-token:
+        description: Token that can read the actions of gwenjs/gwen. Defaults to github.token.
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  conformance:
+    name: conformance
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PROFILE: ${{ inputs.profile }}
+      WORKDIR: ${{ inputs.working-directory }}
+      GWEN_REF: ${{ inputs.gwen-ref }}
+    steps:
+      - name: Check the inputs
+        run: |
+          case "$PROFILE" in
+            plugin | package) ;;
+            *) echo "::error::profile must be plugin or package, got '$PROFILE'"; exit 1 ;;
+          esac
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
+        with:
+          version: "10"
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ inputs.node-version }}
+      # A dot directory: gwen-conformance skips it when it walks the sources.
+      - name: Fetch the stack scripts
+        if: inputs.stack
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: gwenjs/gwen
+          ref: ${{ inputs.gwen-ref }}
+          path: .gwen-stack
+          sparse-checkout: scripts/stack
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - name: Find the latest green stack run
+        id: stack-run
+        if: inputs.stack && !inputs.stack-from-current-run
+        env:
+          GH_TOKEN: ${{ secrets.stack-token || github.token }}
+        run: |
+          run_id="$(gh run list --repo gwenjs/gwen --workflow ci.yml --branch "$GWEN_REF" --event push --status success --limit 1 --json databaseId --jq '.[0].databaseId // empty')"
+          if [ -z "$run_id" ]; then
+            echo "::error::no green push run of ci.yml on $GWEN_REF in gwenjs/gwen"
+            exit 1
+          fi
+          live="$(gh api "repos/gwenjs/gwen/actions/runs/$run_id/artifacts?name=stack-tarballs" --jq '[.artifacts[] | select(.name == "stack-tarballs" and .expired == false)] | length')"
+          if [ "$live" = "0" ]; then
+            echo "::error::run $run_id has no live stack-tarballs: it is kept 7 days, rerun ci.yml on $GWEN_REF"
+            exit 1
+          fi
+          echo "run-id=$run_id" >> "$GITHUB_OUTPUT"
+      - name: Download stack-tarballs from the latest green run
+        if: inputs.stack && !inputs.stack-from-current-run
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: stack-tarballs
+          path: ${{ runner.temp }}/stack
+          repository: gwenjs/gwen
+          run-id: ${{ steps.stack-run.outputs.run-id }}
+          github-token: ${{ secrets.stack-token || github.token }}
+      # Same run: no run-id and no token, so the caller grants no actions: read.
+      - name: Download stack-tarballs from this run
+        if: inputs.stack && inputs.stack-from-current-run
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: stack-tarballs
+          path: ${{ runner.temp }}/stack
+      # The harness stamps every @gwenjs/* dependency with the stack version and installs with
+      # --no-frozen-lockfile; --lockfile-base HEAD reports a third-party drift from the commit.
+      - name: Install the stack, build, check, test
+        if: inputs.stack
+        run: |
+          # Escaped: bash passes "$PROFILE" as text, and the harness shell of each --cmd reads PROFILE from env.
+          cmds=(--cmd "pnpm build" --cmd "pnpm exec gwen-conformance check --profile \"\$PROFILE\" --lockfile-base HEAD")
+          if [ "$PROFILE" = plugin ]; then
+            cmds+=(--cmd "pnpm test" --cmd "pnpm run --if-present test:wasm")
+          fi
+          # Not the caller checkout: a stale .npmrc in the working directory breaks npm publish.
+          cd "$RUNNER_TEMP"
+          node "$GITHUB_WORKSPACE/.gwen-stack/scripts/stack/registry.mjs" run --out "$RUNNER_TEMP/stack" --satellite "$GITHUB_WORKSPACE/$WORKDIR" "${cmds[@]}"
+      - name: Install, build, check, test without the stack
+        if: inputs.stack == false
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+          pnpm exec gwen-conformance check --profile "$PROFILE"
+          if [ "$PROFILE" = plugin ]; then
+            pnpm test
+            pnpm run --if-present test:wasm
+          fi
+      - name: Summary
+        if: always() && inputs.stack
+        run: |
+          manifest="$RUNNER_TEMP/stack/stack-manifest.json"
+          if [ -f "$manifest" ]; then
+            version="$(node -p 'require(process.argv[1]).version' "$manifest")"
+            echo "Stack \`$version\` (gwen ref \`$GWEN_REF\`), profile \`$PROFILE\`." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No stack-manifest.json: the stack was not downloaded." >> "$GITHUB_STEP_SUMMARY"
+          fi
