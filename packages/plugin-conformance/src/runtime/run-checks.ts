@@ -7,6 +7,7 @@ import { checkComposable } from "./check-composable.js";
 import { checkExtension } from "./check-extension.js";
 import { checkFrames } from "./check-frames.js";
 import { checkHooks } from "./check-hooks.js";
+import { checkManifestContract } from "./check-manifest-contract.js";
 import { checkModule } from "./check-module.js";
 import { checkOptions } from "./check-options.js";
 import { checkProvides } from "./check-provides.js";
@@ -39,6 +40,7 @@ export const RUNTIME_CHECK_ORDER: readonly RuntimeCheckId[] = [
   "stop",
   "options",
   "module",
+  "manifest-contract",
   "requirement-form",
   "extension",
   "base-surface",
@@ -96,6 +98,8 @@ function codeOf(id: RuntimeCheckId): ConformanceCode {
       return ConformanceErrorCodes.RUNTIME_OPTIONS;
     case "module":
       return ConformanceErrorCodes.RUNTIME_MODULE;
+    case "manifest-contract":
+      return ConformanceErrorCodes.MANIFEST;
     case "hooks":
       return ConformanceErrorCodes.HOOK_UNDECLARED;
     case "composable":
@@ -121,6 +125,7 @@ function thrownCheck(id: RuntimeCheckId, error: unknown): ConformanceFinding {
  * Run `id` and append its findings.
  * Returns false when that check does not run: `options` with no `invalidOptions`,
  * `module` when the loader did not resolve `exports["./module"]`,
+ * `manifest-contract` when `package.json` has no `gwen.type` equal to `"plugin"`,
  * `extension` or `requirement-form` when `spec.bases` is empty,
  * or `base-surface` when `exports` has no `"./extension"`.
  * A throw becomes one finding in that check's code.
@@ -181,6 +186,12 @@ async function dispatchCheck(
     case "module": {
       if (moduleFile === undefined) return false;
       findings.push(...(await checkModule(context, moduleFile)));
+      return true;
+    }
+    case "manifest-contract": {
+      const drift = await checkManifestContract(context);
+      if (drift === undefined) return false;
+      findings.push(...drift);
       return true;
     }
     case "requirement-form": {

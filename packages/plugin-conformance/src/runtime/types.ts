@@ -14,6 +14,7 @@ export type RuntimeCheckId =
   | "stop"
   | "options"
   | "module"
+  | "manifest-contract"
   | "requirement-form"
   | "extension"
   | "base-surface"
