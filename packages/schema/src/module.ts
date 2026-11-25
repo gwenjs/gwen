@@ -13,6 +13,7 @@
 
 import type { DeepPartial } from "./config.js";
 import type { GwenConfigIssue } from "./engine-config.js";
+import type { GwenPluginRequires, GwenServiceKey } from "./plugin.js";
 import type { GwenSourceTransform } from "./source-transform.js";
 
 /**
@@ -167,6 +168,18 @@ export interface PluginDeclaration {
   export?: string;
   /** Options passed as the first argument to the factory. Must be JSON-serializable. */
   options?: unknown;
+  /**
+   * Hard requirements and optional services of the plugin this declaration builds.
+   * Data only, read at build time. Keep it equal to the `requires` of the plugin instance.
+   * The build installs a framework provider right before the first declaration that
+   * requires it, and fails with `APP:SERVICE_PROVIDER_MISSING` when a hard service has no provider.
+   */
+  requires?: GwenPluginRequires;
+  /**
+   * Service keys the plugin this declaration builds provides. Data only.
+   * Keep it equal to the `provides` of the plugin instance.
+   */
+  provides?: readonly GwenServiceKey[];
 }
 
 // ─── GwenKit ─────────────────────────────────────────────────────────────────

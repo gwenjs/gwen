@@ -33,6 +33,12 @@ import { BUILT_IN_MODULES } from "./built-in-modules";
 import { GwenError } from "@gwenjs/schema";
 import { formatReceived, type GwenConfigIssue } from "@gwenjs/schema";
 import { AppErrorCodes, causeText } from "./error-codes";
+import { FRAMEWORK_PROVIDERS, type FrameworkProviderTable } from "./framework-providers";
+import {
+  engineServiceKeys,
+  insertFrameworkProviders,
+  type OwnedDeclaration,
+} from "./provider-resolution";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
@@ -78,7 +84,17 @@ export class GwenApp {
   private readonly _sourceTransformOwners: string[] = [];
   private readonly _viteConfigExtenders: Array<(c: ViteUserConfig) => Partial<ViteUserConfig>> = [];
   /** Collected path-based plugin declarations (used by @gwenjs/vite for static imports). */
-  private readonly _pluginDeclarations: PluginDeclaration[] = [];
+  private _pluginDeclarations: PluginDeclaration[] = [];
+  /** `meta.name` of the module that registered each declaration, same index. */
+  private _pluginDeclarationOwners: string[] = [];
+  private readonly _providers: FrameworkProviderTable;
+
+  /**
+   * @param options.providers - Framework provider table. Defaults to {@link FRAMEWORK_PROVIDERS}.
+   */
+  constructor(options: { providers?: FrameworkProviderTable } = {}) {
+    this._providers = options.providers ?? FRAMEWORK_PROVIDERS;
+  }
 
   /**
    * Build-time hook bus. Subscribe with `app.buildHooks.hook(event, fn)` or
@@ -257,6 +273,8 @@ export class GwenApp {
       await this.runSetup(view, run.mod, run.options, `Module "${run.label}"`);
     }
 
+    this.insertFrameworkProviders(config);
+
     // Apply the user's direct `vite` config extension last.
     if (config.vite) {
       this._viteConfigExtenders.push(() => config.vite as Partial<ViteUserConfig>); // boundary: the user vite config is an untyped record in GwenUserConfig
@@ -265,6 +283,28 @@ export class GwenApp {
     this._autoImports.push({ name: "useScreen", from: "@gwenjs/renderer-core" });
 
     await this.buildHooks.callHook("build:done");
+  }
+
+  /** Installs the framework providers the declarations require, see `provider-resolution.ts`. */
+  private insertFrameworkProviders(config: ResolvedGwenConfig): void {
+    const installed = [...this._plugins, ...(config.plugins ?? [])];
+    const entries: OwnedDeclaration[] = this._pluginDeclarations.map((declaration, index) => ({
+      declaration,
+      owner: this._pluginDeclarationOwners[index] ?? "",
+    }));
+    const resolved = insertFrameworkProviders(
+      entries,
+      {
+        plugins: new Set(installed.map((plugin) => plugin.name)),
+        services: new Set([
+          ...engineServiceKeys,
+          ...installed.flatMap((plugin) => plugin.provides ?? []),
+        ]),
+      },
+      this._providers,
+    );
+    this._pluginDeclarations = resolved.map((entry) => entry.declaration);
+    this._pluginDeclarationOwners = resolved.map((entry) => entry.owner);
   }
 
   // ── prepare ──────────────────────────────────────────────────────────────────
@@ -363,7 +403,8 @@ export class GwenApp {
     return {
       /**
        * Registers a plugin declaration. An instance, a factory, a non-string
-       * `export`, an empty `src`, or non-JSON options throw `APP:PLUGIN_NOT_DECLARATIVE`.
+       * `export`, an empty `src`, non-JSON options, or a malformed `requires` or `provides`
+       * throw `APP:PLUGIN_NOT_DECLARATIVE`.
        * `options: undefined` is stored like an absent `options`.
        */
       addPlugin(decl: PluginDeclaration): void {
@@ -385,6 +426,7 @@ export class GwenApp {
           );
         }
         app._pluginDeclarations.push(storedPluginDeclaration(value));
+        app._pluginDeclarationOwners.push(moduleName);
       },
 
       /** Registers composables/utilities for auto-import. */
@@ -464,19 +506,45 @@ export class GwenApp {
   }
 }
 
+function isStringList(value: unknown): value is readonly string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+
+/** `requires.plugins` holds names or `{ name }` extension objects. */
+function isPluginRequirementList(value: unknown): boolean {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (item) => typeof item === "string" || (isPlainRecord(item) && typeof item.name === "string"),
+    )
+  );
+}
+
+function isRequires(value: unknown): boolean {
+  if (!isPlainRecord(value)) return false;
+  const { plugins, services, optional } = value;
+  return (
+    (plugins === undefined || isPluginRequirementList(plugins)) &&
+    (services === undefined || isStringList(services)) &&
+    (optional === undefined || isStringList(optional))
+  );
+}
+
 function isPluginDeclaration(value: unknown): value is PluginDeclaration {
   if (!isPlainRecord(value)) return false;
   if (typeof value.src !== "string") return false;
   if (value.src.length === 0) return false;
   if ("export" in value && typeof value.export !== "string") return false;
+  if (value.requires !== undefined && !isRequires(value.requires)) return false;
+  if (value.provides !== undefined && !isStringList(value.provides)) return false;
   return true;
 }
 
-/** Drops an explicit `options: undefined` so the stored row matches an absent field. */
+/** Keeps every field of the declaration. Drops an explicit `options: undefined` so the stored row matches an absent field. */
 function storedPluginDeclaration(value: PluginDeclaration): PluginDeclaration {
   if (value.options !== undefined) return value;
-  const stored: PluginDeclaration = { src: value.src };
-  if (typeof value.export === "string") stored.export = value.export;
+  const stored: PluginDeclaration = { ...value };
+  delete stored.options;
   return stored;
 }
 

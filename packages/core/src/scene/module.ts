@@ -9,7 +9,11 @@ declare module "@gwenjs/schema" {
 export default {
   meta: { name: "@gwenjs/core:scene" },
   setup(_opts, gwen) {
-    gwen.addPlugin({ src: "@gwenjs/core/internal", export: "SceneEnginePlugin" });
+    gwen.addPlugin({
+      src: "@gwenjs/core/internal",
+      export: "SceneEnginePlugin",
+      provides: ["scene:hook-registry"],
+    });
     gwen.addAutoImports([
       { name: "defineScene", from: "@gwenjs/core/scene" },
       { name: "useSystem", from: "@gwenjs/core/scene" },

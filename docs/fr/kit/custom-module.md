@@ -250,7 +250,29 @@ Enregistrez les plugins runtime à charger :
 gwen.addPlugin({ src: "@my-scope/my-module", export: "MyPlugin" })
 ```
 
-`addPlugin` ne prend que des déclarations. `options` doit être sérialisable en JSON. Une instance, une fabrique ou des options non sérialisables lèvent `APP:PLUGIN_NOT_DECLARATIVE`. Migration : `kit.addPlugin({ src: "<pkg>", export: "<Factory>", options })`.
+`addPlugin` ne prend que des déclarations. `options` doit être sérialisable en JSON. Une instance, une fabrique, des options non sérialisables ou un `requires` / `provides` mal formé lèvent `APP:PLUGIN_NOT_DECLARATIVE`. Migration : `kit.addPlugin({ src: "<pkg>", export: "<Factory>", options })`.
+
+### Prérequis d'une déclaration
+
+Une déclaration peut porter `requires` et `provides`. Ce sont des données, lues à la compilation. Gardez-les égales au `requires` et au `provides` du plugin que la déclaration construit.
+
+```ts
+gwen.addPlugin({
+  src: "@my-scope/my-camera",
+  export: "MyCameraPlugin",
+  requires: { plugins: ["camera-core"], optional: ["audio:mixer"] },
+})
+```
+
+Quand tous les modules ont exécuté leur `setup`, le build parcourt les déclarations dans l'ordre d'installation :
+
+- Un nom de `requires.plugins` qui est un fournisseur du framework (`camera-core`) voit sa déclaration insérée juste avant la première déclaration qui le requiert. Un nombre quelconque de consommateurs partage une seule insertion.
+- Un fournisseur que vous avez déclaré plus tôt est gardé avec vos options. Un fournisseur déclaré plus tard échoue avec `APP:PLUGIN_REQUIREMENT_ORDER`.
+- Une clé de `requires.services` doit être fournie par le moteur, par `gwen:viewports` ou `gwen:screen`, par un plugin de config, par le `provides` d'une déclaration antérieure, ou par un fournisseur du framework. Sinon le build échoue avec `APP:SERVICE_PROVIDER_MISSING`.
+- `requires.optional` n'insère jamais de fournisseur et ne fait jamais échouer le build.
+- Un nom de plugin sans fournisseur du framework et sans plugin installé n'est pas vérifié par le build. `engine.use()` le rejette à l'exécution avec `CORE:PLUGIN_DEPENDENCY_MISSING`.
+
+L'entrée générée importe un fournisseur inséré par son nom de paquet, par exemple `@gwenjs/camera-core`, depuis la racine du projet. Installez ce paquet dans le projet. Les fournisseurs du framework n'ajoutent rien au bundle du navigateur tant qu'aucune déclaration n'en requiert un.
 
 ### Auto-imports
 
@@ -468,7 +490,7 @@ export default defineGwenModule<Options>({
 
 | Méthode | But |
 |---------|-----|
-| `addPlugin(declaration)` | Déclarez un plugin runtime : { src, export?, options? } |
+| `addPlugin(declaration)` | Déclarez un plugin runtime : { src, export?, options?, requires?, provides? } |
 | `addAutoImports(imports)` | Déclarez les utilitaires auto-importés |
 | `addVitePlugin(plugin)` | Ajoutez un plugin Vite à la compilation |
 | `addSourceTransform(transform)` | Enregistre une transformation de build nommée `<namespace>:<transform>` |
