@@ -27,3 +27,8 @@ export const OPTIMIZER_UNITS: GwenSourceTransform[] = [hoistChunkColumns];
 export function optimizerEnabled(option: boolean | GwenOptimizerUserOptions | undefined): boolean {
   return option !== undefined && option !== false;
 }
+
+/** Only an options object with `debug: true` logs the skipped loops. */
+export function optimizerDebug(option: boolean | GwenOptimizerUserOptions | undefined): boolean {
+  return typeof option === "object" && option.debug === true;
+}

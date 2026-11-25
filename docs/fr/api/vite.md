@@ -50,7 +50,15 @@ export default defineConfig({
 
 ### L'option `optimizer`
 
-`true` ou un objet enregistre `gwen:hoist-chunk-columns` après les unités intégrées (`packages/vite/src/pipeline/registry.ts:24`, `packages/vite/src/pipeline/registry.ts:27`). L'unité lit une seule fois, avant la boucle, chaque `chunk.get(Def)` d'une boucle de lignes de chunk. Voir [Remonter les lectures de colonnes](/fr/advanced/build-pipeline#hoisting-column-lookups). `false` ou l'absence d'option laisse le pipeline inchangé. L'option accepte `boolean` ou `{ debug?: boolean }` ; `debug` est accepté et ne change pas la sortie. `gwen()` accepte la même option (`GwenPluginOptions.optimizer`).
+`true` ou un objet enregistre `gwen:hoist-chunk-columns` après les unités intégrées (`packages/vite/src/pipeline/registry.ts:24`, `packages/vite/src/pipeline/registry.ts:27`). L'unité lit une seule fois, avant la boucle, chaque `chunk.get(Def)` d'une boucle de lignes de chunk. Voir [Remonter les lectures de colonnes](/fr/advanced/build-pipeline#hoisting-column-lookups). `false` ou l'absence d'option laisse le pipeline inchangé. L'option accepte `boolean` ou `{ debug?: boolean }`. `gwen()` accepte la même option (`GwenPluginOptions.optimizer`).
+
+Avec `{ debug: true }`, l'unité journalise une ligne pour chaque boucle de lignes de chunk qu'elle inspecte et laisse telle quelle, par le logger de Vite, dans `vite dev` et dans `vite build`. La sortie ne change pas. `true` et `{ debug: false }` ne journalisent rien.
+
+```text
+[gwen:hot-path] skip src/systems/skipped.ts:8 — P5
+```
+
+La ligne contient le chemin du module relatif à la racine de Vite, la ligne de la boucle, et la première précondition qu'elle a manquée. Voir [Boucles ignorées](/fr/advanced/build-pipeline#skipped-loops).
 
 ```ts
 gwenVitePlugin()

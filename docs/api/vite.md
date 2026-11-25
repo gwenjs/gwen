@@ -50,7 +50,15 @@ export default defineConfig({
 
 ### The `optimizer` option
 
-`true` or an object registers `gwen:hoist-chunk-columns` after the built-in units (`packages/vite/src/pipeline/registry.ts:24`, `packages/vite/src/pipeline/registry.ts:27`). The unit reads each `chunk.get(Def)` of a chunk row loop once, before the loop. See [Hoisting column lookups](/advanced/build-pipeline#hoisting-column-lookups). `false` or no option leaves the pipeline unchanged. The option accepts `boolean` or `{ debug?: boolean }`; `debug` is accepted and does not change the output. `gwen()` accepts the same option (`GwenPluginOptions.optimizer`).
+`true` or an object registers `gwen:hoist-chunk-columns` after the built-in units (`packages/vite/src/pipeline/registry.ts:24`, `packages/vite/src/pipeline/registry.ts:27`). The unit reads each `chunk.get(Def)` of a chunk row loop once, before the loop. See [Hoisting column lookups](/advanced/build-pipeline#hoisting-column-lookups). `false` or no option leaves the pipeline unchanged. The option accepts `boolean` or `{ debug?: boolean }`. `gwen()` accepts the same option (`GwenPluginOptions.optimizer`).
+
+With `{ debug: true }` the unit logs one line for each chunk row loop it inspects and leaves alone, through the Vite logger, in `vite dev` and in `vite build`. The output does not change. `true` and `{ debug: false }` log nothing.
+
+```text
+[gwen:hot-path] skip src/systems/skipped.ts:8 — P5
+```
+
+The line holds the module path relative to the Vite root, the line of the loop, and the first precondition it failed. See [Skipped loops](/advanced/build-pipeline#skipped-loops).
 
 ```ts
 gwenVitePlugin()

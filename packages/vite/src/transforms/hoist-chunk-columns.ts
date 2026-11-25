@@ -618,6 +618,8 @@ export function analyse(program: Program, ctx: TransformContext): Analysis {
 export const hoistChunkColumns: GwenSourceTransform = {
   name: "gwen:hoist-chunk-columns",
   run(program, ctx) {
-    return analyse(program, ctx).edits;
+    const found = analyse(program, ctx);
+    for (const skip of found.skips) ctx.debug(skip, skip.precondition);
+    return found.edits;
   },
 };

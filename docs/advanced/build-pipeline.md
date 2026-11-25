@@ -90,6 +90,18 @@ A loop is rewritten only when all seven preconditions hold. Otherwise it stays a
 
 `// @gwen-no-optimize` before the outer `for`, before the frame call, before any statement around them, before an inner `for`, or before a statement inside an inner `for` keeps the loop as written; an inner loop with the directive on it or on a statement nested in it is left whole, and its siblings are still hoisted (`packages/vite/src/transforms/hoist-chunk-columns.ts:528`, `packages/vite/src/transforms/hoist-chunk-columns.ts:599`). See [Opting out](#opting-out).
 
+### Skipped loops {#skipped-loops}
+
+With `optimizer: { debug: true }`, the unit logs one line for each chunk row loop it inspects and leaves alone, through the Vite logger. `vite dev` and `vite build` log the same lines, in source order:
+
+```text
+[gwen:hot-path] skip src/systems/skipped.ts:8 — P5
+```
+
+`src/systems/skipped.ts` is the module path relative to the Vite root, `8` is the line of the loop, and `P5` is the first precondition it failed. An inner loop is judged in the order P7, P6, P3, P5. The line is the outer `for...of` for P1, P2 and P4, the inner `for` for P3, P5 and P6, and either one for P7. With `optimizer: true`, `{ debug: false }` or no option, nothing is logged.
+
+Some loops log nothing. A `// @gwen-no-optimize` before the first statement of the module, before the frame call, or before the factory statement that holds the outer loop hides the loop from the unit, so no line is logged (only a directive on the outer `for...of` itself logs P7). A frame callback given by reference, such as `onUpdate(step)`, has no loop to inspect. An inner loop with no `chunk.get(Def)` that passes every precondition has nothing to hoist, so it logs nothing either.
+
 ## Which calls are recognised
 
 A unit never matches a call by its text. It resolves the callee through the import binding of the module. A call counts when it resolves to a GWEN export listed in `CANONICAL` (`packages/vite/src/pipeline/canonical.ts:36`).

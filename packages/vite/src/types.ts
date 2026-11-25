@@ -149,6 +149,6 @@ export interface GwenViteOptions {
  * GwenViteOptions.optimizer).
  */
 export interface GwenOptimizerUserOptions {
-  /** Accepted. It does not change the output. */
+  /** Logs one line per chunk row loop the unit inspects and leaves alone, through the Vite logger. */
   debug?: boolean;
 }

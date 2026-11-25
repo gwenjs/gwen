@@ -85,6 +85,11 @@ export interface TransformContext {
    */
   isOptedOut(node: { start: number }): boolean;
   /**
+   * With `optimizer.debug`, queues one skip line for the module path, the line of `node` and
+   * `what`; a no-op otherwise. Logged after every unit ran; a unit failure drops it, like `warn`.
+   */
+  debug(node: { start: number }, what: string): void;
+  /**
    * Records a build warning. It is deduped by code and position, then logged once
    * after every unit ran. A unit failure drops the warnings of that module.
    */
