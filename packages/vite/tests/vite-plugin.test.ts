@@ -1122,3 +1122,119 @@ export default { modules: ["real-mod"], globalCss: ["./kept.css"] };
     });
   });
 });
+
+function registeredNames(entry: unknown): string[] {
+  if (Array.isArray(entry)) return entry.flatMap((item) => registeredNames(item));
+  if (isRecord(entry) && typeof entry["name"] === "string") return [entry["name"]];
+  return [];
+}
+
+function isNamedPlugin(entry: unknown): entry is Plugin {
+  return isRecord(entry) && typeof entry["name"] === "string";
+}
+
+function namedPlugins(entry: unknown): Plugin[] {
+  if (Array.isArray(entry)) return entry.flatMap((item) => namedPlugins(item));
+  return isNamedPlugin(entry) ? [entry] : [];
+}
+
+function runBuildStart(plugin: Plugin): void {
+  const hook = plugin.buildStart;
+  if (typeof hook !== "function") throw new Error(`${plugin.name} buildStart missing`);
+  Reflect.apply(hook, plugin, []);
+}
+
+describe("gwen:wasm-modules-dts registration", () => {
+  it("gwen() and gwenVitePlugin() register gwen:wasm-modules-dts once", () => {
+    const wanted = (name: string): boolean => name === "gwen:wasm-modules-dts";
+    expect(registeredNames(gwen()).filter(wanted)).toEqual(["gwen:wasm-modules-dts"]);
+    expect(registeredNames(gwenVitePlugin()).filter(wanted)).toEqual(["gwen:wasm-modules-dts"]);
+  });
+
+  it("gwen() writes wasm-modules.d.ts from src and from the resolved localPluginsDir", async () => {
+    await withRoot(async (root) => {
+      writeConfig(root, `export default { modules: [], localPluginsDir: "custom/plugins" };\n`);
+      const call = (name: string): string =>
+        `import type { T } from "./t";\nengine.loadWasmModule<T>({ name: "${name}" });\n`;
+      fs.mkdirSync(path.join(root, "src"), { recursive: true });
+      fs.mkdirSync(path.join(root, "custom", "plugins"), { recursive: true });
+      fs.writeFileSync(path.join(root, "src", "a.ts"), call("from-src"));
+      fs.writeFileSync(path.join(root, "custom", "plugins", "b.ts"), call("from-custom"));
+      const plugins = gwen();
+      const main = plugins.find((plugin) => plugin.name === "gwen");
+      const writer = plugins.find((plugin) => plugin.name === "gwen:wasm-modules-dts");
+      expect(writer).toBeDefined();
+      if (!main || !writer) throw new Error("missing gwen plugins");
+      await configHook(main)({ root }, serveEnv);
+      applyResolvedRoot(writer, root);
+      runBuildStart(writer);
+      const file = path.join(root, ".gwen", "types", "wasm-modules.d.ts");
+      expect(fs.existsSync(file)).toBe(true);
+      const text = fs.readFileSync(file, "utf8");
+      expect(text).toContain('"from-src"');
+      expect(text).toContain('"from-custom"');
+    });
+  });
+
+  it("the plugin scans the resolved localModulesDir of gwen() and the local dirs of gwenVitePlugin", async () => {
+    await withRoot(async (root) => {
+      const call = (name: string): string =>
+        `import type { T } from "./t";\nengine.loadWasmModule<T>({ name: "${name}" });\n`;
+      const put = (rel: string, name: string): void => {
+        fs.mkdirSync(path.join(root, path.dirname(rel)), { recursive: true });
+        fs.writeFileSync(path.join(root, rel), call(name));
+      };
+      const dtsFile = path.join(root, ".gwen", "types", "wasm-modules.d.ts");
+      const dtsText = (): string =>
+        fs.existsSync(dtsFile) ? fs.readFileSync(dtsFile, "utf8") : "";
+      const writerOf = (entry: unknown): Plugin => {
+        const found = namedPlugins(entry).find((plugin) => plugin.name === "gwen:wasm-modules-dts");
+        if (!found) throw new Error("missing gwen:wasm-modules-dts");
+        return found;
+      };
+      fs.mkdirSync(path.join(root, "custom", "modules"), { recursive: true });
+      fs.writeFileSync(
+        path.join(root, "custom", "modules", "m.ts"),
+        [
+          'import type { T } from "./t";',
+          'export default { meta: { name: "m" }, setup() {} };',
+          "export function load(engine: Engine): void {",
+          '  engine.loadWasmModule<T>({ name: "from-modules-dir" });',
+          "}",
+          "",
+        ].join("\n"),
+      );
+      writeConfig(root, `export default { modules: [], localModulesDir: "custom/modules" };\n`);
+      const plugins = gwen();
+      const main = plugins.find((plugin) => plugin.name === "gwen");
+      if (!main) throw new Error("missing gwen plugin");
+      await configHook(main)({ root }, serveEnv);
+      applyResolvedRoot(writerOf(plugins), root);
+      runBuildStart(writerOf(plugins));
+      expect(dtsText()).toContain('"from-modules-dir"');
+      fs.rmSync(path.join(root, ".gwen"), { recursive: true, force: true });
+
+      put("extra/plugins/p.ts", "from-plugins-opt");
+      put("extra/modules/m.ts", "from-modules-opt");
+      const both = writerOf(
+        gwenVitePlugin({
+          localPlugins: { dir: "extra/plugins" },
+          localModules: { dir: "extra/modules" },
+        }),
+      );
+      applyResolvedRoot(both, root);
+      runBuildStart(both);
+      expect(dtsText()).toContain('"from-plugins-opt"');
+      expect(dtsText()).toContain('"from-modules-opt"');
+      fs.rmSync(path.join(root, ".gwen"), { recursive: true, force: true });
+
+      const off = writerOf(
+        gwenVitePlugin({ localPlugins: false, localModules: { dir: "extra/modules" } }),
+      );
+      applyResolvedRoot(off, root);
+      runBuildStart(off);
+      expect(dtsText()).toContain('"from-modules-opt"');
+      expect(dtsText()).not.toContain('"from-plugins-opt"');
+    });
+  });
+});

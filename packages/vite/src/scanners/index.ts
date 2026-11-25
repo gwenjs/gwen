@@ -379,3 +379,39 @@ export function scanEasingNames(root: string, options?: ScanOptions): string[] {
   }
   return [...found].sort();
 }
+
+/** One `loadWasmModule<T>({ name: "<name>" })` call whose name and type are both known. */
+export interface WasmModuleHit {
+  /** The string literal given as `name`. */
+  name: string;
+  /** Where `T` comes from: the import specifier as written and the original export name. */
+  typeImport: { from: string; name: string };
+  /** Absolute path of the file holding the call. */
+  file: string;
+  /** 1-based line of the call. */
+  line: number;
+}
+
+/** One `loadWasmModule` call that cannot be typed, with the reason it was left out. */
+export interface WasmModuleSkip {
+  /** Absolute path of the file holding the call. */
+  file: string;
+  /** 1-based line of the call. */
+  line: number;
+  /** `non-literal name`, `no type argument` or `type not importable`. */
+  reason: string;
+}
+
+/** What `scanWasmModuleNames` found: the typed calls and the calls it skipped. */
+export interface WasmModuleScan {
+  hits: WasmModuleHit[];
+  skipped: WasmModuleSkip[];
+}
+
+/**
+ * `loadWasmModule` calls under `dirs`, each resolved against `root`.
+ * Not implemented yet: always returns no hit and no skip.
+ */
+export function scanWasmModuleNames(_root: string, _dirs: readonly string[]): WasmModuleScan {
+  return { hits: [], skipped: [] };
+}
