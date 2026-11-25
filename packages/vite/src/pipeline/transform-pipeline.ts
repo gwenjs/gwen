@@ -5,6 +5,7 @@
  * Project barrels are followed before units run. The cache lives on this plugin.
  */
 
+import type { Program } from "oxc-parser";
 import type { Alias, Plugin } from "vite";
 import type { AutoImport } from "@gwenjs/kit";
 import { GwenError, type GwenSourceTransform as KitSourceTransform } from "@gwenjs/schema";
@@ -21,6 +22,7 @@ import {
   rethrowUnitFailure,
   toInternalEdit,
 } from "./kit-transform.js";
+import { createOptOut } from "./opt-out.js";
 import { isScriptModule, lineColumn, parseModule } from "./parse.js";
 import { createModuleResolver, type ModuleResolver } from "./resolve-callee.js";
 import type {
@@ -59,6 +61,14 @@ function readOwnLoc(err: GwenError): SourceLoc | undefined {
   return loc;
 }
 
+/** One recorded warning, in the shape of the kit host log. */
+interface PendingWarning {
+  readonly message: string;
+  readonly code: string;
+  readonly id: string;
+  readonly loc: SourceLoc;
+}
+
 function acceptsModule(id: string): boolean {
   if (id.startsWith("\0")) return false;
   if (id.includes("/node_modules/")) return false;
@@ -79,7 +89,11 @@ function createContext(
   comments: TransformContext["comments"],
   resolver: ModuleResolver,
   emitFile: TransformContext["emitFile"],
+  program: Program,
+  pending: PendingWarning[],
 ): TransformContext {
+  const isOptedOut = createOptOut(code, comments, program);
+  const warned = new Set<string>();
   const context: TransformContext = {
     id,
     code,
@@ -88,6 +102,26 @@ function createContext(
     calls: resolver.calls,
     resolveImport: resolver.resolveImport,
     isModuleScopeBinding: resolver.isModuleScopeBinding,
+    isOptedOut,
+    warn(errorCode, node, what, options): void {
+      const key = `${errorCode}:${node.start}`;
+      if (warned.has(key)) return;
+      warned.add(key);
+      const place = lineColumn(code, node.start);
+      const hint = options?.hint === undefined ? undefined : devHint(options.hint);
+      const composable = options?.composable;
+      const error = new GwenError(
+        errorCode,
+        what,
+        composable === undefined ? { hint } : { composable, hint },
+      );
+      pending.push({
+        message: error.message,
+        code: errorCode,
+        id,
+        loc: { file: id, line: place.line, column: place.column - 1 },
+      });
+    },
     raise(errorCode, node, what, hint, cause): never {
       const place = lineColumn(code, node.start);
       const hintText = hint === undefined ? undefined : devHint(hint);
@@ -233,7 +267,16 @@ export function createTransformPipeline(options: {
           autoImports,
           followed,
         });
-        const context = createContext(id, code, parsed.comments, resolver, emitFile);
+        const pending: PendingWarning[] = [];
+        const context = createContext(
+          id,
+          code,
+          parsed.comments,
+          resolver,
+          emitFile,
+          parsed.program,
+          pending,
+        );
         const tagged: Array<TransformEdit & { unit: string }> = [];
         for (const unit of activeBuiltIns) {
           let produced: readonly TransformEdit[];
@@ -289,6 +332,7 @@ export function createTransformPipeline(options: {
           }
           for (const edit of produced) tagged.push(tagEdit(edit, unit.name));
         }
+        for (const log of pending) this.warn(log);
         const applied = applyEdits(id, code, tagged);
         if (applied === null) return null;
         return {

@@ -22,6 +22,7 @@ export type ViteErrorCode = (typeof ViteErrorCodes)[keyof typeof ViteErrorCodes]
 /**
  * Framework callees the pipeline can resolve.
  * Ticket #66 list, plus `onPreload` and `onTransitionExit`.
+ * The frame callbacks and `useService` / `useWasmModule` feed `gwen:hot-path-warn`.
  * `onTransitionEnter` is not in this union.
  */
 export type GwenCallee =
@@ -43,7 +44,12 @@ export type GwenCallee =
   | "defineLayers"
   | "useMeshCollider"
   | "defineHooks"
-  | "useTween";
+  | "useTween"
+  | "onBeforeUpdate"
+  | "onAfterUpdate"
+  | "onRender"
+  | "useService"
+  | "useWasmModule";
 
 /** One edit against the original source. Offsets are in that original text. */
 export type TransformEdit =
@@ -72,6 +78,22 @@ export interface TransformContext {
     hint?: string | undefined,
     cause?: unknown,
   ): never;
+  /**
+   * True when a directive precedes the first statement, or when a directive is the leading
+   * comment of a node that starts at `node.start`. Ancestors are not consulted: a unit checks
+   * each enclosing node it cares about.
+   */
+  isOptedOut(node: { start: number }): boolean;
+  /**
+   * Records a build warning. It is deduped by code and position, then logged once
+   * after every unit ran. A unit failure drops the warnings of that module.
+   */
+  warn(
+    code: ViteErrorCode,
+    node: { start: number; end: number },
+    what: string,
+    options?: { readonly composable?: string; readonly hint?: string | undefined },
+  ): void;
 }
 
 /** One pure unit. `name` is `gwen:` plus a short id. */
