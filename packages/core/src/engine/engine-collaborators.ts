@@ -30,6 +30,7 @@ import { EngineStateMachine } from "./engine-state.js";
 import { EngineErrorPolicy } from "./engine-error-policy.js";
 import { EngineLoop } from "./engine-loop.js";
 import { TransformReader2DImpl } from "./transform-reader-2d.js";
+import { TransformReader3DImpl } from "./transform-reader-3d.js";
 import {
   bindEngineOnHooks,
   emitBulkSpawn,
@@ -229,6 +230,19 @@ export abstract class EngineCollaborators {
           const state = this._stateMachine.state;
           return state === "stopping" || state === "stopped";
         },
+      }),
+    );
+    this._serviceContainer.provide(
+      "transform:3d",
+      new TransformReader3DImpl({
+        hooks: this.hooks,
+        fixed: this._loop._fixed,
+        isAlive: (id) => this._entities.isAlive(id),
+        isStopped: () => {
+          const state = this._stateMachine.state;
+          return state === "stopping" || state === "stopped";
+        },
+        physicsHz: () => this.physicsHz,
       }),
     );
     if (__GWEN_DEV__) {

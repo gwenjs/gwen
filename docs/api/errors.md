@@ -57,7 +57,7 @@ Cause. The call is outside `defineSystem()`, `defineActor()`, `defineScene()`, `
 
 Cause. The call is outside `defineActor()`. Fix. Capture the handle synchronously in the factory, then use it as a closure after await.
 
-`useEntityId`, `useTransform`, `useChildren`, `useComponent` (one-argument form), `onStart`, `onDestroy`, `onRelease`, `onReset`, `onEnable`, and `onDisable` throw this code. So do the physics composables `useDynamicBody`, `useKinematicBody`, `useStaticBody`, `useShape`, `useBoxCollider`, `useSphereCollider`, `useCapsuleCollider`, `useConvexCollider`, `useMeshCollider`, `useHeightfieldCollider`, and `useCompoundCollider`.
+`useEntityId`, `useTransform`, `useTransform3D`, `useChildren`, `useComponent` (one-argument form), `onStart`, `onDestroy`, `onRelease`, `onReset`, `onEnable`, and `onDisable` throw this code. So do the physics composables `useDynamicBody`, `useKinematicBody`, `useStaticBody`, `useShape`, `useBoxCollider`, `useSphereCollider`, `useCapsuleCollider`, `useConvexCollider`, `useMeshCollider`, `useHeightfieldCollider`, and `useCompoundCollider`.
 
 ### CORE:OUTSIDE_SYSTEM_CONTEXT {#core-outside-system-context}
 
@@ -81,7 +81,7 @@ Cause. The call is outside `defineActor()`, `plugin setup()`, or `withCleanup()`
 
 ### CORE:TRANSFORM_REF_INVALID {#core-transform-ref-invalid}
 
-Cause. The `transform:2d` reader rejected a call. `GwenTransformRefError.reason` names the case: `dead-entity` (`track` of an entity that is not alive), `foreign-engine` (`read` of a ref tracked on another engine), or `engine-stopped` (`track` after the engine stopped). Fix. Track a live entity, read a ref with the reader of the engine that tracked it, and track before `stop()`.
+Cause. The `transform:2d` or `transform:3d` reader rejected a call. `GwenTransformRefError.reason` names the case: `dead-entity` (`track` of an entity that is not alive), `foreign-engine` (`read` of a ref tracked on another engine, or by the other reader), or `engine-stopped` (`track` after the engine stopped). Fix. Track a live entity, read a ref with the reader of the engine that tracked it, and track before `stop()`.
 
 `read` of a released ref, or of a ref whose entity was destroyed, returns false and does not throw. `release` of a ref from another engine does nothing.
 

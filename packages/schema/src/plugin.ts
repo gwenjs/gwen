@@ -15,7 +15,7 @@ import type { IGwenLogger } from "./logger-structured.js";
 import type { DisposableRegistryBase } from "./disposable.js";
 import type { GwenRuntimeHookName, GwenRuntimeHooks } from "./runtime-hooks.js";
 import type { CameraStateStore, LayerHost, ScreenInfoStore, ViewportStore } from "./renderer.js";
-import type { TransformReader2D } from "./transforms.js";
+import type { TransformReader2D, TransformReader3D } from "./transforms.js";
 import type { AssetsService } from "./assets.js";
 import type { GwenConfigIssue } from "./engine-config.js";
 import type { GwenIntrospection } from "./introspection.js";
@@ -47,6 +47,8 @@ export interface GwenProvides {
   cameraManager: CameraStateStore;
   /** 2D transform reader. Inject via `engine.inject('transform:2d')`. */
   "transform:2d": TransformReader2D;
+  /** 3D transform reader. Inject via `engine.inject('transform:3d')`. */
+  "transform:3d": TransformReader3D;
   /** Asset registry. Inject via `engine.inject('assets')`. */
   assets: AssetsService;
   /** Read-only view of the engine. Dev only: absent in a prod build. Read it via `engine.tryInject('introspection')` or `requires.services`. */
@@ -65,7 +67,7 @@ export type GwenServiceKey = keyof GwenProvides & string;
 /**
  * Service keys the engine itself registers. A plugin never declares them in
  * {@link GwenPlugin.provides}. `introspection` only in a dev build, once the engine provides it.
- * `transform:2d` is provided by every core engine.
+ * `transform:2d` and `transform:3d` are provided by every core engine.
  */
 export type GwenEngineServiceKey =
   | "logger"
@@ -73,7 +75,8 @@ export type GwenEngineServiceKey =
   | "wasm:bridge"
   | "memory"
   | "introspection"
-  | "transform:2d";
+  | "transform:2d"
+  | "transform:3d";
 
 /**
  * Service keys a plugin may declare in {@link GwenPlugin.provides}:

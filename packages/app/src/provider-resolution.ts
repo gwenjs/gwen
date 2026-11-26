@@ -44,6 +44,7 @@ const ENGINE_SERVICE_KEYS: Record<GwenEngineServiceKey, EngineKeyAvailability> =
   memory: "always",
   introspection: "dev",
   "transform:2d": "always",
+  "transform:3d": "always",
 };
 
 /** Engine-owned service keys provided in every build, installed before any plugin. */

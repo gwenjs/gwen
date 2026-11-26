@@ -291,6 +291,27 @@ L'échantillon enregistré sur un pas n'inclut pas les écritures `engine:update
 
 `physicsHz === 0` n'alloue aucun tampon d'historique avant le premier `track`. Ensuite, chaque frame enregistre l'historique juste après `update_transforms`, et les tampons existent dès la frame suivante : une ref renvoie false jusque-là. `alpha` reste `1`, `transforms2D` reste `null`, et `read` est égal à `worldRaw` dans `engine:render`. Un jeu qui ne suit aucune ref ne paie rien.
 
+### Transformations 3D
+
+Tout moteur core fournit `transform:3d`.
+
+```ts
+const transform = engine.inject('transform:3d')
+const out = { x: 0, y: 0, z: 0, qx: 0, qy: 0, qz: 0, qw: 1, scaleX: 1, scaleY: 1, scaleZ: 1 }
+const ref = transform.track(entityId)
+
+engine.hooks.hook('engine:render', () => {
+  if (!transform.read(ref, out)) return
+  draw(out.x, out.y, out.z)
+})
+```
+
+`read` n'alloue rien. Dans `engine:render`, il interpole la position et l'échelle à `engine.frame.alpha`, et le quaternion par une interpolation normalisée sur l'arc le plus court. Hors de `engine:render`, il renvoie la dernière pose enregistrée. Il renvoie false, et ne touche pas `out`, quand la ref est libérée, que son entité est détruite, que le slot n'a pas de nœud 3D, que l'historique n'est pas encore enregistré, ou que le moteur est arrêté.
+
+`useTransform3D()` écrit la pose locale de l'acteur courant et conserve un nœud 3D déjà présent. `teleport` marque l'échantillon suivant, donc le rendu qui suit saute. `world` est la pose interpolée pendant `engine:render` quand `physicsHz > 0` et que le slot a un nœud. Sinon c'est la pose monde brute, ou l'identité s'il n'y a pas de nœud. Un seul objet est partagé par chaque handle `useTransform3D()` du moteur. La prochaine lecture de `world` de n'importe quel acteur l'écrase. Copiez les champs que vous gardez.
+
+L'historique 3D est enregistré au premier `track`, dans les deux modes. `useTransform3D()` le demande aussi tant que `physicsHz > 0`, donc `world` peut interpoler sans ref suivie. À `physicsHz === 0`, les tampons apparaissent à la frame qui suit `track`, et `read` renvoie false jusque-là. Un jeu qui ne suit aucune ref, et qui n'appelle pas `useTransform3D()` tant que `physicsHz > 0`, n'alloue aucun tampon 3D. À `physicsHz === 0`, `read` renvoie la pose enregistrée au début de la frame, avant `engine:update`, donc il n'inclut pas les écritures `engine:update` de cette frame, alors que `useTransform3D().world` les inclut.
+
 Le callback `renderViews` d'un renderer surface reçoit toujours `1`. Cette page ne change pas cet appel.
 
 `engine.timeScale` ne multiplie que le `dt` du pas. Un `timeScale` de `0.5` divise par deux la vitesse de simulation et laisse `alpha` inchangé.

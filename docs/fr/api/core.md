@@ -887,6 +887,23 @@ const transform = useTransform();
 transform.x += 10;
 ```
 
+### useTransform3D()
+
+**Signature :**
+```ts
+function useTransform3D(): Transform3DHandle
+```
+
+**Description.** Pose 3D locale de l'acteur en cours de création. Appelez-la de façon synchrone dans `defineActor()`. Un nœud 3D déjà présent est conservé, donc la racine d'un corps physique survit. `setPosition`, `setRotation` et `setScale` écrivent la pose locale. `teleport` fixe la position et marque l'échantillon d'historique suivant, donc le rendu qui suit saute. Pendant `engine:render`, quand `physicsHz > 0` et que le slot a un nœud, `world` est la pose interpolée. Sinon c'est la pose monde brute, ou l'identité s'il n'y a pas de nœud. Un seul objet est partagé par chaque handle `useTransform3D()` du moteur. La prochaine lecture de `world` de n'importe quel acteur l'écrase. Copiez les champs que vous gardez. Hors d'un acteur, l'appel lève `CORE:OUTSIDE_ACTOR_CONTEXT`.
+
+**Retourne :** `Transform3DHandle`.
+
+**Exemple :**
+```ts
+const transform = useTransform3D();
+transform.setPosition(1, 2, 3);
+```
+
 ## Événements
 
 ### defineHooks(map)

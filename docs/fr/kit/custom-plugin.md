@@ -137,7 +137,7 @@ export const Gravity = definePlugin(
 const plugin = Gravity({ value: -20 })
 ```
 
-- Chaque clé de `provides` doit être une clé de `GwenProvides` et pas une clé du moteur (`logger`, `errors`, `wasm:bridge`, `memory`, `transform:2d`). Dans `setup`, `engine.provide` n'accepte que les clés déclarées, à la compilation. `provides` peut être une fonction des options résolues, `(opts) => [...]`.
+- Chaque clé de `provides` doit être une clé de `GwenProvides` et pas une clé du moteur (`logger`, `errors`, `wasm:bridge`, `memory`, `transform:2d`, `transform:3d`). Dans `setup`, `engine.provide` n'accepte que les clés déclarées, à la compilation. `provides` peut être une fonction des options résolues, `(opts) => [...]`.
 - `options.defaults` donne la forme résolue et chaque valeur par défaut. La factory reçoit un objet gelé : `defaults` fusionné sur un niveau avec l'argument de l'appelant. Une clé que l'appelant met à `undefined` garde sa valeur par défaut. Un objet imbriqué passé par l'appelant remplace l'objet imbriqué par défaut en entier. Les types refusent un `undefined` explicite, sauf si le type de l'option l'inclut.
 - `options.validate` est une fonction pure optionnelle qui retourne des `GwenConfigIssue[]`. La factory ne l'appelle jamais et ne lève jamais d'erreur pour des options invalides. Le plugin expose le résultat via `plugin.validateOptions()`, et `plugin.provides` contient les clés dédupliquées et gelées.
 - `provides`, `validateOptions` et `extensionApi` dans l'objet que la factory retourne sont des erreurs de type : `definePlugin` les écrit.
@@ -360,7 +360,7 @@ Les mêmes clés échouent à la compilation. `definePlugin` remplace chaque cl�
 
 ## Teardown
 
-`engine.unuse(name)` et `engine.stop()` appellent `teardown()`. `stop()` l'appelle après le hook `engine:stop`, dans l'ordre inverse d'installation. Un teardown doit être idempotent avec le travail déjà fait sur `engine:stop`. Les services fournis via l'argument `engine` de `setup()`, y compris après la résolution de `setup()`, sont retirés avant `teardown()`. `useEngine().provide(...)` n'est pas retiré. Remplacer une clé du moteur (`wasm:bridge`, `logger`, `errors`, `memory`, `transform:2d`) ne la fait pas retirer par `stop()` ou `unuse()`.
+`engine.unuse(name)` et `engine.stop()` appellent `teardown()`. `stop()` l'appelle après le hook `engine:stop`, dans l'ordre inverse d'installation. Un teardown doit être idempotent avec le travail déjà fait sur `engine:stop`. Les services fournis via l'argument `engine` de `setup()`, y compris après la résolution de `setup()`, sont retirés avant `teardown()`. `useEngine().provide(...)` n'est pas retiré. Remplacer une clé du moteur (`wasm:bridge`, `logger`, `errors`, `memory`, `transform:2d`, `transform:3d`) ne la fait pas retirer par `stop()` ou `unuse()`.
 
 ## Requirements
 
@@ -383,7 +383,7 @@ export const GamePlugin = definePlugin(() => ({
 }))
 ```
 
-Les `plugins` sont vérifiés d'abord, puis les `services`, chacun dans l'ordre écrit. Un service que le moteur fournit déjà (`wasm:bridge`, `logger`, `errors`, `memory`, `transform:2d`) compte comme installé. Un plugin dont `setup()` est encore en cours ne compte pas.
+Les `plugins` sont vérifiés d'abord, puis les `services`, chacun dans l'ordre écrit. Un service que le moteur fournit déjà (`wasm:bridge`, `logger`, `errors`, `memory`, `transform:2d`, `transform:3d`) compte comme installé. Un plugin dont `setup()` est encore en cours ne compte pas.
 
 Si un nom manque, `engine.use()` rejette `GwenPluginDependencyError` avec le code `CORE:PLUGIN_DEPENDENCY_MISSING` et n'appelle pas `setup()`. Appeler `use()` une seconde fois avec un nom déjà installé réussit. Dans un build de développement avec `debug: true`, un avertissement est aussi écrit.
 
@@ -402,7 +402,7 @@ logger.current?.warn("prêt");
 
 `watchService(key, onChange)` s'abonne pendant `setup()` et appelle `onChange` avec la valeur actuelle. Un remplacement appelle `onChange` avec la valeur encore stockée. Un retrait appelle `onChange(undefined)`. La fonction renvoyée arrête l'abonnement. Retirer le plugin l'arrête aussi.
 
-`service:provided` et `service:removed` portent `{ key, value, owner, reason }`. `reason` vaut `install`, `unuse`, `stop` ou `overwrite`. Lors d'un remplacement, `service:removed` nomme l'ancien propriétaire et `service:provided` nomme le plugin qui a stocké la nouvelle valeur. Les clés du moteur (`wasm:bridge`, `logger`, `errors`, `memory`, `transform:2d`) ne déclenchent pas ces hooks. Les `provide` du plugin pendant `setup()` sont annoncés après la résolution de `setup()` et avant `plugin:registered`, et seulement si toutes les clés déclarées sont présentes. Un `setup()` en échec, un `provide` non déclaré ou une clé déclarée manquante n'annonce rien. Un `provide` d'une clé déclarée après la résolution de `setup()` est annoncé tout de suite.
+`service:provided` et `service:removed` portent `{ key, value, owner, reason }`. `reason` vaut `install`, `unuse`, `stop` ou `overwrite`. Lors d'un remplacement, `service:removed` nomme l'ancien propriétaire et `service:provided` nomme le plugin qui a stocké la nouvelle valeur. Les clés du moteur (`wasm:bridge`, `logger`, `errors`, `memory`, `transform:2d`, `transform:3d`) ne déclenchent pas ces hooks. Les `provide` du plugin pendant `setup()` sont annoncés après la résolution de `setup()` et avant `plugin:registered`, et seulement si toutes les clés déclarées sont présentes. Un `setup()` en échec, un `provide` non déclaré ou une clé déclarée manquante n'annonce rien. Un `provide` d'une clé déclarée après la résolution de `setup()` est annoncé tout de suite.
 
 ## Fournir des services
 

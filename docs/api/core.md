@@ -305,7 +305,7 @@ export const HealthSystem = defineSystem(() => {
 
 Actor definition, instance lifecycle, and all actor composables.
 
-**Exports:** `defineActor`, `onStart`, `onDestroy`, `onRelease`, `onReset`, `onEnable`, `onDisable`, `definePrefab`, `useActor`, `usePrefab`, `useEntityId`, `useTransform`, `useChildren`, `defineLayout`, `useLayout`, `placeActor`, `placeGroup`, `placePrefab`, `defineActorPool`, `useActorPool`, `useActorQuery`, `watchActorLeaks`
+**Exports:** `defineActor`, `onStart`, `onDestroy`, `onRelease`, `onReset`, `onEnable`, `onDisable`, `definePrefab`, `useActor`, `usePrefab`, `useEntityId`, `useTransform`, `useTransform3D`, `useChildren`, `defineLayout`, `useLayout`, `placeActor`, `placeGroup`, `placePrefab`, `defineActorPool`, `useActorPool`, `useActorQuery`, `watchActorLeaks`
 
 The frame phases `onUpdate`, `onBeforeUpdate`, `onAfterUpdate` and `onRender` are exported by `@gwenjs/core/system` only. They are valid in actors and in systems.
 
@@ -835,6 +835,23 @@ function useTransform(): Transform
 ```ts
 const transform = useTransform();
 transform.x += 10;
+```
+
+#### useTransform3D()
+
+**Signature:**
+```ts
+function useTransform3D(): Transform3DHandle
+```
+
+**Description.** Local 3D pose of the actor being spawned. Call it synchronously inside `defineActor()`. An existing 3D node is kept, so a physics body root survives. `setPosition`, `setRotation`, and `setScale` write the local pose. `teleport` sets the position and marks the next history sample, so the following render snaps. During `engine:render`, when `physicsHz > 0` and the slot has a node, `world` is the interpolated pose. Otherwise it is the raw world pose, or the identity when the slot has no node. One object is shared by every `useTransform3D()` handle of the engine. The next `world` read of any actor overwrites it. Copy the fields you keep. Outside an actor it throws `CORE:OUTSIDE_ACTOR_CONTEXT`.
+
+**Returns:** `Transform3DHandle`.
+
+**Example:**
+```ts
+const transform = useTransform3D();
+transform.setPosition(1, 2, 3);
 ```
 
 ## `@gwenjs/core/scene`

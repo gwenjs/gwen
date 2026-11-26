@@ -1,4 +1,4 @@
-import type { TransformRef2D } from "@gwenjs/schema";
+import type { TransformRef2D, TransformRef3D } from "@gwenjs/schema";
 import { readInterpolatedTransform2D } from "../../src/engine/transform-pair";
 import { defineActor, useEntityId } from "../../src/actor/runtime/define-actor";
 import { definePrefab } from "../../src/actor/runtime/define-prefab";
@@ -332,6 +332,39 @@ export function createScenario(path: AllocPathName, options?: ScenarioOptions): 
           handle.engine.hooks.hook("engine:render", () => {
             for (let i = 0; i < refs.length; i += 1) {
               if (reader.read(refs[i]!, out)) sink = out.x;
+            }
+          });
+        },
+      };
+    case "render.reader3d":
+      return {
+        name: path,
+        physicsHz: 30,
+        async build(handle, entities) {
+          const wasm = handle.bridge.engine();
+          const reader = handle.engine.inject("transform:3d");
+          const refs: TransformRef3D[] = [];
+          for (let i = 0; i < entities; i += 1) {
+            const id = handle.engine.createEntity();
+            wasm.transform3d_add(entityIndex(id), i, 0, 0, 0, 0, 0, 1, 1, 1, 1);
+            refs.push(reader.track(id));
+          }
+          const out = {
+            x: 0,
+            y: 0,
+            z: 0,
+            qx: 0,
+            qy: 0,
+            qz: 0,
+            qw: 1,
+            scaleX: 1,
+            scaleY: 1,
+            scaleZ: 1,
+          };
+          handle.engine.hooks.hook("engine:render", () => {
+            for (let i = 0; i < refs.length; i += 1) {
+              const ref = refs[i];
+              if (ref !== undefined && reader.read(ref, out)) sink = out.x;
             }
           });
         },

@@ -2,7 +2,21 @@ import { clamp } from "@gwenjs/math";
 
 import type { EngineFramePhaseMs } from "./engine-types.js";
 import { installHistoryViews, type HistoryViews } from "./history-views.js";
+import { installHistoryViews3D, type HistoryViews3D } from "./history-views-3d.js";
 import type { TransformPair2D } from "./transform-pair.js";
+
+/** The bridge calls the frame loop actually makes. */
+export interface EngineLoopBridge {
+  checkMemoryGrow(): boolean;
+  getLinearMemory(): WebAssembly.Memory | null;
+  engine(): {
+    update_transforms?: () => void;
+    transform_history_commit?: () => number;
+    transform_history_ptr?: (buffer: number) => number;
+    transform3d_history_commit?: () => number;
+    transform3d_history_ptr?: (buffer: number) => number;
+  };
+}
 
 /**
  * Loop-owned frame. Field writes stay here.
@@ -26,11 +40,17 @@ export interface FixedStepState {
   armed: boolean;
   frame: MutableEngineFrame;
   history: HistoryViews | null;
+  history3d: HistoryViews3D | null;
   sumPhases: boolean;
   /** True from the first step to the end of the render pass of one display frame. */
   inDisplay: boolean;
   /** Set by the first `transform:2d` `track`. Starts the history commit at `physicsHz: 0`. */
   historyWanted: boolean;
+  /**
+   * Set by the first `transform:3d` `track`, and by `useTransform3D()` when `physicsHz > 0`.
+   * Starts the 3D history commit. With the flag clear, no 3D buffer is allocated.
+   */
+  history3dWanted: boolean;
 }
 
 /** Debug timestamps for one display frame. `t0` is the first step's start. */
@@ -52,9 +72,11 @@ export function createFixedStepState(): FixedStepState {
       transforms2D: null,
     },
     history: null,
+    history3d: null,
     sumPhases: false,
     inDisplay: false,
     historyWanted: false,
+    history3dWanted: false,
   };
 }
 
@@ -71,6 +93,7 @@ export function armFixedStepState(state: FixedStepState, deps: EngineLoopDeps): 
     if (!state.armed) {
       state.armed = true;
       seedHistory(state, deps, true);
+      if (state.history3dWanted) seedHistory3D(state, deps);
     }
     return;
   }
@@ -93,6 +116,9 @@ export async function runFixedDisplay(
   // A non-finite or negative dt adds nothing. The first rAF stamp can be
   // older than `markStart()`. The variable-loop path is unchanged.
   state.accumulator += Math.min(finiteElapsed(rawSeconds), deps.config.maxDeltaSeconds);
+  // A 0-step display never reaches `commitFrameHistory`. Seed here so the first render
+  // after `track` still reads the pose committed before that display's steps.
+  if (state.history3dWanted && state.history3d === null) seedHistory3D(state, deps);
   let steps = 0;
   state.sumPhases = true;
   state.inDisplay = true;
@@ -263,15 +289,81 @@ export function commitFrameHistory(
 ): void {
   if (!variable || state.history !== null) {
     commitFixedStepHistory(state, deps);
-    return;
+  } else if (state.historyWanted && deps.config.physicsHz === 0) {
+    seedHistory(state, deps, false);
   }
-  if (state.historyWanted && deps.config.physicsHz === 0) seedHistory(state, deps, false);
+  if (state.history3dWanted) commitHistory3D(state, deps);
 }
 
-/** Drop the four history views. Later reads throw `CORE:MEMORY_VIEW_INVALID`. */
+/** Drop the history views. Later reads throw `CORE:MEMORY_VIEW_INVALID`. */
 export function releaseHistoryViews(state: FixedStepState): void {
   const history = state.history;
+  const history3d = state.history3d;
   state.history = null;
+  state.history3d = null;
   state.frame.transforms2D = null;
   history?.dispose();
+  history3d?.dispose();
+}
+
+function commitHistory3DOnce(deps: EngineLoopDeps, report: boolean): number | undefined {
+  try {
+    const parity = deps.bridge.engine().transform3d_history_commit?.();
+    return typeof parity === "number" ? parity : undefined;
+  } catch (err) {
+    if (!report) return undefined;
+    const detail = err instanceof Error ? err.message : String(err);
+    const code = thrownCode(err);
+    deps.policy.reportCaught(
+      err,
+      "transform3d_history_commit",
+      code === undefined
+        ? { message: `transform3d_history_commit failed: ${detail}` }
+        : { message: `transform3d_history_commit failed: ${detail}`, code },
+    );
+    return undefined;
+  }
+}
+
+/**
+ * `update_transforms`, then two commits, then the four 3D history views.
+ * A second call does nothing once the views exist: the two commits would move the parity.
+ * Nothing is written on `frame`. The 2D views stay on their own path.
+ * A throw here is not reported. The fixed step reports that failure once.
+ */
+function seedHistory3D(state: FixedStepState, deps: EngineLoopDeps): void {
+  if (state.history3d !== null) return;
+  try {
+    deps.bridge.engine().update_transforms?.();
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    deps.policy.reportCaught(err, "update_transforms", {
+      message: `update_transforms failed: ${detail}`,
+    });
+  }
+  commitHistory3DOnce(deps, false);
+  const parity = commitHistory3DOnce(deps, false);
+  if (parity === undefined) return;
+  const wasm = deps.bridge.engine();
+  const readPtr = wasm.transform3d_history_ptr;
+  if (readPtr === undefined) return;
+  const installed = installHistoryViews3D(
+    deps.memory,
+    deps.owner.maxEntities,
+    (buffer) => readPtr.call(wasm, buffer),
+    parity,
+  );
+  if (installed === undefined) return;
+  state.history3d = installed;
+}
+
+/** First call seeds. Later calls commit once and publish the parity. */
+function commitHistory3D(state: FixedStepState, deps: EngineLoopDeps): void {
+  if (state.history3d === null) {
+    seedHistory3D(state, deps);
+    if (state.history3d === null) commitHistory3DOnce(deps, true);
+    return;
+  }
+  const parity = commitHistory3DOnce(deps, true);
+  if (parity !== undefined) state.history3d.setParity(parity);
 }

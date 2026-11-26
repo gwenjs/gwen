@@ -126,8 +126,15 @@ export type { AssetKind, AssetRef, AssetValue, AssetValueMap, AssetsService } fr
 
 // ─── Transform 2D ────────────────────────────────────────────────────────────
 
-export { TRANSFORM_2D_SERVICE } from "./transforms";
-export type { TransformReader2D, TransformRef2D, TransformSample2D } from "./transforms";
+export { TRANSFORM_2D_SERVICE, TRANSFORM_3D_SERVICE } from "./transforms";
+export type {
+  TransformReader2D,
+  TransformReader3D,
+  TransformRef2D,
+  TransformRef3D,
+  TransformSample2D,
+  TransformSample3D,
+} from "./transforms";
 
 // ─── Introspection ───────────────────────────────────────────────────────────
 

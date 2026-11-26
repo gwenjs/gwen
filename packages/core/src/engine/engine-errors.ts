@@ -577,13 +577,25 @@ export class GwenEngineStateError extends GwenError {
   }
 }
 
-/** Why the `transform:2d` reader rejected a call. */
+/** Why the `transform:2d` or `transform:3d` reader rejected a call. */
 export type TransformRefInvalidReason = "dead-entity" | "foreign-engine" | "engine-stopped";
 
-const TRANSFORM_REF_WHAT: Record<TransformRefInvalidReason, string> = {
-  "dead-entity": "TransformReader2D.track() needs a live entity",
-  "foreign-engine": "TransformReader2D.read() got a ref tracked on another engine",
-  "engine-stopped": "TransformReader2D.track() called after the engine stopped",
+/** Which reader threw. Not re-exported from the package root. */
+export type TransformReaderKind = "2D" | "3D";
+
+function transformReaderName(reader: TransformReaderKind): string {
+  return reader === "3D" ? "TransformReader3D" : "TransformReader2D";
+}
+
+const TRANSFORM_REF_WHAT: Record<
+  TransformRefInvalidReason,
+  (reader: TransformReaderKind) => string
+> = {
+  "dead-entity": (reader) => `${transformReaderName(reader)}.track() needs a live entity`,
+  "foreign-engine": (reader) =>
+    `${transformReaderName(reader)}.read() got a ref tracked on another engine`,
+  "engine-stopped": (reader) =>
+    `${transformReaderName(reader)}.track() called after the engine stopped`,
 };
 
 const TRANSFORM_REF_HINT: Record<TransformRefInvalidReason, string> = {
@@ -594,16 +606,18 @@ const TRANSFORM_REF_HINT: Record<TransformRefInvalidReason, string> = {
 };
 
 /**
- * The `transform:2d` reader rejected a call. `code` is `CORE:TRANSFORM_REF_INVALID`.
- * `reason` is `dead-entity` (`track` of an entity that is not alive), `foreign-engine`
- * (`read` of a ref tracked on another engine) or `engine-stopped` (`track` after `stop()`).
+ * The `transform:2d` or `transform:3d` reader rejected a call. `code` is
+ * `CORE:TRANSFORM_REF_INVALID`. `reason` is `dead-entity` (`track` of an entity that is not
+ * alive), `foreign-engine` (`read` of a ref tracked on another engine, or by the other reader)
+ * or `engine-stopped` (`track` after `stop()`). The second argument names the reader. It
+ * defaults to `"2D"`, so an existing one-argument call keeps the `TransformReader2D` message.
  */
 export class GwenTransformRefError extends GwenError {
   override readonly code: typeof CoreErrorCodes.TRANSFORM_REF_INVALID;
   readonly reason: TransformRefInvalidReason;
 
-  constructor(reason: TransformRefInvalidReason) {
-    super(CoreErrorCodes.TRANSFORM_REF_INVALID, TRANSFORM_REF_WHAT[reason], {
+  constructor(reason: TransformRefInvalidReason, reader: TransformReaderKind = "2D") {
+    super(CoreErrorCodes.TRANSFORM_REF_INVALID, TRANSFORM_REF_WHAT[reason](reader), {
       hint: __GWEN_DEV__ ? TRANSFORM_REF_HINT[reason] : undefined,
     });
     this.name = "GwenTransformRefError";
