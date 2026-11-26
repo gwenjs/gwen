@@ -1,0 +1,15 @@
+{
+  "name": "example-platformer-2d",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "example:test": "vitest run --config ../_harness/vitest.config.mjs",
+    "example:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/node": "^20",
+    "example-harness": "workspace:*",
+    "vitest": "^4.1.2"
+  }
+}

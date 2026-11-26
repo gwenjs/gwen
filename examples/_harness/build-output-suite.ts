@@ -13,6 +13,11 @@ interface BuildOutputOptions {
   example: string;
   /** Core wasm variant the example declares. */
   variant: Variant;
+  /**
+   * When `false`, the report case compares the written report with `dist/`
+   * and does not read `bundle-budget.json`. Default `true` keeps the budget gate.
+   */
+  gate?: boolean;
 }
 
 const repoRoot = path.resolve(import.meta.dirname, "../..");
@@ -93,10 +98,11 @@ function runTsc(example: string, flag: string): { status: number | null; stdout:
 
 /**
  * Proves the build output of one example: one core wasm of its variant, a usable
- * `index.html`, a clean build log, a report within `bundle-budget.json`, strict `tsc`
- * and `@gwenjs/*` resolved through `dist`.
+ * `index.html`, a clean build log, a size report, strict `tsc` and `@gwenjs/*`
+ * resolved through `dist`. The report case also checks `bundle-budget.json` unless
+ * `gate` is `false`.
  */
-export function describeBuildOutput({ example, variant }: BuildOutputOptions): void {
+export function describeBuildOutput({ example, variant, gate = true }: BuildOutputOptions): void {
   const exampleDir = path.join(repoRoot, "examples", example);
   const dist = path.join(exampleDir, "dist");
   const coreWasm = path.join(repoRoot, "packages/core/wasm", variant, "gwen_core_bg.wasm");
@@ -123,26 +129,32 @@ export function describeBuildOutput({ example, variant }: BuildOutputOptions): v
       expect(log).not.toMatch(/\[gwen-vite\]|\b(?:VITE|CORE):[A-Z_]+/);
     });
 
-    it("the report lists the dist wasm files and gzip sizes within bundle-budget.json", async () => {
-      const report: unknown = JSON.parse(readText(path.join(dist, "gwen-example-report.json")));
-      const files = walk(dist);
-      const wasmFiles = files.filter((file) => file.endsWith(".wasm"));
-      const jsFiles = files.filter((file) => file.endsWith(".js"));
-      const gzipSum = (list: string[]): number =>
-        list.reduce((sum, file) => sum + gzipBytes(path.join(dist, file)), 0);
+    it(
+      gate
+        ? "the report lists the dist wasm files and gzip sizes within bundle-budget.json"
+        : "the report lists the dist wasm files and gzip sizes",
+      async () => {
+        const report: unknown = JSON.parse(readText(path.join(dist, "gwen-example-report.json")));
+        const files = walk(dist);
+        const wasmFiles = files.filter((file) => file.endsWith(".wasm"));
+        const jsFiles = files.filter((file) => file.endsWith(".js"));
+        const gzipSum = (list: string[]): number =>
+          list.reduce((sum, file) => sum + gzipBytes(path.join(dist, file)), 0);
 
-      expect(stringField(report, "variant")).toBe(variant);
-      expect([...stringListField(report, "wasmFiles")].sort()).toEqual(wasmFiles);
-      const jsGzip = numberField(report, "jsGzipBytes");
-      const wasmGzip = numberField(report, "wasmGzipBytes");
-      expect(jsGzip).toBe(gzipSum(jsFiles));
-      expect(wasmGzip).toBe(gzipSum(wasmFiles));
+        expect(stringField(report, "variant")).toBe(variant);
+        expect([...stringListField(report, "wasmFiles")].sort()).toEqual(wasmFiles);
+        const jsGzip = numberField(report, "jsGzipBytes");
+        const wasmGzip = numberField(report, "wasmGzipBytes");
+        expect(jsGzip).toBe(gzipSum(jsFiles));
+        expect(wasmGzip).toBe(gzipSum(wasmFiles));
+        if (!gate) return;
 
-      const budget: unknown = field(JSON.parse(readText(budgetFile)), variant);
-      const allowedBudget = await loadAllowedBudget();
-      expect(jsGzip).toBeLessThanOrEqual(allowedBudget(numberField(budget, "jsGzipBytes")));
-      expect(wasmGzip).toBeLessThanOrEqual(allowedBudget(numberField(budget, "wasmGzipBytes")));
-    });
+        const budget: unknown = field(JSON.parse(readText(budgetFile)), variant);
+        const allowedBudget = await loadAllowedBudget();
+        expect(jsGzip).toBeLessThanOrEqual(allowedBudget(numberField(budget, "jsGzipBytes")));
+        expect(wasmGzip).toBeLessThanOrEqual(allowedBudget(numberField(budget, "wasmGzipBytes")));
+      },
+    );
 
     it("strict tsc passes", () => {
       expect(runTsc(example, "--noEmit")).toEqual({ status: 0, stdout: "" });
