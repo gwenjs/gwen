@@ -612,3 +612,244 @@ describe("runCameraProviderConformance", () => {
     expect(engineA.inject("cameraManager").get("main")?.worldTransform.position.x).toBe(7);
   });
 });
+
+interface SurfaceRecord {
+  mounts: number;
+  unmounts: number;
+  resizes: Array<[number, number, number]>;
+  renders: number[];
+  canvases: HTMLCanvasElement[];
+}
+
+interface SurfaceKnobs {
+  /** The second `mount()` appends the canvas of the first one again. */
+  reuseCanvas?: boolean;
+  /** The second `mount()` throws. */
+  failSecondMount?: boolean;
+  /** `unmount()` throws when nothing is mounted. */
+  strictUnmount?: boolean;
+  /** `renderViews` appends the last canvas to `document.body`. */
+  reattachOnRender?: boolean;
+  /** `renderViews` throws this value. */
+  throwOnRender?: unknown;
+  /** `resize` writes the canvas at dpr 1. */
+  ignoreDpr?: boolean;
+  /** The unmount after the second `mount()` leaves that canvas in the container. */
+  keepSecondCanvas?: boolean;
+  /** The second `mount()` appends the first canvas again, after the new one. */
+  reappendFirst?: boolean;
+}
+
+function surfaceRecord(): SurfaceRecord {
+  return { mounts: 0, unmounts: 0, resizes: [], renders: [], canvases: [] };
+}
+
+function recordingSurface(rec: SurfaceRecord, knobs: SurfaceKnobs = {}): SurfaceRendererService {
+  let current: HTMLCanvasElement | null = null;
+  return {
+    name: "renderer:reentrant",
+    contractVersion: RENDERER_CONTRACT_VERSION,
+    kind: "surface",
+    layers: { scene: { order: 0, coordinate: "world" } },
+    mount(container) {
+      rec.mounts += 1;
+      if (knobs.failSecondMount === true && rec.mounts === 2) throw new Error("already mounted");
+      const first = rec.canvases[0];
+      current =
+        knobs.reuseCanvas === true && first !== undefined
+          ? first
+          : container.ownerDocument.createElement("canvas");
+      rec.canvases.push(current);
+      container.appendChild(current);
+      if (
+        knobs.reappendFirst === true &&
+        rec.mounts === 2 &&
+        first !== undefined &&
+        first !== current
+      ) {
+        container.appendChild(first);
+      }
+    },
+    unmount() {
+      rec.unmounts += 1;
+      if (knobs.strictUnmount === true && current === null) throw new Error("not mounted");
+      if (knobs.keepSecondCanvas === true && rec.mounts === 2 && current !== null) {
+        current = null;
+        return;
+      }
+      current?.remove();
+      current = null;
+    },
+    resize(width, height, dpr) {
+      rec.resizes.push([width, height, dpr]);
+      if (current === null) return;
+      const ratio = knobs.ignoreDpr === true ? 1 : dpr;
+      current.width = Math.round(width * ratio);
+      current.height = Math.round(height * ratio);
+    },
+    getLayerElement() {
+      if (current === null) throw new Error("canvas is created in mount()");
+      return current;
+    },
+    renderViews(views) {
+      rec.renders.push(views.length);
+      if (knobs.throwOnRender !== undefined) throw knobs.throwOnRender;
+      const last = rec.canvases[rec.canvases.length - 1];
+      if (knobs.reattachOnRender === true && last !== undefined) document.body.appendChild(last);
+    },
+  };
+}
+
+/**
+ * One object is the second argument. The base reads it as an engine whose
+ * screen service holds dpr 1. The new signature reads `dpr` off the same object.
+ */
+function surfaceSuite(): (
+  service: SurfaceRendererService,
+  options?: { readonly dpr?: number },
+) => void {
+  return (service, options) => {
+    const engine = makeEngine();
+    declareManagers(engine);
+    engine.inject("viewportManager").set("main", { x: 0, y: 0, width: 1, height: 1 });
+    engine.inject("screenService").setContainerSize(800, 600, 1);
+    const second = Object.assign(engine, options ?? {});
+    Reflect.apply(runSurfaceConformance, undefined, [service, second]);
+  };
+}
+
+describe("runSurfaceConformance re-entry, options and error text", () => {
+  afterEach(() => {
+    for (const canvas of document.querySelectorAll("canvas")) canvas.remove();
+  });
+
+  it("fails a surface that cannot mount again after unmount", () => {
+    const rec = surfaceRecord();
+    const run = surfaceSuite();
+    const error = thrownBy(() => run(recordingSurface(rec, { failSecondMount: true })));
+    expect(error.code).toBe("RENDERER:CONFORMANCE_FAILED");
+    expect(error.composable).toBe("runSurfaceConformance");
+    expect(error.message).toContain("mount");
+    expect(error.message).toContain("again");
+    expect(error.cause).toBeInstanceOf(Error);
+  });
+
+  it("fails a surface whose second mount returns the canvas of the first one", () => {
+    const run = surfaceSuite();
+    const error = thrownBy(() => run(recordingSurface(surfaceRecord(), { reuseCanvas: true })));
+    expect(error.code).toBe("RENDERER:CONFORMANCE_FAILED");
+    expect(error.message).toContain("new canvas");
+  });
+
+  it("passes a surface that builds a new canvas on every mount and mounts it twice", () => {
+    const rec = surfaceRecord();
+    const run = surfaceSuite();
+    expect(() => run(recordingSurface(rec))).not.toThrow();
+    expect(rec.mounts).toBe(2);
+    expect(rec.canvases).toHaveLength(2);
+    expect(rec.canvases[0]).not.toBe(rec.canvases[1]);
+    expect(rec.canvases.some((canvas) => canvas.isConnected)).toBe(false);
+  });
+
+  it("fails a surface whose unmount throws when it is called a second time", () => {
+    const rec = surfaceRecord();
+    const run = surfaceSuite();
+    const error = thrownBy(() => run(recordingSurface(rec, { strictUnmount: true })));
+    expect(error.code).toBe("RENDERER:CONFORMANCE_FAILED");
+    expect(error.message).toContain("unmount");
+    expect(error.message).toContain("twice");
+  });
+
+  it("fails a surface whose renderViews after unmount connects a canvas", () => {
+    const run = surfaceSuite();
+    const error = thrownBy(() =>
+      run(recordingSurface(surfaceRecord(), { reattachOnRender: true })),
+    );
+    expect(error.code).toBe("RENDERER:CONFORMANCE_FAILED");
+    expect(error.message).toContain("renderViews");
+    expect(error.message).toContain("canvas");
+  });
+
+  it("names a thrown value that is not an Error without a bracket", () => {
+    const run = surfaceSuite();
+    const error = thrownBy(() =>
+      run(recordingSurface(surfaceRecord(), { throwOnRender: { reason: "no gpu" } })),
+    );
+    expect(error.code).toBe("RENDERER:CONFORMANCE_FAILED");
+    expect(error.message).toContain("0 views");
+    expect(error.message.slice("[runSurfaceConformance()] ".length)).not.toContain("[");
+  });
+
+  it("names an Error whose message holds a bracket without one", () => {
+    const run = surfaceSuite();
+    const error = thrownBy(() =>
+      run(recordingSurface(surfaceRecord(), { throwOnRender: new Error("[gpu] lost") })),
+    );
+    expect(error.code).toBe("RENDERER:CONFORMANCE_FAILED");
+    expect(error.message).toContain("0 views");
+    expect(error.message).toContain("(gpu) lost");
+    expect(error.message.slice("[runSurfaceConformance()] ".length)).not.toContain("[");
+  });
+
+  it("unmounts a surface that ignores dpr after resize fails", () => {
+    const rec = surfaceRecord();
+    const run = surfaceSuite();
+    const error = thrownBy(() => run(recordingSurface(rec, { ignoreDpr: true }), { dpr: 3 }));
+    expect(error.code).toBe("RENDERER:CONFORMANCE_FAILED");
+    expect(rec.unmounts).toBe(1);
+  });
+
+  it("fails a surface whose second unmount leaves its canvas attached", () => {
+    const run = surfaceSuite();
+    const error = thrownBy(() =>
+      run(recordingSurface(surfaceRecord(), { keepSecondCanvas: true })),
+    );
+    expect(error.code).toBe("RENDERER:CONFORMANCE_FAILED");
+    expect(error.message).toContain("second unmount");
+  });
+
+  it("fails a surface whose second mount reconnects the first canvas", () => {
+    const run = surfaceSuite();
+    const error = thrownBy(() => run(recordingSurface(surfaceRecord(), { reappendFirst: true })));
+    expect(error.code).toBe("RENDERER:CONFORMANCE_FAILED");
+    expect(error.message).toContain("first canvas");
+    expect(error.message).toContain("second mount");
+  });
+
+  it("sizes the canvas with the dpr of options", () => {
+    const rec = surfaceRecord();
+    const run = surfaceSuite();
+    run(recordingSurface(rec), { dpr: 3 });
+    expect(rec.resizes).toEqual([
+      [320, 180, 3],
+      [320, 180, 3],
+    ]);
+  });
+
+  it("uses a dpr of 2 when options holds none", () => {
+    const rec = surfaceRecord();
+    const run = surfaceSuite();
+    run(recordingSurface(rec));
+    expect(rec.resizes.map((entry) => entry[2])).toEqual([2, 2]);
+  });
+
+  it("rejects a dpr that is not a positive finite number", () => {
+    const run = surfaceSuite();
+    const messages: string[] = [];
+    for (const dpr of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      const rec = surfaceRecord();
+      const error = thrownBy(() => run(recordingSurface(rec), { dpr }));
+      expect(error.code).toBe("RENDERER:CONFORMANCE_FAILED");
+      expect(rec.mounts).toBe(0);
+      messages.push(error.message);
+    }
+    expect(messages.every((message) => message.includes("dpr"))).toBe(true);
+  });
+
+  it("needs no engine and no screenService", () => {
+    const rec = surfaceRecord();
+    const suite = runSurfaceConformance;
+    expect(() => Reflect.apply(suite, undefined, [recordingSurface(rec)])).not.toThrow();
+    expect(rec.mounts).toBe(2);
+  });
+});
