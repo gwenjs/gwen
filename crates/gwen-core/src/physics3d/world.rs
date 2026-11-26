@@ -307,6 +307,8 @@ pub struct PhysicsWorld3D {
     max_linear_velocity: f32,
     /// Interleaved `[slot, reason]` pairs recorded by [`Self::guard_dynamic_bodies`].
     disabled_slots: Vec<u32>,
+    /// Dynamic poses filled by [`Self::take_filled_dynamic_poses`] and restored after the step.
+    dynamic_pose_scratch: Vec<(u32, [f32; 7])>,
 }
 
 // ─── Shape type constants for the compound batch buffer ─────────────────────
@@ -713,6 +715,7 @@ impl PhysicsWorld3D {
             path_buffer: Box::new([0.0; MAX_PATH_NODES_3D * 3]),
             max_linear_velocity: DEFAULT_MAX_LINEAR_VELOCITY,
             disabled_slots: Vec::with_capacity(DISABLED_SLOT_CAPACITY),
+            dynamic_pose_scratch: Vec::new(),
         };
         // Apply the default quality preset so solver parameters are consistent.
         world.apply_quality_config(solver_config(QualityPreset::Medium));
@@ -1012,6 +1015,52 @@ impl PhysicsWorld3D {
                 );
             }
         }
+    }
+
+    /// Fills `out` with dynamic-body poses `(entity index, translation xyz, quaternion xyzw)`.
+    ///
+    /// Clears `out` and appends into its existing capacity. A missing Rapier
+    /// body is skipped. Fixed and kinematic bodies are not included.
+    pub fn write_dynamic_poses(&self, out: &mut Vec<(u32, [f32; 7])>) {
+        out.clear();
+        for (&index, &handle) in &self.entity_handles {
+            let Some(body) = self.rigid_body_set.get(handle) else {
+                continue;
+            };
+            if !body.is_dynamic() {
+                continue;
+            }
+            let iso = body.position();
+            let translation = iso.translation;
+            let rotation = iso.rotation;
+            out.push((
+                index,
+                [
+                    translation.x,
+                    translation.y,
+                    translation.z,
+                    rotation.x,
+                    rotation.y,
+                    rotation.z,
+                    rotation.w,
+                ],
+            ));
+        }
+    }
+
+    /// Takes the pose scratch, fills it, and returns it.
+    ///
+    /// The caller writes the poses, then [`Self::restore_dynamic_pose_scratch`]
+    /// puts the same allocation back.
+    pub fn take_filled_dynamic_poses(&mut self) -> Vec<(u32, [f32; 7])> {
+        let mut poses = std::mem::take(&mut self.dynamic_pose_scratch);
+        self.write_dynamic_poses(&mut poses);
+        poses
+    }
+
+    /// Puts a pose list back so the next step can reuse its capacity.
+    pub fn restore_dynamic_pose_scratch(&mut self, poses: Vec<(u32, [f32; 7])>) {
+        self.dynamic_pose_scratch = poses;
     }
 
     /// Append `[slot, 0]` for each body Rapier quarantined during the last step.
