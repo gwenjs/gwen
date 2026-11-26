@@ -8,5 +8,5 @@
     "sourceMap": false,
     "types": ["node"]
   },
-  "include": ["gwen.config.ts", "playwright.config.ts", "src", "e2e", ".gwen/types"]
+  "include": ["gwen.config.ts", "playwright.config.ts", "src", "e2e", "tests", ".gwen/types"]
 }
