@@ -110,6 +110,27 @@ const ENGINE: Record<string, ExportRow> = {
   translate_entity: infallible(
     "a missing transform is None and the call returns at bindings.rs:780-785; the f32 add does not trap",
   ),
+  transform3d_add: infallible(
+    "get_entity_generation then add_transform at bindings.rs:1172-1180; an existing node returns false at transform3d.rs:306-308",
+  ),
+  transform3d_history_commit: result(),
+  transform3d_history_ptr: infallible(
+    "buffer greater than 1 or an empty buffer returns 0 at bindings.rs:1299-1310; a stored buffer returns as_ptr cast to usize at bindings.rs:1311",
+  ),
+  transform3d_mark_teleport: infallible(
+    "get_entity_generation then mark_pending_snap at bindings.rs:1237-1238; a missing node is a no-op at transform3d.rs:407-410",
+  ),
+  transform3d_read_world: result(),
+  transform3d_set_parent: result(),
+  transform3d_set_position: infallible(
+    "a missing node skips the write at bindings.rs:1187-1188; set_position stores the Vec3 at transform3d.rs:201-203",
+  ),
+  transform3d_set_rotation: infallible(
+    "a missing node skips the write at bindings.rs:1198-1199; set_rotation normalises at transform3d.rs:207-210",
+  ),
+  transform3d_set_scale: infallible(
+    "a missing node skips the write at bindings.rs:1207-1208; set_scale stores the Vec3 at transform3d.rs:214-216",
+  ),
   transform_history_commit: result(),
   transform_history_ptr: infallible(
     "buffer greater than 1 or an empty buffer returns 0 at bindings.rs:1038-1048; a stored buffer returns as_ptr cast to usize at bindings.rs:1050",
@@ -241,6 +262,9 @@ describe("WASM export inventory", () => {
       "set_entity_dormant",
       "set_entity_parent",
       "sync_transforms_to_buffer",
+      "transform3d_history_commit",
+      "transform3d_read_world",
+      "transform3d_set_parent",
       "transform_history_commit",
       "write_component_staged",
     ]);
