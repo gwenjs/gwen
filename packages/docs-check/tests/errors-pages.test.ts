@@ -41,6 +41,7 @@ describe("errors pages", () => {
     (rel) => {
       const page = text(rel);
       for (const [code, anchor] of [
+        ["APP:PLUGIN_REQUIREMENT_MISSING", "app-plugin-requirement-missing"],
         ["APP:PLUGIN_REQUIREMENT_ORDER", "app-plugin-requirement-order"],
         ["APP:SERVICE_PROVIDER_MISSING", "app-service-provider-missing"],
       ] as const) {

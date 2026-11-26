@@ -41,6 +41,7 @@ describe("built-in scene and tween modules", () => {
       {
         src: "@gwenjs/core/internal",
         export: "SceneEnginePlugin",
+        name: "gwen:scene",
         provides: ["scene:hook-registry"],
       },
     ]);
@@ -48,19 +49,20 @@ describe("built-in scene and tween modules", () => {
       {
         src: "@gwenjs/core/internal",
         export: "TweenPlugin",
+        name: "gwen:tween",
         options: { poolSize: 256 },
         provides: ["tween:manager"],
       },
     ]);
   });
 
-  it("the declared provides equal the provides of the plugin instances", async () => {
+  it("the declared name and provides equal those of the plugin instances", async () => {
     const mod = await import("../../src/internal.js");
     expect(await recorded((kit) => sceneModule.setup({}, kit))).toMatchObject([
-      { provides: mod.SceneEnginePlugin().provides },
+      { name: mod.SceneEnginePlugin().name, provides: mod.SceneEnginePlugin().provides },
     ]);
     expect(await recorded((kit) => tweenModule.setup({ poolSize: 256 }, kit))).toMatchObject([
-      { provides: mod.TweenPlugin().provides },
+      { name: mod.TweenPlugin().name, provides: mod.TweenPlugin().provides },
     ]);
   });
 

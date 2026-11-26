@@ -1048,6 +1048,47 @@ describe("resolved config is the build source", () => {
     });
   });
 
+  it("config() rejects an extension module listed before its base and installs them in order otherwise", async () => {
+    const writeFx = (root: string, modules: string): void => {
+      writeModule(
+        root,
+        "base-mod",
+        `export default { meta: { name: "base-mod" }, setup(_options, gwen) { gwen.addPlugin({ src: "base-pkg", export: "BasePlugin", name: "fx-base" }); } };\n`,
+      );
+      writeModule(
+        root,
+        "ext-mod",
+        `export default { meta: { name: "ext-mod" }, setup(_options, gwen) { gwen.addPlugin({ src: "ext-pkg", export: "ExtPlugin", name: "fx-ext", requires: { plugins: [{ name: "fx-base", extensionApi: { major: 1, minor: 0 } }] } }); } };\n`,
+      );
+      writeConfig(root, `export default { modules: [${modules}] };\n`);
+    };
+    await withRoot(async (root) => {
+      writeFx(root, `"ext-mod", "base-mod"`);
+      const caught: unknown = await configHook(pluginNamed("gwen"))({ root }, serveEnv).then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+      expect(caught).toMatchObject({ code: "APP:PLUGIN_REQUIREMENT_ORDER" });
+      expect(caught instanceof Error ? caught.message : "").toContain(
+        'Module "ext-mod" requires "fx-base", which module "base-mod" declares later.',
+      );
+    });
+    await withRoot(async (root) => {
+      writeFx(root, `"base-mod", "ext-mod"`);
+      const plugin = pluginNamed("gwen");
+      await configHook(plugin)({ root }, serveEnv);
+      const code = await loadHook(plugin)(RESOLVED_ENTRY_ID);
+      const installs = [...(code ?? "").matchAll(/await engine\.use\((_gwenPlugin\d+)\(/g)];
+      expect(installs.map((match) => match[1])).toEqual([
+        "_gwenPlugin0",
+        "_gwenPlugin1",
+        "_gwenPlugin2",
+        "_gwenPlugin3",
+      ]);
+      expect(code).toContain('import { ExtPlugin as _gwenPlugin3 } from "ext-pkg";');
+    });
+  });
+
   it("config() rejects with the provider-absent code for a module whose requires.services is provided by nothing", async () => {
     await withRoot(async (root) => {
       writeModule(
