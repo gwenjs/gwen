@@ -42,6 +42,15 @@ const MIXER_USER = {
   requires: { services: ["audio:mixer"] },
 };
 
+const FX_BASE = { src: "@test/fx-base", export: "FxBasePlugin", name: "fx-base" };
+const FX_EXT = {
+  src: "@test/fx-ext",
+  export: "FxExtPlugin",
+  name: "fx-ext",
+  requires: { plugins: [{ name: "fx-base", extensionApi: { major: 1, minor: 0 } }] },
+};
+const FX_EXT_STRING = { ...FX_EXT, requires: { plugins: ["fx-base"] } };
+
 function moduleOf(name: string, declarations: readonly unknown[]): GwenModule {
   return defineGwenModule({
     meta: { name },
@@ -252,12 +261,16 @@ describe("framework providers", () => {
     const odd = {
       src: "@test/odd",
       export: "OddPlugin",
-      requires: { plugins: ["constructor"], services: ["toString"] },
+      requires: { services: ["toString"] },
     };
     const { caught } = await run([moduleOf("@test/odd", [odd])]);
     const error = gwenError(caught);
     expect(error.code).toBe("APP:SERVICE_PROVIDER_MISSING");
     expect(error.message).toContain('requires service "toString"');
+    const oddPlugin = { ...odd, requires: { plugins: ["constructor"] } };
+    const pluginError = gwenError((await run([moduleOf("@test/odd", [oddPlugin])])).caught);
+    expect(pluginError.code).toBe("APP:PLUGIN_REQUIREMENT_MISSING");
+    expect(pluginError.message).toContain('requires plugin "constructor"');
   });
 
   it("a services row inserts its provider right before the consumer", async () => {
@@ -283,16 +296,6 @@ describe("framework providers", () => {
     expect(error.message).toContain(
       'Module "@test/mixer-user" requires "audio:mixer", which module "@test/mixer" declares later.',
     );
-  });
-
-  it("a plugin name with no row and no installed plugin is left to the runtime check", async () => {
-    const unknown = {
-      src: "@test/needs-ghost",
-      export: "NeedsGhostPlugin",
-      requires: { plugins: ["ghost"] },
-    };
-    const list = await userDeclarations([moduleOf("@test/needs-ghost", [unknown])]);
-    expect(list).toEqual([unknown]);
   });
 
   it("a config plugin named camera-core satisfies the requirement", async () => {
@@ -352,5 +355,152 @@ describe("framework providers", () => {
     expect(missing.hint).toBe(__GWEN_DEV__ ? missingHint : undefined);
     if (__GWEN_DEV__) expect(missing.message).toContain(`\nFix: ${missingHint}`);
     else expect(missing.message).not.toContain("Fix:");
+  });
+});
+
+describe("plugin requirements of declarations", () => {
+  const baseModule = () => moduleOf("@test/fx-base", [FX_BASE]);
+  const extModule = (declaration: unknown = FX_EXT) => moduleOf("@test/fx-ext", [declaration]);
+  const configPlugin = (name: string): GwenPlugin =>
+    definePlugin({ provides: [] }, () => ({ name, setup() {} }))();
+
+  it("an extension declared before its base rejects APP:PLUGIN_REQUIREMENT_ORDER naming both modules", async () => {
+    const { caught } = await run([extModule(), baseModule()]);
+    const error = gwenError(caught);
+    expect(error.code).toBe("APP:PLUGIN_REQUIREMENT_ORDER");
+    expect(error.message).toContain(
+      'Module "@test/fx-ext" requires "fx-base", which module "@test/fx-base" declares later.',
+    );
+  });
+
+  it("a string entry before its base rejects APP:PLUGIN_REQUIREMENT_ORDER like an object entry", async () => {
+    const { caught } = await run([extModule(FX_EXT_STRING), baseModule()]);
+    const error = gwenError(caught);
+    expect(error.code).toBe("APP:PLUGIN_REQUIREMENT_ORDER");
+    expect(error.message).toContain(
+      'Module "@test/fx-ext" requires "fx-base", which module "@test/fx-base" declares later.',
+    );
+  });
+
+  it("an extension without its base rejects APP:PLUGIN_REQUIREMENT_MISSING", async () => {
+    const { caught } = await run([extModule()]);
+    const error = gwenError(caught);
+    expect(error.code).toBe("APP:PLUGIN_REQUIREMENT_MISSING");
+    expect(error.message).toContain(
+      'Module "@test/fx-ext" requires plugin "fx-base", which no module or config plugin installs.',
+    );
+  });
+
+  it("a named declaration declared earlier satisfies a string and an object entry; another name does not", async () => {
+    const renamed = { ...FX_EXT_STRING, src: "@test/fx-ext-string", name: "fx-ext-string" };
+    const list = await userDeclarations([
+      baseModule(),
+      extModule(),
+      moduleOf("@test/fx-ext-string", [renamed]),
+    ]);
+    expect(list).toEqual([FX_BASE, FX_EXT, renamed]);
+    const other = { ...FX_BASE, name: "fx-other" };
+    const { caught } = await run([moduleOf("@test/fx-base", [other]), extModule()]);
+    expect(gwenError(caught).code).toBe("APP:PLUGIN_REQUIREMENT_MISSING");
+  });
+
+  it("a declaration without name satisfies nothing", async () => {
+    const unnamed = { src: FX_BASE.src, export: FX_BASE.export };
+    const { caught } = await run([moduleOf("@test/fx-base", [unnamed]), extModule()]);
+    const error = gwenError(caught);
+    expect(error.code).toBe("APP:PLUGIN_REQUIREMENT_MISSING");
+    expect(error.message).toContain('requires plugin "fx-base"');
+  });
+
+  it("a config plugin with the base name satisfies it; one with another name does not", async () => {
+    const list = await userDeclarations([extModule()], [configPlugin("fx-base")]);
+    expect(list).toEqual([FX_EXT]);
+    const { caught } = await run([extModule()], [configPlugin("fx-other")]);
+    expect(gwenError(caught).code).toBe("APP:PLUGIN_REQUIREMENT_MISSING");
+  });
+
+  it("a built-in plugin name is satisfied by the scene and tween declarations", async () => {
+    const builtIns = {
+      src: "@test/needs-built-ins",
+      export: "NeedsBuiltInsPlugin",
+      requires: { plugins: ["gwen:scene", "gwen:tween", "gwen:viewports", "gwen:screen"] },
+    };
+    const { app, caught } = await run([moduleOf("@test/needs-built-ins", [builtIns])]);
+    expect(caught).toBeUndefined();
+    expect(
+      app.pluginDeclarations.map((entry) => ("name" in entry ? entry.name : undefined)),
+    ).toEqual(["gwen:scene", "gwen:tween", undefined]);
+  });
+
+  it("a declaration named like a framework row replaces the insertion", async () => {
+    const own = {
+      src: "@test/own-camera-core",
+      export: "OwnCameraCorePlugin",
+      name: "camera-core",
+    };
+    const list = await userDeclarations([
+      moduleOf("@test/own-camera-core", [own]),
+      moduleOf("@gwenjs/camera2d", [CAMERA_2D]),
+    ]);
+    expect(list).toEqual([own, CAMERA_2D]);
+  });
+
+  it("a declaration named like a framework row declared later rejects APP:PLUGIN_REQUIREMENT_ORDER", async () => {
+    const own = {
+      src: "@test/own-camera-core",
+      export: "OwnCameraCorePlugin",
+      name: "camera-core",
+    };
+    const { caught } = await run([
+      moduleOf("@gwenjs/camera2d", [CAMERA_2D]),
+      moduleOf("@test/own-camera-core", [own]),
+    ]);
+    const error = gwenError(caught);
+    expect(error.code).toBe("APP:PLUGIN_REQUIREMENT_ORDER");
+    expect(error.message).toContain('which module "@test/own-camera-core" declares later.');
+  });
+
+  it("two extensions without their base report the first one", async () => {
+    const second = { ...FX_EXT, src: "@test/fx-ext-2", name: "fx-ext-2" };
+    const { caught } = await run([extModule(), moduleOf("@test/fx-ext-2", [second])]);
+    const error = gwenError(caught);
+    expect(error.code).toBe("APP:PLUGIN_REQUIREMENT_MISSING");
+    expect(error.message).toContain('Module "@test/fx-ext"');
+    expect(error.message).not.toContain('Module "@test/fx-ext-2"');
+  });
+
+  it("a malformed name or extension entry rejects APP:PLUGIN_NOT_DECLARATIVE", async () => {
+    const entry = (extensionApi: unknown) => ({
+      ...FX_EXT,
+      requires: { plugins: [{ name: "fx-base", extensionApi }] },
+    });
+    for (const bad of [
+      { ...FX_BASE, name: 1 },
+      { ...FX_BASE, name: "" },
+      { ...FX_EXT, requires: { plugins: [{ name: "fx-base" }] } },
+      entry({ major: 0, minor: 0 }),
+      entry({ major: 1, minor: -1 }),
+      entry({ major: 1.5, minor: 0 }),
+      entry({ major: 1, minor: 0.5 }),
+    ]) {
+      const { caught } = await run([moduleOf("@test/bad", [bad])]);
+      const error = gwenError(caught);
+      expect(error.code).toBe("APP:MODULE_SETUP_FAILED");
+      expect(error.cause).toMatchObject({ code: "APP:PLUGIN_NOT_DECLARATIVE" });
+    }
+  });
+
+  it("the two hints are Fix lines in dev and absent in prod", async () => {
+    const order = gwenError((await run([extModule(), baseModule()])).caught);
+    const orderHint = 'Move "@test/fx-base" before "@test/fx-ext" in modules.';
+    expect(order.hint).toBe(__GWEN_DEV__ ? orderHint : undefined);
+    if (__GWEN_DEV__) expect(order.message).toContain(`\nFix: ${orderHint}`);
+    else expect(order.message).not.toContain("Fix:");
+
+    const absent = gwenError((await run([extModule()])).caught);
+    const absentHint = 'Add the module of "fx-base" before "@test/fx-ext" in modules.';
+    expect(absent.hint).toBe(__GWEN_DEV__ ? absentHint : undefined);
+    if (__GWEN_DEV__) expect(absent.message).toContain(`\nFix: ${absentHint}`);
+    else expect(absent.message).not.toContain("Fix:");
   });
 });

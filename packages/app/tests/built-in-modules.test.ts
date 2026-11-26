@@ -25,6 +25,7 @@ describe("GwenApp.setupModules — built-in modules", () => {
     expect(app.pluginDeclarations).toContainEqual({
       src: "@gwenjs/core/internal",
       export: "SceneEnginePlugin",
+      name: "gwen:scene",
       provides: ["scene:hook-registry"],
     });
   });
@@ -36,6 +37,7 @@ describe("GwenApp.setupModules — built-in modules", () => {
     expect(app.pluginDeclarations).toContainEqual({
       src: "@gwenjs/core/internal",
       export: "TweenPlugin",
+      name: "gwen:tween",
       options: { poolSize: 256 },
       provides: ["tween:manager"],
     });
@@ -52,6 +54,7 @@ describe("GwenApp.setupModules — built-in modules", () => {
     expect(app.pluginDeclarations).toContainEqual({
       src: "@gwenjs/core/internal",
       export: "TweenPlugin",
+      name: "gwen:tween",
       options: { poolSize: 512 },
       provides: ["tween:manager"],
     });

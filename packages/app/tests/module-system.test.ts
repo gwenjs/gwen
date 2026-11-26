@@ -42,11 +42,13 @@ function addUnknown(gwen: GwenKit, value: unknown): void {
 const SCENE_DECLARATION = {
   src: "@gwenjs/core/internal",
   export: "SceneEnginePlugin",
+  name: "gwen:scene",
   provides: ["scene:hook-registry"],
 };
 const TWEEN_DECLARATION = {
   src: "@gwenjs/core/internal",
   export: "TweenPlugin",
+  name: "gwen:tween",
   options: { poolSize: 256 },
   provides: ["tween:manager"],
 };
