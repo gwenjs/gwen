@@ -6,10 +6,10 @@
  * A production bundle drops this module.
  * Not exported from the package root or from `./internal`.
  *
- * `entities`, `entity`, and `hooks` are placeholders. P-94-1b fills
- * `entities` and `entity`. P-94-2b fills `hooks`.
- * `entities().available` stays false until P-94-1b, even when the engine
- * is not faulted.
+ * `hooks` is still a placeholder. P-94-2b fills it.
+ * `entities().available` is false only when the engine state is `"faulted"`.
+ * A stopped engine returns an empty page with `available` true, and `entity`
+ * returns `undefined`.
  *
  * `snapshot().phases` lists one system id per handler, in dispatch order.
  * `revisions()` compares a signature of each section on every call.
@@ -28,8 +28,6 @@ import {
   type GwenEngineState,
   type GwenIntrospection,
   type GwenIntrospectionComponent,
-  type GwenIntrospectionEntityPage,
-  type GwenIntrospectionPageRequest,
   type GwenIntrospectionPlugin,
   type GwenIntrospectionRevisions,
   type GwenIntrospectionSnapshot,
@@ -38,6 +36,7 @@ import {
 } from "@gwenjs/schema";
 import type { ScopedHookable } from "../hooks/scoped-hookable.js";
 import { isEngineOwnedService } from "../engine/service-container.js";
+import { createEntityReader, type EntityReaderDeps } from "./entities.js";
 
 /** Extension surface copied off a plugin. Major and minor only. */
 interface ExtensionApi {
@@ -105,6 +104,8 @@ export interface IntrospectionDeps {
   readonly systems: () => readonly IntrospectionSystemSource[];
   /** Run `undo` from `stop()`, under `label`. */
   readonly onStop: (label: string, undo: () => void) => void;
+  /** What the paged entity reads need. */
+  readonly rows: Omit<EntityReaderDeps, "maxPageSize" | "state" | "total">;
 }
 
 /** A frozen copy of `items`. The input array is left alone. */
@@ -301,27 +302,20 @@ export function createIntrospection(deps: IntrospectionDeps): GwenIntrospection 
     });
   }
 
-  /**
-   * Placeholder page. `available` is false until P-94-1b fills this.
-   * The request is accepted and ignored.
-   */
-  function entities(_page: GwenIntrospectionPageRequest): GwenIntrospectionEntityPage {
-    return Object.freeze({
-      available: false,
-      total: 0,
-      listed: 0,
-      items: frozenList([]),
-    });
-  }
+  const reader = createEntityReader({
+    maxPageSize: deps.maxPageSize,
+    state: deps.state,
+    total: deps.entityCount,
+    ...deps.rows,
+  });
 
   return Object.freeze({
     version: GWEN_INTROSPECTION_VERSION,
     limits,
     revisions,
     snapshot,
-    entities,
-    /** Placeholder. P-94-1b returns one entity, or undefined when it is not listed. */
-    entity: (_id: bigint): undefined => undefined,
+    entities: reader.entities,
+    entity: reader.entity,
     /** Placeholder. P-94-2b returns the listener counts. */
     hooks: () => frozenList([]),
   });

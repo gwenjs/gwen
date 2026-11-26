@@ -109,6 +109,24 @@ export function actorTablesFor(engine: GwenEngine): ActorTables {
 }
 
 /**
+ * Id and name of the actor that owns `entityId` on `engine`.
+ * `undefined` when no instance is stored. `peek` does not create a table,
+ * so a stopped engine returns `undefined`. An empty `meta.name` falls back
+ * to the scope id, the same rule as `targetFromScopeMeta`.
+ * @internal
+ */
+export function actorIdentityFor(
+  engine: GwenEngine,
+  entityId: EntityId,
+): { readonly id: string; readonly name: string } | undefined {
+  const instance = actorTables.peek(engine)?.instances.get(entityId);
+  const scope = instance === undefined ? undefined : _actorScopes.get(instance);
+  if (scope === undefined) return undefined;
+  const { id, name } = scope.meta;
+  return { id, name: name !== undefined && name.length > 0 ? name : id };
+}
+
+/**
  * `ActorDefinition._instances` view.
  * Each engine has its own bucket. The same entity id on two engines does not collide.
  */

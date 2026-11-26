@@ -185,6 +185,9 @@ export class EngineComponentRegistry {
     const lanes = typeof typeOrDef === "string" ? NAME_LANES : lanesFromSchema(typeOrDef.schema);
     const existing = this.typeIds.get(name);
     const stored = this.layouts.get(name);
+    if (__GWEN_DEV__) {
+      if (typeof typeOrDef !== "string") this.sources.set(name, typeOrDef);
+    }
     if (existing !== undefined && stored !== undefined) {
       if (!sameLanes(stored, lanes)) {
         throw new GwenError(
@@ -268,6 +271,7 @@ export class EngineComponentRegistry {
     this.layouts.delete(type);
     this.owners.delete(type);
     this.fieldNames.delete(type);
+    this.sources.delete(type);
   }
 
   /**
@@ -289,6 +293,12 @@ export class EngineComponentRegistry {
 
   /** Field names in schema order. Filled only in a dev build. */
   private fieldNames = new Map<string, readonly string[]>();
+
+  /**
+   * Definition object passed to `getOrRegister`. Filled only in a dev build.
+   * A string registration stores nothing.
+   */
+  private sources = new Map<string, ComponentLayoutSource>();
 
   /** Store the owner and, in a dev build, the schema field names. */
   private finishRegister(name: string, typeOrDef: ComponentType | ComponentLayoutSource): void {
@@ -325,6 +335,28 @@ export class EngineComponentRegistry {
     }
     return Object.freeze(rows);
   }
+
+  /**
+   * Definitions in registration order. A string registration is skipped.
+   * Each `source` is the object last passed to `getOrRegister` for that name.
+   */
+  listSources(): readonly {
+    readonly name: string;
+    readonly typeId: number;
+    readonly source: ComponentLayoutSource;
+  }[] {
+    const rows: {
+      readonly name: string;
+      readonly typeId: number;
+      readonly source: ComponentLayoutSource;
+    }[] = [];
+    for (const [name, typeId] of this.typeIds) {
+      const source = this.sources.get(name);
+      if (source === undefined) continue;
+      rows.push({ name, typeId, source });
+    }
+    return rows;
+  }
 }
 
 /**
@@ -334,4 +366,15 @@ export class EngineComponentRegistry {
  */
 export function componentListing(engine: GwenEngine): readonly GwenIntrospectionComponent[] {
   return registries.peek(engine)?.list() ?? [];
+}
+
+/**
+ * Registered definitions of `engine`, or an empty list when the registry was
+ * never created or `stop()` already released it. Does not throw.
+ * @internal
+ */
+export function componentSources(
+  engine: GwenEngine,
+): ReturnType<EngineComponentRegistry["listSources"]> {
+  return registries.peek(engine)?.listSources() ?? [];
 }
