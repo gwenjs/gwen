@@ -10,5 +10,8 @@ export default definePlugin(() => ({
     useHook("game:start", () => {
       void nav.send("START");
     });
+    useHook("game:interpolation", () => {
+      void nav.send("INTERPOLATION");
+    });
   },
 }));
