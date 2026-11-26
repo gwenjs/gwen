@@ -2,7 +2,7 @@
 
 ECS camera system for Gwen. Provides the components, `CameraSystem` orchestrator, per-engine camera verbs, and `CameraCorePlugin` shared by `@gwenjs/camera2d` and `@gwenjs/camera3d`.
 
-> **Note** — you normally do not install this package directly. Use `@gwenjs/camera2d` or `@gwenjs/camera3d` instead. They install `CameraCorePlugin` automatically.
+> **Note** — you normally do not install this package directly. Use `@gwenjs/camera2d` or `@gwenjs/camera3d` instead. A plugin that declares `requires: { plugins: ['camera-core'] }` gets this plugin installed first by the build. Until a camera plugin declares it, another plugin or user code installs it.
 
 ## Installation
 

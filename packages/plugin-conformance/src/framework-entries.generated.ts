@@ -658,8 +658,10 @@ export const FRAMEWORK_ENTRIES: Readonly<Record<string, readonly string[]>> = {
   ],
   "@gwenjs/renderer-core/module": ["default"],
   "@gwenjs/renderer-core/testing": [
+    "CameraProviderConformanceOptions",
     "MockSizeProvider",
     "MockSizeProviderHandle",
+    "runCameraProviderConformance",
     "runConformanceTests",
     "runSurfaceConformance",
   ],

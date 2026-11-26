@@ -122,9 +122,11 @@ Types: none
 
 ### `./testing`
 
-Values: `MockSizeProvider`, `runConformanceTests`, `runSurfaceConformance`
+Values: `MockSizeProvider`, `runCameraProviderConformance`, `runConformanceTests`, `runSurfaceConformance`
 
-Types: `MockSizeProviderHandle`
+Types: `CameraProviderConformanceOptions`, `MockSizeProviderHandle`
+
+`runCameraProviderConformance` — Checks that a camera provider wrote state no later than `engine:after-update`.
 
 `runSurfaceConformance` — Surface-renderer checks on top of `runConformanceTests`.
 
