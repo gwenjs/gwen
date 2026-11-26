@@ -2,13 +2,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createEngine } from "@gwenjs/core/node";
 import type { GwenEngine } from "@gwenjs/core";
-import type { LayerHost } from "@gwenjs/schema";
 import { GwenError } from "@gwenjs/schema";
 import { LayerManager } from "../src/layer-manager.js";
-import { getOrCreateLayerManager } from "../src/get-or-create-layer-manager.js";
-import { getOrCreateCameraManager } from "../src/get-or-create-camera-manager.js";
-import { getOrCreateScreenService } from "../src/get-or-create-screen-service.js";
-import { getOrCreateViewportManager } from "../src/get-or-create-viewport-manager.js";
 import { writeCameraViews } from "../src/write-camera-views.js";
 import type {
   LayerDef,
@@ -22,17 +17,23 @@ import {
   LayerOrderConflictError,
   RendererAlreadyRegisteredError,
   RendererContractVersionError,
-  RendererErrorCodes,
   SurfaceInvalidError,
 } from "../src/errors.js";
-import { createRendererStats } from "../src/stats.js";
 import type { RendererKind } from "../src/types.js";
 import { ScreenPlugin } from "../src/screen-plugin.js";
-import { createViewportsPlugin } from "../../app/src/viewports-plugin.js";
+import { RenderHostPlugin } from "../src/render-host-plugin.js";
 
 async function installManagers(engine: GwenEngine): Promise<void> {
-  await engine.use(createViewportsPlugin());
+  await engine.use(RenderHostPlugin());
   await engine.use(ScreenPlugin());
+}
+
+/** The declared layer manager of `engine`, with `root` bound. */
+function bindLayers(engine: GwenEngine, root: HTMLElement): LayerManager {
+  const layers = engine.inject("layerManager");
+  if (!(layers instanceof LayerManager)) throw new TypeError("layerManager is not a LayerManager");
+  layers.bindRoot(root);
+  return layers;
 }
 
 function surfaceService(name: string, order: number, onRender: () => void): SurfaceRendererService {
@@ -372,9 +373,9 @@ describe("LayerManager", () => {
     const engine = await createEngine({ maxEntities: 32 });
     try {
       await installManagers(engine);
-      getOrCreateViewportManager(engine).set("main", { x: 0, y: 0, width: 1, height: 1 });
-      getOrCreateScreenService(engine).setContainerSize(200, 100, 1);
-      getOrCreateCameraManager(engine).set("main", {
+      engine.inject("viewportManager").set("main", { x: 0, y: 0, width: 1, height: 1 });
+      engine.inject("screenService").setContainerSize(200, 100, 1);
+      engine.inject("cameraManager").set("main", {
         worldTransform: {
           position: { x: 4, y: 5, z: 6 },
           rotation: { x: 0, y: 0, z: 0 },
@@ -419,7 +420,7 @@ describe("LayerManager", () => {
         },
       };
 
-      const wired = getOrCreateLayerManager(engine, root);
+      const wired = bindLayers(engine, root);
       wired.register(service);
       wired.mount();
       await engine.hooks.callHook("engine:render", 1);
@@ -451,34 +452,6 @@ describe("LayerManager", () => {
     }
   });
 
-  it("does not call renderViews for a surface registered after mount", async () => {
-    const engine = await createEngine({ maxEntities: 32 });
-    try {
-      await installManagers(engine);
-      const calls = { early: 0, late: 0 };
-      const early = surfaceService("renderer:early", 0, () => {
-        calls.early += 1;
-      });
-      const late = surfaceService("renderer:late", 1, () => {
-        calls.late += 1;
-      });
-      const wired = getOrCreateLayerManager(engine, root);
-      wired.register(early);
-      wired.mount();
-      await engine.hooks.callHook("engine:render", 1);
-      expect(calls.early).toBe(1);
-      wired.register(late);
-      await engine.hooks.callHook("engine:render", 1);
-      expect(calls.early).toBe(2);
-      expect(calls.late).toBe(0);
-      wired.mount();
-      await engine.hooks.callHook("engine:render", 1);
-      expect(calls.late).toBe(1);
-    } finally {
-      await engine.stop();
-    }
-  });
-
   it("dispose drops the engine:render hook", async () => {
     const engine = await createEngine({ maxEntities: 32 });
     try {
@@ -487,7 +460,7 @@ describe("LayerManager", () => {
       const service = surfaceService("renderer:surface", 0, () => {
         calls += 1;
       });
-      const wired = getOrCreateLayerManager(engine, root);
+      const wired = bindLayers(engine, root);
       wired.register(service);
       wired.mount();
       await engine.hooks.callHook("engine:render", 1);
@@ -785,88 +758,24 @@ describe("LayerManager host contract", () => {
   });
 });
 
-describe("getOrCreateLayerManager layerManager guard", () => {
-  it("throws when the provided layerManager is not a LayerManager and keeps that value", async () => {
-    const engine = await createEngine({ maxEntities: 32 });
-    const root = mountRoot();
-    try {
-      await engine.use(createViewportsPlugin());
-      const other = mountRoot();
-      try {
-        const first = getOrCreateLayerManager(engine, root);
-        const second = getOrCreateLayerManager(engine, other);
-        expect(second).toBe(first);
-      } finally {
-        other.remove();
-      }
-
-      const engineB = await createEngine({ maxEntities: 32 });
-      const rootB = mountRoot();
-      try {
-        await engineB.use(createViewportsPlugin());
-        const onB = getOrCreateLayerManager(engineB, rootB);
-        const onA = getOrCreateLayerManager(engine, root);
-        expect(onB).not.toBe(onA);
-      } finally {
-        rootB.remove();
-        await engineB.stop();
-      }
-
-      const host: LayerHost = {
-        register() {},
-        unregister() {},
-        has() {
-          return false;
-        },
-        getStats: () => createRendererStats(),
-        setParallax() {},
-      };
-      engine.provide("layerManager", host);
-      let caught: unknown;
-      try {
-        getOrCreateLayerManager(engine, root);
-      } catch (error) {
-        caught = error;
-      }
-      const hint =
-        "Call getOrCreateLayerManager before providing layerManager, or provide the LayerManager this package created.";
-      expect(caught).toBeInstanceOf(GwenError);
-      if (!(caught instanceof GwenError)) return;
-      expect(caught.hint).toBe(__GWEN_DEV__ ? hint : undefined);
-      expect(caught.code).toBe(RendererErrorCodes.FOREIGN_LAYER_MANAGER);
-      expect(caught.message).toBe(
-        [
-          "[getOrCreateLayerManager()] The provided layerManager is not a LayerManager from this package.",
-          ...(__GWEN_DEV__ ? [`Fix: ${hint}`] : []),
-          "See https://gwenjs.github.io/gwen/api/errors#renderer-foreign-layer-manager (RENDERER:FOREIGN_LAYER_MANAGER)",
-        ].join("\n"),
-      );
-      expect(engine.tryInject("layerManager")).toBe(host);
-    } finally {
-      root.remove();
-      await engine.stop();
-    }
-  });
-});
-
 describe("declared layer manager", () => {
   it("mount() before bind writes nothing, the first root wins", async () => {
     const engine = await createEngine({ maxEntities: 32 });
     const root = mountRoot();
     const second = mountRoot();
     try {
-      await engine.use(createViewportsPlugin());
+      await engine.use(RenderHostPlugin());
       const manager = engine.tryInject("layerManager");
       expect(manager).toBeInstanceOf(LayerManager);
       if (!(manager instanceof LayerManager)) return;
       manager.mount();
       expect(root.style.position).toBe("");
       expect(root.childElementCount).toBe(0);
-      const bound = getOrCreateLayerManager(engine, root);
+      const bound = bindLayers(engine, root);
       expect(bound).toBe(manager);
       bound.mount();
       expect(root.style.position).toBe("relative");
-      getOrCreateLayerManager(engine, second);
+      bindLayers(engine, second);
       expect(second.style.position).toBe("");
       expect(second.childElementCount).toBe(0);
     } finally {

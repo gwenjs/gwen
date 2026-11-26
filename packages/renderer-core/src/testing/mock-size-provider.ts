@@ -17,15 +17,18 @@ import type { ScreenSizeProvider } from "../screen-size-providers.js";
 
 /** A `ScreenSizeProvider` with an `emit()` method for simulating resize events in tests. */
 export interface MockSizeProviderHandle extends ScreenSizeProvider {
-  /** Simulate a container resize event with the given dimensions. */
-  emit(width: number, height: number): void;
+  /**
+   * Simulate a container resize event with the given dimensions.
+   * An omitted `dpr` keeps the previous one.
+   */
+  emit(width: number, height: number, dpr?: number): void;
 }
 
 /**
  * Create a controllable `ScreenSizeProvider` for use in tests.
  *
- * @param initial - Starting dimensions.
- * @returns A provider with an `emit(w, h)` method to simulate resize events.
+ * @param initial - Starting dimensions and, optionally, the device pixel ratio.
+ * @returns A provider with an `emit(w, h, dpr?)` method to simulate resize events.
  *
  * @example
  * ```ts
@@ -39,9 +42,10 @@ export interface MockSizeProviderHandle extends ScreenSizeProvider {
 export function MockSizeProvider(initial: {
   width: number;
   height: number;
+  dpr?: number;
 }): MockSizeProviderHandle {
   let _current = { ...initial };
-  let _callback: ((w: number, h: number) => void) | undefined;
+  let _callback: ((w: number, h: number, dpr?: number) => void) | undefined;
 
   const provider: MockSizeProviderHandle = {
     getSize() {
@@ -53,9 +57,10 @@ export function MockSizeProvider(initial: {
         _callback = undefined;
       };
     },
-    emit(width, height) {
-      _current = { width, height };
-      _callback?.(width, height);
+    emit(width, height, dpr) {
+      const next = dpr ?? _current.dpr;
+      _current = next === undefined ? { width, height } : { width, height, dpr: next };
+      _callback?.(width, height, next);
     },
   };
 

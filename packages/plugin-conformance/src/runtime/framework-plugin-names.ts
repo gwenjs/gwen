@@ -1,8 +1,8 @@
 /**
  * Names of plugins built by public factories.
  * Members: `CameraCorePlugin` (`packages/camera-core/src/camera-core-plugin.ts:56`),
- * the viewports plugin (`packages/app/src/viewports-plugin.ts:35`), the screen
- * plugin (`packages/renderer-core/src/screen-plugin.ts:55`), and the scene plugin
+ * the render host (`packages/renderer-core/src/render-host-plugin.ts:55`), the screen
+ * plugin (`packages/renderer-core/src/screen-plugin.ts:56`), and the scene plugin
  * `createRealEngine({ scenes: true })` installs
  * (`packages/core/src/testing/create-real-engine.ts:93`,
  * `packages/core/src/scene/engine-plugin.ts:113`).

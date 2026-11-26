@@ -86,7 +86,7 @@ A renderer that owns exactly one drawing surface. It extends `RendererService`.
 | `kind` | `'surface'` | Required. |
 | `layers` | one `LayerDef` | Exactly one entry, `coordinate: 'world'`. A second layer throws `RENDERER:SURFACE_INVALID` at register. |
 | `getLayerElement` | `HTMLCanvasElement` | The canvas created in `mount()` and removed in `unmount()`. |
-| `renderViews(views, alpha)` | `void` | Called by `LayerManager` once per `engine:render` after that surface is mounted. `alpha` is `1` until #79 supplies `engine.frame`. |
+| `renderViews(views, alpha)` | `void` | Called by `LayerManager` once per `engine:render` after that surface is mounted. `alpha` is `engine.frame.alpha` of that display frame. |
 
 `resize(width, height, dpr)` takes CSS pixels for `width` and `height`. The canvas backing store is
 `width × dpr` and `height × dpr`.
@@ -239,56 +239,69 @@ Contract properties (`name`, `contractVersion`, `layers`, `getLayerElement`,
 `mount`, `unmount`, `resize`, `setStatsCollector`, `flush`) always take precedence
 over same-named keys in `extension`.
 
-### `createManagerServices(engine)`
+### `RenderHostPlugin(options?)`
 
 ```ts
-function createManagerServices(engine: GwenEngine): {
-  viewportManager: ViewportManager
-  cameraManager: CameraManager
-  layerManager: LayerHost
+interface RenderHostOptions {
+  /** Element the renderers mount into. Defaults to `document.body`. */
+  container?: HTMLElement | undefined
+  /** Viewports registered at `engine:init`. Absent or empty registers a full-screen `main`. */
+  viewports?: Record<string, ViewportRegion> | undefined
 }
+
+const RenderHostPlugin: (options?: RenderHostOptions) => GwenPlugin
 ```
 
-Creates one `ViewportManager`, one `CameraManager` and one `LayerManager` for this engine.
-Registers `engine:tick` → `beginFrame` once. Does not call `engine.provide`.
+The render host. The bootstrap installs it under the name `gwen:viewports`, before `gwen:screen` and
+before every renderer or camera plugin. It provides `viewportManager`, `cameraManager` and `layerManager`
+(declare the ones you read in `requires.services` or `requires.optional`), and owns the renderers
+registered on `layerManager`:
 
-The shared managers are framework services provided by `gwen:viewports`
-(`viewportManager`, `cameraManager`, `layerManager`) and `gwen:screen` (`screenService`).
-Declare them in `requires.services` or `requires.optional`.
+| What | When |
+|---|---|
+| Registers the `viewports` option, or a full-screen `main` | `engine:init` |
+| Binds the root (`container`, else `document.body`) and mounts every registered renderer once | `engine:init` |
+| Mounts a renderer registered later at once and sends it the last `resize` | `layerManager.register()` after start |
+| Reports a renderer whose `mount()` throws on `engine.errors`, unregisters it, mounts the others | `engine:init`, or `register()` after start |
+| Calls `renderViews(views, engine.frame.alpha)` for each mounted surface | each `engine:render` |
+| Enables renderer stats | `__GWEN_DEV__ && engine.debug` |
+| Unmounts every renderer and removes its DOM nodes | `engine.stop()` |
 
-### `getOrCreateLayerManager()`
+With no `container` and no `document` (a Node.js engine), the host registers the viewports and mounts nothing.
+`container` is an element and cannot be serialised: the host is a bootstrap plugin, never a `PluginDeclaration`.
+A user project gets it from `@gwenjs/app`, which re-exports `RenderHostPlugin` and `ScreenPlugin`.
 
-```ts
-function getOrCreateLayerManager(engine: GwenEngine, container: HTMLElement): LayerManager
-```
+A renderer whose `mount()` throws does not fail `engine.start()`. The event on `engine.errors` has level
+`error`, source `@gwenjs/renderer-core`, the thrown value as `error`, and `context.renderer` set to the
+renderer name. Its code is the code of the thrown `GwenError`, else `RENDERER:MOUNT_FAILED`.
 
-Legacy reader. Returns the `LayerManager` `gwen:viewports` already provided.
-It does not create one. The first call that finds an unbound manager stores `container`.
-Later calls keep that root. `createManagerServices` binds the logger and the `engine:tick`
-handler that calls `beginFrame()`.
+A renderer plugin only registers its service:
 
 ```ts
 // Inside a renderer plugin:
 setup(engine) {
-  const manager = getOrCreateLayerManager(engine, opts.container ?? document.body)
-  manager.register(service)
-  engine.hooks.hook('engine:init', () => manager.mount())
-  engine.hooks.hook('engine:stop', () => manager.unregister(service.name))
+  engine.inject('layerManager').register(service)
 }
 ```
 
-The `container` argument is only used on the first call. Subsequent renderer plugins
-reuse the existing instance regardless of the container they pass.
+```ts
+import { RenderHostPlugin, ScreenPlugin } from '@gwenjs/renderer-core'
+
+await engine.use(RenderHostPlugin({ container: document.getElementById('game')! }))
+await engine.use(ScreenPlugin())
+```
 
 ### `LayerManager`
 
-Returned by `getOrCreateLayerManager`.
+Read with `engine.inject('layerManager')`. The class is not exported: plugin authors use the `LayerHost` methods below (`register`, `unregister`, `has`, `setParallax`).
 
 | Method | Description |
 |---|---|
+| `register(service)` | Validates and stores the renderer. Before the first mount it mounts nothing. After it, the renderer is mounted at once and receives the last `resize`. |
+| `unregister(name)` | Calls `unmount()` and removes the DOM nodes `data-gwen-layer="<name>:…"`. An unknown name is a no-op. |
 | `has(name)` | `true` when a renderer with this name is registered. |
 | `setParallax(layer, factor)` | Writes `{ x, y }` onto each registered renderer's own `LayerDef` for `layer`. That object is shared by every holder. An unknown layer throws `GwenError` `RENDERER:UNKNOWN_LAYER`: no registered renderer declares it, and the hint lists the registered renderer names. A frozen `LayerDef` throws `TypeError`. |
-| `resize(width, height, dpr = 1)` | Forwards the three numbers to every renderer. An omitted `dpr` forwards `1`. |
+| `resize(width, height, dpr = 1)` | Forwards the three numbers to every renderer and keeps them for a renderer registered later. An omitted `dpr` forwards `1`. Not a `LayerHost` method: `ScreenPlugin` calls it. |
 
 ### `ScreenService`
 
@@ -437,30 +450,23 @@ const SplitScreenSystem = defineSystem('SplitScreenSystem', () => {
 })
 ```
 
-#### `getOrCreateViewportManager(engine)`
+#### Reading the manager in a plugin
 
 ```ts
-function getOrCreateViewportManager(engine: GwenEngine): ViewportManager
-```
-
-Legacy reader. Returns the `ViewportManager` provided by `gwen:viewports`.
-It does not create one and it does not call `engine.provide`.
-
-Use this inside `definePlugin`'s `setup(engine)` — not in systems or actors.
-Declare `viewportManager` in `requires.services` or `requires.optional`.
-
-```ts
-import { getOrCreateViewportManager } from '@gwenjs/renderer-core'
 import { definePlugin } from '@gwenjs/kit/plugin'
 
 export const MyRendererPlugin = definePlugin(() => ({
   name: 'renderer:my',
+  requires: { services: ['viewportManager'] },
   setup(engine) {
-    const viewports = getOrCreateViewportManager(engine)
+    const viewports = engine.inject('viewportManager')
     viewports.set('main', { x: 0, y: 0, width: 1, height: 1 })
   },
 }))
 ```
+
+Use `engine.inject('viewportManager')` inside `definePlugin`'s `setup(engine)`, not in systems or actors.
+`RenderHostPlugin` provides the service; nothing creates it lazily.
 
 #### Viewport hooks
 
@@ -529,26 +535,17 @@ const MyRenderSystem = defineSystem('MyRenderSystem', () => {
 })
 ```
 
-#### `getOrCreateCameraManager(engine)`
+#### Reading the manager in a plugin
 
 ```ts
-function getOrCreateCameraManager(engine: GwenEngine): CameraManager
-```
-
-Legacy reader. Returns the `CameraManager` provided by `gwen:viewports`.
-It does not create one and it does not call `engine.provide`.
-
-Use this inside `definePlugin`'s `setup(engine)` — not in systems or actors.
-Declare `cameraManager` in `requires.services` or `requires.optional`.
-
-```ts
-import { getOrCreateCameraManager } from '@gwenjs/renderer-core'
-
 setup(engine) {
-  const cameras = getOrCreateCameraManager(engine)
+  const cameras = engine.inject('cameraManager')
   // cameras is now available via useCameraManager() in systems/actors
 }
 ```
+
+Use `engine.inject('cameraManager')` inside `definePlugin`'s `setup(engine)`, not in systems or actors.
+Declare `cameraManager` in `requires.services` or `requires.optional`.
 
 ---
 
@@ -627,7 +624,7 @@ const RendererErrorCodes = {
   SURFACE_INVALID:           'RENDERER:SURFACE_INVALID',
   UNAVAILABLE_CAMERA:        'RENDERER:UNAVAILABLE_CAMERA',
   SCREEN_TO_WORLD_PERSPECTIVE: 'RENDERER:SCREEN_TO_WORLD_PERSPECTIVE',
-  FOREIGN_LAYER_MANAGER:    'RENDERER:FOREIGN_LAYER_MANAGER',
+  MOUNT_FAILED:             'RENDERER:MOUNT_FAILED',
   CONFORMANCE_FAILED:       'RENDERER:CONFORMANCE_FAILED',
 }
 ```

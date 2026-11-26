@@ -1,17 +1,10 @@
 // packages/renderer-core/src/get-or-create-viewport-manager.ts
 /**
- * @file getOrCreateViewportManager — read the viewport service.
+ * @file createViewportManager — build the viewport manager of the render host.
  *
- * `gwen:viewports` creates the manager. Plugin setup code reads it here.
- * The {@link createViewportManager} helper keeps the `callHook` cast in this file.
- *
- * @example
- * ```ts
- * setup(engine) {
- *   const viewports = getOrCreateViewportManager(engine)
- *   viewports.set('main', { x: 0, y: 0, width: 1, height: 1 })
- * }
- * ```
+ * The render host (`gwen:viewports`) creates the manager. Plugin setup code reads it with
+ * `engine.inject('viewportManager')`. The file keeps its name because `oxlint.json`
+ * allow-lists this exact path for the `callHook` cast below.
  */
 
 import type { GwenEngine } from "@gwenjs/core";
@@ -29,13 +22,4 @@ export function createViewportManager(engine: GwenEngine): ViewportManager {
       (engine.hooks.callHook as (name: string, ...args: unknown[]) => unknown)(event, payload), // boundary: the manager hands over a plain string event and an unknown payload, while callHook accepts only the keys of the hook map and each hook's own arguments
     );
   });
-}
-
-/**
- * Read the shared {@link ViewportManager} declared by `gwen:viewports`.
- *
- * Reads the service declared by gwen:viewports. Does not create it. Removal is #230 G2's.
- */
-export function getOrCreateViewportManager(engine: GwenEngine): ViewportManager {
-  return engine.inject("viewportManager");
 }

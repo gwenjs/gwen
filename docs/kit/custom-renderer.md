@@ -113,7 +113,7 @@ export const MyTechRenderer = defineRendererService<MyTechRendererOptions>((opts
 
 `RendererService.resize` is `(width, height, dpr)`. `defineRendererService` still types the definition as `(width, height)` and does not forward `dpr`.
 
-## How LayerManager orchestrates mount
+## How the render host mounts a renderer
 
 `defineRendererService` creates two distinct API surfaces:
 
@@ -122,7 +122,7 @@ export const MyTechRenderer = defineRendererService<MyTechRendererOptions>((opts
 | `createElement(layerName): HTMLElement` | `getLayerElement(layerName): HTMLElement` |
 | `mount(ctx: RendererMountContext): void` | `mount(container: HTMLElement): void` |
 
-The orchestration sequence when `manager.mount()` is called:
+The render host mounts each renderer once, in this sequence:
 
 1. **For each declared layer** — LayerManager calls `service.getLayerElement(layerName)`, which triggers your `createElement(layerName)` on first call and caches the result.
 2. **DOM insertion** — LayerManager inserts each element into the container in `order` order.
@@ -224,7 +224,6 @@ Create `src/mytech-plugin.ts`:
 
 ```ts
 import { definePlugin } from '@gwenjs/kit/plugin'
-import { getOrCreateLayerManager } from '@gwenjs/renderer-core'
 import type { LayerDef } from '@gwenjs/schema'
 import { MyTechRenderer } from './mytech-renderer-service.js'
 
@@ -236,7 +235,6 @@ declare module '@gwenjs/schema' {
 
 export interface MyTechRendererPluginOptions {
   layers: Record<string, LayerDef>
-  container?: HTMLElement
 }
 
 const myTechDefaults: MyTechRendererPluginOptions = { layers: {} }
@@ -252,22 +250,43 @@ export const MyTechRendererPlugin = definePlugin(
       setup(engine) {
         engine.provide('renderer:mytech', service)
 
-        // gwen:viewports provides layerManager. This call binds the first root.
-        const manager = getOrCreateLayerManager(engine, opts.container ?? document.body)
-        if (__GWEN_DEV__ && engine.debug) {
-          manager.enableStats()
-        }
-        manager.register(service)
+        // RenderHostPlugin (gwen:viewports) provides layerManager and owns the rest.
+        engine.inject('layerManager').register(service)
 
-        engine.hooks.hook('engine:init', () => manager.mount())
         engine.hooks.hook('engine:render', () => {
           service.flush()
         })
-        engine.hooks.hook('engine:stop', () => manager.unregister('renderer:mytech'))
       },
     }
   },
 )
+```
+
+Registering is all the plugin does. It never binds a root, never calls `mount()` and never
+unmounts. `RenderHostPlugin` (installed by the bootstrap under the name `gwen:viewports`) does that:
+
+- It binds the root: its `container` option, or `document.body`. With no container and no
+  `document`, nothing is mounted.
+- It mounts every registered renderer once, also a renderer whose plugin is installed after start.
+  A renderer registered after the first mount is mounted at once and receives the last `resize`.
+- A renderer whose `mount()` throws does not fail `engine.start()`. The host reports it on
+  `engine.errors` (level `error`, source `@gwenjs/renderer-core`), unregisters it and mounts the
+  others. The code is the one of the thrown `GwenError`, else
+  [`RENDERER:MOUNT_FAILED`](../api/errors#renderer-mount-failed).
+- It sends `resize(width, height, dpr)` from the screen size provider (`ScreenPlugin`).
+- It calls `renderViews(views, engine.frame.alpha)` for each surface, once per `engine:render`.
+- It enables renderer stats when `__GWEN_DEV__ && engine.debug`. A renderer that wants them
+  implements `setStatsCollector`.
+- At `engine.stop()` it unmounts every renderer and removes its DOM nodes, also those of a
+  plugin that has no `teardown`.
+
+In a test, install the host yourself, then your plugin:
+
+```ts
+import { RenderHostPlugin } from '@gwenjs/renderer-core'
+
+await engine.use(RenderHostPlugin({ container }))
+await engine.use(MyTechRendererPlugin({ layers }))
 ```
 
 ## Step 4 — Expose composables
@@ -383,7 +402,8 @@ export default defineConfig({
 The shared managers are framework services provided by `gwen:viewports`
 (`viewportManager`, `cameraManager`, `layerManager`) and `gwen:screen` (`screenService`).
 Declare them in `requires.services` or `requires.optional`.
-`getOrCreate*` reads the declared service. It does not create one.
+Read them with `engine.inject(key)`, or `engine.tryInject(key)` for a `requires.optional` key.
+Nothing creates a service lazily: `RenderHostPlugin` and `ScreenPlugin` provide them.
 
 ### `ViewportManager` — named screen regions
 
@@ -392,10 +412,8 @@ A viewport is a normalized `[0–1]` region of the output surface. Game code cal
 and size render targets.
 
 ```ts
-import { getOrCreateViewportManager } from '@gwenjs/renderer-core'
-
 // Inside GwenPlugin.setup(engine):
-const viewports = getOrCreateViewportManager(engine)
+const viewports = engine.inject('viewportManager')
 
 // React to viewport changes (resize, add, remove)
 engine.hooks.hook('viewport:add', ({ id, region }) => {
@@ -424,11 +442,10 @@ After `CameraSystem` runs each frame, `CameraManager` holds the winning `CameraS
 for each viewport. Read it in your render flush to apply transforms.
 
 ```ts
-import { getOrCreateCameraManager } from '@gwenjs/renderer-core'
 import type { CameraState } from '@gwenjs/schema'
 
 // Inside GwenPlugin.setup(engine):
-const cameras = getOrCreateCameraManager(engine)
+const cameras = engine.inject('cameraManager')
 
 // Inside your flush / onRender callback:
 flush({ reportFrameTime }) {
@@ -486,9 +503,10 @@ An equal order fails at register with `RENDERER:LAYER_ORDER_CONFLICT`. Screen-sp
 HUD layers keep `pointer-events: none`. The surface world layer does not.
 
 `LayerManager` calls `renderViews` once per `engine:render` after that surface is mounted, with the buffer filled
-by `writeCameraViews`. The alpha is `1` until #79 supplies `engine.frame`. Do not
+by `writeCameraViews`. The alpha is `engine.frame.alpha` of that display frame. Do not
 call `renderViews` yourself and do not read camera stores directly.
-`LayerManager.dispose()` removes the `engine:render` hook. DOM nodes stay until `unregister`.
+At `engine.stop()` the render host calls `LayerManager.dispose()`: it removes the `engine:render` hook,
+unmounts every renderer and removes its DOM nodes.
 `runSurfaceConformance(service, engine)` from `@gwenjs/renderer-core/testing` checks
 this shape.
 

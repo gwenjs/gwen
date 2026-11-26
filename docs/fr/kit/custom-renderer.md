@@ -1,6 +1,6 @@
 ---
 title: Créer un renderer personnalisé
-description: Comment créer un plugin renderer GWEN qui s'intègre avec getOrCreateLayerManager, expose des composables et passe la suite de conformité.
+description: Comment créer un plugin renderer GWEN qui s'enregistre sur le layerManager déclaré, expose des composables et passe la suite de conformité.
 ---
 
 # Créer un renderer personnalisé
@@ -110,7 +110,7 @@ export const MyTechRenderer = defineRendererService<MyTechRendererOptions>((opts
 
 `RendererService.resize` est `(width, height, dpr)`. `defineRendererService` type encore la définition comme `(width, height)` et ne transmet pas `dpr`.
 
-## Comment LayerManager orchestre le montage
+## Comment l'hôte de rendu monte un renderer
 
 `defineRendererService` crée deux surfaces d'API distinctes :
 
@@ -119,7 +119,7 @@ export const MyTechRenderer = defineRendererService<MyTechRendererOptions>((opts
 | `createElement(layerName): HTMLElement` | `getLayerElement(layerName): HTMLElement` |
 | `mount(ctx: RendererMountContext): void` | `mount(container: HTMLElement): void` |
 
-La séquence d'orchestration lors de l'appel à `manager.mount()` :
+L'hôte de rendu monte chaque renderer une seule fois, dans cet ordre :
 
 1. **Pour chaque layer déclaré** — LayerManager appelle `service.getLayerElement(layerName)`, ce qui déclenche votre `createElement(layerName)` au premier appel et met le résultat en cache.
 2. **Insertion dans le DOM** — LayerManager insère chaque élément dans le conteneur dans l'ordre défini par `order`.
@@ -218,7 +218,6 @@ Créer `src/mytech-plugin.ts` :
 
 ```ts
 import { definePlugin } from '@gwenjs/kit/plugin'
-import { getOrCreateLayerManager } from '@gwenjs/renderer-core'
 import type { LayerDef } from '@gwenjs/schema'
 import { MyTechRenderer } from './mytech-renderer-service.js'
 
@@ -230,7 +229,6 @@ declare module '@gwenjs/schema' {
 
 export interface MyTechRendererPluginOptions {
   layers: Record<string, LayerDef>
-  container?: HTMLElement
 }
 
 const myTechDefaults: MyTechRendererPluginOptions = { layers: {} }
@@ -246,22 +244,43 @@ export const MyTechRendererPlugin = definePlugin(
       setup(engine) {
         engine.provide('renderer:mytech', service)
 
-        // gwen:viewports fournit layerManager. Cet appel lie la première racine.
-        const manager = getOrCreateLayerManager(engine, opts.container ?? document.body)
-        if (__GWEN_DEV__ && engine.debug) {
-          manager.enableStats()
-        }
-        manager.register(service)
+        // RenderHostPlugin (gwen:viewports) fournit layerManager et gère le reste.
+        engine.inject('layerManager').register(service)
 
-        engine.hooks.hook('engine:init', () => manager.mount())
         engine.hooks.hook('engine:render', () => {
           service.flush()
         })
-        engine.hooks.hook('engine:stop', () => manager.unregister('renderer:mytech'))
       },
     }
   },
 )
+```
+
+Le plugin n'a qu'à enregistrer son service. Il ne lie jamais de racine, n'appelle jamais `mount()`
+et ne démonte jamais rien. `RenderHostPlugin` (installé par le bootstrap sous le nom `gwen:viewports`) s'en charge :
+
+- Il lie la racine : son option `container`, ou `document.body`. Sans conteneur et sans
+  `document`, rien n'est monté.
+- Il monte chaque renderer enregistré une seule fois, y compris un renderer dont le plugin est installé après le démarrage.
+  Un renderer enregistré après le premier montage est monté aussitôt et reçoit le dernier `resize`.
+- Un renderer dont `mount()` lève une erreur ne fait pas échouer `engine.start()`. L'hôte le signale sur
+  `engine.errors` (niveau `error`, source `@gwenjs/renderer-core`), le désenregistre et monte les
+  autres. Le code est celui du `GwenError` levé, sinon
+  [`RENDERER:MOUNT_FAILED`](../api/errors#renderer-mount-failed).
+- Il envoie `resize(width, height, dpr)` depuis le fournisseur de taille d'écran (`ScreenPlugin`).
+- Il appelle `renderViews(views, engine.frame.alpha)` pour chaque surface, une fois par `engine:render`.
+- Il active les stats du renderer quand `__GWEN_DEV__ && engine.debug`. Un renderer qui les veut
+  implémente `setStatsCollector`.
+- À `engine.stop()` il démonte chaque renderer et retire ses nœuds DOM, y compris ceux d'un
+  plugin qui n'a pas de `teardown`.
+
+Dans un test, installez l'hôte vous-même, puis votre plugin :
+
+```ts
+import { RenderHostPlugin } from '@gwenjs/renderer-core'
+
+await engine.use(RenderHostPlugin({ container }))
+await engine.use(MyTechRendererPlugin({ layers }))
 ```
 
 ## Étape 4 — Exposer des composables
@@ -364,7 +383,8 @@ export default defineConfig({
 Les managers partagés sont des services du framework fournis par `gwen:viewports`
 (`viewportManager`, `cameraManager`, `layerManager`) et `gwen:screen` (`screenService`).
 Déclarez-les dans `requires.services` ou `requires.optional`.
-`getOrCreate*` lit le service déclaré. Il n'en crée pas.
+Lisez-les avec `engine.inject(key)`, ou `engine.tryInject(key)` pour une clé de `requires.optional`.
+Rien ne crée un service à la demande : `RenderHostPlugin` et `ScreenPlugin` les fournissent.
 
 ### `ViewportManager` — régions d'écran nommées
 
@@ -373,10 +393,8 @@ appelle `useViewportManager()` pour déclarer des viewports ; votre renderer les
 positionner et dimensionner ses render targets.
 
 ```ts
-import { getOrCreateViewportManager } from '@gwenjs/renderer-core'
-
 // Dans GwenPlugin.setup(engine) :
-const viewports = getOrCreateViewportManager(engine)
+const viewports = engine.inject('viewportManager')
 
 // Réagir aux changements de viewport
 engine.hooks.hook('viewport:add', ({ id, region }) => {
@@ -406,11 +424,10 @@ Après l'exécution de `CameraSystem` à chaque frame, `CameraManager` contient 
 les transformations.
 
 ```ts
-import { getOrCreateCameraManager } from '@gwenjs/renderer-core'
 import type { CameraState } from '@gwenjs/schema'
 
 // Dans GwenPlugin.setup(engine) :
-const cameras = getOrCreateCameraManager(engine)
+const cameras = engine.inject('cameraManager')
 
 // Dans votre callback flush / onRender :
 flush({ reportFrameTime }) {
@@ -468,9 +485,10 @@ Un `order` égal échoue à l'enregistrement avec `RENDERER:LAYER_ORDER_CONFLICT
 HUD en espace écran gardent `pointer-events: none`. Le layer monde de la surface ne le fait pas.
 
 `LayerManager` appelle `renderViews` une fois par `engine:render` après le `mount()` de cette surface, avec le tampon rempli
-par `writeCameraViews`. L'alpha vaut `1` tant que #79 ne fournit pas `engine.frame`.
+par `writeCameraViews`. L'alpha vaut `engine.frame.alpha` de cette frame d'affichage.
 N'appelez pas `renderViews` vous-même et ne lisez pas les stores caméra directement.
-`LayerManager.dispose()` retire le hook `engine:render`. Les nœuds DOM restent jusqu'à `unregister`.
+À `engine.stop()`, l'hôte de rendu appelle `LayerManager.dispose()` : il retire le hook `engine:render`,
+démonte chaque renderer et retire ses nœuds DOM.
 `runSurfaceConformance(service, engine)` depuis `@gwenjs/renderer-core/testing` vérifie
 cette forme.
 

@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { useScreen } from "../../src/use-screen.js";
 import { createManagerServices } from "../../src/create-manager-services.js";
-import { getOrCreateScreenService } from "../../src/get-or-create-screen-service.js";
 import { StaticSizeProvider } from "../../src/screen-size-providers.js";
 import { ScreenPlugin } from "../../src/screen-plugin.js";
 import { createEngine } from "@gwenjs/core/node";
@@ -23,7 +22,7 @@ describe("useScreen", () => {
     let info: ReturnType<typeof useScreen> | undefined;
     engine.run(() => {
       // Simulate viewport:add hook being called
-      const svc = getOrCreateScreenService(engine);
+      const svc = engine.inject("screenService");
       svc.setContainerSize(800, 600);
       // viewportManager is provided before ScreenPlugin setup
       const vm = engine.inject("viewportManager");
@@ -41,7 +40,7 @@ describe("useScreen", () => {
     engine.run(() => {
       const vm = engine.inject("viewportManager");
       vm.set("main", { x: 0, y: 0, width: 1, height: 1 });
-      getOrCreateScreenService(engine).setContainerSize(1024, 768);
+      engine.inject("screenService").setContainerSize(1024, 768);
       const info = useScreen();
       expect(info.pixels.width).toBe(1024);
     });

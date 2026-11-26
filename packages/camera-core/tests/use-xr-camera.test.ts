@@ -172,12 +172,8 @@ describe("useXRCamera", () => {
 describe("CameraSystem — XR cameras are skipped", () => {
   it("XR camera is not processed by CameraSystem", async () => {
     const engine = await createEngine({ maxEntities: 100 });
-    const { getOrCreateCameraManager, getOrCreateViewportManager } =
-      await import("@gwenjs/renderer-core");
-    const { createViewportsPlugin } = await import("../../app/src/viewports-plugin.js");
-    await engine.use(createViewportsPlugin());
-    getOrCreateCameraManager(engine);
-    getOrCreateViewportManager(engine);
+    const { RenderHostPlugin } = await import("@gwenjs/renderer-core");
+    await engine.use(RenderHostPlugin());
     const { CameraSystem } = await import("../src/camera-system.js");
     await engine.use(CameraSystem());
 

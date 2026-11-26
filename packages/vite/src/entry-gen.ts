@@ -146,7 +146,7 @@ export function generateEntryModule(
     hasScenesDir
       ? 'import { WasmBridgeImpl, runScenePreload } from "@gwenjs/core/internal";'
       : 'import { WasmBridgeImpl } from "@gwenjs/core/internal";',
-    'import { createViewportsPlugin, createScreenPlugin } from "@gwenjs/app";',
+    'import { RenderHostPlugin, ScreenPlugin } from "@gwenjs/app";',
     `import * as __gwenGlue from ${JSON.stringify(`@gwenjs/core/wasm/${variant}${profile === "dev" ? "-dev" : ""}/factory`)};`,
     'import gwenConfig from "/gwen.config.ts";',
     'import { plugins as _localPlugins } from "virtual:gwen/local-plugins";',
@@ -175,8 +175,8 @@ export function generateEntryModule(
     "  try {",
     "  engine = await createEngine({ ...__gwenResolved.engine, logger: gwenConfig.logger, _bridge: bridge, _ownsBridge: true });",
     "",
-    "  await engine.use(createViewportsPlugin(gwenConfig.viewports));",
-    "  await engine.use(createScreenPlugin(gwenConfig.screen));",
+    "  await engine.use(RenderHostPlugin({ viewports: gwenConfig.viewports }));",
+    "  await engine.use(ScreenPlugin(gwenConfig.screen ?? {}));",
     "",
     "  for (const p of gwenConfig.plugins ?? []) await engine.use(p);",
     "",

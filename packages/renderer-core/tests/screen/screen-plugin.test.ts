@@ -1,7 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { createManagerServices } from "../../src/create-manager-services.js";
 import { ScreenPlugin } from "../../src/screen-plugin.js";
-import { getOrCreateScreenService } from "../../src/get-or-create-screen-service.js";
 import { StaticSizeProvider } from "../../src/screen-size-providers.js";
 import type { GwenEngine, GwenLogger } from "@gwenjs/core";
 
@@ -76,11 +75,11 @@ describe("ScreenPlugin", () => {
     const plugin = ScreenPlugin({ sizeProvider: StaticSizeProvider({ width: 1024, height: 768 }) });
     plugin.setup(engine);
 
-    const svc = getOrCreateScreenService(engine);
+    const svc = engine.inject("screenService");
     const setSpy = vi.spyOn(svc, "setContainerSize");
 
     engine._fire("engine:init");
-    expect(setSpy).toHaveBeenCalledWith(1024, 768);
+    expect(setSpy).toHaveBeenCalledWith(1024, 768, undefined);
   });
 
   it("removes viewport info on viewport:remove", () => {
@@ -88,7 +87,7 @@ describe("ScreenPlugin", () => {
     const plugin = ScreenPlugin({ sizeProvider: StaticSizeProvider({ width: 800, height: 600 }) });
     plugin.setup(engine);
 
-    const svc = getOrCreateScreenService(engine);
+    const svc = engine.inject("screenService");
     engine._fire("engine:init");
 
     // create an info entry
@@ -106,7 +105,7 @@ describe("ScreenPlugin", () => {
     const plugin = ScreenPlugin({ sizeProvider: StaticSizeProvider({ width: 800, height: 600 }) });
     plugin.setup(engine);
 
-    const svc = getOrCreateScreenService(engine);
+    const svc = engine.inject("screenService");
     engine._fire("engine:init");
     const spy = vi.spyOn(svc, "computeAllBounds");
     engine._fire("engine:afterTick");
@@ -114,7 +113,7 @@ describe("ScreenPlugin", () => {
   });
 
   // ── Integration: viewport registration order ─────────────────────────────────
-  // Regression test for: bootstrap not mounting createViewportsPlugin before ScreenPlugin.
+  // Regression test for: bootstrap not mounting RenderHostPlugin before ScreenPlugin.
   // If viewport:add fires AFTER engine:init, pixels must still be computed correctly.
 
   it("pixels are non-zero when viewport is registered via viewport:add after engine:init", () => {
@@ -122,7 +121,7 @@ describe("ScreenPlugin", () => {
     const plugin = ScreenPlugin({ sizeProvider: StaticSizeProvider({ width: 800, height: 600 }) });
     plugin.setup(engine);
 
-    const svc = getOrCreateScreenService(engine);
+    const svc = engine.inject("screenService");
     const info = svc.getOrCreateInfo("main");
 
     // engine:init fires first — 'main' not in VM yet → pixels stay 0
@@ -154,7 +153,7 @@ describe("ScreenPlugin", () => {
     const plugin = ScreenPlugin({ sizeProvider: StaticSizeProvider({ width: 800, height: 600 }) });
     plugin.setup(engine);
 
-    const svc = getOrCreateScreenService(engine);
+    const svc = engine.inject("screenService");
     engine._fire("engine:init");
 
     // register 'main' so the service has a known viewport

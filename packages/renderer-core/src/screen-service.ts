@@ -3,7 +3,7 @@
  *
  * `ScreenServiceImpl` is created by `gwen:screen` and injected as `'screenService'`.
  * Game code accesses it through `useScreen()`.
- * Plugin authors read it through `getOrCreateScreenService(engine)`.
+ * Plugin authors read it through `engine.inject('screenService')`.
  *
  * The contract type is {@link ScreenInfoStore} in `@gwenjs/schema`, re-exported
  * here as `ScreenService`.

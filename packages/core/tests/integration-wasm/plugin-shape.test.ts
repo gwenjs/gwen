@@ -18,7 +18,7 @@ import { createPhysicsKinematicSyncSystem as createPhysics3DKinematicSyncSystem 
 import { CameraCorePlugin } from "../../../camera-core/src/camera-core-plugin";
 import { ScreenPlugin } from "../../../renderer-core/src/screen-plugin";
 import { StaticSizeProvider } from "../../../renderer-core/src/screen-size-providers";
-import { createViewportsPlugin } from "../../../app/src/viewports-plugin";
+import { RenderHostPlugin } from "../../../renderer-core/src/render-host-plugin";
 
 /**
  * Core built-ins stay `satisfies GwenModule` (#73 Decisions).
@@ -32,7 +32,7 @@ const FACTORIES: readonly {
   /** `createPhysicsPlugin` also accepts the kit `definePlugin(` form, so the check stays green before adoption. */
   readonly builder?: "definePlugin" | "createPhysicsPlugin";
 }[] = [
-  { repoPath: "packages/app/src/viewports-plugin.ts", factories: ["createViewportsPlugin"] },
+  { repoPath: "packages/renderer-core/src/render-host-plugin.ts", factories: ["RenderHostPlugin"] },
   { repoPath: "packages/renderer-core/src/screen-plugin.ts", factories: ["ScreenPlugin"] },
   {
     repoPath: "packages/camera-core/src/camera-core-plugin.ts",
@@ -194,7 +194,7 @@ describe("official plugin shape", () => {
     });
 
     await withEngine("light", async (handle) => {
-      await handle.engine.use(createViewportsPlugin());
+      await handle.engine.use(RenderHostPlugin());
       await handle.engine.use(
         ScreenPlugin({ sizeProvider: StaticSizeProvider({ width: 800, height: 600 }) }),
       );
@@ -234,7 +234,7 @@ describe("official plugin shape", () => {
       createPhysics3DKinematicSyncSystem({ positionComponent: Position3D })(),
       CameraCorePlugin(),
       ScreenPlugin(),
-      createViewportsPlugin(),
+      RenderHostPlugin(),
     ];
     for (const plugin of plugins) {
       expect(strayKeys(plugin), plugin.name).toEqual([]);
@@ -244,7 +244,7 @@ describe("official plugin shape", () => {
 
 describe("official plugin provided keys", () => {
   async function installAll(handle: RealEngineHandle): Promise<void> {
-    await handle.engine.use(createViewportsPlugin());
+    await handle.engine.use(RenderHostPlugin());
     await handle.engine.use(
       ScreenPlugin({ sizeProvider: StaticSizeProvider({ width: 800, height: 600 }) }),
     );

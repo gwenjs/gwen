@@ -1,7 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { createViewportsPlugin } from "@gwenjs/app";
+import { RenderHostPlugin } from "@gwenjs/app";
 import { ConformanceErrorCodes } from "@gwenjs/plugin-conformance";
 import { runPluginConformance } from "@gwenjs/plugin-conformance/runtime";
 import { withPrivateTmpdir } from "../helpers/fixture.js";
@@ -115,7 +115,7 @@ describe("runPluginConformance remove", () => {
         root: hiddenRoot,
         packageName: "@fixture/installs-camera-core",
         factories: [{ export: "InstallsCameraCore" }],
-        frameworkProviders: [createViewportsPlugin],
+        frameworkProviders: [RenderHostPlugin],
       }),
     );
     const plugins = findingsWithCode(report, ConformanceErrorCodes.RUNTIME_REMOVE_LEAK).filter(

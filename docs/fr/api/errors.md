@@ -520,9 +520,9 @@ Cause. Aucune caméra active n'a été trouvée pour le viewport. Fix. Ajoutez u
 
 Cause. `screenToWorld` a été appelé avec une caméra perspective. Fix. Utilisez `screenToRay()`.
 
-### RENDERER:FOREIGN_LAYER_MANAGER {#renderer-foreign-layer-manager}
+### RENDERER:MOUNT_FAILED {#renderer-mount-failed}
 
-Cause. `getOrCreateLayerManager` a trouvé une valeur `layerManager` qui n'est pas le `LayerManager` de ce package. Fix. Retirez cette valeur. `gwen:viewports` fournit le `LayerManager` créé par ce package.
+Cause. Le `mount()` d'un renderer a levé une erreur. L'hôte de rendu l'a signalée sur `engine.errors`, a désenregistré ce renderer et a monté les autres. Un `GwenError` levé garde son propre code. Fix. Lisez le `error` de l'événement et corrigez le `mount()` de ce renderer, par exemple un contexte WebGL manquant.
 
 ### RENDERER:CONFORMANCE_FAILED {#renderer-conformance-failed}
 

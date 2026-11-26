@@ -44,9 +44,9 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
 ## Zero-config setup
 
 `screenService` is a framework service provided by `gwen:screen`.
-`viewportManager`, `cameraManager` and `layerManager` are provided by `gwen:viewports`.
-Declare the ones you read in `requires.services` or `requires.optional`.
-`getOrCreateScreenService` is a legacy reader: it does not create the service.
+`viewportManager`, `cameraManager` and `layerManager` are provided by `gwen:viewports`, the render host (`RenderHostPlugin`).
+Declare the ones you read in `requires.services` or `requires.optional`, and read them with `engine.inject(key)`.
+Nothing creates a service lazily.
 
 `ScreenPlugin` is registered automatically by `@gwenjs/app` — no configuration required for browser games:
 
@@ -181,6 +181,12 @@ export default defineConfig({
 ```
 
 The `subscribe` function must return a cleanup function — GWEN calls it automatically on `engine:stop`.
+
+`getSize()` may also return `dpr` (the device pixel ratio), and `subscribe` may call the callback with a third
+`dpr` argument. `ScreenPlugin` stores it on `screenService.devicePixelRatio` and sends `resize(width, height, dpr)` to
+every renderer through the render host. Without a `dpr` the previous value stays (`1` at the start).
+`BrowserSizeProvider` reports `window.devicePixelRatio`. A change of ratio with no change of size
+(browser zoom, a window moved to another monitor) triggers no `ResizeObserver` callback, so it is not observed.
 
 ## Async context
 

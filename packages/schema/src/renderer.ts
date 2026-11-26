@@ -470,7 +470,7 @@ export interface ViewportScreenInfo {
  * Computes world-space bounds for a viewport given its pixel dimensions.
  *
  * Implemented by camera plugins (`camera-core`, `camera2d`, `camera3d`) and registered
- * via `getOrCreateScreenService(engine).registerBoundsProvider(provider)`.
+ * via `engine.inject("screenService").registerBoundsProvider(provider)`.
  *
  * @example Orthographic implementation (camera-core)
  * ```ts
@@ -505,7 +505,7 @@ export interface ViewportBoundsProvider {
 
 /**
  * Runtime interface for the screen service.
- * Accessible to plugin authors via `getOrCreateScreenService(engine)`.
+ * Accessible to plugin authors via `engine.inject("screenService")`.
  * Game code should use `useScreen()` instead.
  */
 export interface ScreenInfoStore {
