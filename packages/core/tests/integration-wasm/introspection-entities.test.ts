@@ -397,6 +397,22 @@ describe.runIf(__GWEN_DEV__)("introspection entities", () => {
     expect(intro.entity(id)).toBeUndefined();
   });
 
+  it("a stopped engine that owns its bridge gives an empty page and entity undefined without throwing", async () => {
+    const engine = await openWith(1000);
+    const id = spawn(engine, "position");
+    const intro = serviceOf(engine);
+    expect(intro.entity(id)).toBeDefined();
+    expect(intro.entities({ offset: 0, limit: 1 }).listed).toBe(1);
+    await engine.stop();
+    expect(intro.entity(id)).toBeUndefined();
+    expect(intro.entities({ offset: 0, limit: 1 })).toEqual({
+      available: true,
+      total: 0,
+      listed: 0,
+      items: [],
+    });
+  });
+
   it("a same-name definition rejected for other lanes leaves the listing intact", async () => {
     const { engine } = await open();
     const id = spawn(engine, "position");
