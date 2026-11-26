@@ -14,6 +14,8 @@ import { fileURLToPath } from "node:url";
 import { defineGwenModule, GwenModuleDefinitionError } from "@gwenjs/kit/module";
 import type { GwenModule } from "@gwenjs/kit/module";
 import type { AutoImport } from "@gwenjs/kit";
+import { createEngine } from "@gwenjs/core/node";
+import { RENDERER_CONTRACT_VERSION } from "@gwenjs/renderer-core";
 import { GwenError } from "@gwenjs/schema";
 import type { GwenKit, GwenSourceTransform } from "@gwenjs/schema";
 import { GwenApp } from "../src/app.js";
@@ -797,6 +799,44 @@ describe("GwenApp — build hooks", () => {
     const viewportsIdx = names.indexOf("gwen:viewports");
     const screenIdx = names.indexOf("gwen:screen");
     expect(screenIdx).toBeGreaterThan(viewportsIdx);
+  });
+
+  it("setupModules replaces existing gwen:viewports plugin on second call", async () => {
+    const app = new GwenApp();
+    const config = resolveConfig({});
+
+    await app.setupModules(config);
+    const countAfterFirst = app.plugins.filter((plugin) => plugin.name === "gwen:viewports").length;
+    await app.setupModules(config);
+    const hosts = app.plugins.filter((plugin) => plugin.name === "gwen:viewports");
+
+    expect([countAfterFirst, hosts.length]).toEqual([1, 1]);
+
+    // The surviving plugin is the render host: `engine.stop()` unmounts what is registered.
+    const [host] = hosts;
+    if (host === undefined) throw new Error("gwen:viewports is missing");
+    const engine = await createEngine({ maxEntities: 32 });
+    try {
+      await engine.use(host);
+      let unmounts = 0;
+      engine.inject("layerManager").register({
+        name: "renderer:probe",
+        contractVersion: RENDERER_CONTRACT_VERSION,
+        layers: { main: { order: 0 } },
+        mount() {},
+        unmount() {
+          unmounts += 1;
+        },
+        resize() {},
+        getLayerElement() {
+          throw new Error("never mounted");
+        },
+      });
+      await engine.stop();
+      expect(unmounts).toBe(1);
+    } finally {
+      await engine.stop();
+    }
   });
 
   it("includes useScreen in auto-imports", async () => {

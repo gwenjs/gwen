@@ -420,11 +420,11 @@ describe("generateEntryModule — bootstrap correctness", () => {
     }
   });
 
-  it("imports createViewportsPlugin and createScreenPlugin from @gwenjs/app", () => {
+  it("imports RenderHostPlugin and ScreenPlugin from @gwenjs/app", () => {
     const code = entryModule(false);
     expect(code).toContain('from "@gwenjs/app"');
-    expect(code).toContain("createViewportsPlugin");
-    expect(code).toContain("createScreenPlugin");
+    expect(code).toContain("RenderHostPlugin");
+    expect(code).toContain("ScreenPlugin");
   });
 
   it("no declarations: no extra static plugin imports", () => {
@@ -595,7 +595,7 @@ describe("generateEntryModule — bootstrap correctness", () => {
       const letIdx = code.indexOf("let engine;");
       const tryIdx = code.indexOf("try {");
       const createIdx = code.indexOf("engine = await createEngine(");
-      const viewportsIdx = code.indexOf("engine.use(createViewportsPlugin");
+      const viewportsIdx = code.indexOf("engine.use(RenderHostPlugin");
       const startIdx = code.indexOf("await engine.start");
       const lastUseIdx = code.lastIndexOf("engine.use(");
       const stopIdx = code.indexOf("if (engine) await engine.stop().catch(() => {});");
@@ -620,8 +620,8 @@ describe("generateEntryModule — bootstrap correctness", () => {
 
   it("declarations are installed after gwenConfig.plugins and before local plugins", () => {
     const code = entryModule(true, [{ src: "@gwenjs/audio" }]);
-    const viewports = code.indexOf("engine.use(createViewportsPlugin");
-    const screen = code.indexOf("engine.use(createScreenPlugin");
+    const viewports = code.indexOf("engine.use(RenderHostPlugin");
+    const screen = code.indexOf("engine.use(ScreenPlugin");
     const configPlugins = code.indexOf("gwenConfig.plugins");
     const declared = code.indexOf("engine.use(_gwenPlugin0");
     const local = code.indexOf("for (const factory of _localPlugins) await engine.use(factory());");
