@@ -661,9 +661,12 @@ export const FRAMEWORK_ENTRIES: Readonly<Record<string, readonly string[]>> = {
     "CameraProviderConformanceOptions",
     "MockSizeProvider",
     "MockSizeProviderHandle",
+    "SurfaceConformanceOptions",
+    "SurfacePluginConformanceOptions",
     "runCameraProviderConformance",
     "runConformanceTests",
     "runSurfaceConformance",
+    "runSurfacePluginConformance",
   ],
   "@gwenjs/schema": [
     "AssetKind",

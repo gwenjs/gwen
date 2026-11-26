@@ -160,7 +160,7 @@ describe("API reference pages", () => {
       const text = pageText(file);
       expect(text).toContain("runSurfaceConformance(service, { dpr? })");
       expect(text).toContain("runSurfacePluginConformance({ plugin, serviceKey, createEngine? })");
-      expect(text).not.toContain("runSurfaceConformance(service, engine)");
+      expect(text).not.toContain("runSurfaceConformance(service, " + "engine)");
     },
   );
 
@@ -170,7 +170,7 @@ describe("API reference pages", () => {
       const text = pageText(file);
       expect(text).toContain("runSurfacePluginConformance");
       expect(text).toContain("runSurfaceConformance(service, { dpr? })");
-      expect(text).not.toContain("runSurfaceConformance(service, engine)");
+      expect(text).not.toContain("runSurfaceConformance(service, " + "engine)");
     },
   );
 });

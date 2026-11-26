@@ -526,7 +526,7 @@ Cause. A renderer's `mount()` threw. The render host reported it on `engine.erro
 
 ### RENDERER:CONFORMANCE_FAILED {#renderer-conformance-failed}
 
-Cause. A renderer service failed `runConformanceTests` or `runSurfaceConformance`. Fix. Update the renderer plugin to the `RendererService` contract.
+Cause. A renderer service failed `runConformanceTests`, `runSurfaceConformance` or `runSurfacePluginConformance`. Fix. Update the renderer plugin to the `RendererService` contract.
 
 ### RENDERER:SCREEN_RESIZE_OBSERVER_NOT_AVAILABLE {#renderer-screen-resize-observer-not-available}
 

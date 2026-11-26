@@ -526,7 +526,7 @@ Cause. Le `mount()` d'un renderer a levé une erreur. L'hôte de rendu l'a signa
 
 ### RENDERER:CONFORMANCE_FAILED {#renderer-conformance-failed}
 
-Cause. Un service renderer a échoué à `runConformanceTests` ou `runSurfaceConformance`. Fix. Mettez le plugin renderer au contrat `RendererService`.
+Cause. Un service renderer a échoué à `runConformanceTests`, `runSurfaceConformance` ou `runSurfacePluginConformance`. Fix. Mettez le plugin renderer au contrat `RendererService`.
 
 ### RENDERER:SCREEN_RESIZE_OBSERVER_NOT_AVAILABLE {#renderer-screen-resize-observer-not-available}
 

@@ -489,8 +489,11 @@ par `writeCameraViews`. L'alpha vaut `engine.frame.alpha` de cette frame d'affic
 N'appelez pas `renderViews` vous-même et ne lisez pas les stores caméra directement.
 À `engine.stop()`, l'hôte de rendu appelle `LayerManager.dispose()` : il retire le hook `engine:render`,
 démonte chaque renderer et retire ses nœuds DOM.
-`runSurfaceConformance(service, engine)` depuis `@gwenjs/renderer-core/testing` vérifie
-cette forme.
+`runSurfaceConformance(service, { dpr? })` depuis `@gwenjs/renderer-core/testing` vérifie
+cette forme sur le service seul. `runSurfacePluginConformance({ plugin, serviceKey })` vérifie
+le plugin entier sur l'hôte de rendu réel : montage au démarrage et après une installation
+tardive, un rendu par `engine:render`, redimensionnement, nettoyage à `engine.stop()` et deux
+moteurs dans une même page.
 
 ## Membres requis vs optionnels
 
