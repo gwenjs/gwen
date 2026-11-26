@@ -358,10 +358,11 @@ describe.runIf(__GWEN_DEV__)("introspection entities", () => {
 
   it("a faulted engine still validates first, then gives available false", async () => {
     const { engine, bridge } = await open();
-    spawn(engine, "position");
+    const id = spawn(engine, "position");
     await engine.startExternal();
     const intro = serviceOf(engine);
     expect(intro.entities({ offset: 0, limit: 1 }).available).toBe(true);
+    expect(intro.entity(id)).toBeDefined();
     engine.errors.emit({ level: "fatal", code: "TEST:FATAL", message: "down" });
     expect(engine.state).toBe("faulted");
     const error = caught(() => intro.entities({ offset: 0, limit: 0 }));
@@ -374,7 +375,7 @@ describe.runIf(__GWEN_DEV__)("introspection entities", () => {
       listed: 0,
       items: [],
     });
-    expect(intro.entity(1n)).toBeUndefined();
+    expect(intro.entity(id)).toBeUndefined();
     const after = bridge.registerQuery(Uint32Array.of(0));
     bridge.releaseQuery(after);
     expect(after).toBe(before);
@@ -382,9 +383,10 @@ describe.runIf(__GWEN_DEV__)("introspection entities", () => {
 
   it("a stopped engine gives an empty available page and does not throw", async () => {
     const { engine } = await open();
-    spawn(engine, "position");
+    const id = spawn(engine, "position");
     const intro = serviceOf(engine);
     expect(intro.entities({ offset: 0, limit: 1 }).listed).toBe(1);
+    expect(intro.entity(id)).toBeDefined();
     await engine.stop();
     expect(intro.entities({ offset: 0, limit: 1 })).toEqual({
       available: true,
@@ -392,7 +394,47 @@ describe.runIf(__GWEN_DEV__)("introspection entities", () => {
       listed: 0,
       items: [],
     });
-    expect(intro.entity(1n)).toBeUndefined();
+    expect(intro.entity(id)).toBeUndefined();
+  });
+
+  it("a same-name definition rejected for other lanes leaves the listing intact", async () => {
+    const { engine } = await open();
+    const id = spawn(engine, "position");
+    const intro = serviceOf(engine);
+    const types = engine.registeredComponentTypes();
+    const listed = {
+      name: "P94Position",
+      typeId: types.get("P94Position"),
+      values: { x: 1, y: 2 },
+    };
+    const before = intro.entities({ offset: 0, limit: 10 });
+    expect(before.items.map((item) => item.id)).toEqual([id]);
+    expect(before.items[0]?.components).toEqual([listed]);
+    expect(intro.entity(id)?.components).toEqual([listed]);
+
+    const otherLanes = defineComponent({
+      name: "P94Position",
+      schema: { x: Types.f64, y: Types.f64 },
+    });
+    expect(() => engine.addComponent(id, otherLanes, { x: 9, y: 9 })).toThrow(
+      expect.objectContaining({ code: "CORE:COMPONENT_LAYOUT_INVALID" }),
+    );
+
+    const single = intro.entity(id);
+    expect(single?.id).toBe(id);
+    expect(single?.components).toEqual([listed]);
+    let pageAfter: unknown;
+    try {
+      pageAfter = intro.entities({ offset: 0, limit: 10 });
+    } catch (error: unknown) {
+      pageAfter = error;
+    }
+    expect(pageAfter).toEqual({
+      available: true,
+      total: 1,
+      listed: 1,
+      items: [{ id, components: [listed] }],
+    });
   });
 
   it("a configured maxPageSize of 64 accepts 64 and rejects 65", async () => {
