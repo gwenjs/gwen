@@ -20,6 +20,7 @@ export { useActor, usePrefab } from "./runtime/use-actor";
 export { defineLayout } from "./runtime/define-layout";
 export { useLayout } from "./runtime/use-layout";
 export { useTransform } from "./runtime/use-transform";
+export { useTransform3D } from "./runtime/use-transform3d";
 export { useChildren } from "./runtime/use-children";
 export type { ChildrenHandle } from "./runtime/use-children";
 export { watchActorLeaks } from "./runtime/watch-actor-leaks";
@@ -39,6 +40,7 @@ export type {
 // Types
 export type { ActorHandle, PrefabHandle } from "./runtime/use-actor";
 export type { TransformHandle } from "./runtime/use-transform";
+export type { Transform3DHandle } from "./runtime/use-transform3d";
 export type { WatchActorLeaksOptions } from "./runtime/watch-actor-leaks";
 export type { PrefabDefinition, PrefabEntries, PrefabOverrides } from "./runtime/define-prefab";
 export type {

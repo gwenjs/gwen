@@ -57,7 +57,7 @@ Cause. L'appel est hors de `defineSystem()`, `defineActor()`, `defineScene()`, `
 
 Cause. L'appel est hors de `defineActor()`. Fix. Capturez la poignée dans la fabrique, puis utilisez-la comme closure après `await`.
 
-`useEntityId`, `useTransform`, `useChildren`, `useComponent` (forme à un argument), `onStart`, `onDestroy`, `onRelease`, `onReset`, `onEnable` et `onDisable` lancent ce code. Les composables physique aussi : `useDynamicBody`, `useKinematicBody`, `useStaticBody`, `useShape`, `useBoxCollider`, `useSphereCollider`, `useCapsuleCollider`, `useConvexCollider`, `useMeshCollider`, `useHeightfieldCollider` et `useCompoundCollider`.
+`useEntityId`, `useTransform`, `useTransform3D`, `useChildren`, `useComponent` (forme à un argument), `onStart`, `onDestroy`, `onRelease`, `onReset`, `onEnable` et `onDisable` lancent ce code. Les composables physique aussi : `useDynamicBody`, `useKinematicBody`, `useStaticBody`, `useShape`, `useBoxCollider`, `useSphereCollider`, `useCapsuleCollider`, `useConvexCollider`, `useMeshCollider`, `useHeightfieldCollider` et `useCompoundCollider`.
 
 ### CORE:OUTSIDE_SYSTEM_CONTEXT {#core-outside-system-context}
 
@@ -81,7 +81,7 @@ Cause. L'appel est hors de `defineActor()`, `plugin setup()` ou `withCleanup()`.
 
 ### CORE:TRANSFORM_REF_INVALID {#core-transform-ref-invalid}
 
-Cause. Le lecteur `transform:2d` a rejeté un appel. `GwenTransformRefError.reason` nomme le cas : `dead-entity` (`track` d'une entité qui n'est pas vivante), `foreign-engine` (`read` d'une ref suivie sur un autre moteur) ou `engine-stopped` (`track` après l'arrêt du moteur). Fix. Suivez une entité vivante, lisez une ref avec le lecteur du moteur qui l'a suivie, et appelez `track` avant `stop()`.
+Cause. Le lecteur `transform:2d` ou `transform:3d` a rejeté un appel. `GwenTransformRefError.reason` nomme le cas : `dead-entity` (`track` d'une entité qui n'est pas vivante), `foreign-engine` (`read` d'une ref suivie sur un autre moteur, ou par l'autre lecteur) ou `engine-stopped` (`track` après l'arrêt du moteur). Fix. Suivez une entité vivante, lisez une ref avec le lecteur du moteur qui l'a suivie, et appelez `track` avant `stop()`.
 
 `read` d'une ref libérée, ou dont l'entité a été détruite, renvoie false et ne lève rien. `release` d'une ref d'un autre moteur ne fait rien.
 

@@ -21,6 +21,7 @@ import {
   releaseHistoryViews,
   runFixedDisplay,
   type DisplayTiming,
+  type EngineLoopBridge,
 } from "./fixed-display.js";
 import { recordPhaseBudget } from "./phase-budget.js";
 import { setFramePhase } from "./engine-internals.js";
@@ -35,17 +36,6 @@ export interface EngineLoopConfig {
   targetFPS: number;
   maxDeltaSeconds: number;
   debug: boolean;
-}
-
-/** The bridge calls the frame loop actually makes. */
-export interface EngineLoopBridge {
-  checkMemoryGrow(): boolean;
-  getLinearMemory(): WebAssembly.Memory | null;
-  engine(): {
-    update_transforms?: () => void;
-    transform_history_commit?: () => number;
-    transform_history_ptr?: (buffer: number) => number;
-  };
 }
 
 /** Module stepping used between `engine:before-update` and `update_transforms`. */
@@ -77,7 +67,7 @@ export class EngineLoop {
   private readonly _idle: Array<() => void> = [];
   private _rafHandle: number | ReturnType<typeof setTimeout> = 0;
   private _lastFrameTime = 0;
-  /** @internal Read by the `transform:2d` reader. */
+  /** @internal Read by the transform:2d and transform:3d readers. */
   readonly _fixed = createFixedStepState();
   private readonly _timing: DisplayTiming = { timed: false, t0: 0 };
   private _lastPhaseMs?: EngineFramePhaseMs;

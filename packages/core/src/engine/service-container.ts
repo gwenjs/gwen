@@ -35,6 +35,7 @@ const ENGINE_OWNED = new Set<string>([
   "errors",
   "memory",
   "transform:2d",
+  "transform:3d",
   "introspection",
 ]);
 

@@ -137,7 +137,7 @@ export const Gravity = definePlugin(
 const plugin = Gravity({ value: -20 })
 ```
 
-- Each `provides` key must be a key of `GwenProvides` and not an engine key (`logger`, `errors`, `wasm:bridge`, `memory`, `transform:2d`). In `setup`, `engine.provide` accepts only the declared keys at compile time. `provides` may be a function of the resolved options, `(opts) => [...]`.
+- Each `provides` key must be a key of `GwenProvides` and not an engine key (`logger`, `errors`, `wasm:bridge`, `memory`, `transform:2d`, `transform:3d`). In `setup`, `engine.provide` accepts only the declared keys at compile time. `provides` may be a function of the resolved options, `(opts) => [...]`.
 - `options.defaults` gives the resolved shape and every default. The factory receives a frozen object: `defaults` merged one level deep with the caller's argument. A key the caller sets to `undefined` keeps its default. A nested object the caller passes replaces the nested default whole. The types reject an explicit `undefined` unless the option's type includes it.
 - `options.validate` is an optional pure function that returns `GwenConfigIssue[]`. The factory never calls it and never throws for bad options. The plugin exposes the result as `plugin.validateOptions()`, and `plugin.provides` holds the deduplicated, frozen keys.
 - `provides`, `validateOptions`, and `extensionApi` in the object the factory returns are type errors: `definePlugin` writes them.
@@ -362,7 +362,7 @@ The same keys fail at compile time. `definePlugin` replaces every key outside `n
 
 ## Teardown
 
-`engine.unuse(name)` and `engine.stop()` call `teardown()`. `stop()` calls it after the `engine:stop` hook, in reverse install order. A teardown must be idempotent with work the plugin already did on `engine:stop`. Services provided through the `engine` argument of `setup()`, including after `setup()` resolves, are removed before `teardown()` runs. `useEngine().provide(...)` is not removed. Replacing an engine-owned key (`wasm:bridge`, `logger`, `errors`, `memory`, `transform:2d`) does not make `stop()` or `unuse()` remove that key.
+`engine.unuse(name)` and `engine.stop()` call `teardown()`. `stop()` calls it after the `engine:stop` hook, in reverse install order. A teardown must be idempotent with work the plugin already did on `engine:stop`. Services provided through the `engine` argument of `setup()`, including after `setup()` resolves, are removed before `teardown()` runs. `useEngine().provide(...)` is not removed. Replacing an engine-owned key (`wasm:bridge`, `logger`, `errors`, `memory`, `transform:2d`, `transform:3d`) does not make `stop()` or `unuse()` remove that key.
 
 ## Requirements
 
@@ -385,7 +385,7 @@ export const GamePlugin = definePlugin(() => ({
 }))
 ```
 
-`plugins` are checked first, then `services`, each in the order written. A service the engine already provides (`wasm:bridge`, `logger`, `errors`, `memory`, `transform:2d`) counts as installed. A plugin whose `setup()` is still running does not.
+`plugins` are checked first, then `services`, each in the order written. A service the engine already provides (`wasm:bridge`, `logger`, `errors`, `memory`, `transform:2d`, `transform:3d`) counts as installed. A plugin whose `setup()` is still running does not.
 
 When a name is missing, `engine.use()` rejects `GwenPluginDependencyError` with code `CORE:PLUGIN_DEPENDENCY_MISSING` and does not call `setup()`. Calling `use()` again with a name that is already installed resolves. In a development build with `debug: true` it also logs a warning.
 
@@ -405,7 +405,7 @@ assert.equal(typeof logger.current?.warn, "function");
 
 `watchService(key, onChange)` subscribes during `setup()` and calls `onChange` with the current value. A replacement calls `onChange` with the value still stored. A removal calls `onChange(undefined)`. The function it returns stops the subscription. Removing the plugin does too.
 
-`service:provided` and `service:removed` carry `{ key, value, owner, reason }`. `reason` is `install`, `unuse`, `stop`, or `overwrite`. On a replacement, `service:removed` names the previous owner and `service:provided` names the plugin that stored the new value. Engine-owned keys (`wasm:bridge`, `logger`, `errors`, `memory`, `transform:2d`) do not fire these hooks. A plugin's `provide` calls during `setup()` are announced after `setup()` resolves and before `plugin:registered`, and only when every declared key is present. A failed `setup()`, an undeclared `provide` or a missing declared key announces nothing. A `provide` of a declared key after `setup()` has resolved is announced then.
+`service:provided` and `service:removed` carry `{ key, value, owner, reason }`. `reason` is `install`, `unuse`, `stop`, or `overwrite`. On a replacement, `service:removed` names the previous owner and `service:provided` names the plugin that stored the new value. Engine-owned keys (`wasm:bridge`, `logger`, `errors`, `memory`, `transform:2d`, `transform:3d`) do not fire these hooks. A plugin's `provide` calls during `setup()` are announced after `setup()` resolves and before `plugin:registered`, and only when every declared key is present. A failed `setup()`, an undeclared `provide` or a missing declared key announces nothing. A `provide` of a declared key after `setup()` has resolved is announced then.
 
 ## Providing Services
 

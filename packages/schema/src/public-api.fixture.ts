@@ -82,8 +82,11 @@ type _0 = [
   Root.ServiceChangeEvent,
   Root.ServiceChangeReason,
   Root.TransformReader2D,
+  Root.TransformReader3D,
   Root.TransformRef2D,
+  Root.TransformRef3D,
   Root.TransformSample2D,
+  Root.TransformSample3D,
   Root.VitePlugin,
   Root.ViteUserConfig,
 ];

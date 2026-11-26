@@ -153,6 +153,7 @@
       "useLayout",
       "usePrefab",
       "useTransform",
+      "useTransform3D",
       "watchActorLeaks"
     ],
     "types": [
@@ -175,6 +176,7 @@
       "PrefabHandle",
       "PrefabOverrides",
       "RenderFn",
+      "Transform3DHandle",
       "TransformHandle",
       "UpdateFn",
       "UseLayoutOptions",

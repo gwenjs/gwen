@@ -305,6 +305,27 @@ The sample stored on a step does not include the `engine:update` writes of that 
 
 `physicsHz === 0` allocates no history buffer until the first `track`. After that, each frame commits the history right after `update_transforms`, and the buffers exist from the next frame: a ref reads false until then. `alpha` stays `1`, `transforms2D` stays `null`, and `read` equals `worldRaw` inside `engine:render`. A game that never tracks a ref pays nothing.
 
+### 3D transforms
+
+Every core engine provides `transform:3d`.
+
+```ts
+const transform = engine.inject('transform:3d')
+const out = { x: 0, y: 0, z: 0, qx: 0, qy: 0, qz: 0, qw: 1, scaleX: 1, scaleY: 1, scaleZ: 1 }
+const ref = transform.track(entityId)
+
+engine.hooks.hook('engine:render', () => {
+  if (!transform.read(ref, out)) return
+  draw(out.x, out.y, out.z)
+})
+```
+
+`read` allocates nothing. Inside `engine:render` it interpolates position and scale at `engine.frame.alpha`, and the quaternion with a normalised lerp on the shorter arc. Outside `engine:render` it returns the latest committed pose. It returns false, and leaves `out` untouched, when the ref was released, its entity was destroyed, the slot has no 3D node, the history is not committed yet, or the engine stopped.
+
+`useTransform3D()` writes the local pose of the current actor and keeps a 3D node that is already there. `teleport` marks the next sample so the following render snaps. `world` is the interpolated pose during `engine:render` when `physicsHz > 0` and the slot has a node. Otherwise it is the raw world pose, or the identity when there is no node. One object is shared by every `useTransform3D()` handle of the engine. The next `world` read of any actor overwrites it. Copy the fields you keep.
+
+The 3D history is committed on the first `track`, in either mode. `useTransform3D()` also asks for it while `physicsHz > 0`, so `world` can interpolate with no tracked ref. At `physicsHz === 0` the buffers appear on the frame after `track`, and `read` is false until that frame. A game that never tracks a ref, and never calls `useTransform3D()` while `physicsHz > 0`, allocates no 3D buffer. At `physicsHz === 0`, `read` returns the pose committed at the start of the frame, before `engine:update`, so it does not include that frame's `engine:update` writes, while `useTransform3D().world` does.
+
 A surface renderer `renderViews` callback still receives `1`. This page does not change that call.
 
 `engine.timeScale` scales the step `dt` only. A `timeScale` of `0.5` halves simulation speed and leaves `alpha` unchanged. There is no `pause()` and no `paused` state. `timeScale` of `0` makes the step `dt` `0`. The state does not change.

@@ -12,13 +12,13 @@ npm install @gwenjs/core
 
 `@gwenjs/core` exposes a root entrypoint and additional subpath entrypoints to keep bundle sizes small:
 
-| Subpath               | What it exports                                                                                                                                                                       |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@gwenjs/core`        | `createEngine`, `useEngine`, `defineComponent`, `Types`, `createLogger`, `setupGwen`, `onCleanup`                                                                                     |
-| `@gwenjs/core/system` | `defineSystem`, `onUpdate`, `onBeforeUpdate`, `onAfterUpdate`, `onRender`, `useQuery`, `useService`, `useWasmModule`, `useComponent`                                                  |
-| `@gwenjs/core/actor`  | `defineActor`, `onStart`, `onDestroy`, `useEntityId`, `definePrefab`, `useActor`, `usePrefab`, `useTransform`, `defineLayout`, `useLayout`, `placeActor`, `placeGroup`, `placePrefab` |
-| `@gwenjs/core/scene`  | `defineScene`, `defineSceneRouter`, `useSceneRouter`                                                                                                                                  |
-| `@gwenjs/core/node`   | `createEngine`, `setupGwen`, `loadGwenModule` — Node only; importing it declares Node. No options needed, each engine isolated, the compiled module cached per variant                |
+| Subpath               | What it exports                                                                                                                                                                                         |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@gwenjs/core`        | `createEngine`, `useEngine`, `defineComponent`, `Types`, `createLogger`, `setupGwen`, `onCleanup`                                                                                                       |
+| `@gwenjs/core/system` | `defineSystem`, `onUpdate`, `onBeforeUpdate`, `onAfterUpdate`, `onRender`, `useQuery`, `useService`, `useWasmModule`, `useComponent`                                                                    |
+| `@gwenjs/core/actor`  | `defineActor`, `onStart`, `onDestroy`, `useEntityId`, `definePrefab`, `useActor`, `usePrefab`, `useTransform`, `useTransform3D`, `defineLayout`, `useLayout`, `placeActor`, `placeGroup`, `placePrefab` |
+| `@gwenjs/core/scene`  | `defineScene`, `defineSceneRouter`, `useSceneRouter`                                                                                                                                                    |
+| `@gwenjs/core/node`   | `createEngine`, `setupGwen`, `loadGwenModule` — Node only; importing it declares Node. No options needed, each engine isolated, the compiled module cached per variant                                  |
 
 ## Quick start
 
@@ -275,7 +275,7 @@ Types: `Color`, `ComponentAccessor`, `ComponentBody`, `ComponentDefinition`, `Co
 
 `FLAG_TELEPORT` — Bit 2 of a history slot: the renderer copies `current` and skips the lerp.
 
-`GwenTransformRefError` — The `transform:2d` reader rejected a call; `reason` is `dead-entity`, `foreign-engine` or `engine-stopped`.
+`GwenTransformRefError` — The `transform:2d` or `transform:3d` reader rejected a call; `reason` is `dead-entity`, `foreign-engine` or `engine-stopped`.
 
 `GwenWasmAbiError` — A plugin WASM module declared an ABI version other than the core's.
 
@@ -323,9 +323,9 @@ Types: `ChunkColumns`, `ComponentDef`, `ComponentHandle`, `DiscoverablePlugin`, 
 
 ### `./actor`
 
-Values: `PoolExhaustedError`, `defineActor`, `defineActorPool`, `defineLayout`, `definePrefab`, `onDestroy`, `onDisable`, `onEnable`, `onRelease`, `onReset`, `onStart`, `placeActor`, `placeGroup`, `placePrefab`, `useActor`, `useActorPool`, `useActorQuery`, `useChildren`, `useEntityId`, `useLayout`, `usePrefab`, `useTransform`, `watchActorLeaks`
+Values: `PoolExhaustedError`, `defineActor`, `defineActorPool`, `defineLayout`, `definePrefab`, `onDestroy`, `onDisable`, `onEnable`, `onRelease`, `onReset`, `onStart`, `placeActor`, `placeGroup`, `placePrefab`, `useActor`, `useActorPool`, `useActorQuery`, `useChildren`, `useEntityId`, `useLayout`, `usePrefab`, `useTransform`, `useTransform3D`, `watchActorLeaks`
 
-Types: `ActorDefinition`, `ActorHandle`, `ActorInstance`, `ActorPlugin`, `ActorPool`, `ActorPoolDefinition`, `ChildrenHandle`, `CustomScope`, `LayoutDefinition`, `LayoutHandle`, `PlaceHandle`, `PoolHooks`, `PoolOptions`, `PoolStats`, `PrefabComponentEntry`, `PrefabDefinition`, `PrefabEntries`, `PrefabHandle`, `PrefabOverrides`, `RenderFn`, `TransformHandle`, `UpdateFn`, `UseLayoutOptions`, `VoidFn`, `WatchActorLeaksOptions`
+Types: `ActorDefinition`, `ActorHandle`, `ActorInstance`, `ActorPlugin`, `ActorPool`, `ActorPoolDefinition`, `ChildrenHandle`, `CustomScope`, `LayoutDefinition`, `LayoutHandle`, `PlaceHandle`, `PoolHooks`, `PoolOptions`, `PoolStats`, `PrefabComponentEntry`, `PrefabDefinition`, `PrefabEntries`, `PrefabHandle`, `PrefabOverrides`, `RenderFn`, `Transform3DHandle`, `TransformHandle`, `UpdateFn`, `UseLayoutOptions`, `VoidFn`, `WatchActorLeaksOptions`
 
 `PrefabEntries` — One prefab slot per component.
 
