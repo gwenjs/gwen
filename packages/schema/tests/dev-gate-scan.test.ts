@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
@@ -68,6 +68,49 @@ function isFlag(node: ts.Node): boolean {
 function isDebugAccess(node: ts.Node): boolean {
   const expr = unwrap(node);
   return ts.isPropertyAccessExpression(expr) && expr.name.text === "debug";
+}
+
+function underThen(node: ts.Node, statement: ts.IfStatement): boolean {
+  let current: ts.Node | undefined = node;
+  while (current !== undefined && current !== statement) {
+    if (current === statement.thenStatement) return true;
+    current = current.parent;
+  }
+  return false;
+}
+
+function insideDevBranch(node: ts.Node): boolean {
+  let current: ts.Node | undefined = node.parent;
+  while (current !== undefined) {
+    if (ts.isIfStatement(current) && isFlag(current.expression)) return underThen(node, current);
+    current = current.parent;
+  }
+  return false;
+}
+
+function isCreateIntrospectionCall(node: ts.Node): boolean {
+  return (
+    ts.isCallExpression(node) &&
+    ts.isIdentifier(node.expression) &&
+    node.expression.text === "createIntrospection"
+  );
+}
+
+function countCreateIntrospectionCalls(code: string, filename: string): number {
+  const source = ts.createSourceFile(
+    filename,
+    code,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  let count = 0;
+  const visit = (node: ts.Node): void => {
+    if (isCreateIntrospectionCall(node)) count += 1;
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return count;
 }
 
 function isAllowedFlagUse(ident: ts.Identifier): boolean {
@@ -250,6 +293,10 @@ export function scanSource(code: string, filename: string): string[] {
         errors.push(`${at(node)} __GWEN_DEV__ outside an allowed form`);
     }
 
+    if (isCreateIntrospectionCall(node) && !insideDevBranch(node)) {
+      errors.push(`${at(node)} createIntrospection outside an if (__GWEN_DEV__) branch`);
+    }
+
     if (
       ts.isPropertyAssignment(node) &&
       propertyName(node.name) === "hint" &&
@@ -403,6 +450,39 @@ describe("dev gate scan", { timeout: SCAN_TEST_MS }, () => {
     expect(
       hasDevDefine('export default { define: { __GWEN_DEV__: "false" } }', "vitest.config.ts"),
     ).toBe(true);
+  });
+
+  it("introspection code is reachable only from a __GWEN_DEV__ branch", () => {
+    const bare = `export function build() { return createIntrospection(deps); }`;
+    expect(scanSource(bare, "bare.ts").some((item) => item.includes("createIntrospection"))).toBe(
+      true,
+    );
+    const guarded = `export function build() { if (__GWEN_DEV__) { return createIntrospection(deps); } }`;
+    expect(scanSource(guarded, "guard.ts")).toEqual([]);
+    const elseBranch = `export function build() { if (__GWEN_DEV__) {} else { return createIntrospection(deps); } }`;
+    expect(
+      scanSource(elseBranch, "else.ts").some((item) => item.includes("createIntrospection")),
+    ).toBe(true);
+
+    const providerPath = "packages/core/src/introspection/provider.ts";
+    expect(existsSync(join(repoRoot, providerPath))).toBe(true);
+
+    const files: string[] = [];
+    walkSrc(join(repoRoot, "packages/core/src"), files);
+    const callers: string[] = [];
+    let sites = 0;
+    for (const file of files) {
+      const code = readFileSync(file, "utf8");
+      const found = countCreateIntrospectionCalls(code, file);
+      sites += found;
+      if (found > 0) callers.push(relative(repoRoot, file));
+    }
+    callers.sort();
+    expect(callers).toEqual(["packages/core/src/engine/engine-collaborators.ts"]);
+    expect(sites).toBe(1);
+    const only = callers[0];
+    if (only === undefined) return;
+    expect(scanSource(readFileSync(join(repoRoot, only), "utf8"), only)).toEqual([]);
   });
 
   it("allows NODE_ENV in Node-side files and rejects __GWEN_DEV__ there", () => {

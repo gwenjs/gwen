@@ -75,6 +75,8 @@ const SENTINELS = [
   '__layoutName__: "Level1"',
   "__GWEN_DEV__",
   "import.meta.env",
+  // Literal held only by packages/core/src/introspection/provider.ts.
+  "introspection:scene-recorder",
 ];
 
 const dirs: string[] = [];
