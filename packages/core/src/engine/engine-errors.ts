@@ -296,6 +296,8 @@ export const CoreErrorCodes = {
   ERROR_HANDLER_FAILED: "CORE:ERROR_HANDLER_FAILED",
   MEMORY_VIEW_INVALID: "CORE:MEMORY_VIEW_INVALID",
   MEMORY_VIEW_DETACHED: "CORE:MEMORY_VIEW_DETACHED",
+  /** Thrown by `GwenTransformRefError`. */
+  TRANSFORM_REF_INVALID: "CORE:TRANSFORM_REF_INVALID",
   WASM_NOT_INITIALIZED: "CORE:WASM_NOT_INITIALIZED",
   WASM_VARIANT_MISMATCH: "CORE:WASM_VARIANT_MISMATCH",
   SHARED_BUFFER_ALLOC_FAILED: "CORE:SHARED_BUFFER_ALLOC_FAILED",
@@ -572,6 +574,41 @@ export class GwenEngineStateError extends GwenError {
     this.code = CoreErrorCodes.INVALID_STATE_TRANSITION;
     this.from = from;
     this.method = method;
+  }
+}
+
+/** Why the `transform:2d` reader rejected a call. */
+export type TransformRefInvalidReason = "dead-entity" | "foreign-engine" | "engine-stopped";
+
+const TRANSFORM_REF_WHAT: Record<TransformRefInvalidReason, string> = {
+  "dead-entity": "TransformReader2D.track() needs a live entity",
+  "foreign-engine": "TransformReader2D.read() got a ref tracked on another engine",
+  "engine-stopped": "TransformReader2D.track() called after the engine stopped",
+};
+
+const TRANSFORM_REF_HINT: Record<TransformRefInvalidReason, string> = {
+  "dead-entity":
+    "Track an entity that is still alive, and release the ref when the entity is destroyed.",
+  "foreign-engine": "Read a ref with the reader of the engine that tracked it.",
+  "engine-stopped": "Track before the engine stops, or create a new engine.",
+};
+
+/**
+ * The `transform:2d` reader rejected a call. `code` is `CORE:TRANSFORM_REF_INVALID`.
+ * `reason` is `dead-entity` (`track` of an entity that is not alive), `foreign-engine`
+ * (`read` of a ref tracked on another engine) or `engine-stopped` (`track` after `stop()`).
+ */
+export class GwenTransformRefError extends GwenError {
+  override readonly code: typeof CoreErrorCodes.TRANSFORM_REF_INVALID;
+  readonly reason: TransformRefInvalidReason;
+
+  constructor(reason: TransformRefInvalidReason) {
+    super(CoreErrorCodes.TRANSFORM_REF_INVALID, TRANSFORM_REF_WHAT[reason], {
+      hint: __GWEN_DEV__ ? TRANSFORM_REF_HINT[reason] : undefined,
+    });
+    this.name = "GwenTransformRefError";
+    this.code = CoreErrorCodes.TRANSFORM_REF_INVALID;
+    this.reason = reason;
   }
 }
 

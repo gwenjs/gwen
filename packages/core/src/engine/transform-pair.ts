@@ -32,10 +32,9 @@ const FLAG_WORD = 5;
  * A teleport flag, or a previous slot with no transform, copies `current`.
  * `alpha` is clamped to `[0, 1]`. `NaN` becomes `1`.
  *
- * `createEntity` allocates a wasm entity. `destroyEntity` calls `delete_entity`
- * and does not remove the transform node. The next commit skips the dead
- * record, so this returns false. Renderers must drop an entity on
- * `entity:destroy`. Issue #220 removes the node.
+ * `destroyEntity` calls `delete_entity`, which removes the transform node. The next
+ * commit skips the dead record, so this returns false. Renderers must drop an entity
+ * on `entity:destroy`.
  */
 export function readInterpolatedTransform2D(
   pair: TransformPair2D,
@@ -53,6 +52,74 @@ export function readInterpolatedTransform2D(
   const previousFlags = pair.previousFlags[base + FLAG_WORD] ?? 0;
   const snapped =
     (currentFlags & FLAG_TELEPORT) !== 0 || (previousFlags & FLAG_HAS_TRANSFORM) === 0;
+  const factor = Number.isNaN(alpha) ? 1 : Math.min(1, Math.max(0, alpha));
+  const curX = current[base] ?? 0;
+  const curY = current[base + 1] ?? 0;
+  const curRot = current[base + 2] ?? 0;
+  const curSx = current[base + 3] ?? 0;
+  const curSy = current[base + 4] ?? 0;
+  if (snapped || factor === 1) {
+    out.x = curX;
+    out.y = curY;
+    out.rotation = curRot;
+    out.scaleX = curSx;
+    out.scaleY = curSy;
+    return true;
+  }
+
+  const previous = pair.previous;
+  const prevX = previous[base] ?? 0;
+  const prevY = previous[base + 1] ?? 0;
+  const prevRot = previous[base + 2] ?? 0;
+  const prevSx = previous[base + 3] ?? 0;
+  const prevSy = previous[base + 4] ?? 0;
+  if (factor === 0) {
+    out.x = prevX;
+    out.y = prevY;
+    out.rotation = prevRot;
+    out.scaleX = prevSx;
+    out.scaleY = prevSy;
+    return true;
+  }
+  out.x = prevX + (curX - prevX) * factor;
+  out.y = prevY + (curY - prevY) * factor;
+  out.rotation = prevRot + wrapAngle(curRot - prevRot) * factor;
+  out.scaleX = prevSx + (curSx - prevSx) * factor;
+  out.scaleY = prevSy + (curSy - prevSy) * factor;
+  return true;
+}
+
+/** The two `EngineFrame` fields {@link readRenderPose2D} reads. */
+export interface RenderFrame2D {
+  readonly alpha: number;
+  readonly rendering: boolean;
+}
+
+/**
+ * Same result as {@link readInterpolatedTransform2D}, with the factor read from `frame`:
+ * `frame.alpha` while `frame.rendering`, else `1` (the latest committed pose).
+ *
+ * The body is duplicated on purpose. `alpha` is read inside this function: passing
+ * `frame.alpha` as an argument boxes a double on every call, and the `transform:2d`
+ * reader must allocate nothing.
+ */
+export function readRenderPose2D(
+  pair: TransformPair2D,
+  slot: number,
+  frame: RenderFrame2D,
+  out: InterpolatedTransform2D,
+): boolean {
+  const current = pair.current;
+  const slotCount = current.length / SLOT_FLOATS;
+  if (!Number.isInteger(slot) || slot < 0 || slot >= slotCount) return false;
+  const base = slot * SLOT_FLOATS;
+  const currentFlags = pair.currentFlags[base + FLAG_WORD] ?? 0;
+  if ((currentFlags & FLAG_HAS_TRANSFORM) === 0) return false;
+
+  const previousFlags = pair.previousFlags[base + FLAG_WORD] ?? 0;
+  const snapped =
+    (currentFlags & FLAG_TELEPORT) !== 0 || (previousFlags & FLAG_HAS_TRANSFORM) === 0;
+  const alpha = frame.rendering ? frame.alpha : 1;
   const factor = Number.isNaN(alpha) ? 1 : Math.min(1, Math.max(0, alpha));
   const curX = current[base] ?? 0;
   const curY = current[base + 1] ?? 0;

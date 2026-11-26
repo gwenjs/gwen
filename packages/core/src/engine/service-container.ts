@@ -29,7 +29,7 @@ function readProvidedService<K extends keyof GwenProvides>(
 }
 
 /** Keys the engine provides for itself. `delete` never removes them. */
-const ENGINE_OWNED = new Set<string>(["wasm:bridge", "logger", "errors", "memory"]);
+const ENGINE_OWNED = new Set<string>(["wasm:bridge", "logger", "errors", "memory", "transform:2d"]);
 
 /**
  * Typed service map for provide, inject, and tryInject.

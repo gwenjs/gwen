@@ -16,6 +16,7 @@ export const ALLOC_PATH_NAMES = [
   "tween.tick",
   "entity.index",
   "render.interpolate2d",
+  "render.reader2d",
 ] as const;
 
 export type AllocPathName = (typeof ALLOC_PATH_NAMES)[number];

@@ -65,8 +65,15 @@ export type GwenServiceKey = keyof GwenProvides & string;
 /**
  * Service keys the engine itself registers. A plugin never declares them in
  * {@link GwenPlugin.provides}. `introspection` only in a dev build, once the engine provides it.
+ * `transform:2d` is provided by every core engine.
  */
-export type GwenEngineServiceKey = "logger" | "errors" | "wasm:bridge" | "memory" | "introspection";
+export type GwenEngineServiceKey =
+  | "logger"
+  | "errors"
+  | "wasm:bridge"
+  | "memory"
+  | "introspection"
+  | "transform:2d";
 
 /**
  * Service keys a plugin may declare in {@link GwenPlugin.provides}:

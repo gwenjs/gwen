@@ -264,30 +264,32 @@ Avec `physicsHz > 0`, chaque pas fixe enregistre un échantillon d'historique 2D
 
 `engine.frame.alpha` est la valeur passée au dernier `engine:render`. Elle vaut `1` quand `physicsHz` est `0`, et la fraction de pas restante sinon. `engine.frame.rendering` est vrai seulement pendant ces handlers. `engine.frame.transforms2D` est la paire d'historique, ou `null` quand `physicsHz` est `0`, avant la première paire du pas fixe, et après `stop()`.
 
-Un renderer lit un slot depuis `engine:render`. Déclarez `out` une fois. La fonction écrit dedans et n'alloue rien.
+Un renderer lit la pose de rendu d'une entité depuis le service `transform:2d`, que fournit tout moteur core. Appelez `track` une fois, au spawn ou au début du suivi, et gardez la ref. `read` écrit dans un échantillon qui vous appartient et n'alloue rien : déclarez `out` une fois.
 
 ```ts
-import { readInterpolatedTransform2D } from '@gwenjs/core'
-
+const transform = engine.inject('transform:2d')
 const out = { x: 0, y: 0, rotation: 0, scaleX: 1, scaleY: 1 }
+const ref = transform.track(entityId)
 
-engine.hooks.hook('engine:render', (alpha) => {
-  const pair = engine.frame.transforms2D
-  if (pair === null) return
-  if (!readInterpolatedTransform2D(pair, slot, alpha, out)) return
+engine.hooks.hook('engine:render', () => {
+  if (!transform.read(ref, out)) return
   draw(out.x, out.y, out.rotation)
 })
 ```
 
-La fonction renvoie false, et ne touche pas `out`, quand `slot` est hors de la paire ou que l'échantillon courant n'a pas de transform. Un drapeau de téléportation, ou un échantillon précédent sans transform, copie l'échantillon courant.
+Dans `engine:render`, `read` interpole à `engine.frame.alpha`. Hors de `engine:render`, `read` renvoie la dernière pose enregistrée. Il renvoie false, et ne touche pas `out`, quand la ref est libérée, que son entité est détruite, que l'entité n'a pas de transform, que l'historique n'est pas encore enregistré, ou que le moteur est arrêté. `release(ref)` est idempotent. Une ref est opaque : ce n'est pas un indice de slot, et elle ne lit que sur le moteur qui l'a suivie.
 
-`useTransform().world` utilise cet échantillon pour `x`, `y` et `rotation` pendant le rendu, quand la paire est présente et que le slot courant a une transform. `worldRaw` lit toujours le cache monde brut. `scaleX` et `scaleY` restent `1` des deux côtés, et `z` reste `0`. `teleport(x, y)` fixe la position locale et marque le prochain commit d'historique, donc les rendus suivants sautent au lieu de mélanger.
+`track` lève `CORE:TRANSFORM_REF_INVALID` pour une entité détruite (`dead-entity`) et après `stop()` (`engine-stopped`). `read` le lève pour une ref suivie sur un autre moteur (`foreign-engine`). Une ref ne lit jamais à travers un slot réutilisé : `entity:destroy` invalide toutes les refs de ce slot.
+
+Un drapeau de téléportation, ou un échantillon précédent sans transform, copie l'échantillon courant.
+
+`useTransform().world` utilise la même pose pour `x`, `y` et `rotation` pendant le rendu, quand la paire d'historique est publiée et que le slot courant a une transform. `worldRaw` lit toujours le cache monde brut. `scaleX` et `scaleY` restent `1` des deux côtés, et `z` reste `0`. `teleport(x, y)` fixe la position locale et marque le prochain commit d'historique, donc les rendus suivants sautent au lieu de mélanger.
 
 L'échantillon enregistré sur un pas n'inclut pas les écritures `engine:update` de ce même pas. Ces écritures sont publiées au pas suivant. Un rendu à `alpha` 0 copie l'échantillon précédent. C'est le retard d'un pas.
 
-`createEntity()` alloue une entité wasm. `destroyEntity` appelle `delete_entity`, émet `entity:destroy` et ne retire pas le nœud de transform. L'enregistrement reste. Le commit suivant ignore cet enregistrement mort après avoir vidé le tampon, donc le slot est à zéro et `readInterpolatedTransform2D` renvoie false. Un renderer doit abandonner l'entité sur `entity:destroy`. Le ticket #220 retire le nœud.
+`createEntity()` alloue une entité wasm. `destroyEntity` appelle `delete_entity`, qui retire le nœud de transform, et émet `entity:destroy`. Le commit suivant ignore cet enregistrement mort, donc le slot renvoie false. Libérez la ref d'une entité détruite, ou laissez `entity:destroy` l'invalider.
 
-`physicsHz === 0` n'alloue pas les tampons d'historique. `alpha` reste `1`, `transforms2D` reste `null`, et `world` est égal à `worldRaw`.
+`physicsHz === 0` n'alloue aucun tampon d'historique avant le premier `track`. Ensuite, chaque frame enregistre l'historique juste après `update_transforms`, et les tampons existent dès la frame suivante : une ref renvoie false jusque-là. `alpha` reste `1`, `transforms2D` reste `null`, et `read` est égal à `worldRaw` dans `engine:render`. Un jeu qui ne suit aucune ref ne paie rien.
 
 Le callback `renderViews` d'un renderer surface reçoit toujours `1`. Cette page ne change pas cet appel.
 

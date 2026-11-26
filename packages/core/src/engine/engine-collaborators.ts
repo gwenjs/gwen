@@ -24,6 +24,7 @@ import { EngineStatsRecorder } from "./engine-stats.js";
 import { EngineStateMachine } from "./engine-state.js";
 import { EngineErrorPolicy } from "./engine-error-policy.js";
 import { EngineLoop } from "./engine-loop.js";
+import { TransformReader2DImpl } from "./transform-reader-2d.js";
 import {
   bindEngineOnHooks,
   emitBulkSpawn,
@@ -210,6 +211,18 @@ export abstract class EngineCollaborators {
       state: this._stateMachine,
       logger: this.logger,
     });
+    this._serviceContainer.provide(
+      "transform:2d",
+      new TransformReader2DImpl({
+        hooks: this.hooks,
+        fixed: this._loop._fixed,
+        isAlive: (id) => this._entities.isAlive(id),
+        isStopped: () => {
+          const state = this._stateMachine.state;
+          return state === "stopping" || state === "stopped";
+        },
+      }),
+    );
     this._policy.attach();
     this._rememberInternals(engine);
     bindEngineOnHooks(engine, this.hooks);

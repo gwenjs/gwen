@@ -57,6 +57,7 @@ type _0 = [
   Root.InferSchemaType<never>,
   Root.InterpolatedTransform2D,
   Root.TransformPair2D,
+  Root.TransformRefInvalidReason,
   Root.MemoryRegion,
   Root.PlacementBridge,
   Root.PluginErrorContext,

@@ -80,6 +80,12 @@ Cause. L'appel est hors de `defineLayout()`. Fix. Capturez la poignée dans la f
 
 Cause. L'appel est hors de `defineActor()`, `plugin setup()` ou `withCleanup()`. Fix. Capturez la poignée dans la fabrique, puis utilisez-la comme closure après `await`.
 
+### CORE:TRANSFORM_REF_INVALID {#core-transform-ref-invalid}
+
+Cause. Le lecteur `transform:2d` a rejeté un appel. `GwenTransformRefError.reason` nomme le cas : `dead-entity` (`track` d'une entité qui n'est pas vivante), `foreign-engine` (`read` d'une ref suivie sur un autre moteur) ou `engine-stopped` (`track` après l'arrêt du moteur). Fix. Suivez une entité vivante, lisez une ref avec le lecteur du moteur qui l'a suivie, et appelez `track` avant `stop()`.
+
+`read` d'une ref libérée, ou dont l'entité a été détruite, renvoie false et ne lève rien. `release` d'une ref d'un autre moteur ne fait rien.
+
 - `CORE:ACTOR_PLUGIN_NOT_READY` {#core-actor-plugin-not-ready}
 - `CORE:ACTOR_NO_LIVE_INSTANCE` {#core-actor-no-live-instance}
 - `CORE:ACTOR_CIRCULAR_OWNERSHIP` {#core-actor-circular-ownership}

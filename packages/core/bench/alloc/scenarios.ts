@@ -1,3 +1,4 @@
+import type { TransformRef2D } from "@gwenjs/schema";
 import { readInterpolatedTransform2D } from "../../src/engine/transform-pair";
 import { defineActor, useEntityId } from "../../src/actor/runtime/define-actor";
 import { definePrefab } from "../../src/actor/runtime/define-prefab";
@@ -310,6 +311,27 @@ export function createScenario(path: AllocPathName, options?: ScenarioOptions): 
             if (pair === null) return;
             for (let slot = 0; slot < entities; slot += 1) {
               if (readInterpolatedTransform2D(pair, slot, alpha, out)) sink = out.x;
+            }
+          });
+        },
+      };
+    case "render.reader2d":
+      return {
+        name: path,
+        physicsHz: 30,
+        async build(handle, entities) {
+          const wasm = handle.bridge.engine();
+          const reader = handle.engine.inject("transform:2d");
+          const refs: TransformRef2D[] = [];
+          for (let i = 0; i < entities; i += 1) {
+            const id = handle.engine.createEntity();
+            wasm.add_entity_transform(entityIndex(id), i, 0, 0, 1, 1);
+            refs.push(reader.track(id));
+          }
+          const out = { x: 0, y: 0, rotation: 0, scaleX: 1, scaleY: 1 };
+          handle.engine.hooks.hook("engine:render", () => {
+            for (let i = 0; i < refs.length; i += 1) {
+              if (reader.read(refs[i]!, out)) sink = out.x;
             }
           });
         },
