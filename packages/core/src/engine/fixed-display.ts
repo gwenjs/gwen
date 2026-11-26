@@ -29,6 +29,8 @@ export interface FixedStepState {
   sumPhases: boolean;
   /** True from the first step to the end of the render pass of one display frame. */
   inDisplay: boolean;
+  /** Set by the first `transform:2d` `track`. Starts the history commit at `physicsHz: 0`. */
+  historyWanted: boolean;
 }
 
 /** Debug timestamps for one display frame. `t0` is the first step's start. */
@@ -52,6 +54,7 @@ export function createFixedStepState(): FixedStepState {
     history: null,
     sumPhases: false,
     inDisplay: false,
+    historyWanted: false,
   };
 }
 
@@ -67,7 +70,7 @@ export function armFixedStepState(state: FixedStepState, deps: EngineLoopDeps): 
     state.frame.fixedStep = true;
     if (!state.armed) {
       state.armed = true;
-      seedHistory(state, deps);
+      seedHistory(state, deps, true);
     }
     return;
   }
@@ -183,8 +186,12 @@ function commitHistory(deps: EngineLoopDeps): number | undefined {
   }
 }
 
-/** `update_transforms`, then two commits, then the four history views. */
-function seedHistory(state: FixedStepState, deps: EngineLoopDeps): void {
+/**
+ * `update_transforms`, then two commits, then the four history views.
+ * `publish` also sets `frame.transforms2D`. The variable-step seed passes false: that field
+ * stays `null` at `physicsHz: 0`, and only the `transform:2d` reader sees the views.
+ */
+function seedHistory(state: FixedStepState, deps: EngineLoopDeps, publish: boolean): void {
   try {
     deps.bridge.engine().update_transforms?.();
   } catch (err) {
@@ -207,7 +214,7 @@ function seedHistory(state: FixedStepState, deps: EngineLoopDeps): void {
   );
   if (installed === undefined) return;
   state.history = installed;
-  state.frame.transforms2D = installed.pair;
+  if (publish) state.frame.transforms2D = installed.pair;
 }
 
 async function renderDisplayPass(
@@ -242,6 +249,23 @@ async function renderDisplayPass(
 export function commitFixedStepHistory(state: FixedStepState, deps: EngineLoopDeps): void {
   const parity = commitHistory(deps);
   if (parity !== undefined) state.history?.setParity(parity);
+}
+
+/**
+ * History commit after `update_transforms`. A fixed step always commits. A variable frame
+ * commits once the views exist, and creates them on the first frame after a `track` at
+ * `physicsHz: 0`. With no ref ever tracked, a variable frame does nothing.
+ */
+export function commitFrameHistory(
+  state: FixedStepState,
+  deps: EngineLoopDeps,
+  variable: boolean,
+): void {
+  if (!variable || state.history !== null) {
+    commitFixedStepHistory(state, deps);
+    return;
+  }
+  if (state.historyWanted && deps.config.physicsHz === 0) seedHistory(state, deps, false);
 }
 
 /** Drop the four history views. Later reads throw `CORE:MEMORY_VIEW_INVALID`. */

@@ -55,32 +55,10 @@
 import { _getActorEntityId, _getActorEngine } from "./define-actor";
 import { getWasmBridge, WasmBridgeImpl } from "../../engine/wasm-bridge";
 import { entityIndex, type EntityId } from "../../engine/engine-api";
-import type { GwenEngine } from "../../engine/engine-types";
-import {
-  readInterpolatedTransform2D,
-  type InterpolatedTransform2D,
-} from "../../engine/transform-pair";
+import { TransformReader2DImpl } from "../../engine/transform-reader-2d";
 
 /** Sentinel index passed to `set_entity_parent` to signal "detach from parent". */
 const DETACH_SENTINEL = 0xffffffff;
-
-/** One sample reused by every `world` read. Rendering does not allocate. */
-const renderedSample: InterpolatedTransform2D = {
-  x: 0,
-  y: 0,
-  rotation: 0,
-  scaleX: 1,
-  scaleY: 1,
-};
-
-function renderedSampleFor(engine: GwenEngine, slot: number): InterpolatedTransform2D | undefined {
-  const frame = engine.frame;
-  if (!frame.rendering) return undefined;
-  const pair = frame.transforms2D;
-  if (pair === null) return undefined;
-  if (!readInterpolatedTransform2D(pair, slot, frame.alpha, renderedSample)) return undefined;
-  return renderedSample;
-}
 
 /**
  * Returns a `TransformHandle` for reading and writing the current actor's transform.
@@ -120,18 +98,22 @@ export function useTransform(): TransformHandle {
   const rawY = (): number => bridge.get_entity_world_y?.(idx) ?? 0;
   const rawRotation = (): number => bridge.get_entity_world_rotation?.(idx) ?? 0;
 
+  // The engine's reader, resolved once. `renderedPose` is the interpolated pose while rendering.
+  const reader = engine.tryInject("transform:2d");
+  const rendered = reader instanceof TransformReader2DImpl ? reader : undefined;
+
   const world = Object.freeze({
     get x() {
-      return renderedSampleFor(engine, idx)?.x ?? rawX();
+      return rendered?.renderedPose(idx)?.x ?? rawX();
     },
     get y() {
-      return renderedSampleFor(engine, idx)?.y ?? rawY();
+      return rendered?.renderedPose(idx)?.y ?? rawY();
     },
     get z() {
       return 0;
     },
     get rotation() {
-      return renderedSampleFor(engine, idx)?.rotation ?? rawRotation();
+      return rendered?.renderedPose(idx)?.rotation ?? rawRotation();
     },
     get scaleX() {
       return 1;

@@ -15,7 +15,7 @@ import type { EngineStatsRecorder } from "./engine-stats.js";
 import { cancelScheduledFrame, scheduleFrame } from "./frame-scheduler.js";
 import {
   armFixedStepState,
-  commitFixedStepHistory,
+  commitFrameHistory,
   createFixedStepState,
   emitEngineRender,
   releaseHistoryViews,
@@ -77,7 +77,8 @@ export class EngineLoop {
   private readonly _idle: Array<() => void> = [];
   private _rafHandle: number | ReturnType<typeof setTimeout> = 0;
   private _lastFrameTime = 0;
-  private readonly _fixed = createFixedStepState();
+  /** @internal Read by the `transform:2d` reader. */
+  readonly _fixed = createFixedStepState();
   private readonly _timing: DisplayTiming = { timed: false, t0: 0 };
   private _lastPhaseMs?: EngineFramePhaseMs;
 
@@ -394,7 +395,7 @@ export class EngineLoop {
           message: `update_transforms failed: ${detail}`,
         });
       }
-      if (!includeRender) commitFixedStepHistory(this._fixed, this.deps);
+      commitFrameHistory(this._fixed, this.deps, includeRender);
 
       // Phase 5 — emit update hook
       if (this.deps.state.isFaulted()) return;

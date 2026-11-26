@@ -80,6 +80,12 @@ Cause. The call is outside `defineLayout()`. Fix. Capture the handle synchronous
 
 Cause. The call is outside `defineActor()`, `plugin setup()`, or `withCleanup()`. Fix. Capture the handle synchronously in the factory, then use it as a closure after await.
 
+### CORE:TRANSFORM_REF_INVALID {#core-transform-ref-invalid}
+
+Cause. The `transform:2d` reader rejected a call. `GwenTransformRefError.reason` names the case: `dead-entity` (`track` of an entity that is not alive), `foreign-engine` (`read` of a ref tracked on another engine), or `engine-stopped` (`track` after the engine stopped). Fix. Track a live entity, read a ref with the reader of the engine that tracked it, and track before `stop()`.
+
+`read` of a released ref, or of a ref whose entity was destroyed, returns false and does not throw. `release` of a ref from another engine does nothing.
+
 - `CORE:ACTOR_PLUGIN_NOT_READY` {#core-actor-plugin-not-ready}
 - `CORE:ACTOR_NO_LIVE_INSTANCE` {#core-actor-no-live-instance}
 - `CORE:ACTOR_CIRCULAR_OWNERSHIP` {#core-actor-circular-ownership}

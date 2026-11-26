@@ -267,13 +267,15 @@ log.error("oops");
 
 ### `.`
 
-Values: `ActorErrorCodes`, `CoreErrorCodes`, `EngineMemory`, `FLAG_TELEPORT`, `GwenActorError`, `GwenComponentLimitError`, `GwenConfigError`, `GwenContextError`, `GwenEngineStateError`, `GwenHookNameError`, `GwenLogger`, `GwenPluginDependencyError`, `GwenPluginExtensionApiError`, `GwenPluginNotFoundError`, `GwenPluginOptionsError`, `GwenPluginProvideError`, `GwenPluginShapeError`, `GwenScenePreloadError`, `GwenSceneRouterError`, `GwenWasmAbiError`, `GwenWasmError`, `GwenWasmMismatchError`, `GwenWasmPanicError`, `Types`, `consoleLogProvider`, `createEngine`, `createEngineLocal`, `createEntityId`, `createErrorBus`, `createLogger`, `defineComponent`, `defineHooks`, `emit`, `onCleanup`, `readInterpolatedTransform2D`, `setupGwen`, `unpackEntityId`, `useEngine`, `useHook`, `withAsyncContext`, `withCleanup`
+Values: `ActorErrorCodes`, `CoreErrorCodes`, `EngineMemory`, `FLAG_TELEPORT`, `GwenActorError`, `GwenComponentLimitError`, `GwenConfigError`, `GwenContextError`, `GwenEngineStateError`, `GwenHookNameError`, `GwenLogger`, `GwenPluginDependencyError`, `GwenPluginExtensionApiError`, `GwenPluginNotFoundError`, `GwenPluginOptionsError`, `GwenPluginProvideError`, `GwenPluginShapeError`, `GwenScenePreloadError`, `GwenSceneRouterError`, `GwenTransformRefError`, `GwenWasmAbiError`, `GwenWasmError`, `GwenWasmMismatchError`, `GwenWasmPanicError`, `Types`, `consoleLogProvider`, `createEngine`, `createEngineLocal`, `createEntityId`, `createErrorBus`, `createLogger`, `defineComponent`, `defineHooks`, `emit`, `onCleanup`, `readInterpolatedTransform2D`, `setupGwen`, `unpackEntityId`, `useEngine`, `useHook`, `withAsyncContext`, `withCleanup`
 
-Types: `Color`, `ComponentAccessor`, `ComponentBody`, `ComponentDefinition`, `ComponentSchema`, `ComponentType`, `CoreVariant`, `CoreWasmErrorCode`, `CreateLoggerOptions`, `EngineCapacity`, `EngineConfig`, `EngineErrorBus`, `EngineErrorPayload`, `EngineFrame`, `EngineFramePhaseMs`, `EngineLocal`, `EngineStateChangePayload`, `EngineStats`, `EntityId`, `GwenDisposable`, `GwenEngine`, `GwenEngineOptions`, `GwenEngineState`, `GwenEngineStateChangeReason`, `GwenEngineStateMethod`, `GwenExtensionApiMismatch`, `GwenHookable`, `GwenPlugin`, `GwenPluginNotFoundErrorOptions`, `GwenProvides`, `GwenRuntimeHooks`, `GwenWasmMismatchReason`, `GwenWasmModules`, `HookHandlerMap`, `IGwenLogger`, `InferComponent`, `InferHooks`, `InferSchemaType`, `InterpolatedTransform2D`, `MemoryRegion`, `MemoryView`, `MemoryViewArray`, `MemoryViewDescriptor`, `MemoryViewType`, `PlacementBridge`, `PluginErrorContext`, `SchemaLayout`, `SchemaType`, `TransformPair2D`, `Vector2D`, `WasmBridge`, `WasmChannelOptions`, `WasmMemoryOptions`, `WasmMemoryRegion`, `WasmModuleHandle`, `WasmModuleOptions`, `WasmRegionView`, `WasmRingBuffer`
+Types: `Color`, `ComponentAccessor`, `ComponentBody`, `ComponentDefinition`, `ComponentSchema`, `ComponentType`, `CoreVariant`, `CoreWasmErrorCode`, `CreateLoggerOptions`, `EngineCapacity`, `EngineConfig`, `EngineErrorBus`, `EngineErrorPayload`, `EngineFrame`, `EngineFramePhaseMs`, `EngineLocal`, `EngineStateChangePayload`, `EngineStats`, `EntityId`, `GwenDisposable`, `GwenEngine`, `GwenEngineOptions`, `GwenEngineState`, `GwenEngineStateChangeReason`, `GwenEngineStateMethod`, `GwenExtensionApiMismatch`, `GwenHookable`, `GwenPlugin`, `GwenPluginNotFoundErrorOptions`, `GwenProvides`, `GwenRuntimeHooks`, `GwenWasmMismatchReason`, `GwenWasmModules`, `HookHandlerMap`, `IGwenLogger`, `InferComponent`, `InferHooks`, `InferSchemaType`, `InterpolatedTransform2D`, `MemoryRegion`, `MemoryView`, `MemoryViewArray`, `MemoryViewDescriptor`, `MemoryViewType`, `PlacementBridge`, `PluginErrorContext`, `SchemaLayout`, `SchemaType`, `TransformPair2D`, `TransformRefInvalidReason`, `Vector2D`, `WasmBridge`, `WasmChannelOptions`, `WasmMemoryOptions`, `WasmMemoryRegion`, `WasmModuleHandle`, `WasmModuleOptions`, `WasmRegionView`, `WasmRingBuffer`
 
 `EngineMemory` — Per-engine views over gwen-core linear memory.
 
 `FLAG_TELEPORT` — Bit 2 of a history slot: the renderer copies `current` and skips the lerp.
+
+`GwenTransformRefError` — The `transform:2d` reader rejected a call; `reason` is `dead-entity`, `foreign-engine` or `engine-stopped`.
 
 `GwenWasmAbiError` — A plugin WASM module declared an ABI version other than the core's.
 
@@ -310,6 +312,8 @@ Types: `Color`, `ComponentAccessor`, `ComponentBody`, `ComponentDefinition`, `Co
 `MemoryViewType` — `WasmMemoryRegion["type"]` or `"dataview"`.
 
 `TransformPair2D` — The last two committed 2D history buffers.
+
+`TransformRefInvalidReason` — `dead-entity`, `foreign-engine` or `engine-stopped`.
 
 ### `./system`
 

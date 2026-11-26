@@ -278,30 +278,32 @@ With `physicsHz > 0`, each fixed step stores a 2D history sample after `update_t
 
 `engine.frame.alpha` is the value passed to the latest `engine:render`. It is `1` when `physicsHz` is `0`, and the leftover fraction of a step otherwise. `engine.frame.rendering` is true only while those handlers run. `engine.frame.transforms2D` is the history pair, or `null` when `physicsHz` is `0`, before the first fixed seed, and after `stop()`.
 
-A renderer reads one slot from `engine:render`. Hoist `out`. The helper writes into it and allocates nothing.
+A renderer reads the render pose of an entity from the `transform:2d` service, which every core engine provides. `track` once, at spawn or follow time, and keep the ref. `read` writes into a sample you own and allocates nothing, so hoist `out`.
 
 ```ts
-import { readInterpolatedTransform2D } from '@gwenjs/core'
-
+const transform = engine.inject('transform:2d')
 const out = { x: 0, y: 0, rotation: 0, scaleX: 1, scaleY: 1 }
+const ref = transform.track(entityId)
 
-engine.hooks.hook('engine:render', (alpha) => {
-  const pair = engine.frame.transforms2D
-  if (pair === null) return
-  if (!readInterpolatedTransform2D(pair, slot, alpha, out)) return
+engine.hooks.hook('engine:render', () => {
+  if (!transform.read(ref, out)) return
   draw(out.x, out.y, out.rotation)
 })
 ```
 
-The helper returns false, and leaves `out` untouched, when `slot` is outside the pair or the current sample has no transform. A teleport flag, or a previous sample with no transform, copies the current sample.
+Inside `engine:render`, `read` interpolates at `engine.frame.alpha`. Outside it, `read` returns the latest committed pose. It returns false, and leaves `out` untouched, when the ref was released, its entity was destroyed, the entity has no transform, the history is not committed yet, or the engine stopped. `release(ref)` is idempotent. A ref is opaque: it is not a slot index, and it only reads on the engine that tracked it.
 
-`useTransform().world` uses that sample for `x`, `y`, and `rotation` during render when the pair is present and the current slot has a transform. `worldRaw` always reads the raw world cache. `scaleX` and `scaleY` stay `1` on both, and `z` stays `0`. `teleport(x, y)` sets the local position and marks the next history commit, so the following renders snap instead of blending.
+`track` throws `CORE:TRANSFORM_REF_INVALID` for a destroyed entity (`dead-entity`) and after `stop()` (`engine-stopped`). `read` throws it for a ref tracked on another engine (`foreign-engine`). A ref never reads through a reused slot: `entity:destroy` invalidates every ref of that slot.
+
+A teleport flag, or a previous sample with no transform, copies the current sample.
+
+`useTransform().world` uses the same pose for `x`, `y`, and `rotation` during render when the history pair is published and the current slot has a transform. `worldRaw` always reads the raw world cache. `scaleX` and `scaleY` stay `1` on both, and `z` stays `0`. `teleport(x, y)` sets the local position and marks the next history commit, so the following renders snap instead of blending.
 
 The sample stored on a step does not include the `engine:update` writes of that same step. Those writes are published on the next step. A render at `alpha` 0 copies the previous sample. That is the one-step lag.
 
-`createEntity()` allocates a wasm entity. `destroyEntity` calls `delete_entity`, emits `entity:destroy`, and does not remove the transform node. The record stays. The next commit skips that dead record after clearing the buffer, so the slot is zeros and `readInterpolatedTransform2D` returns false. A renderer must drop the entity on `entity:destroy`. Issue #220 removes the node.
+`createEntity()` allocates a wasm entity. `destroyEntity` calls `delete_entity`, which removes the transform node, and emits `entity:destroy`. The next commit skips that dead record, so the slot reads false. Release the ref of a destroyed entity, or let `entity:destroy` invalidate it.
 
-`physicsHz === 0` does not allocate the history buffers. `alpha` stays `1`, `transforms2D` stays `null`, and `world` matches `worldRaw`.
+`physicsHz === 0` allocates no history buffer until the first `track`. After that, each frame commits the history right after `update_transforms`, and the buffers exist from the next frame: a ref reads false until then. `alpha` stays `1`, `transforms2D` stays `null`, and `read` equals `worldRaw` inside `engine:render`. A game that never tracks a ref pays nothing.
 
 A surface renderer `renderViews` callback still receives `1`. This page does not change that call.
 

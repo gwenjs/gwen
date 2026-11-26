@@ -23,6 +23,7 @@
     "pool.cycle": { "bytesPerFrame": 4148, "bytesPerEntityFrame": 0, "frames": 4 },
     "tween.tick": { "bytesPerFrame": 4731, "bytesPerEntityFrame": 0 },
     "entity.index": { "bytesPerFrame": 3342, "bytesPerEntityFrame": 0 },
-    "render.interpolate2d": { "bytesPerFrame": 4183, "bytesPerEntityFrame": -0.3 }
+    "render.interpolate2d": { "bytesPerFrame": 4183, "bytesPerEntityFrame": -0.3 },
+    "render.reader2d": { "bytesPerFrame": 3817, "bytesPerEntityFrame": 0 }
   }
 }
