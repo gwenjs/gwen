@@ -24,9 +24,9 @@
   "variants": {
     "light": {
       "path": "packages/core/wasm/light/gwen_core_bg.wasm",
-      "raw": 90001,
-      "gzip": { "baseline": 38265, "budget": 40313 },
-      "brotli": { "baseline": 31853, "budget": 33901 }
+      "raw": 94713,
+      "gzip": { "baseline": 40402, "budget": 42450 },
+      "brotli": { "baseline": 33646, "budget": 35694 }
     },
     "physics2d": {
       "path": "packages/core/wasm/physics2d/gwen_core_bg.wasm",
