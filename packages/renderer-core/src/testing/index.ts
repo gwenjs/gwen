@@ -16,6 +16,9 @@
  * ```
  */
 export { runConformanceTests, runSurfaceConformance } from "./conformance-suite.js";
+export type { SurfaceConformanceOptions } from "./conformance-suite.js";
+export { runSurfacePluginConformance } from "./surface-plugin-conformance.js";
+export type { SurfacePluginConformanceOptions } from "./surface-plugin-conformance.js";
 export { runCameraProviderConformance } from "./camera-provider-conformance.js";
 export type { CameraProviderConformanceOptions } from "./camera-provider-conformance.js";
 export { MockSizeProvider } from "./mock-size-provider.js";

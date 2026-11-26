@@ -507,8 +507,10 @@ by `writeCameraViews`. The alpha is `engine.frame.alpha` of that display frame. 
 call `renderViews` yourself and do not read camera stores directly.
 At `engine.stop()` the render host calls `LayerManager.dispose()`: it removes the `engine:render` hook,
 unmounts every renderer and removes its DOM nodes.
-`runSurfaceConformance(service, engine)` from `@gwenjs/renderer-core/testing` checks
-this shape.
+`runSurfaceConformance(service, { dpr? })` from `@gwenjs/renderer-core/testing` checks
+this shape on the service alone. `runSurfacePluginConformance({ plugin, serviceKey })` checks
+the whole plugin on the real render host: mount at start and after a late install, one draw per
+`engine:render`, resize, teardown at `engine.stop()` and two engines in one page.
 
 ## Required vs. optional
 

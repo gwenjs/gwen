@@ -8,11 +8,8 @@ import * as testing from "../src/testing/index.js";
 import { RendererErrorCodes } from "../src/errors.js";
 import type { RendererService, SurfaceRendererService } from "../src/types.js";
 import { RENDERER_CONTRACT_VERSION } from "../src/types.js";
-import { createManagerServices } from "../src/create-manager-services.js";
-import { ScreenServiceImpl } from "../src/screen-service.js";
-import { ScreenPlugin } from "../src/screen-plugin.js";
 import { RenderHostPlugin } from "../src/render-host-plugin.js";
-import type { GwenEngine, GwenLogger } from "@gwenjs/core";
+import type { GwenEngine } from "@gwenjs/core";
 
 function makeCompliantService(): RendererService {
   const elements: Record<string, HTMLElement> = {};
@@ -92,68 +89,28 @@ describe("runConformanceTests", () => {
   });
 });
 
-function makeEngine(): GwenEngine {
-  const services = new Map<string, unknown>();
-  const childLogger: GwenLogger = {
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    child: vi.fn().mockReturnThis(),
-  };
-  const logger: GwenLogger = {
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    child: vi.fn().mockReturnValue(childLogger),
-  };
-  return {
-    logger,
-    provide: vi.fn((key: string, value: unknown) => {
-      services.set(key, value);
-    }),
-    tryInject: vi.fn((key: string) => services.get(key)),
-    inject: (key: string) => {
-      const value = services.get(key);
-      if (value === undefined) throw new Error(`No plugin provides service "${key}".`);
-      return value;
-    },
-    hooks: { hook: vi.fn(), callHook: vi.fn() },
-  } as unknown as GwenEngine;
-}
-
-function declareManagers(engine: GwenEngine): void {
-  const created = createManagerServices(engine);
-  engine.provide("viewportManager", created.viewportManager);
-  engine.provide("cameraManager", created.cameraManager);
-  engine.provide("layerManager", created.layerManager);
-  engine.provide(
-    "screenService",
-    new ScreenServiceImpl(engine.logger.child("renderer-core:screen"), created.viewportManager),
-  );
-}
-
-let screenDpr = 2;
-
 function makeSurface(mutate?: (service: SurfaceRendererService) => void): SurfaceRendererService {
-  const canvas = document.createElement("canvas");
+  let canvas: HTMLCanvasElement | null = null;
   const service: SurfaceRendererService = {
     name: "renderer:surface",
     contractVersion: RENDERER_CONTRACT_VERSION,
     kind: "surface",
     layers: { scene: { order: 0, coordinate: "world" } },
     mount(container) {
+      canvas = document.createElement("canvas");
       container.appendChild(canvas);
     },
     unmount() {
-      canvas.remove();
+      canvas?.remove();
+      canvas = null;
     },
-    resize(width, height) {
-      canvas.width = Math.round(width * screenDpr);
-      canvas.height = Math.round(height * screenDpr);
+    resize(width, height, dpr = 1) {
+      if (canvas === null) return;
+      canvas.width = Math.round(width * dpr);
+      canvas.height = Math.round(height * dpr);
     },
     getLayerElement() {
+      if (canvas === null) throw new Error("canvas is created in mount()");
       return canvas;
     },
     renderViews() {},
@@ -164,13 +121,6 @@ function makeSurface(mutate?: (service: SurfaceRendererService) => void): Surfac
 
 describe("runSurfaceConformance", () => {
   it("passes a surface renderer and calls renderViews with 0, 1, and 2 views", () => {
-    const engine = makeEngine();
-    declareManagers(engine);
-    screenDpr = 2;
-    const viewports = engine.inject("viewportManager");
-    viewports.set("main", { x: 0, y: 0, width: 1, height: 1 });
-    engine.inject("screenService").setContainerSize(800, 600, screenDpr);
-
     const seen: number[] = [];
     const alphas: number[] = [];
     const service = makeSurface((svc) => {
@@ -180,88 +130,41 @@ describe("runSurfaceConformance", () => {
       };
     });
 
-    expect(() => runSurfaceConformance(service, engine)).not.toThrow();
+    expect(() => runSurfaceConformance(service)).not.toThrow();
     expect(seen).toEqual([0, 1, 2]);
     expect(alphas).toEqual([0, 0.5, 1]);
     expect(RENDERER_CONTRACT_VERSION).toBe(2);
   });
 
   it("passes a surface that creates its canvas in mount", () => {
-    const engine = makeEngine();
-    declareManagers(engine);
-    screenDpr = 2;
-    engine.inject("viewportManager").set("main", { x: 0, y: 0, width: 1, height: 1 });
-    engine.inject("screenService").setContainerSize(800, 600, screenDpr);
-    let canvas: HTMLCanvasElement | null = null;
-    const service = makeSurface((svc) => {
-      svc.mount = (container) => {
-        canvas = document.createElement("canvas");
-        container.appendChild(canvas);
-      };
-      svc.unmount = () => {
-        canvas?.remove();
-        canvas = null;
-      };
-      svc.getLayerElement = () => {
-        if (canvas === null) throw new Error("canvas is created in mount()");
-        return canvas;
-      };
-      svc.resize = (width, height) => {
-        if (canvas === null) throw new Error("resize before mount");
-        canvas.width = Math.round(width * screenDpr);
-        canvas.height = Math.round(height * screenDpr);
-      };
-    });
-    expect(() => runSurfaceConformance(service, engine)).not.toThrow();
+    expect(() => runSurfaceConformance(makeSurface())).not.toThrow();
   });
 
-  it("sizes the canvas from the third resize argument only", async () => {
-    const engine = await createEngine({ maxEntities: 32 });
-    try {
-      await engine.use(RenderHostPlugin());
-      await engine.use(ScreenPlugin());
-      engine.inject("viewportManager").set("main", { x: 0, y: 0, width: 1, height: 1 });
-      engine.inject("screenService").setContainerSize(800, 600, 3);
-      const service = makeSurface((svc) => {
-        svc.resize = (width, height, dpr = 1) => {
-          const canvas = svc.getLayerElement("scene");
-          if (!(canvas instanceof HTMLCanvasElement)) return;
-          canvas.width = Math.round(width * dpr);
-          canvas.height = Math.round(height * dpr);
-        };
-      });
-      let thrown: unknown;
-      try {
-        runSurfaceConformance(service, engine);
-      } catch (error) {
-        thrown = error;
-      }
-      const canvas = service.getLayerElement("scene");
-      expect(canvas instanceof HTMLCanvasElement ? canvas.width : 0).toBe(960);
-      expect(canvas instanceof HTMLCanvasElement ? canvas.height : 0).toBe(540);
-      expect(thrown).toBeUndefined();
-    } finally {
-      await engine.stop();
-    }
+  it("sizes the canvas from the third resize argument only", () => {
+    const sizes: Array<[number, number]> = [];
+    const service = makeSurface((svc) => {
+      svc.resize = (width, height, dpr = 1) => {
+        const canvas = svc.getLayerElement("scene");
+        canvas.width = Math.round(width * dpr);
+        canvas.height = Math.round(height * dpr);
+        sizes.push([canvas.width, canvas.height]);
+      };
+    });
+    runSurfaceConformance(service, { dpr: 3 });
+    expect(sizes).toEqual([
+      [960, 540],
+      [960, 540],
+    ]);
   });
 
   it("fails when the canvas stays attached after unmount", () => {
-    const engine = makeEngine();
-    declareManagers(engine);
-    engine.inject("viewportManager").set("main", { x: 0, y: 0, width: 1, height: 1 });
-    engine.inject("screenService").setContainerSize(800, 600, 2);
     const service = makeSurface((svc) => {
       svc.unmount = () => {};
     });
-    expect(() => runSurfaceConformance(service, engine)).toThrow(/unmount/);
+    expect(() => runSurfaceConformance(service)).toThrow(/unmount/);
   });
 
   it("fails when resize ignores dpr", () => {
-    const engine = makeEngine();
-    declareManagers(engine);
-    screenDpr = 2;
-    engine.inject("viewportManager").set("main", { x: 0, y: 0, width: 1, height: 1 });
-    engine.inject("screenService").setContainerSize(800, 600, 2);
     const service = makeSurface((svc) => {
       svc.resize = (width, height) => {
         const canvas = svc.getLayerElement("scene");
@@ -269,28 +172,22 @@ describe("runSurfaceConformance", () => {
         canvas.height = height;
       };
     });
-    expect(() => runSurfaceConformance(service, engine)).toThrow(/dpr/);
+    expect(() => runSurfaceConformance(service)).toThrow(/dpr/);
   });
 
   it("fails when renderViews throws for 2 views", () => {
-    const engine = makeEngine();
-    declareManagers(engine);
-    engine.inject("viewportManager").set("main", { x: 0, y: 0, width: 1, height: 1 });
-    engine.inject("screenService").setContainerSize(800, 600, 2);
     const service = makeSurface((svc) => {
       svc.renderViews = (views) => {
         if (views.length === 2) throw new Error("nope");
       };
     });
-    expect(() => runSurfaceConformance(service, engine)).toThrow(/2 views/);
+    expect(() => runSurfaceConformance(service)).toThrow(/2 views/);
   });
 
   it("fails when kind is not surface", () => {
-    const engine = makeEngine();
-    declareManagers(engine);
     const service = makeSurface();
     (service as { kind: "layers" }).kind = "layers";
-    expect(() => runSurfaceConformance(service, engine)).toThrow(/surface/);
+    expect(() => runSurfaceConformance(service)).toThrow(/surface/);
   });
 });
 
@@ -327,20 +224,15 @@ describe("conformance error grammar", () => {
     }
   });
 
-  it("a failing surface check throws RENDERER:CONFORMANCE_FAILED naming runSurfaceConformance", async () => {
-    const engine = await createEngine({ maxEntities: 4 });
-    try {
-      const service = makeSurface((svc) => {
-        svc.resize = () => {};
-      });
-      const error = thrownBy(() => runSurfaceConformance(service, engine));
-      expect(error.code).toBe(RendererErrorCodes.CONFORMANCE_FAILED);
-      expect(error.composable).toBe("runSurfaceConformance");
-      expect(error.message.startsWith("[runSurfaceConformance()] ")).toBe(true);
-      expect(error.message).not.toContain("[runSurfaceConformance] ");
-    } finally {
-      await engine.stop();
-    }
+  it("a failing surface check throws RENDERER:CONFORMANCE_FAILED naming runSurfaceConformance", () => {
+    const service = makeSurface((svc) => {
+      svc.resize = () => {};
+    });
+    const error = thrownBy(() => runSurfaceConformance(service));
+    expect(error.code).toBe(RendererErrorCodes.CONFORMANCE_FAILED);
+    expect(error.composable).toBe("runSurfaceConformance");
+    expect(error.message.startsWith("[runSurfaceConformance()] ")).toBe(true);
+    expect(error.message).not.toContain("[runSurfaceConformance] ");
   });
 });
 
@@ -700,24 +592,6 @@ function recordingSurface(rec: SurfaceRecord, knobs: SurfaceKnobs = {}): Surface
   };
 }
 
-/**
- * One object is the second argument. The base reads it as an engine whose
- * screen service holds dpr 1. The new signature reads `dpr` off the same object.
- */
-function surfaceSuite(): (
-  service: SurfaceRendererService,
-  options?: { readonly dpr?: number },
-) => void {
-  return (service, options) => {
-    const engine = makeEngine();
-    declareManagers(engine);
-    engine.inject("viewportManager").set("main", { x: 0, y: 0, width: 1, height: 1 });
-    engine.inject("screenService").setContainerSize(800, 600, 1);
-    const second = Object.assign(engine, options ?? {});
-    Reflect.apply(runSurfaceConformance, undefined, [service, second]);
-  };
-}
-
 describe("runSurfaceConformance re-entry, options and error text", () => {
   afterEach(() => {
     for (const canvas of document.querySelectorAll("canvas")) canvas.remove();
@@ -725,8 +599,9 @@ describe("runSurfaceConformance re-entry, options and error text", () => {
 
   it("fails a surface that cannot mount again after unmount", () => {
     const rec = surfaceRecord();
-    const run = surfaceSuite();
-    const error = thrownBy(() => run(recordingSurface(rec, { failSecondMount: true })));
+    const error = thrownBy(() =>
+      runSurfaceConformance(recordingSurface(rec, { failSecondMount: true })),
+    );
     expect(error.code).toBe("RENDERER:CONFORMANCE_FAILED");
     expect(error.composable).toBe("runSurfaceConformance");
     expect(error.message).toContain("mount");
@@ -735,16 +610,16 @@ describe("runSurfaceConformance re-entry, options and error text", () => {
   });
 
   it("fails a surface whose second mount returns the canvas of the first one", () => {
-    const run = surfaceSuite();
-    const error = thrownBy(() => run(recordingSurface(surfaceRecord(), { reuseCanvas: true })));
+    const error = thrownBy(() =>
+      runSurfaceConformance(recordingSurface(surfaceRecord(), { reuseCanvas: true })),
+    );
     expect(error.code).toBe("RENDERER:CONFORMANCE_FAILED");
     expect(error.message).toContain("new canvas");
   });
 
   it("passes a surface that builds a new canvas on every mount and mounts it twice", () => {
     const rec = surfaceRecord();
-    const run = surfaceSuite();
-    expect(() => run(recordingSurface(rec))).not.toThrow();
+    expect(() => runSurfaceConformance(recordingSurface(rec))).not.toThrow();
     expect(rec.mounts).toBe(2);
     expect(rec.canvases).toHaveLength(2);
     expect(rec.canvases[0]).not.toBe(rec.canvases[1]);
@@ -753,17 +628,17 @@ describe("runSurfaceConformance re-entry, options and error text", () => {
 
   it("fails a surface whose unmount throws when it is called a second time", () => {
     const rec = surfaceRecord();
-    const run = surfaceSuite();
-    const error = thrownBy(() => run(recordingSurface(rec, { strictUnmount: true })));
+    const error = thrownBy(() =>
+      runSurfaceConformance(recordingSurface(rec, { strictUnmount: true })),
+    );
     expect(error.code).toBe("RENDERER:CONFORMANCE_FAILED");
     expect(error.message).toContain("unmount");
     expect(error.message).toContain("twice");
   });
 
   it("fails a surface whose renderViews after unmount connects a canvas", () => {
-    const run = surfaceSuite();
     const error = thrownBy(() =>
-      run(recordingSurface(surfaceRecord(), { reattachOnRender: true })),
+      runSurfaceConformance(recordingSurface(surfaceRecord(), { reattachOnRender: true })),
     );
     expect(error.code).toBe("RENDERER:CONFORMANCE_FAILED");
     expect(error.message).toContain("renderViews");
@@ -771,9 +646,10 @@ describe("runSurfaceConformance re-entry, options and error text", () => {
   });
 
   it("names a thrown value that is not an Error without a bracket", () => {
-    const run = surfaceSuite();
     const error = thrownBy(() =>
-      run(recordingSurface(surfaceRecord(), { throwOnRender: { reason: "no gpu" } })),
+      runSurfaceConformance(
+        recordingSurface(surfaceRecord(), { throwOnRender: { reason: "no gpu" } }),
+      ),
     );
     expect(error.code).toBe("RENDERER:CONFORMANCE_FAILED");
     expect(error.message).toContain("0 views");
@@ -781,9 +657,10 @@ describe("runSurfaceConformance re-entry, options and error text", () => {
   });
 
   it("names an Error whose message holds a bracket without one", () => {
-    const run = surfaceSuite();
     const error = thrownBy(() =>
-      run(recordingSurface(surfaceRecord(), { throwOnRender: new Error("[gpu] lost") })),
+      runSurfaceConformance(
+        recordingSurface(surfaceRecord(), { throwOnRender: new Error("[gpu] lost") }),
+      ),
     );
     expect(error.code).toBe("RENDERER:CONFORMANCE_FAILED");
     expect(error.message).toContain("0 views");
@@ -793,24 +670,25 @@ describe("runSurfaceConformance re-entry, options and error text", () => {
 
   it("unmounts a surface that ignores dpr after resize fails", () => {
     const rec = surfaceRecord();
-    const run = surfaceSuite();
-    const error = thrownBy(() => run(recordingSurface(rec, { ignoreDpr: true }), { dpr: 3 }));
+    const error = thrownBy(() =>
+      runSurfaceConformance(recordingSurface(rec, { ignoreDpr: true }), { dpr: 3 }),
+    );
     expect(error.code).toBe("RENDERER:CONFORMANCE_FAILED");
     expect(rec.unmounts).toBe(1);
   });
 
   it("fails a surface whose second unmount leaves its canvas attached", () => {
-    const run = surfaceSuite();
     const error = thrownBy(() =>
-      run(recordingSurface(surfaceRecord(), { keepSecondCanvas: true })),
+      runSurfaceConformance(recordingSurface(surfaceRecord(), { keepSecondCanvas: true })),
     );
     expect(error.code).toBe("RENDERER:CONFORMANCE_FAILED");
     expect(error.message).toContain("second unmount");
   });
 
   it("fails a surface whose second mount reconnects the first canvas", () => {
-    const run = surfaceSuite();
-    const error = thrownBy(() => run(recordingSurface(surfaceRecord(), { reappendFirst: true })));
+    const error = thrownBy(() =>
+      runSurfaceConformance(recordingSurface(surfaceRecord(), { reappendFirst: true })),
+    );
     expect(error.code).toBe("RENDERER:CONFORMANCE_FAILED");
     expect(error.message).toContain("first canvas");
     expect(error.message).toContain("second mount");
@@ -818,8 +696,7 @@ describe("runSurfaceConformance re-entry, options and error text", () => {
 
   it("sizes the canvas with the dpr of options", () => {
     const rec = surfaceRecord();
-    const run = surfaceSuite();
-    run(recordingSurface(rec), { dpr: 3 });
+    runSurfaceConformance(recordingSurface(rec), { dpr: 3 });
     expect(rec.resizes).toEqual([
       [320, 180, 3],
       [320, 180, 3],
@@ -828,17 +705,15 @@ describe("runSurfaceConformance re-entry, options and error text", () => {
 
   it("uses a dpr of 2 when options holds none", () => {
     const rec = surfaceRecord();
-    const run = surfaceSuite();
-    run(recordingSurface(rec));
+    runSurfaceConformance(recordingSurface(rec));
     expect(rec.resizes.map((entry) => entry[2])).toEqual([2, 2]);
   });
 
   it("rejects a dpr that is not a positive finite number", () => {
-    const run = surfaceSuite();
     const messages: string[] = [];
     for (const dpr of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
       const rec = surfaceRecord();
-      const error = thrownBy(() => run(recordingSurface(rec), { dpr }));
+      const error = thrownBy(() => runSurfaceConformance(recordingSurface(rec), { dpr }));
       expect(error.code).toBe("RENDERER:CONFORMANCE_FAILED");
       expect(rec.mounts).toBe(0);
       messages.push(error.message);
@@ -848,8 +723,7 @@ describe("runSurfaceConformance re-entry, options and error text", () => {
 
   it("needs no engine and no screenService", () => {
     const rec = surfaceRecord();
-    const suite = runSurfaceConformance;
-    expect(() => Reflect.apply(suite, undefined, [recordingSurface(rec)])).not.toThrow();
+    expect(() => runSurfaceConformance(recordingSurface(rec))).not.toThrow();
     expect(rec.mounts).toBe(2);
   });
 });

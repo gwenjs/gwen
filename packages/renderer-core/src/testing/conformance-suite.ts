@@ -5,11 +5,11 @@
  * `runSurfaceConformance` extends it and does call mount, unmount, resize, and renderViews.
  */
 
-import type { GwenEngine } from "@gwenjs/core";
 import { GwenError } from "@gwenjs/schema";
 import { RendererErrorCodes } from "../errors.js";
 import { RENDERER_CONTRACT_VERSION } from "../types.js";
 import type { RendererService, RenderView, SurfaceRendererService } from "../types.js";
+import { thrownText } from "./thrown-text.js";
 
 /**
  * Throws a descriptive error if `service` violates the RendererService contract.
@@ -113,22 +113,39 @@ function assertLayerElementsAccessible(service: RendererService): void {
   }
 }
 
+/** Options of {@link runSurfaceConformance}. */
+export interface SurfaceConformanceOptions {
+  /** Device pixel ratio passed to `resize()`. A positive finite number. Default `2`. */
+  readonly dpr?: number;
+}
+
+const DEFAULT_CONFORMANCE_DPR = 2;
+
+function surfaceFailure(what: string, cause?: unknown): GwenError {
+  return new GwenError(RendererErrorCodes.CONFORMANCE_FAILED, what, {
+    composable: "runSurfaceConformance",
+    ...(cause === undefined ? {} : { cause }),
+  });
+}
+
 /**
  * Surface-renderer checks on top of {@link runConformanceTests}.
- * Confirms kind, one world layer, canvas ownership, dpr on resize, and `renderViews` for 0, 1, and 2 views.
+ * Confirms kind, one world layer, canvas ownership, dpr on resize, re-entry
+ * (mount, unmount, mount, unmount gives a new canvas), a second `unmount()`, and
+ * `renderViews` for 0, 1, and 2 views after unmount, which must leave no canvas connected.
+ * It needs a DOM (`document`) and no engine.
  *
  * @param service - Surface renderer under test.
- * @param engine - Engine whose screen service holds the device pixel ratio.
- * @throws {GwenError} On the first violation.
+ * @param options - `dpr` (default `2`) passed to `resize()`.
+ * @throws {GwenError} `RENDERER:CONFORMANCE_FAILED` on the first violation.
  */
-export function runSurfaceConformance(service: SurfaceRendererService, engine: GwenEngine): void {
+export function runSurfaceConformance(
+  service: SurfaceRendererService,
+  options: SurfaceConformanceOptions = {},
+): void {
   runConformanceTests(service);
   if (service.kind !== "surface") {
-    throw new GwenError(
-      RendererErrorCodes.CONFORMANCE_FAILED,
-      `"${service.name}" kind is ${String(service.kind)}, expected "surface".`,
-      { composable: "runSurfaceConformance" },
-    );
+    throw surfaceFailure(`"${service.name}" kind is ${String(service.kind)}, expected "surface".`);
   }
 
   const layerNames = Object.keys(service.layers);
@@ -144,78 +161,74 @@ export function runSurfaceConformance(service: SurfaceRendererService, engine: G
   }
   const layerName = layerNames[0];
   if (layerName === undefined) {
-    throw new GwenError(
-      RendererErrorCodes.CONFORMANCE_FAILED,
-      `"${service.name}" declares no layer.`,
-      { composable: "runSurfaceConformance" },
-    );
+    throw surfaceFailure(`"${service.name}" declares no layer.`);
   }
   const layer = service.layers[layerName];
   if (layer === undefined || layer.coordinate !== "world") {
-    throw new GwenError(
-      RendererErrorCodes.CONFORMANCE_FAILED,
-      `"${service.name}" layer "${layerName}" must use coordinate "world".`,
-      { composable: "runSurfaceConformance" },
-    );
+    throw surfaceFailure(`"${service.name}" layer "${layerName}" must use coordinate "world".`);
   }
   if (typeof service.renderViews !== "function") {
+    throw surfaceFailure(`"${service.name}" is missing required method "renderViews".`);
+  }
+
+  const dpr = options.dpr ?? DEFAULT_CONFORMANCE_DPR;
+  if (!(dpr > 0) || !Number.isFinite(dpr)) {
     throw new GwenError(
       RendererErrorCodes.CONFORMANCE_FAILED,
-      `"${service.name}" is missing required method "renderViews".`,
-      { composable: "runSurfaceConformance" },
+      `options.dpr is ${dpr}, expected a positive finite number.`,
+      {
+        composable: "runSurfaceConformance",
+        hint: __GWEN_DEV__ ? "Pass a positive dpr, or none for the default of 2." : undefined,
+      },
     );
   }
 
-  const dpr = readConformanceDpr(engine);
-  const cssW = 320;
-  const cssH = 180;
+  const canvases: HTMLCanvasElement[] = [];
   const container = document.createElement("div");
   document.body.appendChild(container);
   let mounted = false;
-  try {
-    service.mount(container);
+  const markMounted = (): void => {
     mounted = true;
-    const canvas = service.getLayerElement(layerName);
-    if (!(canvas instanceof HTMLCanvasElement)) {
-      throw new GwenError(
-        RendererErrorCodes.CONFORMANCE_FAILED,
-        `"${service.name}" getLayerElement("${layerName}") must return an HTMLCanvasElement.`,
-        { composable: "runSurfaceConformance" },
+  };
+  try {
+    const first = mountAndSize(service, layerName, container, dpr, "mount()", markMounted);
+    canvases.push(first);
+    service.unmount();
+    mounted = false;
+    if (first.isConnected) {
+      throw surfaceFailure(`"${service.name}" left its canvas attached after unmount().`);
+    }
+    try {
+      service.unmount();
+    } catch (cause) {
+      throw surfaceFailure(
+        `"${service.name}" unmount() threw when called twice: ${thrownText(cause)}.`,
+        cause,
       );
     }
-    if (!canvas.isConnected) {
-      throw new GwenError(
-        RendererErrorCodes.CONFORMANCE_FAILED,
-        `"${service.name}" did not attach its canvas during mount().`,
-        { composable: "runSurfaceConformance" },
+    const second = mountAndSize(
+      service,
+      layerName,
+      container,
+      dpr,
+      "mount() after unmount()",
+      markMounted,
+    );
+    canvases.push(second);
+    if (second === first) {
+      throw surfaceFailure(
+        `"${service.name}" mounted the same canvas again, expected a new canvas on every mount().`,
       );
     }
-    service.resize(cssW, cssH, dpr);
-    const sized = service.getLayerElement(layerName);
-    if (!(sized instanceof HTMLCanvasElement)) {
-      throw new GwenError(
-        RendererErrorCodes.CONFORMANCE_FAILED,
-        `"${service.name}" getLayerElement("${layerName}") must return an HTMLCanvasElement.`,
-        { composable: "runSurfaceConformance" },
-      );
-    }
-    const expectW = Math.round(cssW * dpr);
-    const expectH = Math.round(cssH * dpr);
-    if (sized.width !== expectW || sized.height !== expectH) {
-      throw new GwenError(
-        RendererErrorCodes.CONFORMANCE_FAILED,
-        `"${service.name}" resize(${cssW}, ${cssH}, ${dpr}) left the canvas at ${sized.width}×${sized.height}, expected ${expectW}×${expectH} (dpr ${dpr}).`,
-        { composable: "runSurfaceConformance" },
+    if (first.isConnected) {
+      throw surfaceFailure(
+        `"${service.name}" left the first canvas connected after the second mount().`,
       );
     }
     service.unmount();
     mounted = false;
-    if (canvas.isConnected) {
-      throw new GwenError(
-        RendererErrorCodes.CONFORMANCE_FAILED,
-        `"${service.name}" left its canvas attached after unmount().`,
-        { composable: "runSurfaceConformance" },
-      );
+    if (second.isConnected || first.isConnected) {
+      throw surfaceFailure(`"${service.name}" left a canvas attached after the second unmount().`);
     }
   } finally {
     if (mounted) service.unmount();
@@ -231,41 +244,64 @@ export function runSurfaceConformance(service: SurfaceRendererService, engine: G
     try {
       service.renderViews(views.slice(0, n), alphas[n] ?? 0);
     } catch (cause) {
-      throw new GwenError(
-        RendererErrorCodes.CONFORMANCE_FAILED,
-        `"${service.name}" renderViews with ${n} views threw: ${String(cause)}.`,
-        { composable: "runSurfaceConformance", cause },
+      throw surfaceFailure(
+        `"${service.name}" renderViews with ${n} views threw: ${thrownText(cause)}.`,
+        cause,
+      );
+    }
+    if (canvases.some((canvas) => canvas.isConnected)) {
+      throw surfaceFailure(
+        `"${service.name}" renderViews with ${n} views connected a canvas after unmount().`,
       );
     }
   }
 }
 
-function readConformanceDpr(engine: GwenEngine): number {
-  const screen = engine.tryInject("screenService");
-  if (screen === undefined) {
-    throw new GwenError(RendererErrorCodes.CONFORMANCE_FAILED, "screenService is missing.", {
-      composable: "runSurfaceConformance",
-      hint: __GWEN_DEV__ ? "Set a device pixel ratio before checking resize." : undefined,
-    });
-  }
-  const viewports = engine.tryInject("viewportManager");
-  let viewportId = "__surface_conformance__";
-  if (viewports !== undefined) {
-    const first = viewports.getAll().keys().next().value;
-    if (typeof first === "string") viewportId = first;
-  }
-  const dpr = screen.getOrCreateInfo(viewportId).dpr;
-  if (!(dpr > 0) || !Number.isFinite(dpr)) {
-    throw new GwenError(
-      RendererErrorCodes.CONFORMANCE_FAILED,
-      `ViewportScreenInfo.dpr is ${dpr}.`,
-      {
-        composable: "runSurfaceConformance",
-        hint: __GWEN_DEV__ ? "Set a positive dpr." : undefined,
-      },
+/** One `mount()`, then the canvas checks and `resize(320, 180, dpr)`. Returns the canvas. */
+function mountAndSize(
+  service: SurfaceRendererService,
+  layerName: string,
+  container: HTMLElement,
+  dpr: number,
+  step: string,
+  markMounted: () => void,
+): HTMLCanvasElement {
+  const cssW = 320;
+  const cssH = 180;
+  try {
+    service.mount(container);
+  } catch (cause) {
+    if (step === "mount()") throw cause;
+    throw surfaceFailure(
+      `"${service.name}" ${step} threw, so it cannot mount again: ${thrownText(cause)}.`,
+      cause,
     );
   }
-  return dpr;
+  markMounted();
+  const canvas = service.getLayerElement(layerName);
+  if (!(canvas instanceof HTMLCanvasElement)) {
+    throw surfaceFailure(
+      `"${service.name}" getLayerElement("${layerName}") must return an HTMLCanvasElement.`,
+    );
+  }
+  if (!canvas.isConnected) {
+    throw surfaceFailure(`"${service.name}" did not attach its canvas during ${step}.`);
+  }
+  service.resize(cssW, cssH, dpr);
+  const sized = service.getLayerElement(layerName);
+  if (!(sized instanceof HTMLCanvasElement)) {
+    throw surfaceFailure(
+      `"${service.name}" getLayerElement("${layerName}") must return an HTMLCanvasElement.`,
+    );
+  }
+  const expectW = Math.round(cssW * dpr);
+  const expectH = Math.round(cssH * dpr);
+  if (sized.width !== expectW || sized.height !== expectH) {
+    throw surfaceFailure(
+      `"${service.name}" resize(${cssW}, ${cssH}, ${dpr}) left the canvas at ${sized.width}×${sized.height}, expected ${expectW}×${expectH} (dpr ${dpr}).`,
+    );
+  }
+  return canvas;
 }
 
 function makeConformanceView(viewportId: string, eye: RenderView["eye"]): RenderView {

@@ -70,9 +70,15 @@
       "MockSizeProvider",
       "runCameraProviderConformance",
       "runConformanceTests",
-      "runSurfaceConformance"
+      "runSurfaceConformance",
+      "runSurfacePluginConformance"
     ],
-    "types": ["CameraProviderConformanceOptions", "MockSizeProviderHandle"]
+    "types": [
+      "CameraProviderConformanceOptions",
+      "MockSizeProviderHandle",
+      "SurfaceConformanceOptions",
+      "SurfacePluginConformanceOptions"
+    ]
   },
   "./internal": {
     "values": [

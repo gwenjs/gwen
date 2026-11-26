@@ -122,13 +122,15 @@ Types: none
 
 ### `./testing`
 
-Values: `MockSizeProvider`, `runCameraProviderConformance`, `runConformanceTests`, `runSurfaceConformance`
+Values: `MockSizeProvider`, `runCameraProviderConformance`, `runConformanceTests`, `runSurfaceConformance`, `runSurfacePluginConformance`
 
-Types: `CameraProviderConformanceOptions`, `MockSizeProviderHandle`
+Types: `CameraProviderConformanceOptions`, `MockSizeProviderHandle`, `SurfaceConformanceOptions`, `SurfacePluginConformanceOptions`
 
 `runCameraProviderConformance` — Checks that a camera provider wrote state no later than `engine:after-update`.
 
-`runSurfaceConformance` — Surface-renderer checks on top of `runConformanceTests`.
+`runSurfaceConformance` — Surface-renderer checks on top of `runConformanceTests`: re-entry, `dpr` option, no engine.
+
+`runSurfacePluginConformance` — Checks a surface renderer plugin on the real render host: mount, draws, resize, teardown, two engines, late install.
 
 ### `./internal`
 

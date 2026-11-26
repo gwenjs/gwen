@@ -643,12 +643,30 @@ Validates a `RendererService` implementation against the contract. Throws a
 descriptive error on the first violation. Does not call `mount()` or `unmount()`.
 Run this in every renderer plugin's test suite.
 
-### `runSurfaceConformance(service, engine)`
+### `runSurfaceConformance(service, { dpr? })`
 
-Extends `runConformanceTests` for a `SurfaceRendererService`. It checks `kind`,
-exactly one world layer, canvas ownership (removed after `unmount`), `resize`
-applying `dpr` from the engine screen service, and `renderViews` with 0, 1, and 2
-views.
+Extends `runConformanceTests` for a `SurfaceRendererService`. It needs a DOM and no engine.
+It checks `kind`, exactly one world layer, and canvas ownership. It runs
+`mount()`, `resize(320, 180, dpr)` and `unmount()` twice: the second `mount()` must give a new
+connected canvas and the first one stays disconnected. A second `unmount()` in a row must not
+throw. `renderViews` with 0, 1 and 2 views, called after unmount, must not throw and must
+leave no canvas connected. `dpr` defaults to `2` and must be a positive finite number.
+Every failure is a `RENDERER:CONFORMANCE_FAILED` error naming `runSurfaceConformance`.
+
+### `runSurfacePluginConformance({ plugin, serviceKey, createEngine? })`
+
+Checks a surface renderer plugin on the real render host. `plugin` builds a new plugin on every
+call and `serviceKey` is the service key under which it provides its `SurfaceRendererService`.
+The suite opens three real engines (`createEngine` replaces the default
+`createRealEngine({ variant: 'light', maxEntities: 64, physicsHz: 60 })`), installs
+`RenderHostPlugin` and `ScreenPlugin` with a `MockSizeProvider` on each, and disposes them.
+It counts the calls to `renderViews` and checks: one connected canvas after start; one call per
+`engine:render` with 0, 1 and 2 views and `alpha === engine.frame.alpha`; the canvas size follows
+`round(css * dpr)` after a size change; `engine.stop()` disconnects the canvas, removes the layer
+and stops every call; two engines keep two canvases and the second keeps rendering when the
+first stops; a plugin installed after start is mounted at once. Any `level: "error"` event on `engine.errors` fails the run, and the suite advances frames of `1/120` s. It rejects
+`RENDERER:CONFORMANCE_FAILED` naming `runSurfacePluginConformance`. Run the generic plugin
+checks of `@gwenjs/plugin-conformance` next to it.
 
 ### `runCameraProviderConformance(engine, { viewportId, dt? })`
 
