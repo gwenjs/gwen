@@ -129,6 +129,15 @@ describe("engine page run fences", () => {
     }
   });
 
+  it.each(["docs/essentials/engine.md", "docs/fr/essentials/engine.md"])(
+    "%s teaches renderers the transform:2d reader, not the raw history helper",
+    (file) => {
+      const text = readFileSync(path.join(repoRoot, file), "utf8");
+      expect(text).toContain("engine.inject('transform:2d')");
+      expect(text).not.toContain("readInterpolatedTransform2D");
+    },
+  );
+
   it("the engine page tells an ssr build to keep @gwenjs/core external, EN and FR", () => {
     const pages = [
       { file: "docs/essentials/engine.md", heading: "## Headless / server" },

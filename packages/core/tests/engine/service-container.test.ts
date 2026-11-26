@@ -114,4 +114,21 @@ describe("ServiceContainer", () => {
     expect(second.tryInject("logger")).toBeUndefined();
     expect(first.inject("logger")).toBe(logger);
   });
+
+  it("transform:2d is engine-owned: a write reports engine-owned and delete keeps the reader", () => {
+    const container = new ServiceContainer({
+      assertState() {},
+    });
+    const reader = {
+      track: () => {
+        throw new Error("unused");
+      },
+      release: () => {},
+      read: () => false,
+    };
+    expect(container.write("transform:2d", reader)).toEqual({ kind: "engine-owned" });
+    expect(container.has("transform:2d")).toBe(true);
+    expect(container.delete("transform:2d", reader)).toBe(false);
+    expect(container.has("transform:2d")).toBe(true);
+  });
 });
