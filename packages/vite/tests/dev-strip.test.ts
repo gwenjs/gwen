@@ -77,6 +77,8 @@ const SENTINELS = [
   "import.meta.env",
   // Literal held only by packages/core/src/introspection/provider.ts.
   "introspection:scene-recorder",
+  // Literal held only by packages/core/src/introspection/entities.ts.
+  "introspection.entities",
 ];
 
 const dirs: string[] = [];
