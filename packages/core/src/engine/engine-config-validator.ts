@@ -126,6 +126,7 @@ export function validateEngineConfig(
       hint: "Expected an integer >= 0.",
     });
   }
+  validateMaxPageSize(opts.introspection?.maxPageSize);
   const fields = pickEngineFields(opts);
   const issues = checkEngineConfig(fields, "@gwenjs/core");
   const issue = issues[0];
@@ -170,5 +171,26 @@ export function validateEngineConfig(
         hint: "Pass objects with a handle(entry) method.",
       });
     }
+  }
+}
+
+/** Largest accepted `introspection.maxPageSize`. Inclusive. */
+const MAX_PAGE_SIZE_CEILING = 2_000_000;
+
+/**
+ * Rejects a page size that is not an integer from 1 to {@link MAX_PAGE_SIZE_CEILING}.
+ * `undefined` keeps the default, applied later when the service is built.
+ */
+function validateMaxPageSize(size: unknown): void {
+  if (size === undefined) return;
+  if (
+    typeof size !== "number" ||
+    !Number.isInteger(size) ||
+    size < 1 ||
+    size > MAX_PAGE_SIZE_CEILING
+  ) {
+    throw new GwenConfigError("introspection.maxPageSize", size, {
+      hint: `Expected an integer from 1 to ${MAX_PAGE_SIZE_CEILING}.`,
+    });
   }
 }

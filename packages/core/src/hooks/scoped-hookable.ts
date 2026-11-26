@@ -28,7 +28,18 @@ interface HookSlot {
   owner: ScopedHookable;
   call: (...args: unknown[]) => unknown;
   readonly name: string;
+  /** Dev only: 0 in a production build. A reused slot keeps the seq it was created with. */
+  readonly seq: number;
   unsub: () => void;
+}
+
+/** Next seq per parent bus, so handlers from several scopes share one order. */
+const busSeq = new WeakMap<object, number>();
+
+function nextSeq(parent: object): number {
+  const seq = busSeq.get(parent) ?? 0;
+  busSeq.set(parent, seq + 1);
+  return seq;
 }
 
 /** Slots handed from one scope to the next, grouped by hook name in registration order. */
@@ -115,7 +126,13 @@ export class ScopedHookable {
     const reused = this._reuse(name, call);
     if (reused !== null) return this._release(reused);
 
-    const slot: HookSlot = { owner: this, call, name, unsub: noop };
+    const slot: HookSlot = {
+      owner: this,
+      call,
+      name,
+      seq: __GWEN_DEV__ ? nextSeq(this._parent) : 0,
+      unsub: noop,
+    };
     // Arity 0-4 stays allocation-free. A longer call uses apply.
     const wrapped = function (a: unknown, b: unknown, c: unknown, d: unknown) {
       if (slot.owner._paused) return;
@@ -131,6 +148,19 @@ export class ScopedHookable {
     slot.unsub = this._parent.hook(name, wrapped as never); // boundary: wrapped is the arity-dispatching untyped function; hook() wants the callback typed for hook K
     this._slots.push(slot);
     return this._release(slot);
+  }
+
+  /**
+   * Registration positions of the handlers this scope still owns for `name`.
+   * A hot-swapped slot keeps the seq it was created with.
+   * @internal
+   */
+  positionsOf(name: string): readonly number[] {
+    const found: number[] = [];
+    for (const slot of this._slots) {
+      if (slot.name === name) found.push(slot.seq);
+    }
+    return Object.freeze(found);
   }
 
   /**

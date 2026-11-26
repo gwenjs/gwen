@@ -11,7 +11,7 @@
  * @internal Used exclusively by the Engine class.
  */
 
-import { GwenError } from "@gwenjs/schema";
+import { GwenError, type GwenIntrospectionComponent } from "@gwenjs/schema";
 
 import { GwenScope } from "../context/scope";
 import type { ComponentSchema, SchemaType } from "../schema";
@@ -215,7 +215,7 @@ export class EngineComponentRegistry {
     }
     this.typeIds.set(name, typeId);
     this.layouts.set(name, lanes.slice());
-    this.owners.set(name, currentPluginName());
+    this.finishRegister(name, typeOrDef);
     return typeId;
   }
 
@@ -267,6 +267,7 @@ export class EngineComponentRegistry {
     this.typeIds.delete(type);
     this.layouts.delete(type);
     this.owners.delete(type);
+    this.fieldNames.delete(type);
   }
 
   /**
@@ -285,4 +286,52 @@ export class EngineComponentRegistry {
   getAll(): ReadonlyMap<ComponentType, number> {
     return new Map(this.typeIds);
   }
+
+  /** Field names in schema order. Filled only in a dev build. */
+  private fieldNames = new Map<string, readonly string[]>();
+
+  /** Store the owner and, in a dev build, the schema field names. */
+  private finishRegister(name: string, typeOrDef: ComponentType | ComponentLayoutSource): void {
+    this.owners.set(name, currentPluginName());
+    if (__GWEN_DEV__) {
+      this.rememberFields(name, typeOrDef);
+    }
+  }
+
+  /** Field names for a name that was just stored. A string name has none. */
+  private rememberFields(name: string, typeOrDef: ComponentType | ComponentLayoutSource): void {
+    if (typeof typeOrDef === "string") {
+      this.fieldNames.set(name, []);
+      return;
+    }
+    this.fieldNames.set(name, Object.keys(typeOrDef.schema));
+  }
+
+  /**
+   * Registered names in registration order, with fields in schema order.
+   * A string registration lists no fields. The arrays are copies.
+   */
+  list(): readonly GwenIntrospectionComponent[] {
+    const rows: GwenIntrospectionComponent[] = [];
+    for (const [name, typeId] of this.typeIds) {
+      const fields = this.fieldNames.get(name) ?? [];
+      rows.push(
+        Object.freeze({
+          name,
+          typeId,
+          fields: Object.freeze(fields.slice()),
+        }),
+      );
+    }
+    return Object.freeze(rows);
+  }
+}
+
+/**
+ * Registered components of `engine`, or an empty list when the registry was
+ * never created or `stop()` already released it. Does not throw.
+ * @internal
+ */
+export function componentListing(engine: GwenEngine): readonly GwenIntrospectionComponent[] {
+  return registries.peek(engine)?.list() ?? [];
 }

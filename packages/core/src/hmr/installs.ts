@@ -10,7 +10,7 @@
 import type { GwenErrorTarget } from "@gwenjs/schema";
 import { createEngineLocal } from "../engine/engine-local.js";
 import type { GwenEngine } from "../engine/engine-types.js";
-import type { HookSlots } from "../hooks/scoped-hookable.js";
+import type { HookSlots, ScopedHookable } from "../hooks/scoped-hookable.js";
 import type { DiscoverablePlugin } from "../system/runtime/define-system";
 
 /** Key of the {@link DefinitionRecord} on a `defineSystem` factory. */
@@ -97,10 +97,14 @@ export function controlOf(plugin: DiscoverablePlugin): HotControl | undefined {
   return isHotPlugin(plugin) ? plugin[HOT_CONTROL] : undefined;
 }
 
-/** What one engine knows of one installed system. P-94-1a adds the phases. */
+/** What one engine knows of one installed system. `scope` supplies phases and pause. */
 export interface SystemInstallInfo {
+  /** Scope id. Phase lists hold this id. */
   readonly id: string;
+  /** Display name passed to `defineSystem`. */
   readonly name: string;
+  /** Live scope, or null when the install was recorded without one. */
+  readonly scope: ScopedHookable | null;
 }
 
 /** Installed systems of one engine, by scope id. Released by `stop()`. */

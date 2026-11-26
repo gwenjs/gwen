@@ -4,7 +4,12 @@
  */
 
 import { createHooks, type Hookable } from "hookable";
-import { ENGINE_DEFAULTS, type GwenLogLevel, type IGwenLogger } from "@gwenjs/schema";
+import {
+  ENGINE_DEFAULTS,
+  GWEN_INTROSPECTION_DEFAULT_MAX_PAGE,
+  type GwenLogLevel,
+  type IGwenLogger,
+} from "@gwenjs/schema";
 import type { GwenRuntimeHooks } from "./runtime-hooks";
 import { stringPoolFor } from "../utils/string-pool";
 import { consoleLogProvider } from "../logger/console-log-provider";
@@ -16,7 +21,7 @@ import { createErrorBus } from "./error-bus.js";
 import { bindFailureReporter, isIsolated } from "./error-isolation.js";
 import { ScopedHooksTracker } from "./hook-tracker.js";
 import { PluginRegistry } from "./plugin-registry.js";
-import { componentRegistryFor } from "./engine-component-registry.js";
+import { componentListing, componentRegistryFor } from "./engine-component-registry.js";
 import { ServiceContainer } from "./service-container.js";
 import { announceDirectWrite, emitServiceChange } from "./service-change.js";
 import { EngineEntities } from "./engine-entities.js";
@@ -30,8 +35,11 @@ import {
   emitBulkSpawn,
   emitEntityDestroy,
   emitEntitySpawn,
+  hookEngineListener,
   trackCoreHookListeners,
 } from "./hook-dispatch.js";
+import { systemInstalls } from "../hmr/installs.js";
+import { createIntrospection } from "../introspection/provider.js";
 import { rememberEngineInternals } from "./engine-internals.js";
 import { WasmModuleRunner } from "./wasm-module-runner.js";
 import type { GwenEngine, GwenEngineOptions } from "./engine-types.js";
@@ -223,6 +231,29 @@ export abstract class EngineCollaborators {
         },
       }),
     );
+    if (__GWEN_DEV__) {
+      const maxPageSize = opts.introspection?.maxPageSize ?? GWEN_INTROSPECTION_DEFAULT_MAX_PAGE;
+      this._serviceContainer.provide(
+        "introspection",
+        createIntrospection({
+          subscribe: (name, fn) => hookEngineListener(this.hooks, name, fn),
+          debug: this.debug,
+          maxPageSize,
+          state: () => this._stateMachine.state,
+          frameCount: () => this._stats.frameCount,
+          entityCount: () => this._entities.count(),
+          plugins: () => this._pluginRegistry.list(),
+          isolated: (id) => isIsolated(this, id),
+          serviceKeys: () => this._serviceContainer.keys(),
+          serviceOwner: (key) => this._pluginRegistry.ownerOfService(key) ?? null,
+          components: () => componentListing(engine),
+          systems: () => [...(systemInstalls.peek(engine)?.values() ?? [])],
+          onStop: (label, undo) => {
+            this.disposables.add(label, createDisposable(undo));
+          },
+        }),
+      );
+    }
     this._policy.attach();
     this._rememberInternals(engine);
     bindEngineOnHooks(engine, this.hooks);

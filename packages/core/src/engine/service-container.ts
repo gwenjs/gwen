@@ -29,7 +29,14 @@ function readProvidedService<K extends keyof GwenProvides>(
 }
 
 /** Keys the engine provides for itself. `delete` never removes them. */
-const ENGINE_OWNED = new Set<string>(["wasm:bridge", "logger", "errors", "memory", "transform:2d"]);
+const ENGINE_OWNED = new Set<string>([
+  "wasm:bridge",
+  "logger",
+  "errors",
+  "memory",
+  "transform:2d",
+  "introspection",
+]);
 
 /**
  * Typed service map for provide, inject, and tryInject.
@@ -103,4 +110,17 @@ export class ServiceContainer {
     this._services.delete(key);
     return true;
   }
+
+  /**
+   * Service keys in registration order. A fresh array on each call.
+   * @internal
+   */
+  keys(): readonly string[] {
+    return [...this._services.keys()];
+  }
+}
+
+/** True when the engine provides `key` for itself. */
+export function isEngineOwnedService(key: string): boolean {
+  return ENGINE_OWNED.has(key);
 }

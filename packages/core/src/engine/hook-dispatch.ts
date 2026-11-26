@@ -1,5 +1,5 @@
 import type { Hookable } from "hookable";
-import type { GwenPrefabExtensions } from "@gwenjs/schema";
+import type { GwenPrefabExtensions, GwenRuntimeHookName } from "@gwenjs/schema";
 
 import type { EntityId } from "./engine-api";
 import { popEngine, pushEngine, unwrapEngine } from "./engine-local";
@@ -308,8 +308,38 @@ export function countHookListeners(hooks: Hookable<GwenRuntimeHooks>): number {
   const counts = coreHookCounts.get(hooks);
   if (counts === undefined) return 0;
   let total = 0;
-  for (const name of TRACKED_HOOKS) total += counts.listeners[name].length;
-  for (const list of counts.others.values()) total += list.length;
+  for (const name of TRACKED_HOOKS) total += counted(counts.listeners[name]);
+  for (const list of counts.others.values()) total += counted(list);
+  return total;
+}
+
+/**
+ * Listeners the engine itself registered. `countHookListeners` skips them so
+ * releasing them at `stop()` does not hide a plugin listener that stayed.
+ */
+const engineListeners = new WeakSet<object>();
+
+/**
+ * Subscribe `fn` and exclude it from {@link countHookListeners}.
+ * `fn` is the same function `hooks.hook` records.
+ * @internal
+ */
+export function hookEngineListener<K extends GwenRuntimeHookName>(
+  hooks: Hookable<GwenRuntimeHooks>,
+  name: K,
+  fn: GwenRuntimeHooks[K],
+): () => void {
+  engineListeners.add(fn);
+  return hooks.hook(name, fn as never); // boundary: hookable infers the callback type from the name, and K is generic here
+}
+
+/** Listeners in `list`, excluding ones {@link hookEngineListener} registered. */
+function counted(list: readonly unknown[]): number {
+  let total = 0;
+  for (const fn of list) {
+    if (typeof fn === "function" && engineListeners.has(fn)) continue;
+    total += 1;
+  }
   return total;
 }
 
