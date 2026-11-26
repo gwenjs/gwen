@@ -221,6 +221,16 @@ describe("framework providers", () => {
     expect(list).toEqual([decl]);
   });
 
+  it("a declaration requiring transform:3d passes because the engine provides it", async () => {
+    const decl = {
+      src: "@test/renderer3d",
+      export: "Renderer3DPlugin",
+      requires: { services: ["transform:3d"] },
+    };
+    const list = await userDeclarations([moduleOf("@test/renderer3d", [decl])]);
+    expect(list).toEqual([decl]);
+  });
+
   it("an optional requirement never inserts a provider nor fails", async () => {
     const optional = {
       src: "@test/mixer-user",

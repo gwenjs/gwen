@@ -3,8 +3,11 @@ import type {
   EntityId,
   GwenProvides,
   TransformReader2D,
+  TransformReader3D,
   TransformRef2D,
+  TransformRef3D,
   TransformSample2D,
+  TransformSample3D,
 } from "@gwenjs/schema";
 
 describe("transform 2d contract", () => {
@@ -38,5 +41,46 @@ describe("transform 2d contract", () => {
       [TransformRef2D, TransformSample2D]
     >();
     expectTypeOf<TransformReader2D["read"]>().returns.toEqualTypeOf<boolean>();
+  });
+});
+
+describe("transform 3d contract", () => {
+  it('GwenProvides["transform:3d"] is TransformReader3D', () => {
+    expectTypeOf<GwenProvides["transform:3d"]>().toEqualTypeOf<TransformReader3D>();
+  });
+
+  it("TransformSample3D has exactly ten number fields", () => {
+    expectTypeOf<TransformSample3D>().toEqualTypeOf<{
+      x: number;
+      y: number;
+      z: number;
+      qx: number;
+      qy: number;
+      qz: number;
+      qw: number;
+      scaleX: number;
+      scaleY: number;
+      scaleZ: number;
+    }>();
+  });
+
+  it("TransformRef3D is opaque and not a TransformRef2D", () => {
+    expectTypeOf<{}>().not.toExtend<TransformRef3D>();
+    expectTypeOf<number>().not.toExtend<TransformRef3D>();
+    expectTypeOf<bigint>().not.toExtend<TransformRef3D>();
+    expectTypeOf<EntityId>().not.toExtend<TransformRef3D>();
+    expectTypeOf<TransformRef2D>().not.toExtend<TransformRef3D>();
+    expectTypeOf<TransformRef3D>().not.toExtend<TransformRef2D>();
+  });
+
+  it("TransformReader3D track, release and read have the contract signatures", () => {
+    expectTypeOf<TransformReader3D["track"]>().parameters.toEqualTypeOf<[EntityId]>();
+    expectTypeOf<TransformReader3D["track"]>().returns.toEqualTypeOf<TransformRef3D>();
+    expectTypeOf<TransformReader3D["release"]>().parameters.toEqualTypeOf<[TransformRef3D]>();
+    expectTypeOf<TransformReader3D["release"]>().returns.toEqualTypeOf<void>();
+    expectTypeOf<TransformReader3D["read"]>().parameters.toEqualTypeOf<
+      [TransformRef3D, TransformSample3D]
+    >();
+    expectTypeOf<TransformReader3D["read"]>().returns.toEqualTypeOf<boolean>();
   });
 });

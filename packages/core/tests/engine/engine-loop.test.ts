@@ -307,6 +307,53 @@ describe("EngineLoop", () => {
     }
   });
 
+  it("a 3D history buffer error stays running and is reported once per step", async () => {
+    const engine = await createEngine({
+      physicsHz: 60,
+      maxCatchupSteps: 2,
+      maxDeltaSeconds: 1,
+    });
+    const seen: Array<{ code: string; hook: string }> = [];
+    engine.errors.on((event) => {
+      const context = event.context;
+      const hook = context === undefined ? undefined : context["hook"];
+      if (typeof hook === "string") seen.push({ code: event.code, hook });
+    });
+    const renders: number[] = [];
+    engine.hooks.hook("engine:render", () => {
+      renders.push(1);
+    });
+    const unavailable = new Error("history buffers cannot be allocated");
+    Object.assign(unavailable, { code: "CORE:HISTORY_BUFFERS_UNAVAILABLE" });
+    activateTestWasm(engine);
+    const reader = engine.tryInject("transform:3d");
+    try {
+      expect(reader).toBeDefined();
+      if (reader === undefined) throw new Error("the engine does not provide transform:3d");
+      reader.track(engine.createEntity());
+      Object.assign(engine.inject("wasm:bridge").engine(), {
+        transform3d_history_commit(): number {
+          throw unavailable;
+        },
+      });
+      await engine.startExternal();
+      expect(engine.state).toBe("running");
+      const before = seen.length;
+      await engine.advance(2 / 60);
+      const stepEvents = seen.slice(before).filter((event) => {
+        return (
+          event.hook === "transform3d_history_commit" &&
+          event.code === "CORE:HISTORY_BUFFERS_UNAVAILABLE"
+        );
+      });
+      expect(engine.state).toBe("running");
+      expect(renders).toHaveLength(1);
+      expect(stepEvents).toHaveLength(2);
+    } finally {
+      if (engine.state !== "stopped") await engine.stop();
+    }
+  });
+
   it("phase order is tick then modules then transforms then update then afterTick", async () => {
     const rig = await harness();
     try {

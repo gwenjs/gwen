@@ -95,6 +95,7 @@ const ROWS: Readonly<Record<string, readonly Cell[]>> = {
   onDisable: [{ kind: "actor", call: () => actor.onDisable(() => {}) }],
   useEntityId: [{ kind: "actor", call: () => actor.useEntityId() }],
   useTransform: [{ kind: "actor", call: () => actor.useTransform() }],
+  useTransform3D: [{ kind: "actor", call: () => actor.useTransform3D() }],
   useChildren: [{ kind: "actor", call: () => actor.useChildren() }],
   useActor: [{ kind: "engine", call: () => actor.useActor(Actor) }],
   usePrefab: [{ kind: "engine", call: () => actor.usePrefab(Prefab) }],

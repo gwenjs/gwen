@@ -112,6 +112,10 @@ const SCHEMA_CONTRACTS = new Set([
   "TransformReader2D",
   "TransformRef2D",
   "TransformSample2D",
+  "TRANSFORM_3D_SERVICE",
+  "TransformReader3D",
+  "TransformRef3D",
+  "TransformSample3D",
 ]);
 
 /** Context symbols owned by `packages/kit/src` (R8, R9; D-76-a). */
@@ -1314,7 +1318,7 @@ function illegalTransformExports(
   declarations: readonly Declaration[],
   erased: ReadonlySet<string>,
 ): string[] {
-  const allowedConsts = new Set(["TRANSFORM_2D_SERVICE"]);
+  const allowedConsts = new Set(["TRANSFORM_2D_SERVICE", "TRANSFORM_3D_SERVICE"]);
   return declarations
     .filter((declaration) => {
       const keyword = declaration.text.replace(/^export /, "").split(" ")[0] ?? "";

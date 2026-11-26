@@ -196,6 +196,26 @@ describe("engine.use / engine.unuse", () => {
     expect(seen).toBe(engine.tryInject("transform:2d"));
   });
 
+  it("a plugin requiring transform:3d installs on a bare engine", async () => {
+    const engine = await createEngine();
+    let seen: unknown;
+    let caught: unknown;
+    try {
+      await engine.use({
+        name: "needs-transform-3d",
+        requires: { services: ["transform:3d"] },
+        setup(host) {
+          seen = host.tryInject("transform:3d");
+        },
+      });
+    } catch (error: unknown) {
+      caught = error;
+    }
+    expect(caught).toBeUndefined();
+    expect(seen).toBeDefined();
+    expect(seen).toBe(engine.tryInject("transform:3d"));
+  });
+
   it("use(B) then use(A) installs both, and use(A) after a failed use(A) succeeds", async () => {
     const engine = await createEngine();
     const ran: string[] = [];

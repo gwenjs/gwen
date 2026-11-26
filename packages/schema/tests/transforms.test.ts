@@ -11,6 +11,10 @@ describe("transform 2d", () => {
     expect(schema.TRANSFORM_2D_SERVICE).toBe("transform:2d");
   });
 
+  it("exports the transform:3d service key", () => {
+    expect(schema.TRANSFORM_3D_SERVICE).toBe("transform:3d");
+  });
+
   it("the transforms module imports no @gwenjs package", () => {
     const file = path.join(pkgRoot, "src", "transforms.ts");
     expect(existsSync(file)).toBe(true);

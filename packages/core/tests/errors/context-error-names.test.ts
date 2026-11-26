@@ -29,6 +29,7 @@ import {
   useEntityId,
   useTransform,
 } from "@gwenjs/core/actor";
+import * as actorEntry from "@gwenjs/core/actor";
 import { getWasmBridge } from "@gwenjs/core/internal";
 import {
   defineScene,
@@ -62,6 +63,12 @@ const ENGINE_CONTEXTS = [
   "plugin setup()",
   "engine.run()",
 ];
+
+function useTransform3D(): unknown {
+  const fn: unknown = Reflect.get(actorEntry, "useTransform3D");
+  if (typeof fn !== "function") throw new TypeError("useTransform3D is not a function");
+  return Reflect.apply(fn, undefined, []);
+}
 
 function thrownBy(fn: () => unknown): GwenContextError {
   let error: unknown;
@@ -277,6 +284,13 @@ describe("context error names", () => {
     const engine = await open();
     const error = thrownBy(() => engine.run(() => useTransform()));
     expect(error.composable).toBe("useTransform");
+    expect(error.message.includes("_getActor")).toBe(false);
+  });
+
+  it("useTransform3D outside an actor names useTransform3D", async () => {
+    const engine = await open();
+    const error = thrownBy(() => engine.run(() => useTransform3D()));
+    expect(error.composable).toBe("useTransform3D");
     expect(error.message.includes("_getActor")).toBe(false);
   });
 
