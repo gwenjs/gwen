@@ -153,4 +153,24 @@ describe("API reference pages", () => {
       expect(pageText(file)).toContain("runCameraProviderConformance(engine, { viewportId, dt? })");
     },
   );
+
+  it.each(["docs/api/renderer-core.md", "docs/fr/api/renderer-core.md"])(
+    "%s documents the surface conformance signatures",
+    (file) => {
+      const text = pageText(file);
+      expect(text).toContain("runSurfaceConformance(service, { dpr? })");
+      expect(text).toContain("runSurfacePluginConformance({ plugin, serviceKey, createEngine? })");
+      expect(text).not.toContain("runSurfaceConformance(service, engine)");
+    },
+  );
+
+  it.each(["docs/kit/custom-renderer.md", "docs/fr/kit/custom-renderer.md"])(
+    "%s teaches the plugin-level surface suite",
+    (file) => {
+      const text = pageText(file);
+      expect(text).toContain("runSurfacePluginConformance");
+      expect(text).toContain("runSurfaceConformance(service, { dpr? })");
+      expect(text).not.toContain("runSurfaceConformance(service, engine)");
+    },
+  );
 });
