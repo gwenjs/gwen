@@ -254,7 +254,7 @@ gwen.addPlugin({ src: "@my-scope/my-module", export: "MyPlugin" })
 
 ### Requirements of a declaration
 
-A declaration may carry `requires` and `provides`. Both are data, read at build time. Keep them equal to the `requires` and `provides` of the plugin the declaration builds.
+A declaration may carry `name`, `requires` and `provides`. All three are data, read at build time. Keep them equal to the `name`, `requires` and `provides` of the plugin the declaration builds.
 
 ```ts
 gwen.addPlugin({
@@ -270,7 +270,8 @@ After every module has run its `setup`, the build walks the declarations in inst
 - A provider you declared earlier is kept with your options. A provider declared later fails with `APP:PLUGIN_REQUIREMENT_ORDER`.
 - A `requires.services` key must be provided by the engine, by `gwen:viewports` or `gwen:screen`, by a config plugin, by the `provides` of an earlier declaration, or by a framework provider. Otherwise the build fails with `APP:SERVICE_PROVIDER_MISSING`.
 - `requires.optional` never inserts a provider and never fails the build.
-- A plugin name with no framework provider and no installed plugin is not checked by the build. `engine.use()` rejects it at runtime with `CORE:PLUGIN_DEPENDENCY_MISSING`.
+- A `requires.plugins` name must be installed before the declaration: by a bootstrap plugin, a config plugin, an earlier declaration whose `name` equals it, or a framework provider (first bullet). A declaration declared later fails with `APP:PLUGIN_REQUIREMENT_ORDER`. A name with no installer fails with `APP:PLUGIN_REQUIREMENT_MISSING`. A declaration without `name` satisfies no other plugin name.
+- A `requires.plugins` entry given as `{ name, extensionApi }` counts by `name`. The build checks only the shape of `extensionApi`: `engine.use()` checks the compatibility at runtime.
 
 The generated entry imports an inserted provider by its package name, for example `@gwenjs/camera-core`, from the project root. Install that package in the project. The framework providers add nothing to the browser bundle until a declaration requires one.
 
@@ -490,7 +491,7 @@ export default defineGwenModule<Options>({
 
 | Method | Purpose |
 |--------|---------|
-| `addPlugin(declaration)` | Declare a runtime plugin: { src, export?, options?, requires?, provides? } |
+| `addPlugin(declaration)` | Declare a runtime plugin: { src, export?, name?, options?, requires?, provides? } |
 | `addAutoImports(imports)` | Declare auto-imported utilities |
 | `addVitePlugin(plugin)` | Add a Vite plugin to the build |
 | `addSourceTransform(transform)` | Register a build transform named `<namespace>:<transform>` |

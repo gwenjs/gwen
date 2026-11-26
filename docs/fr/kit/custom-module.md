@@ -254,7 +254,7 @@ gwen.addPlugin({ src: "@my-scope/my-module", export: "MyPlugin" })
 
 ### Prérequis d'une déclaration
 
-Une déclaration peut porter `requires` et `provides`. Ce sont des données, lues à la compilation. Gardez-les égales au `requires` et au `provides` du plugin que la déclaration construit.
+Une déclaration peut porter `name`, `requires` et `provides`. Ce sont des données, lues à la compilation. Gardez-les égaux au `name`, au `requires` et au `provides` du plugin que la déclaration construit.
 
 ```ts
 gwen.addPlugin({
@@ -270,7 +270,8 @@ Quand tous les modules ont exécuté leur `setup`, le build parcourt les déclar
 - Un fournisseur que vous avez déclaré plus tôt est gardé avec vos options. Un fournisseur déclaré plus tard échoue avec `APP:PLUGIN_REQUIREMENT_ORDER`.
 - Une clé de `requires.services` doit être fournie par le moteur, par `gwen:viewports` ou `gwen:screen`, par un plugin de config, par le `provides` d'une déclaration antérieure, ou par un fournisseur du framework. Sinon le build échoue avec `APP:SERVICE_PROVIDER_MISSING`.
 - `requires.optional` n'insère jamais de fournisseur et ne fait jamais échouer le build.
-- Un nom de plugin sans fournisseur du framework et sans plugin installé n'est pas vérifié par le build. `engine.use()` le rejette à l'exécution avec `CORE:PLUGIN_DEPENDENCY_MISSING`.
+- Un nom de `requires.plugins` doit être installé avant la déclaration : par un plugin de bootstrap, un plugin de config, une déclaration antérieure dont le `name` lui est égal, ou un fournisseur du framework (premier point). Une déclaration placée plus tard échoue avec `APP:PLUGIN_REQUIREMENT_ORDER`. Un nom sans installeur échoue avec `APP:PLUGIN_REQUIREMENT_MISSING`. Une déclaration sans `name` ne satisfait aucun autre nom de plugin.
+- Une entrée de `requires.plugins` donnée sous la forme `{ name, extensionApi }` compte par `name`. Le build ne vérifie que la forme de `extensionApi` : `engine.use()` vérifie la compatibilité à l'exécution.
 
 L'entrée générée importe un fournisseur inséré par son nom de paquet, par exemple `@gwenjs/camera-core`, depuis la racine du projet. Installez ce paquet dans le projet. Les fournisseurs du framework n'ajoutent rien au bundle du navigateur tant qu'aucune déclaration n'en requiert un.
 
@@ -490,7 +491,7 @@ export default defineGwenModule<Options>({
 
 | Méthode | But |
 |---------|-----|
-| `addPlugin(declaration)` | Déclarez un plugin runtime : { src, export?, options?, requires?, provides? } |
+| `addPlugin(declaration)` | Déclarez un plugin runtime : { src, export?, name?, options?, requires?, provides? } |
 | `addAutoImports(imports)` | Déclarez les utilitaires auto-importés |
 | `addVitePlugin(plugin)` | Ajoutez un plugin Vite à la compilation |
 | `addSourceTransform(transform)` | Enregistre une transformation de build nommée `<namespace>:<transform>` |

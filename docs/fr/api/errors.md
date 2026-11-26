@@ -42,7 +42,6 @@ onStart(async () => {
 ## Codes réservés
 
 - `CORE:INTROSPECTION_PAGE_INVALID` {#core-introspection-page-invalid}
-- `APP:PLUGIN_REQUIREMENT_MISSING` {#app-plugin-requirement-missing}
 
 ## @gwenjs/core
 
@@ -192,11 +191,15 @@ Cause. Un paquet de module ne déclare pas d'export `./module`. Le message nomme
 
 ### APP:PLUGIN_NOT_DECLARATIVE {#app-plugin-not-declarative}
 
-Cause. `kit.addPlugin()` a reçu quelque chose qui n'est pas une `PluginDeclaration { src, export?, options?, requires?, provides? }` (une instance, une fonction, ou un objet sans `src` de type chaîne), ou les `options` ne sont pas sérialisables en JSON (message `Plugin declaration "<src>" has options that are not JSON-serializable.`), ou `requires` ou `provides` a une forme invalide (`requires` est un objet de listes `plugins`, `services` et `optional` ; `provides` est une liste de chaînes). L'échec est enveloppé dans `APP:MODULE_SETUP_FAILED`, dont le `cause` est cette erreur. Fix. Déclarez le paquet et son export, `kit.addPlugin({ src: "<pkg>", export: "<Factory>", options })`, et ne passez que des données JSON.
+Cause. `kit.addPlugin()` a reçu quelque chose qui n'est pas une `PluginDeclaration { src, export?, name?, options?, requires?, provides? }` (une instance, une fonction, ou un objet sans `src` de type chaîne), ou `name` n'est pas une chaîne non vide, ou les `options` ne sont pas sérialisables en JSON (message `Plugin declaration "<src>" has options that are not JSON-serializable.`), ou `requires` ou `provides` a une forme invalide (`requires` est un objet de listes `plugins`, `services` et `optional` ; une entrée de `plugins` est une chaîne ou `{ name, extensionApi: { major, minor } }` avec `major` entier à partir de 1 et `minor` entier à partir de 0 ; `provides` est une liste de chaînes). L'échec est enveloppé dans `APP:MODULE_SETUP_FAILED`, dont le `cause` est cette erreur. Fix. Déclarez le paquet et son export, `kit.addPlugin({ src: "<pkg>", export: "<Factory>", options })`, et ne passez que des données JSON.
+
+### APP:PLUGIN_REQUIREMENT_MISSING {#app-plugin-requirement-missing}
+
+Cause. Une déclaration liste un nom de `requires.plugins` qu'aucun plugin de bootstrap, plugin de config, déclaration antérieure (par son `name`) ou fournisseur du framework n'installe. Le message est `Module "<module>" requires plugin "<name>", which no module or config plugin installs.` Une déclaration sans `name` n'installe rien pour cette vérification. Le build ne charge pas le code des plugins et ne vérifie pas l'API d'extension : `engine.use()` le fait à l'exécution. Fix. Ajoutez le module du plugin de base avant le module d'extension dans `modules`, et donnez à sa déclaration un `name` égal au nom du plugin.
 
 ### APP:PLUGIN_REQUIREMENT_ORDER {#app-plugin-requirement-order}
 
-Cause. Une déclaration requiert un fournisseur qu'une déclaration plus tardive enregistre. Le message est `Module "<consumer>" requires "<name>", which module "<provider>" declares later.` Le build insère lui-même un fournisseur du framework, et garde celui que l'auteur a déclaré plus tôt. Il ne réordonne jamais les modules de l'auteur. Fix. Placez le module fournisseur avant le consommateur dans `modules`, ou, quand c'est un fournisseur du framework comme `camera-core`, retirez-le : le build l'insère.
+Cause. Une déclaration requiert un fournisseur qu'une déclaration plus tardive enregistre. Le message est `Module "<consumer>" requires "<name>", which module "<provider>" declares later.` Le build insère lui-même un fournisseur du framework, et garde celui que l'auteur a déclaré plus tôt. Il ne réordonne jamais les modules de l'auteur. Fix. Placez le module fournisseur avant le consommateur dans `modules`, ou, quand c'est un fournisseur du framework comme `camera-core`, retirez-le : le build l'insère. Un plugin de base qui n'est pas un fournisseur du framework ne peut qu'être déplacé.
 
 ### APP:SERVICE_PROVIDER_MISSING {#app-service-provider-missing}
 

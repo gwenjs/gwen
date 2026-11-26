@@ -68,15 +68,33 @@ function pluginNames(declaration: PluginDeclaration): readonly string[] {
   });
 }
 
-function orderError(consumer: string, name: string, provider: string): GwenError {
+function orderError(
+  consumer: string,
+  name: string,
+  provider: string,
+  frameworkRow: boolean,
+): GwenError {
   return new GwenError(
     AppErrorCodes.PLUGIN_REQUIREMENT_ORDER,
     `Module "${consumer}" requires "${name}", which module "${provider}" declares later.`,
     {
       composable: "defineConfig",
       hint: __GWEN_DEV__
-        ? `Move "${provider}" before "${consumer}" in modules, or remove it: the framework installs framework providers.`
+        ? frameworkRow
+          ? `Move "${provider}" before "${consumer}" in modules, or remove it: the framework installs framework providers.`
+          : `Move "${provider}" before "${consumer}" in modules.`
         : undefined,
+    },
+  );
+}
+
+function missingPluginError(module: string, name: string): GwenError {
+  return new GwenError(
+    AppErrorCodes.PLUGIN_REQUIREMENT_MISSING,
+    `Module "${module}" requires plugin "${name}", which no module or config plugin installs.`,
+    {
+      composable: "defineConfig",
+      hint: __GWEN_DEV__ ? `Add the module of "${name}" before "${module}" in modules.` : undefined,
     },
   );
 }
@@ -98,10 +116,11 @@ function missingError(module: string, key: string): GwenError {
  * Inserts the framework providers the declarations require. Returns a new list.
  * The table is read, never changed: an inserted row is a copy.
  *
- * A plugin name with no row and no installed plugin is left to the runtime check
- * (`CORE:PLUGIN_DEPENDENCY_MISSING`).
+ * A plugin name is installed by a bootstrap or config plugin, by an earlier declaration whose
+ * `name` equals it, or by a framework row. A plugin name with none of these is rejected.
  *
  * @throws {GwenError} `APP:PLUGIN_REQUIREMENT_ORDER` when a provider is declared after its consumer.
+ *   `APP:PLUGIN_REQUIREMENT_MISSING` when a required plugin has no provider.
  *   `APP:SERVICE_PROVIDER_MISSING` when a hard service has no provider.
  */
 export function insertFrameworkProviders(
@@ -125,17 +144,21 @@ export function insertFrameworkProviders(
       const isProvider = (entry: OwnedDeclaration): boolean =>
         kind === "services"
           ? (entry.declaration.provides ?? []).some((key) => key === name)
-          : row !== undefined && sameRow(entry.declaration, row);
+          : entry.declaration.name === name ||
+            (row !== undefined && sameRow(entry.declaration, row));
       if ((kind === "plugins" ? installed.plugins : installed.services).has(name)) continue;
       if (list.slice(0, at).some(isProvider)) continue;
       const later = list.slice(at + 1).find(isProvider);
-      if (later !== undefined) throw orderError(consumer.owner, name, later.owner);
+      if (later !== undefined)
+        throw orderError(consumer.owner, name, later.owner, row !== undefined);
       if (row !== undefined) {
         list.splice(at, 0, { declaration: { ...row }, owner: FRAMEWORK_OWNER });
         at += 1;
         continue;
       }
-      if (kind === "services") throw missingError(consumer.owner, name);
+      throw kind === "services"
+        ? missingError(consumer.owner, name)
+        : missingPluginError(consumer.owner, name);
     }
   }
   return list;

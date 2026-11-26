@@ -169,10 +169,19 @@ export interface PluginDeclaration {
   /** Options passed as the first argument to the factory. Must be JSON-serializable. */
   options?: unknown;
   /**
+   * Runtime plugin name of what this declaration builds. Data only, read at build time.
+   * Keep it equal to the `name` of the plugin instance. A later declaration lists it in
+   * `requires.plugins` and the build checks it is installed before. Absent = this declaration
+   * satisfies no `requires.plugins` name, except a framework provider matched by `src` and `export`.
+   */
+  name?: string;
+  /**
    * Hard requirements and optional services of the plugin this declaration builds.
    * Data only, read at build time. Keep it equal to the `requires` of the plugin instance.
    * The build installs a framework provider right before the first declaration that
    * requires it, and fails with `APP:SERVICE_PROVIDER_MISSING` when a hard service has no provider.
+   * A `requires.plugins` name must be installed before: `APP:PLUGIN_REQUIREMENT_ORDER` when its
+   * installer is declared later, `APP:PLUGIN_REQUIREMENT_MISSING` when none installs it.
    */
   requires?: GwenPluginRequires;
   /**

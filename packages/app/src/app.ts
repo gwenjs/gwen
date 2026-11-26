@@ -403,7 +403,7 @@ export class GwenApp {
     return {
       /**
        * Registers a plugin declaration. An instance, a factory, a non-string
-       * `export`, an empty `src`, non-JSON options, or a malformed `requires` or `provides`
+       * `export`, an empty `src`, a malformed `name`, non-JSON options, or a malformed `requires` or `provides`
        * throw `APP:PLUGIN_NOT_DECLARATIVE`.
        * `options: undefined` is stored like an absent `options`.
        */
@@ -510,12 +510,28 @@ function isStringList(value: unknown): value is readonly string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string");
 }
 
-/** `requires.plugins` holds names or `{ name }` extension objects. */
+/** Same rule as the runtime check of core: `major` is an integer >= 1, `minor` an integer >= 0. */
+function isExtensionApi(value: unknown): boolean {
+  if (!isPlainRecord(value)) return false;
+  const { major, minor } = value;
+  return (
+    typeof major === "number" &&
+    Number.isInteger(major) &&
+    major >= 1 &&
+    typeof minor === "number" &&
+    Number.isInteger(minor) &&
+    minor >= 0
+  );
+}
+
+/** `requires.plugins` holds names or `{ name, extensionApi }` extension objects. */
 function isPluginRequirementList(value: unknown): boolean {
   return (
     Array.isArray(value) &&
     value.every(
-      (item) => typeof item === "string" || (isPlainRecord(item) && typeof item.name === "string"),
+      (item) =>
+        typeof item === "string" ||
+        (isPlainRecord(item) && typeof item.name === "string" && isExtensionApi(item.extensionApi)),
     )
   );
 }
@@ -535,6 +551,7 @@ function isPluginDeclaration(value: unknown): value is PluginDeclaration {
   if (typeof value.src !== "string") return false;
   if (value.src.length === 0) return false;
   if ("export" in value && typeof value.export !== "string") return false;
+  if ("name" in value && (typeof value.name !== "string" || value.name.length === 0)) return false;
   if (value.requires !== undefined && !isRequires(value.requires)) return false;
   if (value.provides !== undefined && !isStringList(value.provides)) return false;
   return true;
