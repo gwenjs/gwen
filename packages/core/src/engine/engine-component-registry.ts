@@ -185,15 +185,15 @@ export class EngineComponentRegistry {
     const lanes = typeof typeOrDef === "string" ? NAME_LANES : lanesFromSchema(typeOrDef.schema);
     const existing = this.typeIds.get(name);
     const stored = this.layouts.get(name);
-    if (__GWEN_DEV__) {
-      if (typeof typeOrDef !== "string") this.sources.set(name, typeOrDef);
-    }
     if (existing !== undefined && stored !== undefined) {
       if (!sameLanes(stored, lanes)) {
         throw new GwenError(
           CoreErrorCodes.COMPONENT_LAYOUT_INVALID,
           `Component layout invalid: ${name}.`,
         );
+      }
+      if (__GWEN_DEV__) {
+        if (typeof typeOrDef !== "string") this.sources.set(name, typeOrDef);
       }
       return existing;
     }
@@ -295,16 +295,19 @@ export class EngineComponentRegistry {
   private fieldNames = new Map<string, readonly string[]>();
 
   /**
-   * Definition object passed to `getOrRegister`. Filled only in a dev build.
-   * A string registration stores nothing.
+   * Accepted definition last passed to `getOrRegister`
+   * (after the lane check in `getOrRegister` and in `finishRegister`).
+   * Filled only in a dev build. A string registration stores nothing.
+   * A rejected call does not replace the definition already stored.
    */
   private sources = new Map<string, ComponentLayoutSource>();
 
-  /** Store the owner and, in a dev build, the schema field names. */
+  /** Store the owner and, in a dev build, the schema field names and the source. */
   private finishRegister(name: string, typeOrDef: ComponentType | ComponentLayoutSource): void {
     this.owners.set(name, currentPluginName());
     if (__GWEN_DEV__) {
       this.rememberFields(name, typeOrDef);
+      if (typeof typeOrDef !== "string") this.sources.set(name, typeOrDef);
     }
   }
 
@@ -338,7 +341,10 @@ export class EngineComponentRegistry {
 
   /**
    * Definitions in registration order. A string registration is skipped.
-   * Each `source` is the object last passed to `getOrRegister` for that name.
+   * Each `source` is the object last accepted by `getOrRegister` for that name.
+   * That object can be the reader's own rebuild: `registered` in
+   * introspection/entities.ts builds one, and `createChunkQuery` in
+   * engine/chunk-query.ts passes it back.
    */
   listSources(): readonly {
     readonly name: string;

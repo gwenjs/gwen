@@ -138,6 +138,8 @@ export function createEntityReader(deps: EntityReaderDeps): {
       if (def === undefined) {
         def = defineComponent({ name: source.name, schema: source.schema });
         definitions.set(source, def);
+        // Chunk query passes this rebuild to getOrRegister (`createChunkQuery` in engine/chunk-query.ts).
+        definitions.set(def, def);
       }
       rows.push({ name, typeId, def });
     }
