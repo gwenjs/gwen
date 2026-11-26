@@ -23,7 +23,7 @@
 //!
 //! - **ECS** (`ecs/`): archetype-based entity-component system with bitset queries.
 //! - **Bulk ops** (`bulk_ops*.rs`): tier-1/2/3 batch transfers across the WASM boundary.
-//! - **Transforms** (`transform.rs`): 2D/3D hierarchy with dirty tracking.
+//! - **Transforms** (`transform.rs`, `transform3d.rs`): 2D and 3D hierarchies with dirty tracking.
 //! - **Physics 2D** (`physics2d/`): Rapier2D integration (enabled via `physics2d` feature).
 //! - **Physics 3D** (`physics3d/`): Rapier3D integration (enabled via `physics3d` feature).
 //! - **Bindings** (`bindings.rs`): all `#[wasm_bindgen]` exports — the public WASM API.
@@ -36,6 +36,7 @@ pub mod ecs;
 pub mod events;
 pub mod fingerprint;
 pub mod transform;
+pub mod transform3d;
 pub mod transform_math;
 
 #[cfg(any(feature = "physics2d", feature = "physics3d"))]

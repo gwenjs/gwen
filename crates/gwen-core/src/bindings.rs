@@ -12,6 +12,7 @@ use crate::ecs::chunk_store::{ChunkStore, LAYOUT_REASON_UNREGISTERED_TYPE};
 use crate::ecs::entity::{EntityId, EntityManager};
 use crate::ecs::error::{CoreError, MAX_ENTITIES_LIMIT};
 use crate::transform::{Transform, TransformSystem, FLAG_HAS_TRANSFORM};
+use crate::transform3d::{Quat, Transform3D, TransformSystem3D, Vec3};
 use crate::transform_math::Vec2;
 use wasm_bindgen::prelude::*;
 
@@ -25,7 +26,7 @@ use crate::physics2d::{
 use crate::physics3d::{Physics3DError, PhysicsWorld3D};
 
 use crate::shared_buffer::SharedBuffers;
-use crate::transform::TRANSFORM_STRIDE;
+use crate::transform::{TRANSFORM3D_STRIDE, TRANSFORM_STRIDE};
 /// Local alias so all buffer arithmetic below reads as `STRIDE` unchanged.
 const STRIDE: usize = TRANSFORM_STRIDE;
 
@@ -50,14 +51,19 @@ fn history_pair_bytes(max_entities: u32) -> Option<usize> {
     entities.checked_mul(2)?.checked_mul(TRANSFORM_STRIDE)
 }
 
-fn write_history_slot(buffer: &mut [u8], index: u32, packed: &[u8; TRANSFORM_STRIDE]) -> bool {
+fn history_pair_bytes_3d(max_entities: u32) -> Option<usize> {
+    let entities = usize::try_from(max_entities).ok()?;
+    entities.checked_mul(2)?.checked_mul(TRANSFORM3D_STRIDE)
+}
+
+fn write_history_slot<const N: usize>(buffer: &mut [u8], index: u32, packed: &[u8; N]) -> bool {
     let Ok(slot_index) = usize::try_from(index) else {
         return false;
     };
-    let Some(offset) = slot_index.checked_mul(TRANSFORM_STRIDE) else {
+    let Some(offset) = slot_index.checked_mul(N) else {
         return false;
     };
-    let Some(end) = offset.checked_add(TRANSFORM_STRIDE) else {
+    let Some(end) = offset.checked_add(N) else {
         return false;
     };
     let Some(dest) = buffer.get_mut(offset..end) else {
@@ -125,6 +131,10 @@ pub struct Engine {
     transform_system: TransformSystem,
     /// Two world-pose buffers. Empty until the first history commit.
     transform_history: TransformHistory,
+    /// Hierarchical 3D transforms. Empty until the first `transform3d_add` or a 3D body.
+    transform3d_system: TransformSystem3D,
+    /// Two 48-byte world-pose buffers. Empty until the first 3D history commit.
+    transform3d_history: TransformHistory,
     /// Live `alloc_shared_buffer` allocations. Dropping the engine frees them.
     shared_buffers: SharedBuffers,
     #[cfg(feature = "physics2d")]
@@ -163,6 +173,8 @@ impl Engine {
             query_result_buffer: vec![0u32; max_entities as usize],
             transform_system: TransformSystem::new(),
             transform_history: TransformHistory::new(),
+            transform3d_system: TransformSystem3D::new(),
+            transform3d_history: TransformHistory::new(),
             shared_buffers: SharedBuffers::new(),
             #[cfg(feature = "physics2d")]
             physics_world: None,
@@ -206,6 +218,7 @@ impl Engine {
         let deleted = self.entity_manager.delete_entity(id);
         if deleted {
             self.transform_system.remove_transform(id);
+            self.transform3d_system.remove_transform(id);
         }
         Ok(deleted)
     }
@@ -992,6 +1005,7 @@ impl Engine {
     #[wasm_bindgen]
     pub fn update_transforms(&mut self) {
         self.transform_system.update();
+        self.transform3d_system.update();
     }
 
     /// Packs every transform node whose key matches the slot's current generation.
@@ -1133,6 +1147,243 @@ impl Engine {
     pub fn mark_entity_teleport(&mut self, index: u32) {
         let entity = EntityId::from_parts(index, self.get_entity_generation(index));
         self.transform_system.mark_pending_snap(entity);
+    }
+
+    /// Inserts a root 3D node at the local pose.
+    ///
+    /// A zero or non-finite quaternion is stored as the identity. An existing
+    /// node for this generation is kept. The first history commit snaps.
+    #[wasm_bindgen]
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
+    pub fn transform3d_add(
+        &mut self,
+        index: u32,
+        x: f32,
+        y: f32,
+        z: f32,
+        qx: f32,
+        qy: f32,
+        qz: f32,
+        qw: f32,
+        sx: f32,
+        sy: f32,
+        sz: f32,
+    ) {
+        let entity = EntityId::from_parts(index, self.get_entity_generation(index));
+        self.transform3d_system.add_transform(
+            entity,
+            Transform3D::new(
+                Vec3::new(x, y, z),
+                Quat::new(qx, qy, qz, qw),
+                Vec3::new(sx, sy, sz),
+            ),
+        );
+    }
+
+    /// Sets the local position. No 3D node: the call changes nothing.
+    #[wasm_bindgen]
+    pub fn transform3d_set_position(&mut self, index: u32, x: f32, y: f32, z: f32) {
+        let entity = EntityId::from_parts(index, self.get_entity_generation(index));
+        if let Some(node) = self.transform3d_system.get_transform_mut(entity) {
+            node.set_position(Vec3::new(x, y, z));
+        }
+    }
+
+    /// Sets the local rotation. A zero or non-finite quaternion becomes the identity.
+    ///
+    /// No 3D node: the call changes nothing.
+    #[wasm_bindgen]
+    pub fn transform3d_set_rotation(&mut self, index: u32, qx: f32, qy: f32, qz: f32, qw: f32) {
+        let entity = EntityId::from_parts(index, self.get_entity_generation(index));
+        if let Some(node) = self.transform3d_system.get_transform_mut(entity) {
+            node.set_rotation(Quat::new(qx, qy, qz, qw));
+        }
+    }
+
+    /// Sets the local scale. No 3D node: the call changes nothing.
+    #[wasm_bindgen]
+    pub fn transform3d_set_scale(&mut self, index: u32, sx: f32, sy: f32, sz: f32) {
+        let entity = EntityId::from_parts(index, self.get_entity_generation(index));
+        if let Some(node) = self.transform3d_system.get_transform_mut(entity) {
+            node.set_scale(Vec3::new(sx, sy, sz));
+        }
+    }
+
+    /// Parents `child_index`, or detaches it when `parent_index` is `u32::MAX`.
+    ///
+    /// Local pose is kept. A missing node on either side returns `Ok` and changes
+    /// nothing. Self-parent and a cycle return [`CoreError::InvalidParent`].
+    ///
+    /// # Errors
+    ///
+    /// [`CoreError::InvalidParent`] when the parent is the child or one of its descendants.
+    #[wasm_bindgen]
+    pub fn transform3d_set_parent(
+        &mut self,
+        child_index: u32,
+        parent_index: u32,
+    ) -> Result<(), CoreError> {
+        let child = EntityId::from_parts(child_index, self.get_entity_generation(child_index));
+        if parent_index == u32::MAX {
+            return self.transform3d_system.set_parent(child, None);
+        }
+        let parent = EntityId::from_parts(parent_index, self.get_entity_generation(parent_index));
+        self.transform3d_system.set_parent(child, Some(parent))
+    }
+
+    /// The next 3D history commit sets bit 2. No node: the call changes nothing.
+    #[wasm_bindgen]
+    pub fn transform3d_mark_teleport(&mut self, index: u32) {
+        let entity = EntityId::from_parts(index, self.get_entity_generation(index));
+        self.transform3d_system.mark_pending_snap(entity);
+    }
+
+    /// Writes 10 little-endian `f32` values at `ptr`: position xyz, quaternion xyzw, scale xyz.
+    ///
+    /// Propagates dirty 3D nodes first. `ptr` must be a live `alloc_shared_buffer`
+    /// of at least 40 bytes. That check runs before the node lookup. No node:
+    /// `Ok(false)` and the buffer is left unchanged.
+    ///
+    /// # Errors
+    ///
+    /// [`CoreError::InvalidSharedBuffer`] when `ptr` is not a live buffer, or is shorter than 40 bytes.
+    #[wasm_bindgen]
+    pub fn transform3d_read_world(&mut self, index: u32, ptr: usize) -> Result<bool, CoreError> {
+        self.shared_buffers.bytes_mut(ptr, 40)?;
+        TransformSystem3D::update(&mut self.transform3d_system);
+        let entity = EntityId::from_parts(index, self.get_entity_generation(index));
+        let Some(node) = self.transform3d_system.get_transform(entity) else {
+            return Ok(false);
+        };
+        let position = node.world_position();
+        let rotation = node.world_rotation();
+        let scale = node.world_scale();
+        let words = [
+            position.x, position.y, position.z, rotation.x, rotation.y, rotation.z, rotation.w,
+            scale.x, scale.y, scale.z,
+        ];
+        let bytes = self.shared_buffers.bytes_mut(ptr, 40)?;
+        let (chunks, _) = bytes.as_chunks_mut::<4>();
+        for (chunk, value) in chunks.iter_mut().zip(words) {
+            *chunk = value.to_le_bytes();
+        }
+        Ok(true)
+    }
+
+    /// Packs every 3D node into the buffer that was not written last.
+    ///
+    /// The first call allocates two zeroed buffers of `2 * max_entities * 48` bytes.
+    /// When that product overflows, or `try_reserve_exact` fails, this returns
+    /// [`CoreError::HistoryBuffersUnavailable`] and stores nothing.
+    ///
+    /// A successful call returns only `0` or `1`. Each slot is 48 bytes. Bit 0
+    /// means the slot has a live node. Bit 2 is set for a node created, re-parented,
+    /// or marked since the previous commit, and that mark clears once the slot is
+    /// stored. A slot with no node is 48 zero bytes. A deleted wasm entity keeps
+    /// its record and the next commit leaves that slot zero. The 2D history buffers
+    /// are not touched. `update_transforms` does not commit this history.
+    ///
+    /// # Errors
+    ///
+    /// [`CoreError::HistoryBuffersUnavailable`] when the buffers cannot be allocated.
+    #[wasm_bindgen]
+    pub fn transform3d_history_commit(&mut self) -> Result<u32, CoreError> {
+        self.commit_3d_history()
+    }
+
+    /// Byte address of 3D history buffer `0` or `1`.
+    ///
+    /// Returns `0` before the first successful 3D commit, and when `buffer` is greater than 1.
+    #[wasm_bindgen]
+    pub fn transform3d_history_ptr(&self, buffer: u32) -> usize {
+        if buffer > 1 {
+            return 0;
+        }
+        let Ok(index) = usize::try_from(buffer) else {
+            return 0;
+        };
+        let Some(bytes) = self.transform3d_history.buffers.get(index) else {
+            return 0;
+        };
+        if bytes.is_empty() {
+            return 0;
+        }
+        bytes.as_ptr() as usize
+    }
+
+    fn commit_3d_history(&mut self) -> Result<u32, CoreError> {
+        let unallocated = self
+            .transform3d_history
+            .buffers
+            .first()
+            .is_none_or(|buffer| buffer.is_empty());
+        if unallocated {
+            let max_entities = self.entity_manager.max_entities();
+            let unavailable = CoreError::HistoryBuffersUnavailable { max_entities };
+            let Some(pair_bytes) = history_pair_bytes_3d(max_entities) else {
+                return Err(unavailable);
+            };
+            let Some(one) = pair_bytes.checked_div(2) else {
+                return Err(unavailable);
+            };
+            let mut first = Vec::new();
+            let mut second = Vec::new();
+            if first.try_reserve_exact(one).is_err() || second.try_reserve_exact(one).is_err() {
+                return Err(unavailable);
+            }
+            if first.capacity() < one || second.capacity() < one {
+                return Err(unavailable);
+            }
+            first.resize(one, 0);
+            second.resize(one, 0);
+            self.transform3d_history.buffers = [first, second];
+        }
+
+        let write_at = match self.transform3d_history.current {
+            Some(0) => 1u32,
+            _ => 0,
+        };
+        let buffer_index = if write_at == 0 { 0usize } else { 1usize };
+        let filled = self
+            .transform3d_history
+            .buffers
+            .get_mut(buffer_index)
+            .is_some_and(|buffer| {
+                buffer.fill(0);
+                true
+            });
+        if !filled {
+            return Err(CoreError::HistoryBuffersUnavailable {
+                max_entities: self.entity_manager.max_entities(),
+            });
+        }
+
+        let max_entities = self.entity_manager.max_entities();
+        for index in 0..max_entities {
+            let generation = self.get_entity_generation(index);
+            let wasm_record = self.entity_manager.get_generation(index).is_some();
+            if wasm_record && !self.is_alive(index, generation) {
+                continue;
+            }
+            let entity = EntityId::from_parts(index, generation);
+            let mut packed = [0u8; TRANSFORM3D_STRIDE];
+            if !self
+                .transform3d_system
+                .pack_history_slot(entity, &mut packed)
+            {
+                continue;
+            }
+            let stored = self
+                .transform3d_history
+                .buffers
+                .get_mut(buffer_index)
+                .is_some_and(|buffer| write_history_slot(buffer, index, &packed));
+            if stored {
+                self.transform3d_system.clear_pending_snap(entity);
+            }
+        }
+        self.transform3d_history.current = Some(write_at);
+        Ok(write_at)
     }
 
     // ─── Shared memory buffers (plugin bridge) ────────────────────────────────
@@ -1917,14 +2168,35 @@ impl Engine {
 
     /// Advance the 3D simulation by `delta` seconds.
     ///
+    /// Each dynamic body then writes its translation and rotation into an existing
+    /// 3D node. A root is refreshed from that local pose. A child keeps its parent.
+    ///
     /// # Errors
     /// `WorldNotInitialized` when `physics3d_init` has not run.
     /// `InvalidStepDelta` when `delta` is not finite or is outside `0..=1`.
     /// The world is not stepped.
     #[cfg(feature = "physics3d")]
     pub fn physics3d_step(&mut self, delta: f32) -> Result<(), Physics3DError> {
-        let world = self.world3d_mut()?;
-        world.step(delta)?;
+        let poses = {
+            let world = self.world3d_mut()?;
+            world.step(delta)?;
+            world.take_filled_dynamic_poses()
+        };
+        for (index, pose) in &poses {
+            let entity = EntityId::from_parts(*index, self.get_entity_generation(*index));
+            let Some(node) = self.transform3d_system.get_transform_mut(entity) else {
+                continue;
+            };
+            let rooted = node.parent().is_none();
+            node.set_position(Vec3::new(pose[0], pose[1], pose[2]));
+            node.set_rotation(Quat::new(pose[3], pose[4], pose[5], pose[6]));
+            if rooted {
+                self.transform3d_system.refresh_root(entity);
+            }
+        }
+        if let Some(world) = self.physics3d_world.as_mut() {
+            world.restore_dynamic_pose_scratch(poses);
+        }
         Ok(())
     }
 
@@ -1956,6 +2228,11 @@ impl Engine {
     /// Register a new 3D rigid body for the given entity index.
     ///
     /// Returns `Ok(true)` once the body is registered.
+    ///
+    /// A body on a live entity with no 3D node gets a root node at `(x, y, z)`,
+    /// identity rotation and scale 1, after the body is registered. An existing
+    /// 3D node is kept. A refused call creates no node. Removing the body does
+    /// not remove the node.
     ///
     /// # Errors
     /// `WorldNotInitialized` when `physics3d_init` has not run.
@@ -1997,6 +2274,13 @@ impl Engine {
             linear_damping,
             angular_damping,
         );
+        let entity = EntityId::from_parts(entity_index, self.get_entity_generation(entity_index));
+        if self.entity_manager.is_alive(entity) {
+            self.transform3d_system.add_transform(
+                entity,
+                Transform3D::new(Vec3::new(x, y, z), Quat::IDENTITY, Vec3::ONE),
+            );
+        }
         Ok(true)
     }
 

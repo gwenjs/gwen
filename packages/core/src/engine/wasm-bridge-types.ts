@@ -306,6 +306,58 @@ export interface WasmEngineBase {
   transform_history_ptr(buffer: number): number;
   /** Mark the live transform at `index` so the next commit sets the teleport bit. */
   mark_entity_teleport(index: number): void;
+  /**
+   * Insert a root 3D node. A zero or non-finite quaternion is stored as the identity.
+   * A finite quaternion whose squared length overflows or underflows (components near
+   * `1e20` or `1e-23`) is also stored as the identity.
+   */
+  transform3d_add(
+    index: number,
+    x: number,
+    y: number,
+    z: number,
+    qx: number,
+    qy: number,
+    qz: number,
+    qw: number,
+    sx: number,
+    sy: number,
+    sz: number,
+  ): void;
+  /**
+   * Pack 3D history and return the buffer just written, `0` or `1`.
+   * @throws {GwenWasmError} code `CORE:HISTORY_BUFFERS_UNAVAILABLE` when the
+   *   history buffers cannot be allocated. Nothing is stored.
+   */
+  transform3d_history_commit(): number;
+  /** Byte offset of 3D history buffer `0` or `1`. `0` when that buffer is absent. */
+  transform3d_history_ptr(buffer: number): number;
+  /** Mark the live 3D node at `index` so the next 3D commit sets the teleport bit. */
+  transform3d_mark_teleport(index: number): void;
+  /**
+   * Write the world pose at `ptr` as 10 floats: position xyz, quaternion xyzw, scale xyz.
+   * Returns false when the slot has no 3D node.
+   * @throws {GwenWasmError} code `CORE:INVALID_SHARED_BUFFER` when `ptr` is not a
+   *   live buffer, or is shorter than 40 bytes. That check runs before the node lookup.
+   */
+  transform3d_read_world(index: number, ptr: number): boolean;
+  /**
+   * Parent `child_index`, or detach it when `parent_index` is `0xFFFFFFFF`.
+   * The local pose is kept.
+   * @throws {GwenWasmError} code `CORE:INVALID_PARENT` when the parent is the child
+   *   or one of its descendants. The hierarchy is unchanged.
+   */
+  transform3d_set_parent(child_index: number, parent_index: number): void;
+  /** Set a 3D node's local position. */
+  transform3d_set_position(index: number, x: number, y: number, z: number): void;
+  /**
+   * Set a 3D node's local rotation. A zero or non-finite quaternion becomes the identity.
+   * A finite quaternion whose squared length overflows or underflows (components near
+   * `1e20` or `1e-23`) also becomes the identity.
+   */
+  transform3d_set_rotation(index: number, qx: number, qy: number, qz: number, qw: number): void;
+  /** Set a 3D node's local scale. */
+  transform3d_set_scale(index: number, sx: number, sy: number, sz: number): void;
   /** Get an entity's world X position (after parent chain propagation). */
   get_entity_world_x(index: number): number;
   /** Get an entity's world Y position (after parent chain propagation). */
