@@ -120,6 +120,7 @@ const SURFACE: Record<EntryName, Classification> = {
       "defineLayout",
       "useLayout",
       "useTransform",
+      "useTransform3D",
       "useChildren",
       "placeActor",
       "placeGroup",

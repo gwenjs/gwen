@@ -25,6 +25,7 @@ const ENGINE_KEYS = [
   "errors",
   "memory",
   "transform:2d",
+  "transform:3d",
   "introspection",
 ] as const;
 
@@ -105,7 +106,7 @@ describe("introspection snapshot", () => {
   });
 
   it.runIf(__GWEN_DEV__)(
-    "services list key and owner, the six engine keys owned by <engine>",
+    "services list key and owner, the seven engine keys owned by <engine>",
     async () => {
       const engine = await open();
       const intro = engine.tryInject("introspection");

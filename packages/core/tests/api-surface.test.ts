@@ -147,6 +147,13 @@ describe("API surface (RFC-V2-013)", () => {
     );
   });
 
+  it("exposes useTransform3D and Transform3DHandle on the actor entry only", () => {
+    expect(typeof Reflect.get(actor, "useTransform3D")).toBe("function");
+    expect(Reflect.get(core, "useTransform3D")).toBeUndefined();
+    expect(Reflect.get(system, "useTransform3D")).toBeUndefined();
+    expect(Reflect.get(scene, "useTransform3D")).toBeUndefined();
+  });
+
   it("exposes runScenePreload from @gwenjs/core/internal only", () => {
     expect(typeof internal.runScenePreload).toBe("function");
     expect("runScenePreload" in core).toBe(false);
