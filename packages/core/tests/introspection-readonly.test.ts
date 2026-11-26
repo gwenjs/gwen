@@ -114,11 +114,16 @@ describe.runIf(__GWEN_DEV__)("introspection read-only", () => {
     const { intro } = await rich();
     expect(intro).toBeDefined();
     if (intro === undefined) return;
+    const page = intro.entities({ offset: 0, limit: 1 });
+    const single = intro.entity(0n);
+    expect(page.items).toHaveLength(1);
+    expect(single?.components[0]?.name).toBe("Body");
     const returned = [
       intro.limits,
       intro.snapshot(),
       intro.revisions(),
-      intro.entities({ offset: 0, limit: 1 }),
+      page,
+      single,
       intro.hooks(),
     ];
     for (const value of returned) {
@@ -126,7 +131,6 @@ describe.runIf(__GWEN_DEV__)("introspection read-only", () => {
         expect(Object.isFrozen(item)).toBe(true);
       });
     }
-    expect(intro.entity(0n)).toBeUndefined();
   });
 
   it("no service value, plugin object or TypedArray is reachable from a snapshot", async () => {

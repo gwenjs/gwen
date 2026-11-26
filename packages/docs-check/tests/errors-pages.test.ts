@@ -50,4 +50,19 @@ describe("errors pages", () => {
       }
     },
   );
+
+  it.each(["docs/api/errors.md", "docs/fr/api/errors.md"])(
+    "%s documents CORE:INTROSPECTION_PAGE_INVALID with Cause and Fix and does not list it as reserved",
+    (rel) => {
+      const page = text(rel);
+      const head = "### CORE:INTROSPECTION_PAGE_INVALID {#core-introspection-page-invalid}";
+      expect(page).toContain(head);
+      expect(page).not.toContain(
+        "- `CORE:INTROSPECTION_PAGE_INVALID` {#core-introspection-page-invalid}",
+      );
+      const section = page.slice(page.indexOf(head)).split("\n### ")[0] ?? "";
+      expect(section).toContain("Cause. ");
+      expect(section).toContain("Fix. ");
+    },
+  );
 });
