@@ -39,15 +39,15 @@ onStart(async () => {
 
 `RENDERER_THREE` lève `WEBGL_UNAVAILABLE`, `NOT_MOUNTED` et `OBJECT_ALREADY_ATTACHED`. `INSPECTOR` n'a aucun code sur cette page.
 
-## Codes réservés
-
-- `CORE:INTROSPECTION_PAGE_INVALID` {#core-introspection-page-invalid}
-
 ## @gwenjs/core
 
 ### CORE:HOOK_NAME_INVALID {#core-hook-name-invalid}
 
 Cause. Le nom n'est pas `namespace:action` (`reason` `"format"`), ou `emit` / un `engine.hooks.callHook*` de plugin a utilisé un espace de noms réservé (`reason` `"reserved"`) : `engine`, `entity`, `scene`, `plugin`, `actor`, `prefab`, `service`. Fix. Utilisez `"namespace:action"`, par exemple `"enemy:died"`. Écoutez un nom réservé avec `useHook`. Émettez un nom de votre espace de noms, déclaré avec `defineHooks`.
+
+### CORE:INTROSPECTION_PAGE_INVALID {#core-introspection-page-invalid}
+
+Cause. `introspection.entities(page)` a reçu une requête hors de ses bornes : `page` n'est pas un objet, `offset` n'est pas un entier sûr de 0 ou plus, ou `limit` n'est pas un entier sûr de 1 à `limits.maxPageSize` (1000 par défaut). Le message nomme le champ, la valeur reçue et le plafond de page. La requête n'est jamais ramenée dans l'intervalle. Fix. Passez `{ offset, limit }` avec un `limit` de 1 à `introspection.limits.maxPageSize`. Relevez le plafond avec l'option moteur `introspection.maxPageSize` (de 1 à 2000000).
 
 ### CORE:OUTSIDE_ENGINE_CONTEXT {#core-outside-engine-context}
 

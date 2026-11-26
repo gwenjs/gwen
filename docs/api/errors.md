@@ -39,15 +39,15 @@ onStart(async () => {
 
 `RENDERER_THREE` throws `WEBGL_UNAVAILABLE`, `NOT_MOUNTED`, and `OBJECT_ALREADY_ATTACHED`. `INSPECTOR` has no codes on this page.
 
-## Reserved codes
-
-- `CORE:INTROSPECTION_PAGE_INVALID` {#core-introspection-page-invalid}
-
 ## @gwenjs/core
 
 ### CORE:HOOK_NAME_INVALID {#core-hook-name-invalid}
 
 Cause. The name is not `namespace:action` (`reason` `"format"`), or `emit` / a plugin `engine.hooks.callHook*` used a reserved namespace (`reason` `"reserved"`): `engine`, `entity`, `scene`, `plugin`, `actor`, `prefab`, `service`. Fix. Use `"namespace:action"`, for example `"enemy:died"`. Listen to a reserved name with `useHook`. Emit a name from your own namespace, declared with `defineHooks`.
+
+### CORE:INTROSPECTION_PAGE_INVALID {#core-introspection-page-invalid}
+
+Cause. `introspection.entities(page)` got a request outside its bounds: `page` is not an object, `offset` is not a safe integer of 0 or more, or `limit` is not a safe integer from 1 to `limits.maxPageSize` (default 1000). The message names the field, the value received and the page cap. The request is never clamped. Fix. Pass `{ offset, limit }` with `limit` from 1 to `introspection.limits.maxPageSize`. Raise the cap with the `introspection.maxPageSize` engine option (1 to 2000000).
 
 ### CORE:OUTSIDE_ENGINE_CONTEXT {#core-outside-engine-context}
 
