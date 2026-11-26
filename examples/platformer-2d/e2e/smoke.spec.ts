@@ -111,3 +111,22 @@ test("the chunk-loop system moves the drifter", async ({ page }) => {
   const after = (await snap(page))?.driftX ?? 0;
   expect(after).toBeGreaterThan(before);
 });
+
+test("a keyboard press of i on menu enters interpolation and spawns the mover and the crate", async ({
+  page,
+}) => {
+  await openExample(page);
+  await waitForRunning(page);
+  // Page path: the plugin appends #platformer-canvas at the default size.
+  await expect(page.locator("#platformer-canvas")).toHaveAttribute("width", "640");
+  await expect(page.locator("#platformer-canvas")).toHaveAttribute("height", "360");
+  const menuEntities = (await snap(page))?.entityCount ?? 0;
+  await page.keyboard.press("i");
+  await expect
+    .poll(async () => (await snap(page))?.scene, { timeout: 15_000 })
+    .toBe("interpolation");
+  await expect
+    .poll(async () => ((await snap(page))?.entityCount ?? 0) - menuEntities, { timeout: 15_000 })
+    .toBe(2);
+  expect((await snap(page))?.errors).toEqual([]);
+});
