@@ -3,10 +3,13 @@
  * @file CameraCorePlugin — registers CameraSystem and the orthographic bounds provider.
  *
  * The viewport and camera services come from `gwen:viewports`.
+ * This plugin requires `cameraManager` and `viewportManager`. `screenService` is optional.
  * The orthographic bounds provider is registered when `gwen:screen` is installed before it.
  * This plugin reads those services. It does not provide them.
  * A declaration that requires `camera-core` gets this plugin installed first by the build
- * (`@gwenjs/app`). Camera plugins that do not declare it still install it themselves.
+ * (`@gwenjs/app`). Until a camera plugin declares it, another plugin or user code installs it.
+ * A camera provider writes state no later than `engine:after-update`.
+ * `runCameraProviderConformance` checks that contract.
  * Users do not install this plugin manually unless building a custom camera composable.
  *
  * @example

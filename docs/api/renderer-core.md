@@ -649,3 +649,11 @@ Extends `runConformanceTests` for a `SurfaceRendererService`. It checks `kind`,
 exactly one world layer, canvas ownership (removed after `unmount`), `resize`
 applying `dpr` from the engine screen service, and `renderViews` with 0, 1, and 2
 views.
+
+### `runCameraProviderConformance(engine, { viewportId, dt? })`
+
+Checks that the camera provider for `viewportId` wrote `CameraState` no later than
+`engine:after-update`, and that the state is still present in `engine:render`.
+`dt` defaults to `1 / 60`. No `cameraManager`, a missing or late write, or a state
+cleared before `engine:render` rejects `RENDERER:CONFORMANCE_FAILED`.
+Run it on an engine that is not started, or pass a `dt` of at least one fixed step.

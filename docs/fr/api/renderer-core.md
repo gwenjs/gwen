@@ -563,3 +563,5 @@ it('satisfait le contrat RendererService', () => {
 ```
 
 `runConformanceTests` valide la forme statique du service sans appeler `mount()` ni `unmount()`. Lance une erreur descriptive à la première violation trouvée.
+
+`runCameraProviderConformance(engine, { viewportId, dt? })` vérifie que le fournisseur de caméra de `viewportId` a écrit l'état au plus tard dans `engine:after-update`, et que cet état est encore présent dans `engine:render`. `dt` vaut `1 / 60` par défaut. Sans `cameraManager`, si l'écriture est absente ou tardive, ou si l'état est effacé avant `engine:render`, la vérification rejette `RENDERER:CONFORMANCE_FAILED`. Lancez-la sur un moteur non démarré, ou passez un `dt` d'au moins un pas fixe.

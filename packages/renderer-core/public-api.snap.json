@@ -66,8 +66,13 @@
     "types": []
   },
   "./testing": {
-    "values": ["MockSizeProvider", "runConformanceTests", "runSurfaceConformance"],
-    "types": ["MockSizeProviderHandle"]
+    "values": [
+      "MockSizeProvider",
+      "runCameraProviderConformance",
+      "runConformanceTests",
+      "runSurfaceConformance"
+    ],
+    "types": ["CameraProviderConformanceOptions", "MockSizeProviderHandle"]
   },
   "./internal": {
     "values": [

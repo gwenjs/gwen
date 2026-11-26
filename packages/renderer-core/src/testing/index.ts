@@ -16,5 +16,7 @@
  * ```
  */
 export { runConformanceTests, runSurfaceConformance } from "./conformance-suite.js";
+export { runCameraProviderConformance } from "./camera-provider-conformance.js";
+export type { CameraProviderConformanceOptions } from "./camera-provider-conformance.js";
 export { MockSizeProvider } from "./mock-size-provider.js";
 export type { MockSizeProviderHandle } from "./mock-size-provider.js";

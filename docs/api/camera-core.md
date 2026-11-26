@@ -10,7 +10,9 @@ components, the `CameraSystem` orchestrator, per-engine camera verbs, side-car s
 `CameraCorePlugin`.
 
 > **Note** — You normally do not install this package directly. Use `@gwenjs/camera2d` or
-> `@gwenjs/camera3d` instead — they register `CameraCorePlugin` automatically.
+> `@gwenjs/camera3d` instead. A plugin that declares `requires: { plugins: ['camera-core'] }`
+> gets `CameraCorePlugin` installed first by the build. Until a camera plugin declares it,
+> another plugin or user code installs it.
 
 ```bash
 pnpm add @gwenjs/camera-core
@@ -168,6 +170,17 @@ Each frame, `CameraSystem` runs the following steps:
    - Compute `CameraShake` offset (does **not** modify `Camera.x/y/z`)
    - Push `CameraState` to `CameraManager`
 3. Detect semantic changes per viewport and emit `camera:activate / deactivate / switch`
+
+## Requirements and phase contract
+
+`CameraCorePlugin` requires the services `cameraManager` and `viewportManager`. Without
+`gwen:viewports`, `engine.use(CameraCorePlugin())` rejects `CORE:PLUGIN_DEPENDENCY_MISSING`.
+`screenService` is optional. Without it, this plugin registers no orthographic bounds provider.
+
+A camera provider writes `CameraStateStore` state no later than `engine:after-update`.
+Renderers read that state in `engine:render`. `CameraSystem` writes in `onAfterUpdate` after
+`clearFrame()`. Check a provider with `runCameraProviderConformance(engine, { viewportId })`
+from `@gwenjs/renderer-core/testing`.
 
 ## Multi-camera / priority
 
