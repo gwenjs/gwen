@@ -1,8 +1,10 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { createEngine } from "@gwenjs/core/node";
 import { GwenError } from "@gwenjs/schema";
+import type { CameraState, GwenPlugin } from "@gwenjs/schema";
 import { runConformanceTests, runSurfaceConformance } from "../src/testing/index.js";
+import * as testing from "../src/testing/index.js";
 import { RendererErrorCodes } from "../src/errors.js";
 import type { RendererService, SurfaceRendererService } from "../src/types.js";
 import { RENDERER_CONTRACT_VERSION } from "../src/types.js";
@@ -339,5 +341,274 @@ describe("conformance error grammar", () => {
     } finally {
       await engine.stop();
     }
+  });
+});
+
+const openEngines: GwenEngine[] = [];
+
+afterEach(async () => {
+  while (openEngines.length > 0) await openEngines.pop()?.stop();
+});
+
+function cameraState(x: number): CameraState {
+  return {
+    worldTransform: {
+      position: { x, y: 0, z: 0 },
+      rotation: { x: 0, y: 0, z: 0 },
+    },
+    projection: { type: "orthographic", zoom: 1, near: -1, far: 1 },
+    viewportId: "main",
+    active: true,
+    priority: 0,
+  };
+}
+
+type CameraProviderRun = (
+  engine: GwenEngine,
+  options: { readonly viewportId: string; readonly dt?: number },
+) => Promise<void>;
+
+function providerSuite(): CameraProviderRun {
+  const suite: unknown = Reflect.get(testing, "runCameraProviderConformance");
+  expect(typeof suite).toBe("function");
+  if (typeof suite !== "function") {
+    throw new Error("runCameraProviderConformance is not a function");
+  }
+  return async (engine, options) => {
+    const result: unknown = Reflect.apply(suite, undefined, [engine, options]);
+    if (!(result instanceof Promise)) {
+      throw new Error("runCameraProviderConformance did not return a promise");
+    }
+    await result;
+  };
+}
+
+async function rejectionOf(run: () => Promise<void>): Promise<GwenError> {
+  let caught: unknown;
+  try {
+    await run();
+  } catch (error) {
+    caught = error;
+  }
+  expect(caught).toBeInstanceOf(GwenError);
+  if (!(caught instanceof GwenError)) throw new Error("expected GwenError");
+  return caught;
+}
+
+function listenerCount(engine: GwenEngine, name: string): number {
+  const list: unknown = Reflect.get(Reflect.get(engine.hooks, "_hooks"), name);
+  return Array.isArray(list) ? list.length : 0;
+}
+
+async function openHosted(): Promise<GwenEngine> {
+  const engine = await createEngine({ maxEntities: 8 });
+  openEngines.push(engine);
+  await engine.use(RenderHostPlugin());
+  return engine;
+}
+
+async function openBare(): Promise<GwenEngine> {
+  const engine = await createEngine({ maxEntities: 8 });
+  openEngines.push(engine);
+  return engine;
+}
+
+function writeAfterUpdate(): GwenPlugin {
+  return {
+    name: "write-after-update",
+    setup(engine) {
+      const cameras = engine.inject("cameraManager");
+      engine.hooks.hook("engine:after-update", () => {
+        cameras.set("main", cameraState(7));
+      });
+    },
+  };
+}
+
+function writeOnRender(): GwenPlugin {
+  return {
+    name: "write-on-render",
+    setup(engine) {
+      const cameras = engine.inject("cameraManager");
+      engine.hooks.hook("engine:render", () => {
+        cameras.set("main", cameraState(7));
+      });
+    },
+  };
+}
+
+function writeThenClear(): GwenPlugin {
+  return {
+    name: "write-then-clear",
+    setup(engine) {
+      const cameras = engine.inject("cameraManager");
+      engine.hooks.hook("engine:after-update", () => {
+        cameras.set("main", cameraState(7));
+      });
+      engine.hooks.hook("engine:render", () => {
+        cameras.clearFrame();
+      });
+    },
+  };
+}
+
+function pauseAfterUpdate(gate: Promise<void>): GwenPlugin {
+  return {
+    name: "pause-after-update",
+    setup(engine) {
+      const cameras = engine.inject("cameraManager");
+      engine.hooks.hook("engine:after-update", async () => {
+        cameras.set("main", cameraState(7));
+        await gate;
+      });
+    },
+  };
+}
+
+function recordDt(dts: number[]): GwenPlugin {
+  return {
+    name: "record-dt",
+    setup(engine) {
+      const cameras = engine.inject("cameraManager");
+      engine.hooks.hook("engine:after-update", (dt) => {
+        dts.push(dt);
+        cameras.set("main", cameraState(7));
+      });
+    },
+  };
+}
+
+const silentProvider: GwenPlugin = {
+  name: "silent-provider",
+  setup() {},
+};
+
+describe("runCameraProviderConformance", () => {
+  it("a camera provider writes state no later than engine:after-update", async () => {
+    const run = providerSuite();
+    const engine = await openHosted();
+    await engine.use(writeAfterUpdate());
+    await run(engine, { viewportId: "main" });
+    expect(engine.inject("cameraManager").get("main")?.worldTransform.position.x).toBe(7);
+  });
+
+  it("a provider writing in engine:render rejects RENDERER:CONFORMANCE_FAILED naming engine:after-update", async () => {
+    const run = providerSuite();
+    const engine = await openHosted();
+    await engine.use(writeOnRender());
+    const error = await rejectionOf(() => run(engine, { viewportId: "main" }));
+    expect(error.code).toBe("RENDERER:CONFORMANCE_FAILED");
+    expect(error.composable).toBe("runCameraProviderConformance");
+    expect(error.message).toContain("engine:after-update");
+    expect(error.message).toContain('"main"');
+    expect(error.message).toContain("The provider wrote it later, in engine:render.");
+    if (__GWEN_DEV__) expect(typeof error.hint).toBe("string");
+    else expect(error.hint).toBeUndefined();
+  });
+
+  it("a provider that writes nothing rejects naming the viewport", async () => {
+    const run = providerSuite();
+    const engine = await openHosted();
+    await engine.use(silentProvider);
+    const error = await rejectionOf(() => run(engine, { viewportId: "main" }));
+    expect(error.code).toBe("RENDERER:CONFORMANCE_FAILED");
+    expect(error.message).toContain('"main"');
+    expect(error.message).not.toContain("wrote it later");
+  });
+
+  it("a state left by an earlier frame does not satisfy a late provider", async () => {
+    const run = providerSuite();
+    const engine = await openHosted();
+    await engine.use(writeOnRender());
+    await engine.advance(1 / 60);
+    const error = await rejectionOf(() => run(engine, { viewportId: "main" }));
+    expect(error.code).toBe("RENDERER:CONFORMANCE_FAILED");
+    expect(error.message).toContain("after engine:after-update");
+  });
+
+  it("a state cleared between engine:after-update and engine:render rejects naming engine:render", async () => {
+    const run = providerSuite();
+    const engine = await openHosted();
+    await engine.use(writeThenClear());
+    const error = await rejectionOf(() => run(engine, { viewportId: "main" }));
+    expect(error.code).toBe("RENDERER:CONFORMANCE_FAILED");
+    expect(error.message).toContain("engine:render");
+    expect(error.message).not.toContain("after engine:after-update");
+  });
+
+  it("the frame step is 1/60 by default and options.dt replaces it", async () => {
+    const run = providerSuite();
+    const dts: number[] = [];
+    const engine = await openHosted();
+    await engine.use(recordDt(dts));
+    await run(engine, { viewportId: "main" });
+    await run(engine, { viewportId: "main", dt: 0.05 });
+    expect(dts).toEqual([1 / 60, 0.05]);
+  });
+
+  it("a run leaves the engine:after-update and engine:render listener counts unchanged", async () => {
+    const run = providerSuite();
+    const engine = await openHosted();
+    await engine.use(writeAfterUpdate());
+    const before = [
+      listenerCount(engine, "engine:after-update"),
+      listenerCount(engine, "engine:render"),
+    ];
+    expect(before[0]).toBeGreaterThan(0);
+    await run(engine, { viewportId: "main" });
+    expect([
+      listenerCount(engine, "engine:after-update"),
+      listenerCount(engine, "engine:render"),
+    ]).toEqual(before);
+  });
+
+  it("a run during another advance rejects the engine error and leaves the listener counts unchanged", async () => {
+    const run = providerSuite();
+    const engine = await openHosted();
+    let release = (): void => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await engine.use(pauseAfterUpdate(gate));
+    const before = [
+      listenerCount(engine, "engine:after-update"),
+      listenerCount(engine, "engine:render"),
+    ];
+    expect(before[0]).toBeGreaterThan(0);
+    const outer = engine.advance(1 / 60);
+    try {
+      const error = await rejectionOf(() => run(engine, { viewportId: "main" }));
+      expect(error.code).toBe("CORE:ADVANCE_REENTRANT");
+      expect(error.message).toContain(
+        "advance() called re-entrantly — only one advance per frame.",
+      );
+      expect([
+        listenerCount(engine, "engine:after-update"),
+        listenerCount(engine, "engine:render"),
+      ]).toEqual(before);
+    } finally {
+      release();
+      await outer;
+    }
+  });
+
+  it("an engine without cameraManager rejects naming the service", async () => {
+    const run = providerSuite();
+    const engine = await openBare();
+    const error = await rejectionOf(() => run(engine, { viewportId: "main" }));
+    expect(error.code).toBe("RENDERER:CONFORMANCE_FAILED");
+    expect(error.message).toContain("cameraManager");
+  });
+
+  it("two engines are checked independently", async () => {
+    const run = providerSuite();
+    const engineA = await openHosted();
+    const engineB = await openHosted();
+    await engineA.use(writeAfterUpdate());
+    await engineB.use(writeOnRender());
+    await run(engineA, { viewportId: "main" });
+    const error = await rejectionOf(() => run(engineB, { viewportId: "main" }));
+    expect(error.code).toBe("RENDERER:CONFORMANCE_FAILED");
+    expect(engineA.inject("cameraManager").get("main")?.worldTransform.position.x).toBe(7);
   });
 });

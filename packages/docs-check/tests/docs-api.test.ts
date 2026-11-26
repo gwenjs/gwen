@@ -125,4 +125,32 @@ describe("API reference pages", () => {
       expect(text, file).not.toContain("componentsDir");
     }
   });
+
+  const pluginDependencyCode = "CORE:PLUGIN_DEPENDENCY_MIS" + "SING";
+
+  it.each([
+    [
+      "docs/api/camera-core.md",
+      "no later than `engine:after-update`",
+      "register `CameraCorePlugin` automatically",
+    ],
+    [
+      "docs/fr/api/camera-core.md",
+      "au plus tard dans `engine:after-update`",
+      "enregistrent `CameraCorePlugin` automatiquement",
+    ],
+  ])("%s states the requirements and the phase contract", (file, contract, stale) => {
+    const text = pageText(file);
+    expect(text).toContain(contract);
+    expect(text).toContain("runCameraProviderConformance(engine, { viewportId })");
+    expect(text).toContain(pluginDependencyCode);
+    expect(text).not.toContain(stale);
+  });
+
+  it.each(["docs/api/renderer-core.md", "docs/fr/api/renderer-core.md"])(
+    "%s documents runCameraProviderConformance",
+    (file) => {
+      expect(pageText(file)).toContain("runCameraProviderConformance(engine, { viewportId, dt? })");
+    },
+  );
 });
