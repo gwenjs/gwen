@@ -1,16 +1,16 @@
 import { renameSync, rmSync, rmdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { build, createLogger } from "vite";
+import { build, createLogger, preview } from "vite";
 import { harnessConfig } from "./config.mjs";
 import { VARIANTS, writeReport } from "./report.mjs";
 
 const [example, command] = process.argv.slice(2);
 if (example === undefined || !Object.hasOwn(VARIANTS, example)) {
-  throw new Error(`Usage: node run.mjs <${Object.keys(VARIANTS).join("|")}> build|prepare`);
+  throw new Error(`Usage: node run.mjs <${Object.keys(VARIANTS).join("|")}> build|prepare|preview`);
 }
-if (command !== "build" && command !== "prepare") {
-  throw new Error(`Unknown command "${command}": expected build or prepare`);
+if (command !== "build" && command !== "prepare" && command !== "preview") {
+  throw new Error(`Unknown command "${command}": expected build, prepare or preview`);
 }
 
 const exampleDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", example);
@@ -32,6 +32,12 @@ const config = harnessConfig(exampleDir);
 if (command === "prepare") {
   // The `buildStart` of `gwen()` writes `.gwen/types/*.d.ts` as a side effect: nothing is emitted.
   await build({ ...config, customLogger, build: { ...config.build, write: false } });
+} else if (command === "preview") {
+  const server = await preview({
+    ...config,
+    preview: { host: "127.0.0.1", port: Number(process.env.PORT ?? 4180), strictPort: true },
+  });
+  server.printUrls();
 } else {
   // A failed build must never leave the previous `dist/` for the tests to read.
   rmSync(dist, { recursive: true, force: true });
