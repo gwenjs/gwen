@@ -140,6 +140,13 @@ describe("API surface (RFC-V2-013)", () => {
     expect(core.CoreErrorCodes.SCENE_PRELOAD_FAILED).toBe("CORE:SCENE_PRELOAD_FAILED");
   });
 
+  it("exposes GwenTransformRefError on the root and CORE:TRANSFORM_REF_INVALID in CoreErrorCodes", () => {
+    expect(typeof Reflect.get(core, "GwenTransformRefError")).toBe("function");
+    expect(Reflect.get(core.CoreErrorCodes, "TRANSFORM_REF_INVALID")).toBe(
+      "CORE:TRANSFORM_REF_INVALID",
+    );
+  });
+
   it("exposes runScenePreload from @gwenjs/core/internal only", () => {
     expect(typeof internal.runScenePreload).toBe("function");
     expect("runScenePreload" in core).toBe(false);

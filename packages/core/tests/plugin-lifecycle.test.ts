@@ -182,6 +182,20 @@ describe("engine.use / engine.unuse", () => {
     });
   });
 
+  it("a plugin requiring transform:2d installs on a bare engine", async () => {
+    const engine = await createEngine();
+    let seen: unknown;
+    await engine.use({
+      name: "needs-transform",
+      requires: { services: ["transform:2d"] },
+      setup(host) {
+        seen = host.tryInject("transform:2d");
+      },
+    });
+    expect(seen).toBeDefined();
+    expect(seen).toBe(engine.tryInject("transform:2d"));
+  });
+
   it("use(B) then use(A) installs both, and use(A) after a failed use(A) succeeds", async () => {
     const engine = await createEngine();
     const ran: string[] = [];

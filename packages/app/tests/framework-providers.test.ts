@@ -202,6 +202,16 @@ describe("framework providers", () => {
     expect(viaBootstrapAndEngine).toEqual([viewportUser]);
   });
 
+  it("a declaration requiring transform:2d passes because the engine provides it", async () => {
+    const decl = {
+      src: "@test/renderer",
+      export: "RendererPlugin",
+      requires: { services: ["transform:2d"] },
+    };
+    const list = await userDeclarations([moduleOf("@test/renderer", [decl])]);
+    expect(list).toEqual([decl]);
+  });
+
   it("an optional requirement never inserts a provider nor fails", async () => {
     const optional = {
       src: "@test/mixer-user",
