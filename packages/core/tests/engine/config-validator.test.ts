@@ -8,7 +8,7 @@ import type { IGwenLogProvider } from "@gwenjs/schema";
 import { validateEngineConfig } from "../../src/engine/engine-config-validator.js";
 import { GwenConfigError } from "../../src/engine/config-error.js";
 import { createEngine } from "../../src/node.js";
-import { type GwenEngine } from "../../src/index";
+import { type GwenEngine, type GwenEngineOptions } from "../../src/index";
 
 describe("GwenConfigError", () => {
   it("is an Error instance", () => {
@@ -518,6 +518,69 @@ describe("validateEngineConfig — wasmIsolatedBudget", () => {
     }
     expect(() => validateEngineConfig(asBudget(0))).not.toThrow();
     expect(() => validateEngineConfig(asBudget(3))).not.toThrow();
+  });
+});
+
+describe("validateEngineConfig — introspection.maxPageSize", () => {
+  type PageOptions = GwenEngineOptions & { readonly introspection?: unknown };
+
+  function withPage(size: number): PageOptions {
+    const options: PageOptions = { introspection: { maxPageSize: size } };
+    return options;
+  }
+
+  function emptyPage(): PageOptions {
+    const options: PageOptions = { introspection: {} };
+    return options;
+  }
+
+  const open: GwenEngine[] = [];
+
+  afterEach(async () => {
+    const pending = open.splice(0);
+    for (const engine of pending) await engine.stop();
+  });
+
+  it("introspection.maxPageSize 0, -1, 0.5, NaN and 2_000_001 throw CORE:INVALID_CONFIG naming the field", () => {
+    for (const value of [0, -1, 0.5, Number.NaN, 2_000_001]) {
+      let caught: unknown;
+      try {
+        validateEngineConfig(withPage(value));
+      } catch (error: unknown) {
+        caught = error;
+      }
+      expect(caught).toBeInstanceOf(GwenConfigError);
+      if (!(caught instanceof GwenConfigError)) return;
+      expect(caught.code).toBe("CORE:INVALID_CONFIG");
+      expect(caught.field).toBe("introspection.maxPageSize");
+      if (__GWEN_DEV__) {
+        expect(caught.hint).toBe("Expected an integer from 1 to 2000000.");
+      }
+    }
+  });
+
+  it.runIf(__GWEN_DEV__)("1 and 2_000_000 are accepted and reach limits.maxPageSize", async () => {
+    const low = await createEngine(withPage(1));
+    open.push(low);
+    const high = await createEngine(withPage(2_000_000));
+    open.push(high);
+    const pages = [low, high].map(
+      (engine) => engine.tryInject("introspection")?.limits.maxPageSize,
+    );
+    expect(pages).toEqual([1, 2_000_000]);
+  });
+
+  it.runIf(__GWEN_DEV__)("undefined keeps the default", async () => {
+    const plain = await createEngine();
+    open.push(plain);
+    const empty = await createEngine(emptyPage());
+    open.push(empty);
+    const set = await createEngine(withPage(64));
+    open.push(set);
+    const pages = [plain, empty, set].map(
+      (engine) => engine.tryInject("introspection")?.limits.maxPageSize,
+    );
+    expect(pages).toEqual([1000, 1000, 64]);
   });
 });
 
