@@ -780,6 +780,27 @@ export class PluginRegistry {
     this.deps.remember(proxy);
     return proxy;
   }
+
+  /**
+   * Installed plugins in install order.
+   * The array is a copy. The plugin objects are the live ones.
+   * @internal
+   */
+  list(): readonly GwenPlugin[] {
+    return this._plugins.slice();
+  }
+
+  /**
+   * Name of the plugin whose setup stored `key`, or undefined when none did.
+   * Engine-owned keys are not recorded here.
+   * @internal
+   */
+  ownerOfService(key: string): string | undefined {
+    for (const [name, keys] of this._owned) {
+      if (keys.has(key)) return name;
+    }
+    return undefined;
+  }
 }
 
 type LooseCall = (...args: readonly unknown[]) => unknown;

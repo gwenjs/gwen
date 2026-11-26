@@ -305,7 +305,9 @@ export function defineSystem<Args extends unknown[]>(
       if (id === undefined || control === null || record === null) return;
       _install = { id, engine, args, control, root: _root ?? control };
       record.installs.add(_install);
-      if (!engine.disposables.closed) systemInstalls.get(engine).set(id, { id, name: pluginName });
+      if (!engine.disposables.closed) {
+        systemInstalls.get(engine).set(id, { id, name: pluginName, scope: _scope });
+      }
     };
 
     const untrack = (): void => {

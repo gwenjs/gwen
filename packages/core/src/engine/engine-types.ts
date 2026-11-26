@@ -384,6 +384,20 @@ export interface GwenEngineOptions {
    * @see physicsHz
    */
   maxCatchupSteps?: number;
+
+  /**
+   * Dev introspection page size.
+   * `maxPageSize`, when set, is an integer from 1 to 2_000_000.
+   * Omitted uses 1000. Checked in development and production builds.
+   * Not a `gwen.config.ts` field: only `createEngine` reads it.
+   */
+  introspection?: {
+    /**
+     * Largest `entities` page the introspection service accepts.
+     * @default 1000
+     */
+    maxPageSize?: number;
+  };
 }
 
 /**
@@ -494,6 +508,7 @@ export interface EngineStats {
   overBudget?: boolean;
   /**
    * Listeners registered on `engine.hooks` at the time of the call, every hook name included.
+   * Listeners the engine registers for itself (the dev introspection scene recorder, through `hookEngineListener`) are not counted.
    * `hookOnce` counts until it fires. `beforeEach` and `afterEach` spies are not counted.
    * After `deprecateHook`, a removal made through the old name lowers this count, but the
    * underlying hookable does not resolve deprecated names on removal and keeps the listener.
