@@ -520,9 +520,9 @@ Cause. No active camera was found for the viewport. Fix. Add a `Camera` with `ac
 
 Cause. `screenToWorld` was called with a perspective camera. Fix. Use `screenToRay()`.
 
-### RENDERER:FOREIGN_LAYER_MANAGER {#renderer-foreign-layer-manager}
+### RENDERER:MOUNT_FAILED {#renderer-mount-failed}
 
-Cause. `getOrCreateLayerManager` found a `layerManager` value that is not this package's `LayerManager`. Fix. Remove that value. `gwen:viewports` provides the `LayerManager` this package created.
+Cause. A renderer's `mount()` threw. The render host reported it on `engine.errors`, unregistered that renderer and mounted the others. A thrown `GwenError` keeps its own code. Fix. Read the `error` of the event and fix that renderer's `mount()`, for example a missing WebGL context.
 
 ### RENDERER:CONFORMANCE_FAILED {#renderer-conformance-failed}
 

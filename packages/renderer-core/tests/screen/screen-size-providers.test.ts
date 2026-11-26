@@ -23,7 +23,7 @@ describe("BrowserSizeProvider", () => {
     Object.defineProperty(el, "clientWidth", { value: 1024, configurable: true });
     Object.defineProperty(el, "clientHeight", { value: 768, configurable: true });
     const p = BrowserSizeProvider(el);
-    expect(p.getSize()).toEqual({ width: 1024, height: 768 });
+    expect(p.getSize()).toEqual({ width: 1024, height: 768, dpr: 1 });
   });
 
   it("subscribe() calls callback on resize and returns a cleanup", () => {

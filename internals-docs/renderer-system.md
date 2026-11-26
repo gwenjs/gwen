@@ -27,7 +27,7 @@ game code
 ```
 
 `@gwenjs/renderer-core` is the only shared dependency. It contains no graphical code —
-only TypeScript interfaces, `defineRendererService`, `getOrCreateLayerManager`,
+only TypeScript interfaces, `defineRendererService`, `RenderHostPlugin`,
 `RendererStatsCollector`, and error classes. three.js is not a dependency of
 `@gwenjs/core`, `@gwenjs/kit`, or `@gwenjs/renderer-core`.
 
@@ -114,9 +114,11 @@ exist and in what order. It:
 
 Individual renderer plugins do **not** touch the DOM outside their own elements.
 
-`LayerManager` is not part of the public API. Plugin authors obtain the shared instance
-via `getOrCreateLayerManager(engine, container)`, which creates it on first call bound
-to `engine.logger` and returns the same instance to every subsequent renderer plugin.
+`LayerManager` is not part of the public API. `RenderHostPlugin` (installed as
+`gwen:viewports`) creates one instance per engine, bound to `engine.logger`, and provides it
+as `layerManager`. Plugin authors get that shared instance with `engine.inject('layerManager')`
+and only register their service on it. The host mounts every registered renderer and
+unmounts them at `engine.stop()`.
 
 ### Frame loop integration
 
@@ -163,7 +165,7 @@ as `RendererErrorCodes`. This mirrors the `CoreErrorCodes` pattern in `@gwenjs/c
 
 1. Scaffold with `pnpm dlx @gwenjs/cli scaffold package renderer-<name>`
 2. Use `defineRendererService(factory)` from `@gwenjs/renderer-core` — handles contract version, element caching, stats wiring automatically
-3. Use `getOrCreateLayerManager(engine, container)` in the plugin's `setup()` to register with the shared `LayerManager`
+3. Call `engine.inject('layerManager').register(service)` in the plugin's `setup()` (declare `requires: { services: ['layerManager'] }`). Register only: the host (`RenderHostPlugin`) mounts and unmounts
 4. Augment `GwenProvides` with `'renderer:<name>': ReturnType<typeof MyRenderer>`
 5. Export composables (`useSprite`, `useHTML`, `useMesh`…) using `useService('renderer:<name>')` + `onDestroy` for lifecycle — no `_getActorEntityId` needed
 6. Export a `defineGwenModule` default export

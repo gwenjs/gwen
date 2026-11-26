@@ -1,7 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { createViewportsPlugin } from "@gwenjs/app";
+import { RenderHostPlugin } from "@gwenjs/app";
 import { CoreErrorCodes } from "@gwenjs/core";
 import { CameraCorePlugin } from "@gwenjs/camera-core";
 import { ConformanceErrorCodes } from "@gwenjs/plugin-conformance";
@@ -67,7 +67,7 @@ describe("runPluginConformance requires", () => {
         root: servicesRoot,
         packageName: "@fixture/requires-camera-services",
         factories: [{ export: "RequiresCameraServices" }],
-        frameworkProviders: [createViewportsPlugin, CameraCorePlugin],
+        frameworkProviders: [RenderHostPlugin, CameraCorePlugin],
       }),
     );
     expect(report.checks).toEqual(ranChecks());
@@ -96,7 +96,7 @@ describe("runPluginConformance requires", () => {
         root: hiddenRoot,
         packageName: "@fixture/installs-camera-core",
         factories: [{ export: "InstallsCameraCore" }],
-        frameworkProviders: [createViewportsPlugin],
+        frameworkProviders: [RenderHostPlugin],
       }),
     );
     const findings = findingsWithCode(report, ConformanceErrorCodes.RUNTIME_REQUIRES);
@@ -145,7 +145,7 @@ describe("runPluginConformance requires", () => {
           root: dir,
           packageName: "@fixture/official-camera",
           official: true,
-          frameworkProviders: [createViewportsPlugin, CameraCorePlugin],
+          frameworkProviders: [RenderHostPlugin, CameraCorePlugin],
         }),
       );
       expect(report.checks).toEqual(ranChecks());

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createViewportsPlugin } from "@gwenjs/app";
+import { RenderHostPlugin } from "@gwenjs/app";
 import { CameraCorePlugin } from "@gwenjs/camera-core";
 import { CoreErrorCodes } from "@gwenjs/core";
 import { ConformanceErrorCodes } from "@gwenjs/plugin-conformance";
@@ -100,7 +100,7 @@ describe("runPluginConformance provides", () => {
         spec({
           root: dir,
           packageName: "@fixture/requires-provide",
-          frameworkProviders: [createViewportsPlugin, CameraCorePlugin],
+          frameworkProviders: [RenderHostPlugin, CameraCorePlugin],
         }),
       );
       const findings = findingsWithCode(report, ConformanceErrorCodes.RUNTIME_PROVIDES);
@@ -110,7 +110,7 @@ describe("runPluginConformance provides", () => {
   });
 
   it("reports a provide that duplicates another service", async () => {
-    // One factory. viewportManager is already provided by createViewportsPlugin.
+    // One factory. viewportManager is already provided by RenderHostPlugin.
     await withPrivateTmpdir(async (dir) => {
       await writePluginPackage(dir, {
         name: "@fixture/duplicate-provide",
@@ -123,7 +123,7 @@ describe("runPluginConformance provides", () => {
         spec({
           root: dir,
           packageName: "@fixture/duplicate-provide",
-          frameworkProviders: [createViewportsPlugin, CameraCorePlugin],
+          frameworkProviders: [RenderHostPlugin, CameraCorePlugin],
         }),
       );
       const findings = findingsWithCode(report, ConformanceErrorCodes.RUNTIME_PROVIDES);

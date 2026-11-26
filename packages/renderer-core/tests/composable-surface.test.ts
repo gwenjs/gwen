@@ -11,6 +11,7 @@ import * as rendererCore from "../src/index";
 
 const ALLOW: Readonly<Record<string, string>> = {
   BrowserSizeProvider: "size provider factory, named after the provider",
+  RenderHostPlugin: "plugin factory, named after the plugin",
   ScreenPlugin: "plugin factory, named after the plugin",
   StaticSizeProvider: "size provider factory, named after the provider",
   writeCameraViews: "takes the engine as its first argument, not a composable",

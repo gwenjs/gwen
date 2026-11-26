@@ -21,8 +21,7 @@
 
 // ─── Runtime plugins (browser-safe) ──────────────────────────────────────────
 
-export { createViewportsPlugin } from "./viewports-plugin";
-export { createScreenPlugin } from "./create-screen-plugin";
+export { RenderHostPlugin, ScreenPlugin } from "@gwenjs/renderer-core";
 
 // ─── Config helpers (browser-safe) ───────────────────────────────────────────
 

@@ -1,12 +1,11 @@
 /**
  * @file createManagerServices — one viewport, camera and layer manager per call.
  *
- * `gwen:viewports` calls this, then `engine.provide`s the three keys.
- * This function does not provide anything.
+ * The render host (`gwen:viewports`) calls this, then `engine.provide`s the three keys.
+ * This function does not provide anything. It is not a package export.
  */
 
 import type { GwenEngine } from "@gwenjs/core";
-import type { LayerHost } from "@gwenjs/schema";
 import type { CameraManager } from "./camera-manager.js";
 import { CameraManagerImpl } from "./camera-manager.js";
 import { createViewportManager } from "./get-or-create-viewport-manager.js";
@@ -21,7 +20,7 @@ import type { ViewportManager } from "./viewport-manager.js";
 export function createManagerServices(engine: GwenEngine): {
   readonly viewportManager: ViewportManager;
   readonly cameraManager: CameraManager;
-  readonly layerManager: LayerHost;
+  readonly layerManager: LayerManager;
 } {
   const viewportManager = createViewportManager(engine);
   const cameraManager = new CameraManagerImpl();

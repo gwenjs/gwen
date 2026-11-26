@@ -27,8 +27,11 @@ export const RendererErrorCodes = {
   UNAVAILABLE_CAMERA: "RENDERER:UNAVAILABLE_CAMERA",
   /** Projection not supported for screen to world*/
   SCREEN_TO_WORLD_PERSPECTIVE: "RENDERER:SCREEN_TO_WORLD_PERSPECTIVE",
-  /** A provided `layerManager` is not a `LayerManager` from this package. */
-  FOREIGN_LAYER_MANAGER: "RENDERER:FOREIGN_LAYER_MANAGER",
+  /**
+   * A renderer's `mount()` threw. The render host reported it on `engine.errors`,
+   * unregistered the renderer and mounted the others. A thrown `GwenError` keeps its own code.
+   */
+  MOUNT_FAILED: "RENDERER:MOUNT_FAILED",
   /** A conformance check failed. */
   CONFORMANCE_FAILED: "RENDERER:CONFORMANCE_FAILED",
 } as const;

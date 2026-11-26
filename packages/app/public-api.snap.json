@@ -2,8 +2,8 @@
   ".": {
     "values": [
       "GwenAppConfigError",
-      "createScreenPlugin",
-      "createViewportsPlugin",
+      "RenderHostPlugin",
+      "ScreenPlugin",
       "defineConfig",
       "defineGwenModule",
       "generateScenesDts",

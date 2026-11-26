@@ -7,9 +7,8 @@ import { createEngine } from "@gwenjs/core/node";
 import type { GwenEngine } from "@gwenjs/core";
 import { definePlugin } from "@gwenjs/kit/plugin";
 import type { CameraStateStore, GwenPlugin } from "@gwenjs/schema";
-import { getOrCreateCameraManager } from "../src/get-or-create-camera-manager.js";
 import { ScreenPlugin } from "../src/screen-plugin.js";
-import { createViewportsPlugin } from "../../app/src/viewports-plugin.js";
+import { RenderHostPlugin } from "../src/render-host-plugin.js";
 
 const engines: GwenEngine[] = [];
 
@@ -44,7 +43,7 @@ const CAMERA_NOT_FOUND_WHAT = 'No plugin provides service "cameraManager".';
 
 describe("declared manager services", () => {
   it("gwen:viewports provides viewportManager, cameraManager and layerManager after use()", async () => {
-    const plugin = createViewportsPlugin();
+    const plugin = RenderHostPlugin();
     const provides: readonly string[] = plugin.provides;
     expect(provides).toEqual(["viewportManager", "cameraManager", "layerManager"]);
     const engine = await open();
@@ -63,14 +62,14 @@ describe("declared manager services", () => {
       code: "CORE:PLUGIN_DEPENDENCY_MISSING",
       message: expect.stringContaining(SCREEN_MISSING_WHAT),
     });
-    await engine.use(createViewportsPlugin());
+    await engine.use(RenderHostPlugin());
     await engine.use(ScreenPlugin());
     expect(engine.inject("screenService")).toBeDefined();
   });
 
   it("a second provider of cameraManager rejects CORE:PLUGIN_PROVIDE_DUPLICATE with owner gwen:viewports", async () => {
     const engine = await open();
-    await engine.use(createViewportsPlugin());
+    await engine.use(RenderHostPlugin());
     await expect(engine.use(secondCamera())).rejects.toMatchObject({
       code: "CORE:PLUGIN_PROVIDE_DUPLICATE",
       owner: "gwen:viewports",
@@ -79,11 +78,11 @@ describe("declared manager services", () => {
     });
   });
 
-  it("getOrCreateCameraManager returns the declared service and provides nothing", async () => {
+  it("inject(cameraManager) reads the declared service and nothing provides it lazily", async () => {
     const engine = await open();
     let caught: unknown;
     try {
-      getOrCreateCameraManager(engine);
+      engine.inject("cameraManager");
     } catch (error) {
       caught = error;
     }
@@ -93,9 +92,9 @@ describe("declared manager services", () => {
     });
     expect(engine.tryInject("cameraManager")).toBeUndefined();
 
-    await engine.use(createViewportsPlugin());
+    await engine.use(RenderHostPlugin());
     const declared = engine.inject("cameraManager");
-    expect(getOrCreateCameraManager(engine)).toBe(declared);
+    expect(engine.inject("cameraManager")).toBe(declared);
     await expect(engine.use(secondCamera())).rejects.toMatchObject({
       code: "CORE:PLUGIN_PROVIDE_DUPLICATE",
       owner: "gwen:viewports",
@@ -126,7 +125,7 @@ describe("declared manager services", () => {
     expect(reads).toBe(1);
     expect(read).toBeUndefined();
 
-    await engine.use(createViewportsPlugin());
+    await engine.use(RenderHostPlugin());
     expect(read).toBeDefined();
     expect(read).toBe(engine.tryInject("cameraManager"));
   });
@@ -145,7 +144,7 @@ describe("declared manager services", () => {
       message: expect.stringContaining(LAYERS_MISSING_WHAT),
     });
 
-    await engine.use(createViewportsPlugin());
+    await engine.use(RenderHostPlugin());
     await expect(engine.use(needsLayers())).resolves.toBeUndefined();
     expect(engine.tryInject("layerManager")).toBeDefined();
   });
@@ -153,8 +152,8 @@ describe("declared manager services", () => {
   it("two engines get two managers", async () => {
     const left = await open();
     const right = await open();
-    await left.use(createViewportsPlugin());
-    await right.use(createViewportsPlugin());
+    await left.use(RenderHostPlugin());
+    await right.use(RenderHostPlugin());
     const keys = ["viewportManager", "cameraManager", "layerManager"] as const;
     for (const key of keys) {
       const onLeft = left.tryInject(key);
@@ -169,7 +168,7 @@ describe("declared manager services", () => {
 
   it("unuse(gwen:viewports) fires service:removed for the three keys", async () => {
     const engine = await open();
-    await engine.use(createViewportsPlugin());
+    await engine.use(RenderHostPlugin());
     const removed: { key: string; reason: string; owner: string | undefined }[] = [];
     engine.hooks.hook("service:removed", (event) => {
       removed.push({ key: event.key, reason: event.reason, owner: event.owner });
@@ -187,7 +186,7 @@ describe("declared manager services", () => {
 
   it("use, unuse, use provides the keys again", async () => {
     const engine = await open();
-    await engine.use(createViewportsPlugin());
+    await engine.use(RenderHostPlugin());
     const firstCamera = engine.tryInject("cameraManager");
     const firstLayer = engine.tryInject("layerManager");
     const firstViewport = engine.tryInject("viewportManager");
@@ -198,7 +197,7 @@ describe("declared manager services", () => {
     expect(engine.tryInject("cameraManager")).toBeUndefined();
     expect(engine.tryInject("layerManager")).toBeUndefined();
     expect(engine.tryInject("viewportManager")).toBeUndefined();
-    await engine.use(createViewportsPlugin());
+    await engine.use(RenderHostPlugin());
     expect(engine.tryInject("cameraManager")).toBeDefined();
     expect(engine.tryInject("cameraManager")).not.toBe(firstCamera);
     expect(engine.tryInject("layerManager")).toBeDefined();

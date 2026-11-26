@@ -44,11 +44,11 @@ export type {
   RendererStatsCollector,
 } from "./stats.js";
 
-// LayerManager itself is intentionally not exported. gwen:viewports creates the
-// shared instance through createManagerServices. Plugin authors read it with
-// getOrCreateLayerManager(engine, container), which binds the first root.
-export { createManagerServices } from "./create-manager-services.js";
-export { getOrCreateLayerManager } from "./get-or-create-layer-manager.js";
+// LayerManager itself is intentionally not exported. RenderHostPlugin (gwen:viewports)
+// creates the shared instance. Plugin authors register on it with
+// engine.inject('layerManager').register(service); the host mounts and unmounts.
+export { RenderHostPlugin } from "./render-host-plugin.js";
+export type { RenderHostOptions } from "./render-host-plugin.js";
 
 // defineRendererService
 export {
@@ -83,12 +83,10 @@ export type {
 
 // ── CameraManager ────────────────────────────────────────────────────────────
 export type { CameraManager } from "./camera-manager.js";
-export { getOrCreateCameraManager } from "./get-or-create-camera-manager.js";
 export { useCameraManager } from "./use-camera-manager.js";
 
 // ── ViewportManager ──────────────────────────────────────────────────────────
 export type { ViewportManager } from "./viewport-manager.js";
-export { getOrCreateViewportManager } from "./get-or-create-viewport-manager.js";
 export { useViewportManager } from "./use-viewport-manager.js";
 
 // ── ScreenPlugin ─────────────────────────────────────────────────────────────
@@ -110,7 +108,6 @@ export type {
   ScreenService,
 } from "./screen-service.js";
 
-export { getOrCreateScreenService } from "./get-or-create-screen-service.js";
 export { ScreenPlugin } from "./screen-plugin.js";
 export type { ScreenPluginOptions } from "./screen-plugin.js";
 export { useScreen } from "./use-screen.js";

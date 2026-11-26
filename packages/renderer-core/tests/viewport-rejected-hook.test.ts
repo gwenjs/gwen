@@ -2,8 +2,7 @@ import { describe, expect, it } from "vitest";
 import { CoreErrorCodes } from "@gwenjs/core";
 import { createEngine } from "@gwenjs/core/node";
 import type { GwenErrorPayload } from "@gwenjs/schema";
-import { getOrCreateViewportManager } from "../src/get-or-create-viewport-manager.js";
-import { createViewportsPlugin } from "../../app/src/viewports-plugin.js";
+import { RenderHostPlugin } from "../src/render-host-plugin.js";
 
 // This package's test tsconfig loads no Node types. Declare the two Node globals this test uses.
 declare const process: {
@@ -27,8 +26,8 @@ describe("viewport hook rejection", () => {
     engine.hooks.hook("viewport:add", () => Promise.reject(new Error("viewport hook failed")));
 
     try {
-      await engine.use(createViewportsPlugin());
-      getOrCreateViewportManager(engine).set("main", { x: 0, y: 0, width: 1, height: 1 });
+      await engine.use(RenderHostPlugin());
+      engine.inject("viewportManager").set("main", { x: 0, y: 0, width: 1, height: 1 });
       await new Promise<void>((resolve) => {
         setImmediate(resolve);
       });

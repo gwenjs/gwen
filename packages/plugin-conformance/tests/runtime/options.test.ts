@@ -1,7 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { createViewportsPlugin } from "@gwenjs/app";
+import { RenderHostPlugin } from "@gwenjs/app";
 import { CameraCorePlugin } from "@gwenjs/camera-core";
 import { CoreErrorCodes } from "@gwenjs/core";
 import { ConformanceErrorCodes } from "@gwenjs/plugin-conformance";
@@ -145,7 +145,7 @@ describe("runPluginConformance options", () => {
           root: dir,
           packageName: "@fixture/camera-options",
           factories: [{ export: "Plugin", invalidOptions: { speed: -1 } }],
-          frameworkProviders: [createViewportsPlugin, CameraCorePlugin],
+          frameworkProviders: [RenderHostPlugin, CameraCorePlugin],
         }),
       );
       expect(report.findings).toEqual([]);

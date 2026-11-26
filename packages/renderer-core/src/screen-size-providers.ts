@@ -27,18 +27,19 @@
  */
 export interface ScreenSizeProvider {
   /**
-   * Returns the current container size in CSS pixels.
-   * Called once at engine initialisation and whenever the size changes.
+   * Returns the current container size in CSS pixels and, when the provider knows it,
+   * the device pixel ratio. Called once at engine initialisation and whenever the size changes.
    */
-  getSize(): { width: number; height: number };
+  getSize(): { width: number; height: number; dpr?: number };
 
   /**
    * Subscribes to size changes. Called once at `engine:init`.
    *
-   * @param callback - Invoked with new dimensions whenever the container resizes.
+   * @param callback - Invoked with new dimensions, and the device pixel ratio when known,
+   *   whenever the container resizes.
    * @returns A cleanup function. Called automatically by `ScreenPlugin` on `engine:stop`.
    */
-  subscribe(callback: (width: number, height: number) => void): () => void;
+  subscribe(callback: (width: number, height: number, dpr?: number) => void): () => void;
 }
 
 /**
@@ -51,10 +52,16 @@ export interface ScreenSizeProvider {
  * screen: { sizeProvider: StaticSizeProvider({ width: 1920, height: 1080 }) }
  * ```
  */
-export function StaticSizeProvider(size: { width: number; height: number }): ScreenSizeProvider {
+export function StaticSizeProvider(size: {
+  width: number;
+  height: number;
+  dpr?: number;
+}): ScreenSizeProvider {
   return {
     getSize() {
-      return { width: size.width, height: size.height };
+      return size.dpr === undefined
+        ? { width: size.width, height: size.height }
+        : { width: size.width, height: size.height, dpr: size.dpr };
     },
     subscribe(_callback) {
       return () => {};
@@ -90,17 +97,23 @@ export function BrowserSizeProvider(element?: HTMLElement | null): ScreenSizePro
         ? document.documentElement
         : null;
 
+  /** `window.devicePixelRatio`, or 1 when it is absent or not positive. */
+  const readDpr = (): number => {
+    const dpr = typeof devicePixelRatio === "number" ? devicePixelRatio : 1;
+    return dpr > 0 ? dpr : 1;
+  };
+
   return {
     getSize() {
       if (!target) return { width: 0, height: 0 };
-      return { width: target.clientWidth, height: target.clientHeight };
+      return { width: target.clientWidth, height: target.clientHeight, dpr: readDpr() };
     },
     subscribe(callback) {
       if (!target || typeof ResizeObserver === "undefined") return () => {};
       const ro = new ResizeObserver((entries) => {
         for (const entry of entries) {
           const { width, height } = entry.contentRect;
-          callback(width, height);
+          callback(width, height, readDpr());
         }
       });
       ro.observe(target);

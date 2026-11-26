@@ -7,11 +7,9 @@ import { RendererErrorCodes } from "../src/errors.js";
 import type { RendererService, SurfaceRendererService } from "../src/types.js";
 import { RENDERER_CONTRACT_VERSION } from "../src/types.js";
 import { createManagerServices } from "../src/create-manager-services.js";
-import { getOrCreateScreenService } from "../src/get-or-create-screen-service.js";
-import { getOrCreateViewportManager } from "../src/get-or-create-viewport-manager.js";
 import { ScreenServiceImpl } from "../src/screen-service.js";
 import { ScreenPlugin } from "../src/screen-plugin.js";
-import { createViewportsPlugin } from "../../app/src/viewports-plugin.js";
+import { RenderHostPlugin } from "../src/render-host-plugin.js";
 import type { GwenEngine, GwenLogger } from "@gwenjs/core";
 
 function makeCompliantService(): RendererService {
@@ -167,9 +165,9 @@ describe("runSurfaceConformance", () => {
     const engine = makeEngine();
     declareManagers(engine);
     screenDpr = 2;
-    const viewports = getOrCreateViewportManager(engine);
+    const viewports = engine.inject("viewportManager");
     viewports.set("main", { x: 0, y: 0, width: 1, height: 1 });
-    getOrCreateScreenService(engine).setContainerSize(800, 600, screenDpr);
+    engine.inject("screenService").setContainerSize(800, 600, screenDpr);
 
     const seen: number[] = [];
     const alphas: number[] = [];
@@ -190,8 +188,8 @@ describe("runSurfaceConformance", () => {
     const engine = makeEngine();
     declareManagers(engine);
     screenDpr = 2;
-    getOrCreateViewportManager(engine).set("main", { x: 0, y: 0, width: 1, height: 1 });
-    getOrCreateScreenService(engine).setContainerSize(800, 600, screenDpr);
+    engine.inject("viewportManager").set("main", { x: 0, y: 0, width: 1, height: 1 });
+    engine.inject("screenService").setContainerSize(800, 600, screenDpr);
     let canvas: HTMLCanvasElement | null = null;
     const service = makeSurface((svc) => {
       svc.mount = (container) => {
@@ -218,10 +216,10 @@ describe("runSurfaceConformance", () => {
   it("sizes the canvas from the third resize argument only", async () => {
     const engine = await createEngine({ maxEntities: 32 });
     try {
-      await engine.use(createViewportsPlugin());
+      await engine.use(RenderHostPlugin());
       await engine.use(ScreenPlugin());
-      getOrCreateViewportManager(engine).set("main", { x: 0, y: 0, width: 1, height: 1 });
-      getOrCreateScreenService(engine).setContainerSize(800, 600, 3);
+      engine.inject("viewportManager").set("main", { x: 0, y: 0, width: 1, height: 1 });
+      engine.inject("screenService").setContainerSize(800, 600, 3);
       const service = makeSurface((svc) => {
         svc.resize = (width, height, dpr = 1) => {
           const canvas = svc.getLayerElement("scene");
@@ -248,8 +246,8 @@ describe("runSurfaceConformance", () => {
   it("fails when the canvas stays attached after unmount", () => {
     const engine = makeEngine();
     declareManagers(engine);
-    getOrCreateViewportManager(engine).set("main", { x: 0, y: 0, width: 1, height: 1 });
-    getOrCreateScreenService(engine).setContainerSize(800, 600, 2);
+    engine.inject("viewportManager").set("main", { x: 0, y: 0, width: 1, height: 1 });
+    engine.inject("screenService").setContainerSize(800, 600, 2);
     const service = makeSurface((svc) => {
       svc.unmount = () => {};
     });
@@ -260,8 +258,8 @@ describe("runSurfaceConformance", () => {
     const engine = makeEngine();
     declareManagers(engine);
     screenDpr = 2;
-    getOrCreateViewportManager(engine).set("main", { x: 0, y: 0, width: 1, height: 1 });
-    getOrCreateScreenService(engine).setContainerSize(800, 600, 2);
+    engine.inject("viewportManager").set("main", { x: 0, y: 0, width: 1, height: 1 });
+    engine.inject("screenService").setContainerSize(800, 600, 2);
     const service = makeSurface((svc) => {
       svc.resize = (width, height) => {
         const canvas = svc.getLayerElement("scene");
@@ -275,8 +273,8 @@ describe("runSurfaceConformance", () => {
   it("fails when renderViews throws for 2 views", () => {
     const engine = makeEngine();
     declareManagers(engine);
-    getOrCreateViewportManager(engine).set("main", { x: 0, y: 0, width: 1, height: 1 });
-    getOrCreateScreenService(engine).setContainerSize(800, 600, 2);
+    engine.inject("viewportManager").set("main", { x: 0, y: 0, width: 1, height: 1 });
+    engine.inject("screenService").setContainerSize(800, 600, 2);
     const service = makeSurface((svc) => {
       svc.renderViews = (views) => {
         if (views.length === 2) throw new Error("nope");

@@ -1,7 +1,7 @@
 /**
  * @file ScreenPlugin — tracks container size and computes per-viewport pixel dimensions.
  *
- * Registered automatically by `@gwenjs/app` (like `gwen:viewports`).
+ * Registered automatically by the bootstrap, after the render host (`gwen:viewports`).
  * Can also be installed manually via `engine.use(ScreenPlugin())`.
  *
  * @example Zero-config browser usage (registered automatically)
@@ -25,6 +25,7 @@ import { BrowserSizeProvider, StaticSizeProvider } from "./screen-size-providers
 import type { ScreenSizeProvider } from "./screen-size-providers.js";
 import { ScreenErrorCodes } from "./screen-errors.js";
 import { ScreenServiceImpl } from "./screen-service.js";
+import { LayerManager } from "./layer-manager.js";
 
 /** Options accepted by `ScreenPlugin`. */
 export interface ScreenPluginOptions {
@@ -53,7 +54,7 @@ const screenPluginDeclaration: GwenPluginDeclaration<ScreenPluginOptions, "scree
  */
 export const ScreenPlugin = definePlugin(screenPluginDeclaration, (opts) => ({
   name: "gwen:screen",
-  requires: { services: ["viewportManager"] },
+  requires: { services: ["viewportManager"], optional: ["layerManager"] },
   setup(engine: GwenEngine) {
     const log = engine.logger.child("renderer-core:screen");
     const viewports = engine.inject("viewportManager");
@@ -76,14 +77,21 @@ export const ScreenPlugin = definePlugin(screenPluginDeclaration, (opts) => ({
       sizeProvider = StaticSizeProvider({ width: 0, height: 0 });
     }
 
+    // Record the size, then send it with its dpr to every renderer of the render host.
+    const applySize = (width: number, height: number, dpr?: number): void => {
+      service.setContainerSize(width, height, dpr);
+      const layers = engine.tryInject("layerManager");
+      if (layers instanceof LayerManager) layers.resize(width, height, service.devicePixelRatio);
+    };
+
     engine.hooks.hook("engine:init", () => {
       // Apply initial size
-      const { width, height } = sizeProvider.getSize();
-      service.setContainerSize(width, height);
+      const { width, height, dpr } = sizeProvider.getSize();
+      applySize(width, height, dpr);
 
       // Subscribe to resize events — cleanup on engine:stop
-      const cleanup = sizeProvider.subscribe((w, h) => {
-        service.setContainerSize(w, h);
+      const cleanup = sizeProvider.subscribe((w, h, d) => {
+        applySize(w, h, d);
       });
       engine.hooks.hook("engine:stop", () => {
         cleanup();

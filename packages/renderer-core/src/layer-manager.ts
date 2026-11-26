@@ -24,9 +24,6 @@ import { RendererStatsCollectorImpl, createRendererStats } from "./stats.js";
 import type { RendererStats } from "./stats.js";
 import { writeCameraViews } from "./write-camera-views.js";
 
-/** Until #79 exposes `engine.frame`, surface renderers are not interpolated. */
-const SURFACE_RENDER_ALPHA = 1;
-
 interface RegisteredRenderer {
   service: RendererService;
   collector: RendererStatsCollectorImpl;
@@ -55,6 +52,11 @@ function hasInlineStyle(element: Element): element is Element & ElementCSSInline
   return "style" in element;
 }
 
+/** The message of a thrown value, whatever it is. */
+function describeFailure(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 function makeRenderView(): RenderView {
   return {
     viewportId: "",
@@ -75,6 +77,10 @@ export class LayerManager {
   private readonly _frameViews: RenderView[] = [];
   private _debugEnabled = false;
   private _unhookRender: (() => void) | undefined;
+  /** True once `mount()` ran with a root: a renderer registered now is mounted at once. */
+  private _live = false;
+  /** The last `resize()` arguments, replayed to a renderer mounted afterwards. */
+  private _lastSize: readonly [number, number, number] | undefined;
 
   constructor(root?: HTMLElement, logger?: GwenLogger, engine?: GwenEngine) {
     this._root = root;
@@ -96,17 +102,26 @@ export class LayerManager {
   }
 
   /**
-   * Remove the `engine:render` hook.
-   * Registered DOM nodes stay until `unregister`.
+   * Remove the `engine:render` hook, then unregister every renderer: each one is
+   * unmounted and its DOM nodes are removed. A renderer whose `unmount()` throws is
+   * logged and the others are still released.
    */
   dispose(): void {
     this._unhookRender?.();
     this._unhookRender = undefined;
+    this._live = false;
+    for (const name of this._renderers.keys()) {
+      try {
+        this.unregister(name);
+      } catch (error) {
+        this._log.error(`Renderer "${name}" failed to unmount: ${describeFailure(error)}`);
+      }
+    }
   }
 
   /**
    * Reset per-frame global totals and per-renderer stats for the new frame.
-   * Called automatically by `createManagerServices` at the start of every
+   * Called automatically by the render host (`gwen:viewports`) at the start of every
    * tick via `engine.hooks.hook('engine:tick', ...)`. Plugin authors do not need
    * to call this manually.
    *
@@ -124,7 +139,7 @@ export class LayerManager {
 
   /**
    * Enable stats collection for all current and future renderers.
-   * Called by the renderer-core plugin when `__GWEN_DEV__ && engine.debug`.
+   * Called by the render host when `__GWEN_DEV__ && engine.debug`.
    */
   enableStats(): void {
     this._debugEnabled = true;
@@ -135,7 +150,8 @@ export class LayerManager {
 
   /**
    * Register a renderer service. Validates the contract version and checks for
-   * duplicate names. Does not mount DOM elements — call {@link mount} separately.
+   * duplicate names. Before {@link mount} it mounts nothing. After {@link mount}
+   * it mounts the renderer at once and sends it the last {@link resize}.
    *
    * @throws {RendererAlreadyRegisteredError} If a renderer with the same name is already registered.
    * @throws {RendererContractVersionError}   If the renderer's contractVersion mismatches.
@@ -169,43 +185,25 @@ export class LayerManager {
     const collector = new RendererStatsCollectorImpl(service.name, this._stats);
     if (this._debugEnabled) collector.enable();
 
-    this._renderers.set(service.name, { service, collector, mounted: false });
+    const entry: RegisteredRenderer = { service, collector, mounted: false };
+    this._renderers.set(service.name, entry);
+    if (this._live) this._mountOne(entry);
   }
 
   /**
-   * Mount all registered renderers into the root container.
-   * Sorts layers by `order` and inserts DOM elements in that order.
-   * Should be called once after all renderers are registered.
+   * Mount the registered renderers that are not mounted yet into the root container.
+   * A second call mounts nothing twice. A renderer whose `mount()` throws is reported
+   * on `engine.errors` and unregistered; the others are still mounted.
+   * With no root bound it does nothing.
    */
   mount(): void {
     const root = this._root;
     if (root === undefined) return;
     root.style.position = "relative";
-
-    // Collect all (renderer, layerName, layerDef) tuples sorted by order.
-    // A surface canvas does not exist until that renderer's mount().
-    const allLayers = this._collectSortedLayers();
-
-    for (const entry of allLayers) {
-      if (entry.renderer.service.kind === "surface") continue;
-      this._placeLayer(entry.renderer, entry.layerName, entry.layerDef);
-    }
-
-    // Call mount() on each renderer after DOM is ready
+    this._live = true;
     for (const renderer of this._renderers.values()) {
-      renderer.service.mount(root);
-      if (this._debugEnabled && renderer.service.setStatsCollector) {
-        renderer.service.setStatsCollector(renderer.collector);
-      }
-    }
-
-    for (const entry of allLayers) {
-      if (entry.renderer.service.kind !== "surface") continue;
-      this._placeLayer(entry.renderer, entry.layerName, entry.layerDef);
-    }
-
-    for (const renderer of this._renderers.values()) {
-      renderer.mounted = true;
+      if (renderer.mounted) continue;
+      this._mountOne(renderer);
     }
   }
 
@@ -216,6 +214,7 @@ export class LayerManager {
    * @param dpr    - Device pixel ratio forwarded to each renderer. Omitted forwards `1`.
    */
   resize(width: number, height: number, dpr = 1): void {
+    this._lastSize = [width, height, dpr];
     for (const { service } of this._renderers.values()) {
       service.resize(width, height, dpr);
     }
@@ -229,14 +228,12 @@ export class LayerManager {
   unregister(rendererName: string): void {
     const renderer = this._renderers.get(rendererName);
     if (!renderer) return;
-    renderer.service.unmount();
-    const root = this._root;
-    if (root !== undefined) {
-      // Remove all DOM elements belonging to this renderer
-      const toRemove = Array.from(root.querySelectorAll(`[data-gwen-layer^="${rendererName}:"]`));
-      for (const el of toRemove) el.remove();
+    try {
+      renderer.service.unmount();
+    } finally {
+      this._removeNodes(rendererName);
+      this._renderers.delete(rendererName);
     }
-    this._renderers.delete(rendererName);
   }
 
   /** Return the current stats snapshot. Only populated when stats are enabled. */
@@ -282,6 +279,67 @@ export class LayerManager {
 
   // ── Private helpers ─────────────────────────────────────────────────────
 
+  /**
+   * Place a layer element, call `mount()`, place the surface canvas and replay the last
+   * size. A throw is reported and the renderer is unregistered.
+   */
+  private _mountOne(renderer: RegisteredRenderer): void {
+    const root = this._root;
+    if (root === undefined) return;
+    const service = renderer.service;
+    const layers = this._sortedLayers(renderer);
+    try {
+      if (service.kind !== "surface") {
+        for (const { layerName, layerDef } of layers)
+          this._placeLayer(renderer, layerName, layerDef);
+      }
+      service.mount(root);
+      if (this._debugEnabled && service.setStatsCollector) {
+        service.setStatsCollector(renderer.collector);
+      }
+      if (service.kind === "surface") {
+        // A surface canvas does not exist until that renderer's mount().
+        for (const { layerName, layerDef } of layers)
+          this._placeLayer(renderer, layerName, layerDef);
+      }
+      if (this._lastSize !== undefined) service.resize(...this._lastSize);
+      renderer.mounted = true;
+    } catch (error) {
+      this._reportMountFailure(service.name, error);
+      try {
+        this.unregister(service.name);
+      } catch (unmountError) {
+        this._log.error(
+          `Renderer "${service.name}" failed to unmount after a failed mount: ${describeFailure(unmountError)}`,
+        );
+      }
+    }
+  }
+
+  /** Put a failed mount on `engine.errors`. A thrown `GwenError` keeps its own code. */
+  private _reportMountFailure(rendererName: string, error: unknown): void {
+    const code = error instanceof GwenError ? error.code : RendererErrorCodes.MOUNT_FAILED;
+    const message = `Renderer "${rendererName}" failed to mount and was unregistered: ${describeFailure(error)}`;
+    this._log.error(message);
+    this._engine?.errors.emit({
+      level: "error",
+      code,
+      message,
+      source: "@gwenjs/renderer-core",
+      error,
+      context: { renderer: rendererName },
+      target: { kind: "plugin", id: "gwen:viewports", name: "gwen:viewports" },
+    });
+  }
+
+  private _removeNodes(rendererName: string): void {
+    const root = this._root;
+    if (root === undefined) return;
+    // Remove all DOM elements belonging to this renderer
+    const toRemove = Array.from(root.querySelectorAll(`[data-gwen-layer^="${rendererName}:"]`));
+    for (const el of toRemove) el.remove();
+  }
+
   private _placeLayer(
     renderer: RegisteredRenderer,
     layerName: string,
@@ -310,8 +368,8 @@ export class LayerManager {
   }
 
   /**
-   * LayerManager calls `renderViews` once per `engine:render` for each mounted surface.
-   * `alpha` stays {@link SURFACE_RENDER_ALPHA} until #79 supplies `engine.frame`.
+   * LayerManager calls `renderViews` once per `engine:render` for each mounted surface,
+   * with `engine.frame.alpha` of that display frame.
    */
   private _renderSurfaceViews(): void {
     const engine = this._engine;
@@ -335,31 +393,25 @@ export class LayerManager {
       const view = this._views[index];
       if (view !== undefined) this._frameViews[index] = view;
     }
+    const alpha = engine.frame.alpha;
     for (const renderer of this._renderers.values()) {
       if (!renderer.mounted || !isSurfaceRenderer(renderer.service)) continue;
-      renderer.service.renderViews(this._frameViews, SURFACE_RENDER_ALPHA);
+      renderer.service.renderViews(this._frameViews, alpha);
     }
   }
 
-  private _collectSortedLayers(): Array<{
-    renderer: RegisteredRenderer;
+  /** The layers of one renderer, sorted by `order`. */
+  private _sortedLayers(renderer: RegisteredRenderer): Array<{
     layerName: string;
     layerDef: { order: number; coordinate?: "world" | "screen" };
   }> {
     const result: Array<{
-      renderer: RegisteredRenderer;
       layerName: string;
       layerDef: { order: number; coordinate?: "world" | "screen" };
     }> = [];
-
-    for (const renderer of this._renderers.values()) {
-      for (const [layerName, layerDef] of Object.entries(renderer.service.layers)) {
-        if (layerDef !== undefined) {
-          result.push({ renderer, layerName, layerDef });
-        }
-      }
+    for (const [layerName, layerDef] of Object.entries(renderer.service.layers)) {
+      if (layerDef !== undefined) result.push({ layerName, layerDef });
     }
-
     return result.sort((a, b) => a.layerDef.order - b.layerDef.order);
   }
 

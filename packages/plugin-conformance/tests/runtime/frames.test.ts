@@ -1,7 +1,7 @@
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
-import { createViewportsPlugin } from "@gwenjs/app";
+import { RenderHostPlugin } from "@gwenjs/app";
 import { CameraCorePlugin } from "@gwenjs/camera-core";
 import { ConformanceErrorCodes } from "@gwenjs/plugin-conformance";
 import { runPluginConformance } from "@gwenjs/plugin-conformance/runtime";
@@ -355,7 +355,7 @@ describe("runPluginConformance frames", () => {
         spec({
           root: dir,
           packageName: "@fixture/camera-frame",
-          frameworkProviders: [createViewportsPlugin, CameraCorePlugin],
+          frameworkProviders: [RenderHostPlugin, CameraCorePlugin],
         }),
       );
       expect(report.findings.map((finding) => finding.code)).toEqual([

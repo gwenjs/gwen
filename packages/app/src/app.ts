@@ -27,9 +27,8 @@ import { inferModuleName, scanLocalModuleFiles } from "./local-modules";
 import { readConfigFile, type ResolvedGwenConfig } from "./config";
 import { GwenAppConfigError } from "./config-error";
 import { isPlainRecord, mergeLayers, recordOf } from "./merge";
-import { createViewportsPlugin } from "./viewports-plugin";
-import { createScreenPlugin } from "./create-screen-plugin";
 import { BUILT_IN_MODULES } from "./built-in-modules";
+import { RenderHostPlugin, ScreenPlugin } from "@gwenjs/renderer-core";
 import { GwenError } from "@gwenjs/schema";
 import { formatReceived, type GwenConfigIssue } from "@gwenjs/schema";
 import { AppErrorCodes, causeText } from "./error-codes";
@@ -251,7 +250,7 @@ export class GwenApp {
     // This ensures ViewportManager is populated by engine:init, when camera systems
     // expect viewports to already exist.
     // Replace if already registered (idempotent for watch-mode / multi-call scenarios).
-    const viewportsPlugin = createViewportsPlugin(config.viewports);
+    const viewportsPlugin = RenderHostPlugin({ viewports: config.viewports });
     const existingIndex = this._plugins.findIndex((plugin) => plugin.name === "gwen:viewports");
     if (existingIndex >= 0) {
       this._plugins[existingIndex] = viewportsPlugin;
@@ -259,7 +258,7 @@ export class GwenApp {
       this._plugins.unshift(viewportsPlugin);
     }
     // Register the screen plugin after gwen:viewports so ViewportManager exists.
-    const screenPlugin = createScreenPlugin(config.screen);
+    const screenPlugin = ScreenPlugin(config.screen ?? {});
     const existingScreenIndex = this._plugins.findIndex((plugin) => plugin.name === "gwen:screen");
     if (existingScreenIndex >= 0) {
       this._plugins[existingScreenIndex] = screenPlugin;
