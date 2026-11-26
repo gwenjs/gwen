@@ -15,6 +15,7 @@ export default {
     gwen.addPlugin({
       src: "@gwenjs/core/internal",
       export: "TweenPlugin",
+      name: "gwen:tween",
       options: opts,
       provides: ["tween:manager"],
     });

@@ -12,6 +12,7 @@ export default {
     gwen.addPlugin({
       src: "@gwenjs/core/internal",
       export: "SceneEnginePlugin",
+      name: "gwen:scene",
       provides: ["scene:hook-registry"],
     });
     gwen.addAutoImports([

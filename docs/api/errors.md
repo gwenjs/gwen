@@ -42,7 +42,6 @@ onStart(async () => {
 ## Reserved codes
 
 - `CORE:INTROSPECTION_PAGE_INVALID` {#core-introspection-page-invalid}
-- `APP:PLUGIN_REQUIREMENT_MISSING` {#app-plugin-requirement-missing}
 
 ## @gwenjs/core
 
@@ -198,11 +197,15 @@ Cause. A module package declares no `./module` export. The message names the pac
 
 ### APP:PLUGIN_NOT_DECLARATIVE {#app-plugin-not-declarative}
 
-Cause. `kit.addPlugin()` received something that is not a `PluginDeclaration { src, export?, options?, requires?, provides? }` (an instance, a function, or an object without a string `src`), or the `options` are not JSON-serializable (message `Plugin declaration "<src>" has options that are not JSON-serializable.`), or `requires` or `provides` has the wrong shape (`requires` is a record of `plugins`, `services` and `optional` lists; `provides` is a list of strings). The failure is wrapped in `APP:MODULE_SETUP_FAILED`, whose `cause` is this error. Fix. Declare the package and its export, `kit.addPlugin({ src: "<pkg>", export: "<Factory>", options })`, and pass JSON data only.
+Cause. `kit.addPlugin()` received something that is not a `PluginDeclaration { src, export?, name?, options?, requires?, provides? }` (an instance, a function, or an object without a string `src`), or `name` is not a non-empty string, or the `options` are not JSON-serializable (message `Plugin declaration "<src>" has options that are not JSON-serializable.`), or `requires` or `provides` has the wrong shape (`requires` is a record of `plugins`, `services` and `optional` lists; a `plugins` entry is a string or `{ name, extensionApi: { major, minor } }` with `major` an integer from 1 and `minor` an integer from 0; `provides` is a list of strings). The failure is wrapped in `APP:MODULE_SETUP_FAILED`, whose `cause` is this error. Fix. Declare the package and its export, `kit.addPlugin({ src: "<pkg>", export: "<Factory>", options })`, and pass JSON data only.
+
+### APP:PLUGIN_REQUIREMENT_MISSING {#app-plugin-requirement-missing}
+
+Cause. A declaration lists a `requires.plugins` name that no bootstrap plugin, config plugin, earlier declaration (by its `name`) or framework provider installs. The message is `Module "<module>" requires plugin "<name>", which no module or config plugin installs.` A declaration without `name` installs nothing for this check. The build does not load plugin code and does not check the extension API: `engine.use()` does that at runtime. Fix. Add the module of the base plugin before the extension module in `modules`, and give its declaration a `name` equal to the plugin name.
 
 ### APP:PLUGIN_REQUIREMENT_ORDER {#app-plugin-requirement-order}
 
-Cause. A declaration requires a provider that a later declaration registers. The message is `Module "<consumer>" requires "<name>", which module "<provider>" declares later.` The build inserts a framework provider itself, and keeps one the author declared earlier. It never reorders the author's modules. Fix. Move the provider module before the consumer in `modules`, or, when it is a framework provider such as `camera-core`, remove it: the build inserts it.
+Cause. A declaration requires a provider that a later declaration registers. The message is `Module "<consumer>" requires "<name>", which module "<provider>" declares later.` The build inserts a framework provider itself, and keeps one the author declared earlier. It never reorders the author's modules. Fix. Move the provider module before the consumer in `modules`, or, when it is a framework provider such as `camera-core`, remove it: the build inserts it. A base plugin that is not a framework provider can only be moved.
 
 ### APP:SERVICE_PROVIDER_MISSING {#app-service-provider-missing}
 

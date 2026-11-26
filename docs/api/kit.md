@@ -190,7 +190,7 @@ The build-time API passed to `setup()`:
 
 | Method | Purpose |
 |--------|---------|
-| `addPlugin(declaration)` | Declare a runtime plugin: { src, export?, options?, requires?, provides? } |
+| `addPlugin(declaration)` | Declare a runtime plugin: { src, export?, name?, options?, requires?, provides? } |
 | `addAutoImports(imports)` | Declare auto-imported utilities |
 | `addVitePlugin(plugin)` | Add a Vite plugin to the build |
 | `addSourceTransform(transform)` | Register a build transform named `<namespace>:<transform>` |
