@@ -4,7 +4,11 @@ import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 
 /** Core wasm variant each example declares. */
-export const VARIANTS = { "hello-light": "light", "hello-3d": "physics3d" };
+export const VARIANTS = {
+  "hello-light": "light",
+  "hello-3d": "physics3d",
+  "platformer-2d": "physics2d",
+};
 
 const examplesDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 

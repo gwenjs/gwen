@@ -3,8 +3,20 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "example:build": "node ../_harness/run.mjs platformer-2d build",
+    "example:prepare": "node ../_harness/run.mjs platformer-2d prepare",
+    "example:typecheck": "pnpm example:prepare && tsc --noEmit",
     "example:test": "vitest run --config ../_harness/vitest.config.mjs",
     "example:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@gwenjs/app": "workspace:*",
+    "@gwenjs/core": "workspace:*",
+    "@gwenjs/kit": "workspace:*",
+    "@gwenjs/physics2d": "workspace:*",
+    "@gwenjs/renderer-core": "workspace:*",
+    "@gwenjs/schema": "workspace:*",
+    "@gwenjs/vite": "workspace:*"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",

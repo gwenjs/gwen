@@ -112,6 +112,28 @@ importers:
         version: 4.1.2(@types/node@20.19.39)(happy-dom@18.0.1)(vite@8.0.5(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@20.19.39)(jiti@2.6.1))
 
   examples/platformer-2d:
+    dependencies:
+      '@gwenjs/app':
+        specifier: workspace:*
+        version: link:../../packages/app
+      '@gwenjs/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@gwenjs/kit':
+        specifier: workspace:*
+        version: link:../../packages/kit
+      '@gwenjs/physics2d':
+        specifier: workspace:*
+        version: link:../../packages/physics2d
+      '@gwenjs/renderer-core':
+        specifier: workspace:*
+        version: link:../../packages/renderer-core
+      '@gwenjs/schema':
+        specifier: workspace:*
+        version: link:../../packages/schema
+      '@gwenjs/vite':
+        specifier: workspace:*
+        version: link:../../packages/vite
     devDependencies:
       '@playwright/test':
         specifier: 1.63.0
