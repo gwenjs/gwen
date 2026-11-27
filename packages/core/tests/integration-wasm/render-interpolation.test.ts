@@ -1,9 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import { readInterpolatedTransform2D, type InterpolatedTransform2D } from "../../src/index.js";
+import {
+  readInterpolatedTransform2D,
+  type GwenEngine,
+  type InterpolatedTransform2D,
+  type TransformPair2D,
+} from "../../src/index.js";
 import { defineActor, definePrefab, useTransform } from "../../src/actor/index.js";
 import { onRender, onUpdate } from "../../src/system/index.js";
 import { entityIndex } from "../../src/internal.js";
+import * as internal from "../../src/internal.js";
 import { CoreErrorCodes } from "../../src/engine/engine-errors.js";
 import { createRealEngine } from "./harness.js";
 
@@ -284,4 +290,48 @@ describe("render interpolation on real wasm", () => {
       await handle.dispose();
     }
   });
+
+  it("transformPairOf returns the published pair at physicsHz 60 and null after stop", async () => {
+    const pairOf = transformPairOf();
+    const handle = await createRealEngine({ variant: "light", maxEntities: 32, physicsHz: 60 });
+    const engine = handle.engine;
+    try {
+      await engine.startExternal();
+      const pair = pairOf(engine);
+      expect(pair).not.toBeNull();
+      expect(pair === null ? 0 : pair.current.length).toBe(32 * 8);
+      await handle.dispose();
+      expect(pairOf(engine)).toBeNull();
+    } finally {
+      await handle.dispose();
+    }
+  });
+
+  it("transformPairOf stays null at physicsHz 0 even with a tracked ref", async () => {
+    const pairOf = transformPairOf();
+    const handle = await createRealEngine({ variant: "light", maxEntities: 32, physicsHz: 0 });
+    try {
+      const id = handle.engine.createEntity();
+      handle.bridge.engine().add_entity_transform(entityIndex(id), 0, 0, 0, 1, 1);
+      handle.engine.inject("transform:2d").track(id);
+      await handle.advance(3, 1 / 60);
+      expect(pairOf(handle.engine)).toBeNull();
+    } finally {
+      await handle.dispose();
+    }
+  });
 });
+
+/** The accessor, typed. A missing export fails here, on an assertion. */
+function transformPairOf(): (engine: GwenEngine) => TransformPair2D | null {
+  const found = Reflect.get(internal, "transformPairOf");
+  expect(typeof found).toBe("function");
+  return (engine) => {
+    const pair: unknown = Reflect.apply(found, undefined, [engine]);
+    return isPair(pair) ? pair : null;
+  };
+}
+
+function isPair(value: unknown): value is TransformPair2D {
+  return typeof value === "object" && value !== null && "current" in value;
+}
