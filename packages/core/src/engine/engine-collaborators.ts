@@ -42,6 +42,7 @@ import {
 import { systemInstalls } from "../hmr/installs.js";
 import { createIntrospection } from "../introspection/provider.js";
 import { entityRows } from "../introspection/rows.js";
+import { peekTiming } from "../introspection/timing-store.js";
 import { rememberEngineInternals } from "./engine-internals.js";
 import { WasmModuleRunner } from "./wasm-module-runner.js";
 import type { GwenEngine, GwenEngineOptions } from "./engine-types.js";
@@ -263,6 +264,7 @@ export abstract class EngineCollaborators {
           serviceOwner: (key) => this._pluginRegistry.ownerOfService(key) ?? null,
           components: () => componentListing(engine),
           systems: () => [...(systemInstalls.peek(engine)?.values() ?? [])],
+          timing: (id) => peekTiming(engine, id),
           rows: entityRows(engine, this._bridge, this._entities),
           onStop: (label, undo) => {
             this.disposables.add(label, createDisposable(undo));

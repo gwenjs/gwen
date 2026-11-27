@@ -48,6 +48,7 @@ import {
   type SystemInstall,
 } from "../../hmr/installs.js";
 import { GwenScope } from "../../context/scope.js";
+import { dropTiming, timingFor } from "../../introspection/timing-store.js";
 import { releaseChunkQuery, type Query } from "../../engine/chunk-query.js";
 
 /** A component selector accepted by {@link useQuery}. */
@@ -280,18 +281,24 @@ export function defineSystem<Args extends unknown[]>(
     let _root: HotControl | null = null;
     let _forward: DiscoverablePlugin | null = null;
     let _parked: RetiredSystem | null = null;
+    let _keepId: string | undefined;
 
     /** Create the scope and run the setup. `adopt` carries the slots of a swapped-out body. */
     const begin = (adopt?: HookSlots): void => {
       const engine = useEngine();
       _engine = engine;
       _scope = new ScopedHookable(engine.hooks, adopt);
+      const meta: { type: "system"; name: string; id?: string } = {
+        type: "system",
+        name: pluginName,
+      };
+      // Dev only: a swapped body keeps the scope id of the one it replaces.
+      if (__GWEN_DEV__) {
+        if (_keepId !== undefined) meta.id = _keepId;
+      }
       _gwenScope = new GwenScope(
         engine,
-        {
-          type: "system",
-          name: pluginName,
-        },
+        meta,
         null,
         _scope, // Pass _scope so pause/resume work correctly
       );
@@ -307,6 +314,9 @@ export function defineSystem<Args extends unknown[]>(
       record.installs.add(_install);
       if (!engine.disposables.closed) {
         systemInstalls.get(engine).set(id, { id, name: pluginName, scope: _scope });
+        if (__GWEN_DEV__) {
+          if (_scope !== null) _scope._timing = timingFor(engine, id);
+        }
       }
     };
 
@@ -337,6 +347,7 @@ export function defineSystem<Args extends unknown[]>(
             const retired = {
               slots: _scope?.handOff() ?? new Map(),
               paused: _scope?.paused === true,
+              id: _gwenScope?.meta.id,
             };
             _scope = null;
             _gwenScope?.dispose();
@@ -347,10 +358,11 @@ export function defineSystem<Args extends unknown[]>(
           rebuild(from: RetiredSystem, root: HotControl): RebuildResult {
             _root = root;
             try {
+              _keepId = from.id;
               begin(from.slots);
             } catch (error) {
               // The scope may hold a half-run setup. Park every slot and dispose the rest.
-              _parked = { slots: _scope?.park() ?? from.slots, paused: from.paused };
+              _parked = { slots: _scope?.park() ?? from.slots, paused: from.paused, id: from.id };
               _scope = null;
               _gwenScope?.dispose();
               track();
@@ -398,6 +410,7 @@ export function defineSystem<Args extends unknown[]>(
             _forward.teardown?.();
             return;
           }
+          if (_install !== null) dropTiming(_install.engine, _install.id);
           untrack();
           if (_parked !== null) {
             releaseSlots(_parked.slots);

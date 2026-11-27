@@ -4,6 +4,7 @@ import type { EngineFramePhaseMs } from "./engine-types.js";
 import { installHistoryViews, type HistoryViews } from "./history-views.js";
 import { installHistoryViews3D, type HistoryViews3D } from "./history-views-3d.js";
 import type { TransformPair2D } from "./transform-pair.js";
+import { beginPass, setPassOn } from "../introspection/timing-store.js";
 
 /** The bridge calls the frame loop actually makes. */
 export interface EngineLoopBridge {
@@ -257,6 +258,12 @@ async function renderDisplayPass(
   const instrument = __GWEN_DEV__ && deps.config.debug;
   const t0 = instrument ? readNow() : 0;
   try {
+    if (__GWEN_DEV__) {
+      // A display frame with steps renders inside the record of its last step.
+      // One with no step starts a record of its own.
+      if (frame.steps === 0) beginPass(deps.owner, deps.stats.frameCount, instrument, readNow);
+      else setPassOn(deps.owner, instrument);
+    }
     const renderDone = emitEngineRender(deps, alpha);
     if (isThenable(renderDone)) await renderDone;
     if (instrument && sumPhases) {
@@ -266,6 +273,7 @@ async function renderDisplayPass(
       slot.total += render;
     }
   } finally {
+    if (__GWEN_DEV__) setPassOn(deps.owner, false);
     frame.rendering = false;
     popEngine(deps.owner, previousEngine);
   }

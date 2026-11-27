@@ -25,6 +25,12 @@ import {
 } from "./fixed-display.js";
 import { recordPhaseBudget } from "./phase-budget.js";
 import { setFramePhase } from "./engine-internals.js";
+import { beginPass, setPassOn } from "../introspection/timing-store.js";
+
+/** The frame clock. The scope timer reads it through the engine's frame meter. */
+function clockNow(): number {
+  return performance.now();
+}
 
 /**
  * Mutable engine knobs. Read on each frame. Never copied into the loop.
@@ -327,6 +333,9 @@ export class EngineLoop {
     if (instrument) t0 = performance.now();
     this._inFrame = true;
     try {
+      // Inside the try: a stop during an awaited frame must still reach `finally`.
+      if (__GWEN_DEV__)
+        beginPass(this.deps.owner, this.deps.stats.frameCount + 1, instrument, clockNow);
       // Phase 1 — engine:tick hook (fires before any plugin work)
       if (instrument) t1 = performance.now();
       if (this.deps.state.isFaulted()) return;
@@ -466,6 +475,7 @@ export class EngineLoop {
         this._timing.t0 = next.displayT0;
       }
     } finally {
+      if (__GWEN_DEV__) setPassOn(this.deps.owner, false);
       this._inFrame = false;
       this._flushIdle();
       // Inner finally clears each phase. This covers a throw between those tries.

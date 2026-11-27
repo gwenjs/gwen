@@ -25,6 +25,8 @@ export interface RetiredSystem {
   readonly slots: HookSlots;
   /** True when the old scope was paused (user or scene pause). */
   paused: boolean;
+  /** Scope id of the old install. The replacement keeps it, so its timing record stays. */
+  readonly id: string | undefined;
 }
 
 /** Outcome of running a replacement's setup in place of the old body. */
