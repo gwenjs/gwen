@@ -16,6 +16,7 @@
 import type { Hookable } from "hookable";
 import type { GwenRuntimeHookName, GwenRuntimeHooks } from "@gwenjs/schema";
 import { assertHookName } from "./hook-name.js";
+import type { SystemTiming } from "../introspection/timing.js";
 
 // ─── Hook slots ───────────────────────────────────────────────────────────────
 
@@ -88,6 +89,13 @@ export class ScopedHookable {
 
   /** Slots this scope owns. Each holds the unsubscribe function returned by `parent.hook()`. */
   private _slots: HookSlot[] = [];
+
+  /**
+   * Dev only: where a system scope adds the time of its handlers.
+   * `defineSystem` sets it. A `declare` field emits nothing in a production build.
+   * @internal
+   */
+  declare _timing?: SystemTiming;
 
   /** Slots of a swapped-out scope not yet re-used, by hook name. Null for a cold scope. */
   private _adopt: HookSlots | null;
