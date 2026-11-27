@@ -144,10 +144,10 @@ describe("physics3d error messages", () => {
         layersEngine.inject("physics3d").bulkSpawnStaticBoxes({
           positions: new Float32Array([0, 0, 0]),
           halfExtents: new Float32Array([0.5, 0.5, 0.5]),
-          layers: ["x"],
+          layer: ["x"],
         }),
       );
-      expect(head(layersError)).toContain('Unknown layer "x" in layers.');
+      expect(head(layersError)).toContain('Unknown layer "x" in layer.');
     } finally {
       const index = engines.lastIndexOf(layersEngine);
       if (index >= 0) engines.splice(index, 1);
