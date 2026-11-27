@@ -74,6 +74,21 @@ pnpm test:cargo
 pnpm test
 ```
 
+### Size budgets
+
+`packages/vite/tests/fixtures/bundle-budget.json` gates the JS gzip size of the vite fixture apps and of the budgeted examples.
+
+That number is not the raw gzip of the shipped chunks. `scripts/stable-gzip.mjs` replaces two values that are a hash of the wasm bytes before compressing:
+
+- the 64-hex `buildId` of the factory contract
+- the 8-character content hash of each emitted asset name (`/assets/<name>-<8 chars>.<ext>`)
+
+The stand-ins keep the shape of those values. The same source therefore prints the same JS gzip size on every machine.
+
+`wasmGzipBytes` is the raw gzip of the shipped wasm. A Mac build and the CI build differ by up to a few hundred bytes. That gap stays inside the 2048-byte floor.
+
+A failing budget is a real overrun. A re-record is ordered by the maintainer.
+
 ### Documentation
 
 ```bash
