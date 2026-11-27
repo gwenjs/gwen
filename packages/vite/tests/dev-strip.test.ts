@@ -79,6 +79,11 @@ const SENTINELS = [
   "introspection:scene-recorder",
   // Literal held only by packages/core/src/introspection/entities.ts.
   "introspection.entities",
+  // Symbol descriptions held only by packages/core/src/hmr/actor-installs.ts and layout-installs.ts.
+  "gwen.hot.actor",
+  "gwen.hot.layout",
+  // The stored-props field of an actor instance, written by define-actor.ts under __GWEN_DEV__.
+  "_props",
 ];
 
 const dirs: string[] = [];

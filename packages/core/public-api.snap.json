@@ -299,6 +299,8 @@
       "getTweenManager",
       "getWasmBridge",
       "hotCompareComponent",
+      "hotReplaceActor",
+      "hotReplaceLayout",
       "hotReplaceSystem",
       "invalidateWasmModule",
       "isolatedProvider",
