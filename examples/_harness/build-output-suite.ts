@@ -25,6 +25,7 @@ const tscBin = path.join(repoRoot, "node_modules/typescript/bin/tsc");
 const bvhWasm = path.join(repoRoot, "packages/physics3d/wasm/bvh/gwen_core_bg.wasm");
 const budgetFile = path.join(repoRoot, "packages/vite/tests/fixtures/bundle-budget.json");
 const budgetScript = path.join(repoRoot, "scripts/check-wasm-size.mjs");
+const stableGzipScript = path.join(repoRoot, "scripts/stable-gzip.mjs");
 
 /** The test fails on an assertion, never on `ENOENT`, when a file is absent. */
 function readFile(file: string): Buffer {
@@ -85,6 +86,18 @@ async function loadAllowedBudget(): Promise<(baseline: number) => number> {
   };
 }
 
+/** `stableGzipBytes` of `scripts/stable-gzip.mjs`: JS gzip size without the wasm build hashes. */
+async function loadStableGzip(): Promise<(chunk: Buffer) => number> {
+  const loaded: unknown = await import(pathToFileURL(stableGzipScript).href);
+  const stableGzipBytes = field(loaded, "stableGzipBytes");
+  expect(typeof stableGzipBytes, "stableGzipBytes is exported").toBe("function");
+  return (chunk) => {
+    const bytes: unknown = typeof stableGzipBytes === "function" ? stableGzipBytes(chunk) : null;
+    expect(typeof bytes, "stableGzipBytes returns a number").toBe("number");
+    return typeof bytes === "number" ? bytes : Number.NaN;
+  };
+}
+
 /** `tsc` of the repo root, run on `examples/<example>`. */
 function runTsc(example: string, flag: string): { status: number | null; stdout: string } {
   expect(existsSync(tscBin), `${tscBin} is absent`).toBe(true);
@@ -140,12 +153,16 @@ export function describeBuildOutput({ example, variant, gate = true }: BuildOutp
         const jsFiles = files.filter((file) => file.endsWith(".js"));
         const gzipSum = (list: string[]): number =>
           list.reduce((sum, file) => sum + gzipBytes(path.join(dist, file)), 0);
+        const stableGzipBytes = await loadStableGzip();
+        // JS is measured without the wasm build id and asset hashes, wasm as it ships.
+        const jsGzipSum = (list: string[]): number =>
+          list.reduce((sum, file) => sum + stableGzipBytes(readFile(path.join(dist, file))), 0);
 
         expect(stringField(report, "variant")).toBe(variant);
         expect([...stringListField(report, "wasmFiles")].sort()).toEqual(wasmFiles);
         const jsGzip = numberField(report, "jsGzipBytes");
         const wasmGzip = numberField(report, "wasmGzipBytes");
-        expect(jsGzip).toBe(gzipSum(jsFiles));
+        expect(jsGzip).toBe(jsGzipSum(jsFiles));
         expect(wasmGzip).toBe(gzipSum(wasmFiles));
         if (!gate) return;
 
