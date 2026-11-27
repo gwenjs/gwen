@@ -1,5 +1,5 @@
 {
   "light": { "jsGzipBytes": 55311, "wasmGzipBytes": 40402 },
   "physics2d": { "jsGzipBytes": 64748, "wasmGzipBytes": 427153 },
-  "physics3d": { "jsGzipBytes": 81103, "wasmGzipBytes": 1240217 }
+  "physics3d": { "jsGzipBytes": 81134, "wasmGzipBytes": 1240217 }
 }
