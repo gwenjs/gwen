@@ -10,6 +10,7 @@ import type { GwenIntrospection } from "@gwenjs/schema";
 
 import { defineActor, definePrefab, useActor } from "../../src/actor/index.js";
 import { CoreErrorCodes, type EntityId, type GwenEngine } from "../../src/index.js";
+import { componentRegistryFor } from "../../src/engine/engine-component-registry.js";
 import { setEntityDormant } from "../../src/engine/engine-internals.js";
 import { createEngine } from "../../src/node.js";
 import { defineComponent, Types } from "../../src/schema.js";
@@ -26,6 +27,11 @@ const Velocity = defineComponent({
 const Wide = defineComponent({
   name: "P94Wide",
   schema: { big: Types.u64, at: Types.vec2, alive: Types.bool },
+});
+
+const Gone = defineComponent({
+  name: "P94Gone",
+  schema: { big: Types.u64 },
 });
 
 function serviceOf(engine: GwenEngine): GwenIntrospection {
@@ -524,5 +530,24 @@ describe.runIf(__GWEN_DEV__)("introspection entities", () => {
       expect(intro.entities({ offset: 0, limit: 5 }).listed).toBe(1);
     }
     expect(probe()).toBe(before);
+  });
+
+  it("a released plugin component later registered by name is not listed with its old definition", async () => {
+    const { engine } = await open();
+    const plugin = {
+      name: "p94-gone",
+      setup(eng: GwenEngine) {
+        componentRegistryFor(eng).getOrRegister(Gone);
+      },
+    };
+    await engine.use(plugin);
+    expect(engine.registeredComponentTypes().get("P94Gone")).toBeDefined();
+    await engine.unuse(plugin.name);
+    expect(engine.registeredComponentTypes().get("P94Gone")).toBeUndefined();
+    engine.getOrRegisterComponent("P94Gone");
+    const kept = spawn(engine, "position");
+    const page = serviceOf(engine).entities({ offset: 0, limit: 10 });
+    expect(page.items.map((item) => item.id)).toEqual([kept]);
+    expect(page.items[0]?.components.map((entry) => entry.name)).toEqual(["P94Position"]);
   });
 });
