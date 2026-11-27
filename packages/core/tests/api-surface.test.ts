@@ -161,4 +161,16 @@ describe("API surface (RFC-V2-013)", () => {
     expect("runScenePreload" in system).toBe(false);
     expect("runScenePreload" in actor).toBe(false);
   });
+
+  it("keeps readInterpolatedTransform2D off the root", () => {
+    expect(Reflect.get(core, "readInterpolatedTransform2D")).toBeUndefined();
+  });
+
+  it("exposes readInterpolatedTransform2D from @gwenjs/core/internal", () => {
+    expect(typeof Reflect.get(internal, "readInterpolatedTransform2D")).toBe("function");
+  });
+
+  it("exposes transformPairOf from @gwenjs/core/internal", () => {
+    expect(typeof Reflect.get(internal, "transformPairOf")).toBe("function");
+  });
 });

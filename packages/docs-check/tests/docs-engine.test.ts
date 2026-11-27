@@ -182,4 +182,14 @@ describe("engine page run fences", () => {
       }
     }
   });
+
+  it.each([
+    "docs/essentials/engine.md",
+    "docs/fr/essentials/engine.md",
+    "docs/essentials/actors.md",
+    "docs/fr/essentials/actors.md",
+  ])("%s does not teach the raw frame.transforms2D field", (file) => {
+    const text = readFileSync(path.join(repoRoot, file), "utf8");
+    expect(text).not.toContain("transforms2D");
+  });
 });
