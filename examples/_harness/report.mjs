@@ -1,6 +1,6 @@
-import { readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { gzipSync } from "node:zlib";
 
 /** Core wasm variant each example declares. */
@@ -10,7 +10,10 @@ export const VARIANTS = {
   "platformer-2d": "physics2d",
 };
 
-const examplesDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+/** Examples root. Tests set `GWEN_EXAMPLES_DIR` to a temp tree. */
+const examplesDir =
+  process.env["GWEN_EXAMPLES_DIR"] ??
+  path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 /**
  * Every file under `dir`, relative to it and posix-separated.
@@ -74,4 +77,60 @@ export function writeReport(example) {
   const file = path.join(examplesDir, example, "dist", "gwen-example-report.json");
   writeFileSync(file, `${JSON.stringify(report, null, 2)}\n`);
   return report;
+}
+
+/**
+ * Markdown table of one report for `$GITHUB_STEP_SUMMARY`.
+ * An unmeasured frame time prints `n/a`.
+ *
+ * @param {{
+ *   example: string,
+ *   variant: string,
+ *   jsGzipBytes: number,
+ *   wasmGzipBytes: number,
+ *   fps: number | null,
+ *   rawFrameTimeMs: number | null,
+ * }} report
+ */
+export function formatSummary(report) {
+  const time = (value, unit) => (value === null ? "n/a" : `${value.toFixed(1)} ${unit}`);
+  return [
+    `### example-smoke: ${report.example} (${report.variant})`,
+    "",
+    "| js gzip | wasm gzip | fps | frame time |",
+    "|---|---|---|---|",
+    `| ${report.jsGzipBytes} B | ${report.wasmGzipBytes} B | ${time(report.fps, "fps")} | ${time(report.rawFrameTimeMs, "ms")} |`,
+    "",
+  ].join("\n");
+}
+
+/**
+ * Rewrites the report with `dist/probe.json` when the Playwright run wrote it.
+ *
+ * @param {string} example Directory name under `examples/`, one key of `VARIANTS`.
+ */
+export function summarize(example) {
+  const report = buildReport(example);
+  const probeFile = path.join(examplesDir, example, "dist", "probe.json");
+  if (existsSync(probeFile)) {
+    const probe = JSON.parse(readFileSync(probeFile, "utf8"));
+    report.fps = probe.fps;
+    report.rawFrameTimeMs = probe.rawFrameTimeMs;
+  }
+  const file = path.join(examplesDir, example, "dist", "gwen-example-report.json");
+  writeFileSync(file, `${JSON.stringify(report, null, 2)}\n`);
+  return formatSummary(report);
+}
+
+if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const example = process.argv[2];
+  if (example === undefined || !Object.hasOwn(VARIANTS, example)) {
+    throw new Error(`Usage: node report.mjs <${Object.keys(VARIANTS).join("|")}>`);
+  }
+  const dist = path.join(examplesDir, example, "dist");
+  if (!existsSync(dist)) {
+    process.stdout.write(`### example-smoke: ${example}: no build output\n`);
+  } else {
+    process.stdout.write(summarize(example));
+  }
 }
