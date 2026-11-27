@@ -59,6 +59,7 @@ Define engine options at build time:
 A component is a piece of data. Let's define a `Position` component:
 
 **src/components/Position.ts**
+
 <<< @/../examples/hello-light/src/components/Position.ts{ts}
 
 ## Your First System
@@ -66,11 +67,13 @@ A component is a piece of data. Let's define a `Position` component:
 Systems iterate over entities and update them each frame.
 
 **src/systems/Movement.ts**
+
 <<< @/../examples/hello-light/src/systems/Movement.ts{ts}
 
 ## Your First Scene
 
 **src/scenes/GameScene.ts**
+
 <<< @/../examples/hello-light/src/scenes/GameScene.ts{ts}
 
 ## Scene Router
@@ -78,6 +81,7 @@ Systems iterate over entities and update them each frame.
 Define navigation between scenes:
 
 **src/router.ts**
+
 <<< @/../examples/hello-light/src/router.ts{ts}
 
 ## Run It

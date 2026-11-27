@@ -59,6 +59,7 @@ Définissez les options du moteur à la compilation :
 Un composant est une donnée. Définissons un composant `Position` :
 
 **src/components/Position.ts**
+
 <<< @/../examples/hello-light/src/components/Position.ts{ts}
 
 ## Votre premier système
@@ -66,11 +67,13 @@ Un composant est une donnée. Définissons un composant `Position` :
 Les systèmes itèrent sur les entités et les mettent à jour à chaque frame.
 
 **src/systems/Movement.ts**
+
 <<< @/../examples/hello-light/src/systems/Movement.ts{ts}
 
 ## Votre première scène
 
 **src/scenes/GameScene.ts**
+
 <<< @/../examples/hello-light/src/scenes/GameScene.ts{ts}
 
 ## Routeur de scènes
@@ -78,6 +81,7 @@ Les systèmes itèrent sur les entités et les mettent à jour à chaque frame.
 Définissez la navigation entre les scènes :
 
 **src/router.ts**
+
 <<< @/../examples/hello-light/src/router.ts{ts}
 
 ## Exécutez-le
