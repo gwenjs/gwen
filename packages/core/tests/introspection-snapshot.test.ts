@@ -232,7 +232,7 @@ describe("introspection snapshot", () => {
     expect(afterPlugin.components).toBe(first.components);
     expect(afterPlugin.systems).toBe(first.systems);
     expect(afterPlugin.scenes).toBe(first.scenes);
-    expect(afterPlugin.hooks).toBe(0);
+    expect(afterPlugin.hooks).toBe(first.hooks);
     expect(afterPlugin.frame).toBe(first.frame);
     const tweens: GwenPlugin = {
       name: "tweens",
@@ -259,7 +259,7 @@ describe("introspection snapshot", () => {
     expect(afterSystem.components).toBe(afterService.components);
     expect(afterSystem.scenes).toBe(afterService.scenes);
     expect(afterSystem.frame).toBe(afterService.frame);
-    expect(afterSystem.hooks).toBe(0);
+    expect(afterSystem.hooks).toBe(afterService.hooks + 1);
     wrapped.handle.pause();
     const afterPause = intro.revisions();
     expect(afterPause.systems).toBe(afterSystem.systems + 1);
