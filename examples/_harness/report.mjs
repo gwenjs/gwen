@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { gzipSync } from "node:zlib";
+import { stableGzipBytes } from "../../scripts/stable-gzip.mjs";
 
 /** Core wasm variant each example declares. */
 export const VARIANTS = {
@@ -33,9 +34,11 @@ function walk(dir, base = dir) {
 }
 
 /**
- * Sizes of the built `dist/` of one example. Gzip is summed per file, like
- * `scripts/check-wasm-size.mjs`. Frame time is not measured here: `fps` and
- * `rawFrameTimeMs` stay `null` until a probe fills them.
+ * Sizes of the built `dist/` of one example. `wasmGzipBytes` is gzip summed
+ * per file, like `scripts/check-wasm-size.mjs`. `jsGzipBytes` is the stable
+ * measure, built without the wasm build id and asset hashes. Frame time is
+ * not measured here: `fps` and `rawFrameTimeMs` stay `null` until a probe
+ * fills them.
  *
  * @param {string} example Directory name under `examples/`, one key of `VARIANTS`.
  */
@@ -54,12 +57,20 @@ export function buildReport(example) {
       (sum, file) => sum + gzipSync(readFileSync(path.join(dist, file)), { level: 9 }).length,
       0,
     );
+  /**
+   * JS only: the build id and asset hashes of the wasm are replaced first (stable-gzip.mjs).
+   * `jsGzipBytes` is the stable measure, built without the wasm build id and asset hashes.
+   *
+   * @param {string[]} list
+   */
+  const stableGzipSize = (list) =>
+    list.reduce((sum, file) => sum + stableGzipBytes(readFileSync(path.join(dist, file))), 0);
   return {
     example,
     variant,
     wasmFiles,
     jsBytes: size(jsFiles),
-    jsGzipBytes: gzipSize(jsFiles),
+    jsGzipBytes: stableGzipSize(jsFiles),
     wasmBytes: size(wasmFiles),
     wasmGzipBytes: gzipSize(wasmFiles),
     fps: null,
