@@ -19,6 +19,8 @@ export interface ExampleProbeSnapshot {
   coinsCollected: number;
   playerX: number;
   driftX: number;
+  fps: number;
+  rawFrameTimeMs: number;
 }
 
 /**
@@ -75,6 +77,8 @@ export default definePlugin(() => {
             coinsCollected,
             playerX: readPlayerX(),
             driftX: row === undefined ? 0 : row.x,
+            fps: stats.fps,
+            rawFrameTimeMs: stats.rawFrameTime * 1000,
           };
         },
       };
