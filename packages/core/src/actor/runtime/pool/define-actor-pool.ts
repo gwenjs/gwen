@@ -484,6 +484,8 @@ export function defineActorPool<Props, PublicAPI>(
       if (!inst) continue;
       rewriteRows(engine, candidate);
       if (!setEntityDormant(engine, candidate, false) && !engine.isAlive(candidate)) continue;
+      // Dev only: a hot swap runs the new factory with the props of the last acquire.
+      if (__GWEN_DEV__) inst._props = props;
       inst._scope.resume();
       for (let i = 0; i < inst._reset.length; i += 1) uncheckedAt(inst._reset, i)(props);
       for (let i = 0; i < inst._enable.length; i += 1) uncheckedAt(inst._enable, i)();

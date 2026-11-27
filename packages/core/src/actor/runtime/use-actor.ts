@@ -20,6 +20,7 @@ import { queuePrefabInstantiate } from "../../engine/hook-dispatch.js";
 import { SCENE_REGISTRAR_KEY } from "../../scene/runtime/scene-registrar";
 import { GwenScope } from "../../context/scope.js";
 import type { ActorDefinition, PrefabDefinition } from "./types";
+import { trackActorHandle } from "../../hmr/actor-installs.js";
 import { instanceApi } from "./instance-api";
 import type { PrefabOverrides } from "./define-prefab";
 import type { ComponentDef } from "../../system/runtime/define-system";
@@ -285,6 +286,9 @@ export function useActor<Props, PublicAPI>(
       });
     },
   };
+
+  // Dev only: a hot swap makes the next method call read the new public API.
+  if (__GWEN_DEV__) trackActorHandle(actorDef, engine, () => _methodCache.clear());
 
   // Auto-cleanup: despawn live instances when the enclosing scene exits.
   // Mirrors the pattern used by useActorPool — scoped to the active GwenScope so
