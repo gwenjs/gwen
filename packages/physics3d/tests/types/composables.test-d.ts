@@ -1,6 +1,11 @@
 import { describe, expectTypeOf, it } from "vitest";
 
-import type { CollisionContact, PhysicsConfigBase, SensorState } from "@gwenjs/physics-core";
+import type {
+  CollisionContact,
+  LayerSelector,
+  PhysicsConfigBase,
+  SensorState,
+} from "@gwenjs/physics-core";
 import { useHook, type GwenProvides } from "@gwenjs/core";
 import type { EntityId } from "@gwenjs/schema";
 import { useService } from "@gwenjs/core/system";
@@ -15,7 +20,9 @@ import {
 } from "../../src/index.js";
 import type {
   BoxColliderHandle3D,
+  BulkStaticBoxesOptions,
   CapsuleColliderHandle3D,
+  CompoundColliderOptions3D,
   DynamicBodyHandle3D,
   KinematicBodyHandle3D,
   Physics3DAPI,
@@ -24,6 +31,7 @@ import type {
   SphereColliderHandle3D,
   StaticBodyHandle3D,
 } from "../../src/index.js";
+import type { OverlapOpts, RaycastOpts, ShapeCastOpts } from "../../src/types/joints.js";
 
 describe("physics3d composable inference", () => {
   it("physics3d composables return their handle types", () => {
@@ -46,6 +54,32 @@ describe("physics3d composable inference", () => {
   it("shared names", () => {
     expectTypeOf<Physics3DConfig["layers"]>().toEqualTypeOf<Record<string, number> | undefined>();
     expectTypeOf<Physics3DConfig>().toExtend<PhysicsConfigBase<"3d">>();
+  });
+
+  it("compound and bulk options name their filters layer and mask", () => {
+    expectTypeOf<keyof CompoundColliderOptions3D>().toEqualTypeOf<"shapes" | "layer" | "mask">();
+    expectTypeOf<keyof BulkStaticBoxesOptions>().toEqualTypeOf<
+      "positions" | "halfExtents" | "friction" | "restitution" | "layer" | "mask"
+    >();
+    expectTypeOf<CompoundColliderOptions3D["layer"]>().toEqualTypeOf<LayerSelector | undefined>();
+    expectTypeOf<CompoundColliderOptions3D["mask"]>().toEqualTypeOf<LayerSelector | undefined>();
+    expectTypeOf<BulkStaticBoxesOptions["layer"]>().toEqualTypeOf<LayerSelector | undefined>();
+    expectTypeOf<BulkStaticBoxesOptions["mask"]>().toEqualTypeOf<LayerSelector | undefined>();
+    expectTypeOf<keyof RaycastOpts>().toEqualTypeOf<
+      "direction" | "maxDist" | "layer" | "mask" | "solid" | "origin"
+    >();
+    expectTypeOf<keyof ShapeCastOpts>().toEqualTypeOf<
+      "shape" | "direction" | "maxDist" | "layer" | "mask" | "origin" | "rotation"
+    >();
+    expectTypeOf<keyof OverlapOpts>().toEqualTypeOf<
+      "shape" | "layer" | "mask" | "maxResults" | "origin" | "rotation"
+    >();
+    expectTypeOf<keyof NonNullable<Parameters<Physics3DAPI["castRay"]>[3]>>().toEqualTypeOf<
+      "layer" | "mask" | "solid"
+    >();
+    expectTypeOf<keyof NonNullable<Parameters<Physics3DAPI["overlapShape"]>[3]>>().toEqualTypeOf<
+      "layer" | "mask" | "maxResults"
+    >();
   });
 
   it("shared collision hooks are the physics-core names", () => {

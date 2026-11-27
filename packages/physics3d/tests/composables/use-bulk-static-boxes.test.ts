@@ -54,11 +54,11 @@ describe("useBulkStaticBoxes", () => {
     useBulkStaticBoxes({
       positions,
       halfExtents,
-      layers: ["ground"],
+      layer: ["ground"],
       mask: ["player", "enemy"],
     });
     expect(mockPhysics3D.bulkSpawnStaticBoxes).toHaveBeenCalledWith(
-      expect.objectContaining({ layers: ["ground"], mask: ["player", "enemy"] }),
+      expect.objectContaining({ layer: ["ground"], mask: ["player", "enemy"] }),
     );
   });
 });

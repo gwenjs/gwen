@@ -247,6 +247,21 @@ describe("physics pages", () => {
     }
   });
 
+  it("the physics3d pages call the compound and bulk filter option layer", () => {
+    expect(pageText("docs/physics/physics3d-composables.md")).not.toContain(
+      "the field is `layers`",
+    );
+    expect(pageText("docs/fr/physics/physics3d-composables.md")).not.toContain(
+      "le champ est `layers`",
+    );
+    expect(pageText("docs/api/physics-core.md")).toContain(
+      "`layers` (3D collider, compound collider, bulk static boxes, and spatial query bitmask)",
+    );
+    expect(pageText("docs/fr/api/physics-core.md")).toContain(
+      "`layers` (collider 3D, collider composé, boîtes statiques en masse et bitmask brut des requêtes spatiales)",
+    );
+  });
+
   it("the physics-core page carries a migration table that matches the snapshots", () => {
     const english = pageText("docs/api/physics-core.md");
     const french = pageText("docs/fr/api/physics-core.md");
