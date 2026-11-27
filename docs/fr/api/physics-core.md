@@ -61,7 +61,7 @@ Noms livrés avec la couche physique partagée. L'ordre des hooks, la règle du 
 | export | `Physics3DVec3`, `Physics3DQuat`, `Physics3DEntityId` | `Vec3`, `Quat` (`@gwenjs/math`), `EntityId` (`@gwenjs/schema`) |
 | export | `Physics3DCollisionContact`, `Physics3DSensorState` (3D). Les déclarations 2D utilisaient ces noms de contact et de capteur. | `CollisionContact`, `SensorState` (`@gwenjs/physics-core`) |
 | export | `ContactEvent` (2D), `ContactEvent3D` | retiré. La charge utile est `CollisionContact` (`@gwenjs/physics-core`) |
-| option | `membershipLayers` / `filterLayers` (collider 2D), `layers` (collider 3D, sauf le champ du collider composé) | `layer` / `mask` |
+| option | `membershipLayers` / `filterLayers` (collider 2D), `layers` (collider 3D, collider composé, boîtes statiques en masse et bitmask brut des requêtes spatiales) | `layer` / `mask` |
 | option | `materialPreset` (3D) | `material`, une chaîne |
 | option | `initialAngle` (cinématique 2D) | `initialRotation` |
 | option | champ de prefab `initialVelocity` avec les composantes vx et vy (2D) | `initialLinearVelocity` |

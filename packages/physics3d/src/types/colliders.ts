@@ -263,16 +263,16 @@ export type CompoundShapeSpec =
 /**
  * Options for {@link useCompoundCollider}.
  *
- * At least one shape must be provided. `layers` and `mask` are shared across
+ * At least one shape must be provided. `layer` and `mask` are shared across
  * all shapes in the compound body.
  */
 export interface CompoundColliderOptions3D {
   /** Ordered list of primitive shapes to attach to the body. */
   shapes: CompoundShapeSpec[];
-  /** Collision layer membership (named layers or numeric bitmask values). */
-  layers?: (string | number)[];
-  /** Collision filter — which layers this body collides with. */
-  mask?: (string | number)[];
+  /** Collision layer membership. Same shapes as {@link Physics3DColliderOptions.layer}. */
+  layer?: LayerSelector;
+  /** Collision filter, which layers this body collides with. Same shapes as `layer`. */
+  mask?: LayerSelector;
 }
 
 /**

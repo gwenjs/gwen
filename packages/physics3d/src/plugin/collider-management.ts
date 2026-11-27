@@ -13,6 +13,7 @@ import type {
   BulkStaticBoxesResult,
 } from "../types";
 import type { GwenEngine } from "@gwenjs/core";
+import type { LayerSelector } from "@gwenjs/physics-core";
 import { resolveLayerBits } from "../config";
 import { encodeCompoundShapes } from "../helpers/compound";
 import { nextColliderId } from "../composables/collider-id";
@@ -41,8 +42,8 @@ import { liveWasmBridge, uncheckedAt } from "../internal/unchecked";
 export function shapeSpecToColliderOptions(
   shape: CompoundShapeSpec,
   colliderId: number,
-  layers: (string | number)[] | undefined,
-  mask: (string | number)[] | undefined,
+  layer: LayerSelector | undefined,
+  mask: LayerSelector | undefined,
 ): Physics3DColliderOptions {
   const base: Physics3DColliderOptions =
     shape.type === "box"
@@ -64,7 +65,7 @@ export function shapeSpecToColliderOptions(
     ...(shape.isSensor !== undefined ? { isSensor: shape.isSensor } : {}),
     ...(shape.friction !== undefined ? { friction: shape.friction } : {}),
     ...(shape.restitution !== undefined ? { restitution: shape.restitution } : {}),
-    ...(layers !== undefined ? { layer: layers } : {}),
+    ...(layer !== undefined ? { layer } : {}),
     ...(mask !== undefined ? { mask } : {}),
   };
 }
@@ -532,7 +533,7 @@ export function createBulkSpawnStaticBoxes(
     const n = options.positions.length / 3;
     const friction = options.friction ?? 0.5;
     const restitution = options.restitution ?? 0.0;
-    const membership = resolveLayerBits(options.layers, ctx.layerRegistry, "layers");
+    const membership = resolveLayerBits(options.layer, ctx.layerRegistry);
     const filter = resolveLayerBits(options.mask, ctx.layerRegistry, "mask");
 
     const entityIds: EntityId[] = [];
@@ -613,7 +614,7 @@ export function createBulkSpawnStaticBoxes(
         shape: { type: "box", halfX: hx, halfY: hy, halfZ: hz },
         friction,
         restitution,
-        ...(options.layers !== undefined ? { layer: options.layers } : {}),
+        ...(options.layer !== undefined ? { layer: options.layer } : {}),
         ...(options.mask !== undefined ? { mask: options.mask } : {}),
       };
       createBodyLocal(ctx, localId, {
@@ -636,11 +637,11 @@ export function createAddCompoundCollider(ctx: PluginContext): Physics3DAPI["add
     if (!owned) return null;
     const slot = owned.slot;
 
-    const { shapes, layers, mask } = options;
+    const { shapes, layer, mask } = options;
     const colliderIds = shapes.map(() => nextColliderId());
 
     if (ctx.backendMode === "wasm" && ctx.wasmBridge?.physics3d_add_compound_collider) {
-      const layerBits = resolveLayerBits(layers, ctx.layerRegistry, "layers");
+      const layerBits = resolveLayerBits(layer, ctx.layerRegistry);
       const maskBits = resolveLayerBits(mask, ctx.layerRegistry, "mask");
       const buf = encodeCompoundShapes(shapes, colliderIds);
       // Rust inserts every part or throws (INVALID_COMPOUND, COLLIDER_ALREADY_EXISTS, ...).
@@ -665,7 +666,7 @@ export function createAddCompoundCollider(ctx: PluginContext): Physics3DAPI["add
       if (existing === undefined) ctx.localColliders.set(slot, registered);
       shapes.forEach((shape, i) => {
         registered.push(
-          shapeSpecToColliderOptions(shape, uncheckedAt(colliderIds, i), layers, mask),
+          shapeSpecToColliderOptions(shape, uncheckedAt(colliderIds, i), layer, mask),
         );
       });
     } else {
@@ -673,7 +674,7 @@ export function createAddCompoundCollider(ctx: PluginContext): Physics3DAPI["add
         addColliderImpl(
           ctx,
           entityId,
-          shapeSpecToColliderOptions(shape, uncheckedAt(colliderIds, i), layers, mask),
+          shapeSpecToColliderOptions(shape, uncheckedAt(colliderIds, i), layer, mask),
         );
       });
     }

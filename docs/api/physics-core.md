@@ -61,7 +61,7 @@ Names that landed with the shared physics layer. Hook order, the empty-contact r
 | export | `Physics3DVec3`, `Physics3DQuat`, `Physics3DEntityId` | `Vec3`, `Quat` (`@gwenjs/math`), `EntityId` (`@gwenjs/schema`) |
 | export | `Physics3DCollisionContact`, `Physics3DSensorState` (3D). The 2D declarations used those contact and sensor names. | `CollisionContact`, `SensorState` (`@gwenjs/physics-core`) |
 | export | `ContactEvent` (2D), `ContactEvent3D` | removed. The payload is `CollisionContact` (`@gwenjs/physics-core`) |
-| option | `membershipLayers` / `filterLayers` (2D collider), `layers` (3D collider, except the compound collider field) | `layer` / `mask` |
+| option | `membershipLayers` / `filterLayers` (2D collider), `layers` (3D collider, compound collider, bulk static boxes, and spatial query bitmask) | `layer` / `mask` |
 | option | `materialPreset` (3D) | `material`, a string |
 | option | `initialAngle` (2D kinematic) | `initialRotation` |
 | option | prefab field `initialVelocity` with components vx and vy (2D) | `initialLinearVelocity` |

@@ -290,7 +290,7 @@ export interface RaycastOpts {
    * Collision layer membership bitmask.
    * @default 0xFFFFFFFF
    */
-  layers?: number;
+  layer?: number;
   /**
    * Collision filter bitmask (which layers to hit).
    * @default 0xFFFFFFFF
@@ -364,7 +364,7 @@ export interface ShapeCastOpts {
    * Collision layer membership bitmask.
    * @default 0xFFFFFFFF
    */
-  layers?: number;
+  layer?: number;
   /**
    * Collision filter bitmask.
    * @default 0xFFFFFFFF
@@ -438,7 +438,7 @@ export interface OverlapOpts {
    * Collision layer membership bitmask.
    * @default 0xFFFFFFFF
    */
-  layers?: number;
+  layer?: number;
   /**
    * Collision filter bitmask.
    * @default 0xFFFFFFFF

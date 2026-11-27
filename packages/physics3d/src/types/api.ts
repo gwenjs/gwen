@@ -730,7 +730,7 @@ export interface Physics3DAPI {
     origin: Vec3,
     direction: Vec3,
     maxDist: number,
-    opts?: { layers?: number; mask?: number; solid?: boolean },
+    opts?: { layer?: number; mask?: number; solid?: boolean },
   ): RayHit | null;
 
   /**
@@ -752,7 +752,7 @@ export interface Physics3DAPI {
     dir: Vec3,
     shape: Physics3DColliderShape,
     maxDist: number,
-    opts?: { layers?: number; mask?: number },
+    opts?: { layer?: number; mask?: number },
   ): ShapeHit | null;
 
   /**
@@ -770,7 +770,7 @@ export interface Physics3DAPI {
     pos: Vec3,
     rot: Quat,
     shape: Physics3DColliderShape,
-    opts?: { layers?: number; mask?: number; maxResults?: number },
+    opts?: { layer?: number; mask?: number; maxResults?: number },
   ): EntityId[];
 
   /**
@@ -784,7 +784,7 @@ export interface Physics3DAPI {
    */
   projectPoint(
     point: Vec3,
-    opts?: { layers?: number; mask?: number; solid?: boolean },
+    opts?: { layer?: number; mask?: number; solid?: boolean },
   ): PointProjection | null;
 
   // ─── RFC-09: Character Controller ────────────────────────────────────────────

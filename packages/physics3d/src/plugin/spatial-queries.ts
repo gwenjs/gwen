@@ -49,10 +49,10 @@ export function createSpatialQueryMethods(
       origin: Vec3,
       direction: Vec3,
       maxDist: number,
-      opts: { layers?: number; mask?: number; solid?: boolean } = {},
+      opts: { layer?: number; mask?: number; solid?: boolean } = {},
     ): RayHit | null {
       if (ctx.backendMode === "wasm") {
-        const { layers = 0xffffffff, mask = 0xffffffff, solid = true } = opts;
+        const { layer = 0xffffffff, mask = 0xffffffff, solid = true } = opts;
         // A miss is `[0]`. A missing world or a Rapier trap is not a miss: it throws.
         const result = callPhysics3DExport(ctx, "physics3d_cast_ray", () =>
           liveWasmBridge(ctx.wasmBridge).physics3d_cast_ray?.(
@@ -63,7 +63,7 @@ export function createSpatialQueryMethods(
             direction.y,
             direction.z,
             maxDist,
-            layers,
+            layer,
             mask,
             solid,
           ),
@@ -99,10 +99,10 @@ export function createSpatialQueryMethods(
       dir: Vec3,
       shape: Physics3DColliderShape,
       maxDist: number,
-      opts: { layers?: number; mask?: number } = {},
+      opts: { layer?: number; mask?: number } = {},
     ): ShapeHit | null {
       if (ctx.backendMode === "wasm") {
-        const { layers = 0xffffffff, mask = 0xffffffff } = opts;
+        const { layer = 0xffffffff, mask = 0xffffffff } = opts;
         const [shapeType, p0, p1, p2] = encodeShape(shape);
         const result = callPhysics3DExport(ctx, "physics3d_cast_shape", () =>
           liveWasmBridge(ctx.wasmBridge).physics3d_cast_shape?.(
@@ -121,7 +121,7 @@ export function createSpatialQueryMethods(
             p1,
             p2,
             maxDist,
-            layers,
+            layer,
             mask,
           ),
         );
@@ -164,11 +164,11 @@ export function createSpatialQueryMethods(
       pos: Vec3,
       rot: Quat,
       shape: Physics3DColliderShape,
-      opts: { layers?: number; mask?: number; maxResults?: number } = {},
+      opts: { layer?: number; mask?: number; maxResults?: number } = {},
     ): EntityId[] {
       if (ctx.backendMode === "wasm") {
         const {
-          layers = 0xffffffff,
+          layer = 0xffffffff,
           mask = 0xffffffff,
           maxResults = ctx.MAX_COMPOSABLE_OVERLAP_RESULTS,
         } = opts;
@@ -206,7 +206,7 @@ export function createSpatialQueryMethods(
               p0,
               p1,
               p2,
-              layers,
+              layer,
               mask,
               ctx.overlapScratchPtr,
               safeMax,
@@ -229,16 +229,16 @@ export function createSpatialQueryMethods(
 
     projectPoint(
       point: Vec3,
-      opts: { layers?: number; mask?: number; solid?: boolean } = {},
+      opts: { layer?: number; mask?: number; solid?: boolean } = {},
     ): PointProjection | null {
       if (ctx.backendMode === "wasm") {
-        const { layers = 0xffffffff, mask = 0xffffffff, solid = true } = opts;
+        const { layer = 0xffffffff, mask = 0xffffffff, solid = true } = opts;
         const result = callPhysics3DExport(ctx, "physics3d_project_point", () =>
           liveWasmBridge(ctx.wasmBridge).physics3d_project_point?.(
             point.x,
             point.y,
             point.z,
-            layers,
+            layer,
             mask,
             solid,
           ),
@@ -303,7 +303,7 @@ export function createSpatialQueryMethods(
           opts.direction.y,
           opts.direction.z,
           opts.maxDist ?? 100,
-          u32ToF32(ctx, opts.layers ?? 0xffffffff),
+          u32ToF32(ctx, opts.layer ?? 0xffffffff),
           u32ToF32(ctx, opts.mask ?? 0xffffffff),
           (opts.solid ?? true) ? 1.0 : 0.0,
         ]),
@@ -319,7 +319,7 @@ export function createSpatialQueryMethods(
           opts.direction.y,
           opts.direction.z,
           opts.maxDist ?? 100,
-          opts.layers ?? 0xffffffff,
+          opts.layer ?? 0xffffffff,
           opts.mask ?? 0xffffffff,
           opts.solid ?? true,
         );
@@ -382,7 +382,7 @@ export function createSpatialQueryMethods(
           p1,
           p2,
           opts.maxDist ?? 100,
-          u32ToF32(ctx, opts.layers ?? 0xffffffff),
+          u32ToF32(ctx, opts.layer ?? 0xffffffff),
           u32ToF32(ctx, opts.mask ?? 0xffffffff),
         ]),
       });
@@ -407,7 +407,7 @@ export function createSpatialQueryMethods(
           opts.direction.y,
           opts.direction.z,
           opts.maxDist ?? 100,
-          opts.layers ?? 0xffffffff,
+          opts.layer ?? 0xffffffff,
           opts.mask ?? 0xffffffff,
         );
       }
@@ -463,7 +463,7 @@ export function createSpatialQueryMethods(
           rotation.y,
           rotation.z,
           rotation.w,
-          opts.layers ?? 0xffffffff,
+          opts.layer ?? 0xffffffff,
           opts.mask ?? 0xffffffff,
           opts.maxResults ?? ctx.MAX_COMPOSABLE_OVERLAP_RESULTS,
         );
