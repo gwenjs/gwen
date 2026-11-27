@@ -50,89 +50,35 @@ my-game/
 
 ## Build Configuration — `gwen.config.ts`
 
-Define modules and engine options at build time:
+Define engine options at build time:
 
-```typescript
-// gwen.config.ts
-import { defineConfig } from '@gwenjs/app'
-
-export default defineConfig({
-  modules: ['@gwenjs/physics2d'],
-  engine: {
-    maxEntities: 10_000,
-  },
-})
-```
+<<< @/../examples/hello-light/gwen.config.ts{ts}
 
 ## Your First Component
 
 A component is a piece of data. Let's define a `Position` component:
 
 **src/components/Position.ts**
-```typescript
-import { defineComponent, Types } from '@gwenjs/core'
-
-export const Position = defineComponent({
-  name: 'Position',
-  schema: {
-    x: Types.f32,
-    y: Types.f32,
-  },
-})
-```
+<<< @/../examples/hello-light/src/components/Position.ts{ts}
 
 ## Your First System
 
 Systems iterate over entities and update them each frame.
 
 **src/systems/Movement.ts**
-```typescript
-import { Position } from "../components/Position";
-import { defineSystem, onUpdate, useQuery } from "@gwenjs/core/system";
-
-export const MovementSystem = defineSystem(() => {
-  const query = useQuery([Position]);
-
-  onUpdate((dt) => {
-    for (const chunk of query) {
-      const pos = chunk.get(Position);
-      for (let row = 0; row < chunk.count; row += 1) {
-        pos.x[row] = (pos.x[row] ?? 0) + 0.5 * dt;
-        pos.y[row] = (pos.y[row] ?? 0) + 0.1 * dt;
-      }
-    }
-  });
-});
-```
+<<< @/../examples/hello-light/src/systems/Movement.ts{ts}
 
 ## Your First Scene
 
 **src/scenes/GameScene.ts**
-```typescript
-import { defineScene, useSystem } from '@gwenjs/core/scene'
-import { MovementSystem } from '../systems/Movement'
-
-export const GameScene = defineScene('Game', () => {
-  useSystem(MovementSystem())
-})
-```
+<<< @/../examples/hello-light/src/scenes/GameScene.ts{ts}
 
 ## Scene Router
 
 Define navigation between scenes:
 
 **src/router.ts**
-```typescript
-import { defineSceneRouter } from '@gwenjs/core/scene'
-import { GameScene } from './scenes/GameScene'
-
-export const AppRouter = defineSceneRouter({
-  initial: 'game',
-  routes: {
-    game: { scene: GameScene, on: {} },
-  },
-})
-```
+<<< @/../examples/hello-light/src/router.ts{ts}
 
 ## Run It
 
