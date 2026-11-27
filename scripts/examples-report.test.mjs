@@ -75,3 +75,60 @@ test("report.mjs says there is no build output when dist is absent", () => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+const BUILD_ID_A = "0".repeat(64);
+const BUILD_ID_B = "9f2c4be8a1d36705c8e41fb2a7d95036e1b4c8a72f3d5e60b9a1c4d7e2f80356";
+
+/** Runs report.mjs on a dist whose only chunk is `source` and returns the `jsGzipBytes` it writes. */
+function jsGzipBytesOf(source) {
+  let bytes = -1;
+  withExample((dist, run) => {
+    writeFileSync(join(dist, "assets", "index.js"), source);
+    assert.equal(run().status, 0);
+    bytes = JSON.parse(readFileSync(join(dist, "gwen-example-report.json"), "utf8")).jsGzipBytes;
+  });
+  return bytes;
+}
+
+/** A chunk shaped like the entry chunk of an example: a wasm glue contract and the wasm asset URL. */
+function chunk({ contract, wasmHash = "BdQ1WP0Y", workerHash = "EzIvBQ2d" }) {
+  return [
+    "const a=1;function f(x){return x+a}",
+    `const w=new URL(\`/assets/gwen_core_bg-${wasmHash}.wasm\`,import.meta.url);`,
+    `const k=new Worker(new URL(\`/assets/bvh-worker-${workerHash}.js\`,import.meta.url));`,
+    contract,
+    "export{f,w,k};",
+    "",
+  ].join("\n");
+}
+
+test("report.mjs measures the same js gzip size for two wasm builds that differ only by their build id", () => {
+  const withId = (id) =>
+    chunk({ contract: `const c={buildId:\`${id}\`,fingerprint:\`gwen-core\`};` });
+  assert.equal(jsGzipBytesOf(withId(BUILD_ID_A)), jsGzipBytesOf(withId(BUILD_ID_B)));
+  // Both sides of the boundary: only a 64 character id after the `buildId` key is replaced.
+  const other = (body) => chunk({ contract: `const c={${body}};` });
+  assert.notEqual(
+    jsGzipBytesOf(other(`salt:\`${BUILD_ID_A}\``)),
+    jsGzipBytesOf(other(`salt:\`${BUILD_ID_B}\``)),
+    "a 64 character value after another key still counts",
+  );
+  assert.notEqual(
+    jsGzipBytesOf(other(`buildId:\`${BUILD_ID_A.slice(1)}\``)),
+    jsGzipBytesOf(other(`buildId:\`${BUILD_ID_B.slice(1)}\``)),
+    "a 63 character build id still counts",
+  );
+  assert.notEqual(
+    jsGzipBytesOf(other(`buildId:\`${BUILD_ID_A}0\``)),
+    jsGzipBytesOf(other(`buildId:\`${BUILD_ID_B}a\``)),
+    "a 65 character build id still counts",
+  );
+});
+
+test("report.mjs measures the same js gzip size for two wasm builds that differ only by their asset hashes", () => {
+  const contract = "const c={buildId:`" + BUILD_ID_B + "`};";
+  assert.equal(
+    jsGzipBytesOf(chunk({ contract, wasmHash: "BdQ1WP0Y", workerHash: "EzIvBQ2d" })),
+    jsGzipBytesOf(chunk({ contract, wasmHash: "aaaaaaaa", workerHash: "bbbbbbbb" })),
+  );
+});

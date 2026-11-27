@@ -170,6 +170,26 @@ async function loadAllowedBudget(): Promise<(baseline: number) => number> {
   };
 }
 
+/** `stableGzipBytes` of `scripts/stable-gzip.mjs`: the gzip size of JS text without its wasm build hashes. */
+async function loadStableGzip(): Promise<(text: string) => number> {
+  const mod: unknown = await import(
+    pathToFileURL(path.join(repoRoot, "scripts/stable-gzip.mjs")).href
+  ).catch(() => ({}));
+  const stable = Reflect.get(Object(mod), "stableGzipBytes");
+  expect(typeof stable, "stableGzipBytes is exported by scripts/stable-gzip.mjs").toBe("function");
+  return (text: string): number => {
+    const value: unknown = typeof stable === "function" ? stable(text) : null;
+    expect(typeof value, "stableGzipBytes returns a number").toBe("number");
+    return typeof value === "number" ? value : Number.NaN;
+  };
+}
+
+/** The same code as a build of another wasm: a different build id and different asset hashes. */
+const withOtherWasmHashes = (code: string): string =>
+  code
+    .replace(/(\bbuildId["'`]?\s*:\s*["'`])[0-9a-f]{64}/g, `$1${"9f2c4be8a1d36705".repeat(4)}`)
+    .replace(/(\/assets\/[\w.-]+?-)[A-Za-z0-9_-]{8}(\.(?:js|wasm|css))/g, "$1ZZZZZZZZ$2");
+
 /** A failure names the marker: `[marker, found]` against `[marker, expected]`. */
 function expectMarkers(text: string, markers: readonly string[], expected: boolean): void {
   for (const marker of markers) {
@@ -289,8 +309,19 @@ describe("bundle-size", () => {
       ),
     );
     const allowedBudget = await loadAllowedBudget();
+    const stableGzipBytes = await loadStableGzip();
+    const jsCode = dist.js.map((f) => fs.readFileSync(path.join(dist.out, f), "utf8"));
+    const jsGzipOf = (texts: string[]): number =>
+      texts.reduce((sum, text) => sum + stableGzipBytes(text), 0);
+    const jsGzip = jsGzipOf(jsCode);
+    // The same code built with another wasm (other build id and asset hashes) has the same size.
+    const otherWasm = jsCode.map(withOtherWasmHashes);
+    expect(otherWasm, "the build carries a build id and asset hashes to replace").not.toEqual(
+      jsCode,
+    );
+    expect(jsGzipOf(otherWasm)).toBe(jsGzip);
     // Vitest prints `expected <measured> to be less than or equal to <allowed>`.
-    expect(gzipSum(dist, dist.js)).toBeLessThanOrEqual(allowedBudget(budgets[v].jsGzipBytes));
+    expect(jsGzip).toBeLessThanOrEqual(allowedBudget(budgets[v].jsGzipBytes));
     expect(gzipSum(dist, dist.wasm)).toBeLessThanOrEqual(allowedBudget(budgets[v].wasmGzipBytes));
   });
 
