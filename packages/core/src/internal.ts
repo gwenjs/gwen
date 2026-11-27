@@ -72,7 +72,7 @@ export { _getActorContext, _getActorEntityId } from "./actor/runtime/define-acto
 
 export { GwenScope } from "./context/scope";
 
-export { hotCompareComponent, hotReplaceSystem } from "./hmr";
+export { hotCompareComponent, hotReplaceActor, hotReplaceLayout, hotReplaceSystem } from "./hmr";
 export type { GwenHotKind, GwenHotReloadReason, GwenHotReport } from "./hmr";
 
 export { readInterpolatedTransform2D, transformPairOf } from "./engine/transform-pair";
