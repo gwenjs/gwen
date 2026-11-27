@@ -17,6 +17,8 @@ export interface ProbeSnapshot {
   coinsCollected: number;
   playerX: number;
   driftX: number;
+  fps: number;
+  rawFrameTimeMs: number;
 }
 
 function serverReachable(): boolean {
@@ -79,6 +81,8 @@ export async function snap(page: Page): Promise<ProbeSnapshot | undefined> {
     coinsCollected: numberField(value, "coinsCollected"),
     playerX: numberField(value, "playerX"),
     driftX: numberField(value, "driftX"),
+    fps: numberField(value, "fps"),
+    rawFrameTimeMs: numberField(value, "rawFrameTimeMs"),
   };
 }
 

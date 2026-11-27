@@ -2625,3 +2625,80 @@ test("the TypeScript job runs the package tests one project at a time", () => {
     "the pull request path runs one project at a time and keeps --if-present",
   );
 });
+
+test("example-smoke runs platformer-2d, hello-light and hello-3d after rust", () => {
+  const job = jobBlock(readCi(), "example-smoke");
+  assert.notEqual(job, "", "example-smoke job is absent");
+  assert.match(job, /needs: \[[^\]]*\bchanges\b[^\]]*\]/);
+  assert.match(job, /needs: \[[^\]]*\brust\b[^\]]*\]/);
+  assert.match(job, /if: needs\.changes\.outputs\.code == 'true'/);
+  assert.match(job, /fail-fast: false/);
+  assert.match(job, /example: \[platformer-2d, hello-light, hello-3d\]/);
+});
+
+test("example-smoke downloads the four WASM artifacts, never caches and never continues on error", () => {
+  const job = jobBlock(readCi(), "example-smoke");
+  assert.notEqual(job, "", "example-smoke job is absent");
+  const buildAt = job.indexOf("run: pnpm build:ts");
+  assert.notEqual(buildAt, -1, "no pnpm build:ts step");
+  for (const [name, artifactPath] of [
+    ["physics3d-build-tools", "packages/physics3d/build-tools/"],
+    ["physics3d-wasm-bvh", "packages/physics3d/wasm/bvh/"],
+    ["physics3d-fracture-wasm", "packages/physics3d-fracture/wasm/"],
+    ["core-wasm", "packages/core/wasm/"],
+  ]) {
+    const found = new RegExp(
+      `name: ${name}\\n\\s+path: ${artifactPath.replace(/\//g, "\\/")}`,
+    ).exec(job);
+    assert.ok(found, name);
+    assert.equal(found.index < buildAt, true, name);
+  }
+  assert.doesNotMatch(job, /continue-on-error/);
+  assert.doesNotMatch(job, /actions\/cache@/);
+});
+
+test("example-smoke typechecks, builds, checks the output and plays the 2D game", () => {
+  const job = jobBlock(readCi(), "example-smoke");
+  assert.notEqual(job, "", "example-smoke job is absent");
+  const order = [
+    "run: pnpm --filter example-${{ matrix.example }} example:typecheck",
+    "run: pnpm --filter example-${{ matrix.example }} example:build",
+    "run: pnpm --filter example-${{ matrix.example }} example:test",
+    "run: pnpm --filter example-platformer-2d example:e2e",
+    "run: node examples/_harness/report.mjs ${{ matrix.example }}",
+  ].map((step) => job.indexOf(step));
+  assert.equal(
+    order.every((at) => at >= 0),
+    true,
+    order.join(),
+  );
+  assert.equal(order.join(), [...order].sort((a, b) => a - b).join(), order.join());
+  assert.match(
+    job,
+    /if: matrix\.example == 'platformer-2d'\n\s+run: pnpm --filter example-platformer-2d example:e2e/,
+  );
+  assert.match(job, /GITHUB_STEP_SUMMARY/);
+  const read = (file) => JSON.parse(readFileSync(join(root, file), "utf8"));
+  const pin = read("packages/core/package.json").devDependencies["@playwright/test"];
+  assert.equal(
+    read("examples/platformer-2d/package.json").devDependencies["@playwright/test"],
+    pin,
+  );
+});
+
+test("example-smoke has a timeout-minutes", () => {
+  const job = jobBlock(readCi(), "example-smoke");
+  assert.notEqual(job, "", "example-smoke job is absent");
+  const found = job.match(/timeout-minutes:\s*(\d+)/);
+  assert.ok(found, "timeout-minutes is absent");
+  assert.equal(Number.isInteger(Number(found[1])) && Number(found[1]) > 0, true);
+});
+
+test("ci-status needs and reads example-smoke", () => {
+  const report = evaluateCiStatus(readCi());
+  assert.equal(report.jobs.includes("example-smoke"), true);
+  const unlisted = report.jobs.filter((job) => job !== "ci-status" && !report.needs.includes(job));
+  assert.deepEqual(unlisted, []);
+  assert.deepEqual(report.unread, []);
+  assert.match(jobBlock(readCi(), "ci-status"), /needs\['example-smoke'\]\.result/);
+});
