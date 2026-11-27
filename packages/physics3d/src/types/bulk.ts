@@ -1,3 +1,4 @@
+import type { LayerSelector } from "@gwenjs/physics-core";
 import type { EntityId } from "@gwenjs/schema";
 
 // ─── Bulk spawn ───────────────────────────────────────────────────────────────
@@ -20,10 +21,10 @@ export interface BulkStaticBoxesOptions {
   friction?: number;
   /** Bounciness coefficient in [0, 1]. @default 0.0 */
   restitution?: number;
-  /** Named collision layers each box belongs to, or numeric bitmask values. */
-  layers?: (string | number)[];
-  /** Named layers each box collides with, or numeric bitmask values. */
-  mask?: (string | number)[];
+  /** Collision layer each box belongs to. A name, a raw bitmask, or a list OR-ed together. */
+  layer?: LayerSelector;
+  /** Layers each box collides with. Same shapes as `layer`. */
+  mask?: LayerSelector;
 }
 
 /**

@@ -179,7 +179,7 @@ const TerrainActor = defineActor(TerrainPrefab, () => {
 
 **Mesh** accepte `offsetX`, `offsetY`, `offsetZ`, `isSensor`, `layer` et `mask` avec le même sens. Il n'a pas de `material`.
 
-**Compound** accepte `layers?: Array<number | string>` (appartenance ; le champ est `layers`, pas `layer`) et `mask?: Array<number | string>`. Il n'a pas de `material`. Chaque forme de `shapes` a son propre décalage et son `isSensor`.
+**Compound** accepte `layer` et `mask` avec le même sens, partagés par toutes les formes. Il n'a pas de `material`. Chaque forme de `shapes` a son propre décalage et son `isSensor`.
 
 **Collider de boîte :**
 - `w: number` — Largeur (X)
