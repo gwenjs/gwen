@@ -65,6 +65,28 @@ export function componentTypeIds(engine: GwenEngine): ReadonlyMap<ComponentType,
   return registries.peek(engine)?.getAll() ?? new Map();
 }
 
+/**
+ * Accepted definition last passed to `getOrRegister`, per registry and name
+ * (after the lane check in `getOrRegister` and in `finishRegister`). Written
+ * and read only in a dev build, so a prod bundle drops it. A string
+ * registration stores nothing. A rejected call does not replace the
+ * definition already stored.
+ */
+const sourcesOf = new WeakMap<EngineComponentRegistry, Map<string, ComponentLayoutSource>>();
+
+function rememberSource(
+  registry: EngineComponentRegistry,
+  name: string,
+  source: ComponentLayoutSource,
+): void {
+  let sources = sourcesOf.get(registry);
+  if (sources === undefined) {
+    sources = new Map();
+    sourcesOf.set(registry, sources);
+  }
+  sources.set(name, source);
+}
+
 /** One f32 lane. Names still reach the registry until the engine passes definitions. */
 const NAME_LANES = Uint8Array.of(0);
 
@@ -193,7 +215,7 @@ export class EngineComponentRegistry {
         );
       }
       if (__GWEN_DEV__) {
-        if (typeof typeOrDef !== "string") this.sources.set(name, typeOrDef);
+        if (typeof typeOrDef !== "string") rememberSource(this, name, typeOrDef);
       }
       return existing;
     }
@@ -271,7 +293,9 @@ export class EngineComponentRegistry {
     this.layouts.delete(type);
     this.owners.delete(type);
     this.fieldNames.delete(type);
-    this.sources.delete(type);
+    if (__GWEN_DEV__) {
+      sourcesOf.get(this)?.delete(type);
+    }
   }
 
   /**
@@ -294,20 +318,12 @@ export class EngineComponentRegistry {
   /** Field names in schema order. Filled only in a dev build. */
   private fieldNames = new Map<string, readonly string[]>();
 
-  /**
-   * Accepted definition last passed to `getOrRegister`
-   * (after the lane check in `getOrRegister` and in `finishRegister`).
-   * Filled only in a dev build. A string registration stores nothing.
-   * A rejected call does not replace the definition already stored.
-   */
-  private sources = new Map<string, ComponentLayoutSource>();
-
   /** Store the owner and, in a dev build, the schema field names and the source. */
   private finishRegister(name: string, typeOrDef: ComponentType | ComponentLayoutSource): void {
     this.owners.set(name, currentPluginName());
     if (__GWEN_DEV__) {
       this.rememberFields(name, typeOrDef);
-      if (typeof typeOrDef !== "string") this.sources.set(name, typeOrDef);
+      if (typeof typeOrDef !== "string") rememberSource(this, name, typeOrDef);
     }
   }
 
@@ -338,31 +354,6 @@ export class EngineComponentRegistry {
     }
     return Object.freeze(rows);
   }
-
-  /**
-   * Definitions in registration order. A string registration is skipped.
-   * Each `source` is the object last accepted by `getOrRegister` for that name.
-   * That object can be the reader's own rebuild: `registered` in
-   * introspection/entities.ts builds one, and `createChunkQuery` in
-   * engine/chunk-query.ts passes it back.
-   */
-  listSources(): readonly {
-    readonly name: string;
-    readonly typeId: number;
-    readonly source: ComponentLayoutSource;
-  }[] {
-    const rows: {
-      readonly name: string;
-      readonly typeId: number;
-      readonly source: ComponentLayoutSource;
-    }[] = [];
-    for (const [name, typeId] of this.typeIds) {
-      const source = this.sources.get(name);
-      if (source === undefined) continue;
-      rows.push({ name, typeId, source });
-    }
-    return rows;
-  }
 }
 
 /**
@@ -375,12 +366,31 @@ export function componentListing(engine: GwenEngine): readonly GwenIntrospection
 }
 
 /**
- * Registered definitions of `engine`, or an empty list when the registry was
- * never created or `stop()` already released it. Does not throw.
+ * Registered definitions of `engine` in registration order, or an empty list
+ * when the registry was never created or `stop()` already released it. A string
+ * registration is skipped. Each `source` is the object last accepted by
+ * `getOrRegister` for that name. That object can be the reader's own rebuild:
+ * `registered` in introspection/entities.ts builds one, and `createChunkQuery`
+ * in engine/chunk-query.ts passes it back. Does not throw.
  * @internal
  */
-export function componentSources(
-  engine: GwenEngine,
-): ReturnType<EngineComponentRegistry["listSources"]> {
-  return registries.peek(engine)?.listSources() ?? [];
+export function componentSources(engine: GwenEngine): readonly {
+  readonly name: string;
+  readonly typeId: number;
+  readonly source: ComponentLayoutSource;
+}[] {
+  const registry = registries.peek(engine);
+  const sources = registry === undefined ? undefined : sourcesOf.get(registry);
+  if (registry === undefined || sources === undefined) return [];
+  const rows: {
+    readonly name: string;
+    readonly typeId: number;
+    readonly source: ComponentLayoutSource;
+  }[] = [];
+  for (const [name, typeId] of registry.getAll()) {
+    const source = sources.get(name);
+    if (source === undefined) continue;
+    rows.push({ name, typeId, source });
+  }
+  return rows;
 }
