@@ -333,6 +333,34 @@ export function hookEngineListener<K extends GwenRuntimeHookName>(
   return hooks.hook(name, fn as never); // boundary: hookable infers the callback type from the name, and K is generic here
 }
 
+/**
+ * Listeners per hook name, for the dev introspection service.
+ * Same figures as {@link countHookListeners}: engine-owned listeners are left out,
+ * `beforeEach` and `afterEach` spies are not counted, and a name with no listener
+ * left is omitted. Rows are sorted by name.
+ * Empty when `trackCoreHookListeners` never wrapped `hooks`.
+ * @internal
+ */
+export function listHookCounts(
+  hooks: Hookable<GwenRuntimeHooks>,
+): readonly { readonly name: string; readonly count: number }[] {
+  const counts = coreHookCounts.get(hooks);
+  if (counts === undefined) return [];
+  const rows: { readonly name: string; readonly count: number }[] = [];
+  const add = (name: string, list: readonly unknown[]): void => {
+    const count = counted(list);
+    if (count > 0) rows.push({ name, count });
+  };
+  for (const name of TRACKED_HOOKS) add(name, counts.listeners[name]);
+  for (const [name, list] of counts.others) add(name, list);
+  rows.sort((left, right) => {
+    if (left.name < right.name) return -1;
+    if (left.name > right.name) return 1;
+    return 0;
+  });
+  return rows;
+}
+
 /** Listeners in `list`, excluding ones {@link hookEngineListener} registered. */
 function counted(list: readonly unknown[]): number {
   let total = 0;

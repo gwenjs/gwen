@@ -6,7 +6,8 @@
  * A production bundle drops this module.
  * Not exported from the package root or from `./internal`.
  *
- * `hooks` is still a placeholder. P-94-2b fills it.
+ * `hooks()` lists the listener count of every hook that has one, sorted by name,
+ * engine-owned listeners (the scene recorder) left out.
  * `entities().available` is false only when the engine state is `"faulted"`.
  * A stopped engine returns an empty page with `available` true, and `entity`
  * returns `undefined`.
@@ -14,7 +15,7 @@
  * `snapshot().phases` lists one system id per handler, in dispatch order.
  * `revisions()` compares a signature of each section on every call.
  * A change that appears and reverts between two polls does not move that
- * counter. `revisions().hooks` stays 0 until P-94-2b.
+ * counter. `revisions().hooks` moves when the listener list changes.
  *
  * `snapshot().entityCount` is 0 when `state` is `"faulted"` or `"stopped"`.
  * The schema text names only the faulted case. Stopped is zeroed here so a
@@ -29,6 +30,7 @@ import {
   type GwenEngineState,
   type GwenIntrospection,
   type GwenIntrospectionComponent,
+  type GwenIntrospectionHookCount,
   type GwenIntrospectionPlugin,
   type GwenIntrospectionRevisions,
   type GwenIntrospectionSnapshot,
@@ -109,6 +111,8 @@ export interface IntrospectionDeps {
    * `pass === 0` means it never ran in a timed pass.
    */
   readonly timing: (id: string) => SystemTiming | undefined;
+  /** Listener count per hook name, sorted by name, zero counts omitted. */
+  readonly hooks: () => readonly GwenIntrospectionHookCount[];
   /** Run `undo` from `stop()`, under `label`. */
   readonly onStop: (label: string, undo: () => void) => void;
   /** What the paged entity reads need. */
@@ -272,6 +276,12 @@ export function createIntrospection(deps: IntrospectionDeps): GwenIntrospection 
     return frozenList(rows);
   }
 
+  function hookRows(): readonly GwenIntrospectionHookCount[] {
+    return frozenList(
+      deps.hooks().map((row) => Object.freeze({ name: row.name, count: row.count })),
+    );
+  }
+
   function componentRows(): readonly GwenIntrospectionComponent[] {
     return frozenList(deps.components());
   }
@@ -307,6 +317,7 @@ export function createIntrospection(deps: IntrospectionDeps): GwenIntrospection 
     const plugins = pluginRows();
     const services = serviceRows();
     const components = componentRows();
+    const hooks = hookRows();
     return Object.freeze({
       frame: deps.frameCount(),
       scenes: scenesRevision,
@@ -322,7 +333,7 @@ export function createIntrospection(deps: IntrospectionDeps): GwenIntrospection 
         "components",
         components.map((row) => `${row.name}:${row.typeId}`).join("\0"),
       ),
-      hooks: 0,
+      hooks: revision("hooks", hooks.map((row) => `${row.name}\0${row.count}`).join("\0")),
     });
   }
 
@@ -340,7 +351,6 @@ export function createIntrospection(deps: IntrospectionDeps): GwenIntrospection 
     snapshot,
     entities: reader.entities,
     entity: reader.entity,
-    /** Placeholder. P-94-2b returns the listener counts. */
-    hooks: () => frozenList([]),
+    hooks: hookRows,
   });
 }
