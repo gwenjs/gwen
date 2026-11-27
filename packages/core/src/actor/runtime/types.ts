@@ -98,6 +98,12 @@ export interface ActorInstance<PublicAPI> {
    */
   _children?: Set<EntityId>;
   /**
+   * Props the instance was spawned or last acquired with. Written in a dev build only, so a hot
+   * swap can run the new factory with them. Always `undefined` in a production build.
+   * @internal
+   */
+  _props?: unknown;
+  /**
    * Public API returned by the factory.
    * `undefined` until the factory returns, including while the factory itself runs.
    */

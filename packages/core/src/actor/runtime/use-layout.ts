@@ -23,6 +23,7 @@ import { popEngine, pushEngine } from "../../engine/engine-local";
 import { toGwenWasmError } from "../../engine/wasm-bridge";
 import { _withLayoutContext } from "./place";
 import { GwenError } from "@gwenjs/schema";
+import { trackLayout } from "../../hmr/layout-installs.js";
 import { CoreErrorCodes } from "../../engine/engine-errors";
 import { entityIndex } from "../../engine/engine-api";
 import type { EntityId } from "../../engine/engine-api";
@@ -288,6 +289,32 @@ export function useLayout<Refs extends Record<string, PlaceHandle<unknown>>>(
     load,
     dispose,
   };
+
+  // Dev only: a hot swap reloads this handle when its layout changes.
+  if (__GWEN_DEV__) {
+    trackLayout(layoutDef, engine, {
+      owned: () => _entityIds,
+      async reload() {
+        if (!_active && _cancel === undefined) return false;
+        // A swap despawns the actors first: only the entities still alive are destroyed here.
+        _entityIds = _entityIds.filter((id) => engine.isAlive(id));
+        await dispose();
+        try {
+          await load();
+        } catch (error: unknown) {
+          engine.errors.emit({
+            level: "error",
+            code: CoreErrorCodes.LAYOUT_LOAD_FAILED,
+            message: "[GWEN] useLayout: the layout load failed.",
+            source: "useLayout",
+            error,
+          });
+          return false;
+        }
+        return true;
+      },
+    });
+  }
 
   if (!options.lazy) {
     // Nobody awaits a non-lazy load: report a failure on the engine error bus.

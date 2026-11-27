@@ -20,6 +20,7 @@
  * ```
  */
 
+import { createLayoutRecord, HOT_LAYOUT } from "../../hmr/layout-installs.js";
 import type { LayoutDefinition, PlaceHandle } from "./types";
 
 /**
@@ -43,8 +44,16 @@ import type { LayoutDefinition, PlaceHandle } from "./types";
 export function defineLayout<Refs extends Record<string, PlaceHandle<unknown>>>(
   factory: () => Refs,
 ): LayoutDefinition<Refs> {
-  return {
+  const definition: LayoutDefinition<Refs> = {
     _factory: factory,
     __layoutName__: "anonymous",
   };
+  // Dev only: a hot swap finds the handles loaded from this layout.
+  if (__GWEN_DEV__) {
+    Object.defineProperty(definition, HOT_LAYOUT, {
+      configurable: true,
+      value: createLayoutRecord(definition),
+    });
+  }
+  return definition;
 }
