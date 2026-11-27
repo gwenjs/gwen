@@ -21,6 +21,7 @@
  * disposed bridge is not read.
  * `snapshot().timing` equals `debug`: this provider is built only in a dev
  * build, which is the other half of "dev and debug".
+ * A system that has run in a timed pass also carries `frameMs` and `lastRunFrame`.
  */
 
 import {
@@ -37,6 +38,7 @@ import {
 import type { ScopedHookable } from "../hooks/scoped-hookable.js";
 import { isEngineOwnedService } from "../engine/service-container.js";
 import { createEntityReader, type EntityReaderDeps } from "./entities.js";
+import type { SystemTiming } from "./timing.js";
 
 /** Extension surface copied off a plugin. Major and minor only. */
 interface ExtensionApi {
@@ -102,6 +104,11 @@ export interface IntrospectionDeps {
   readonly components: () => readonly GwenIntrospectionComponent[];
   /** Installed systems. */
   readonly systems: () => readonly IntrospectionSystemSource[];
+  /**
+   * What system `id` measured. Undefined when the system has no record.
+   * `pass === 0` means it never ran in a timed pass.
+   */
+  readonly timing: (id: string) => SystemTiming | undefined;
   /** Run `undo` from `stop()`, under `label`. */
   readonly onStop: (label: string, undo: () => void) => void;
   /** What the paged entity reads need. */
@@ -221,12 +228,29 @@ export function createIntrospection(deps: IntrospectionDeps): GwenIntrospection 
   function systemRows(): readonly GwenIntrospectionSystem[] {
     const rows: GwenIntrospectionSystem[] = [];
     for (const source of deps.systems()) {
+      const row = {
+        id: source.id,
+        name: source.name,
+        paused: source.scope?.paused === true,
+        isolated: deps.isolated(source.id),
+      };
+      const measured = deps.timing(source.id);
+      if (measured === undefined || measured.pass === 0) {
+        rows.push(Object.freeze(row));
+        continue;
+      }
+      const { beforeUpdate, update, afterUpdate, render } = measured;
       rows.push(
         Object.freeze({
-          id: source.id,
-          name: source.name,
-          paused: source.scope?.paused === true,
-          isolated: deps.isolated(source.id),
+          ...row,
+          frameMs: Object.freeze({
+            beforeUpdate,
+            update,
+            afterUpdate,
+            render,
+            total: beforeUpdate + update + afterUpdate + render,
+          }),
+          lastRunFrame: measured.frame,
         }),
       );
     }

@@ -16,7 +16,7 @@
 import type { Hookable } from "hookable";
 import type { GwenRuntimeHookName, GwenRuntimeHooks } from "@gwenjs/schema";
 import { assertHookName } from "./hook-name.js";
-import type { SystemTiming } from "../introspection/timing.js";
+import { fireTimed, type SystemTiming } from "../introspection/timing.js";
 
 // ─── Hook slots ───────────────────────────────────────────────────────────────
 
@@ -146,6 +146,11 @@ export class ScopedHookable {
       if (slot.owner._paused) return;
       const fire = slot.call;
       if (arguments.length > 4) return Function.prototype.apply.call(fire, undefined, arguments);
+      if (__GWEN_DEV__) {
+        const timing = slot.owner._timing;
+        if (timing !== undefined && timing.meter.on)
+          return fireTimed(name, timing, fire, a, b, c, d);
+      }
       if (d !== undefined) return fire(a, b, c, d);
       if (c !== undefined) return fire(a, b, c);
       if (b !== undefined) return fire(a, b);
