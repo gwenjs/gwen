@@ -37,6 +37,7 @@ import {
   emitEntityDestroy,
   emitEntitySpawn,
   hookEngineListener,
+  listHookCounts,
   trackCoreHookListeners,
 } from "./hook-dispatch.js";
 import { systemInstalls } from "../hmr/installs.js";
@@ -265,6 +266,7 @@ export abstract class EngineCollaborators {
           components: () => componentListing(engine),
           systems: () => [...(systemInstalls.peek(engine)?.values() ?? [])],
           timing: (id) => peekTiming(engine, id),
+          hooks: () => listHookCounts(this.hooks),
           rows: entityRows(engine, this._bridge, this._entities),
           onStop: (label, undo) => {
             this.disposables.add(label, createDisposable(undo));

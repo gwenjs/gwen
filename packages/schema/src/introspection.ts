@@ -247,6 +247,9 @@ export interface GwenIntrospection {
   readonly entities: (page: GwenIntrospectionPageRequest) => GwenIntrospectionEntityPage;
   /** One entity by id, or `undefined` when it is not alive or has no component. Never throws. An {@link EntityId} is accepted. */
   readonly entity: (id: bigint) => GwenIntrospectionEntity | undefined;
-  /** Subscription counts per hook. */
+  /**
+   * Subscription counts per hook that has a listener, sorted by name.
+   * Engine-owned listeners are left out.
+   */
   readonly hooks: () => readonly GwenIntrospectionHookCount[];
 }
