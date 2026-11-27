@@ -276,7 +276,7 @@ The accumulator pattern:
 
 With `physicsHz > 0`, each fixed step stores a 2D history sample after `update_transforms` and before `engine:update`. `engine.frame` is the same object for the life of the engine.
 
-`engine.frame.alpha` is the value passed to the latest `engine:render`. It is `1` when `physicsHz` is `0`, and the leftover fraction of a step otherwise. `engine.frame.rendering` is true only while those handlers run. `engine.frame.transforms2D` is the history pair, or `null` when `physicsHz` is `0`, before the first fixed seed, and after `stop()`.
+`engine.frame.alpha` is the value passed to the latest `engine:render`. It is `1` when `physicsHz` is `0`, and the leftover fraction of a step otherwise. `engine.frame.rendering` is true only while those handlers run.
 
 A renderer reads the render pose of an entity from the `transform:2d` service, which every core engine provides. `track` once, at spawn or follow time, and keep the ref. `read` writes into a sample you own and allocates nothing, so hoist `out`.
 
@@ -303,7 +303,7 @@ The sample stored on a step does not include the `engine:update` writes of that 
 
 `createEntity()` allocates a wasm entity. `destroyEntity` calls `delete_entity`, which removes the transform node, and emits `entity:destroy`. The next commit skips that dead record, so the slot reads false. Release the ref of a destroyed entity, or let `entity:destroy` invalidate it.
 
-`physicsHz === 0` allocates no history buffer until the first `track`. After that, each frame commits the history right after `update_transforms`, and the buffers exist from the next frame: a ref reads false until then. `alpha` stays `1`, `transforms2D` stays `null`, and `read` equals `worldRaw` inside `engine:render`. A game that never tracks a ref pays nothing.
+`physicsHz === 0` allocates no history buffer until the first `track`. After that, each frame commits the history right after `update_transforms`, and the buffers exist from the next frame: a ref reads false until then. `alpha` stays `1`, and `read` equals `worldRaw` inside `engine:render`. A game that never tracks a ref pays nothing.
 
 ### 3D transforms
 

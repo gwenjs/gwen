@@ -141,7 +141,7 @@ A is the v1.0 model because the contracts already chosen are synchronous and sam
 
 ## Rules
 
-R1. The simulation-to-presentation seam is `engine:render` plus `engine.frame`. Render code reads `engine.frame.transforms2D`, `readInterpolatedTransform2D`, or `useTransform().world` during render. It does not read `useQuery` chunks, `engine.memory` views, or wasm exports.
+R1. The simulation-to-presentation seam is `engine:render` plus `engine.frame`. Render code reads the `transform:2d` service or `useTransform().world` during render. It does not read `useQuery` chunks, `engine.memory` views, or wasm exports.
 
 R2. Community wasm modules read transforms only through the #108 `transformRegion` copy. They do not receive an address in core memory.
 

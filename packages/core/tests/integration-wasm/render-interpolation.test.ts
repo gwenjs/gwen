@@ -1,15 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  readInterpolatedTransform2D,
-  type GwenEngine,
-  type InterpolatedTransform2D,
-  type TransformPair2D,
-} from "../../src/index.js";
 import { defineActor, definePrefab, useTransform } from "../../src/actor/index.js";
 import { onRender, onUpdate } from "../../src/system/index.js";
-import { entityIndex } from "../../src/internal.js";
-import * as internal from "../../src/internal.js";
+import {
+  entityIndex,
+  readInterpolatedTransform2D,
+  transformPairOf,
+  type InterpolatedTransform2D,
+} from "../../src/internal.js";
 import { CoreErrorCodes } from "../../src/engine/engine-errors.js";
 import { createRealEngine } from "./harness.js";
 
@@ -33,7 +31,7 @@ describe("render interpolation on real wasm", () => {
         wasm.translate_entity(slot, 1, 0);
       });
       handle.engine.hooks.hook("engine:render", (alpha: number) => {
-        const pair = handle.engine.frame.transforms2D;
+        const pair = transformPairOf(handle.engine);
         if (pair === null) {
           samples.push({ alpha, x: Number.NaN });
           return;
@@ -84,7 +82,7 @@ describe("render interpolation on real wasm", () => {
         wasm.translate_entity(slot, 1, 0);
       });
       handle.engine.hooks.hook("engine:render", (alpha: number) => {
-        const pair = handle.engine.frame.transforms2D;
+        const pair = transformPairOf(handle.engine);
         if (pair === null) {
           samples.push({ alpha, x: Number.NaN });
           return;
@@ -133,7 +131,7 @@ describe("render interpolation on real wasm", () => {
       const out = fresh();
       const seen: Array<{ alpha: number; x: number; previous: number }> = [];
       handle.engine.hooks.hook("engine:render", (alpha: number) => {
-        const pair = handle.engine.frame.transforms2D;
+        const pair = transformPairOf(handle.engine);
         if (pair === null) return;
         readInterpolatedTransform2D(pair, slot, alpha, out);
         seen.push({
@@ -162,7 +160,7 @@ describe("render interpolation on real wasm", () => {
       let duringSpawn: boolean | null = null;
       const afterCommit: Array<{ ok: boolean; x: number; flags: number }> = [];
       handle.engine.hooks.hook("engine:render", (alpha: number) => {
-        const pair = handle.engine.frame.transforms2D;
+        const pair = transformPairOf(handle.engine);
         if (pair === null) return;
         if (slot < 0) {
           const id = handle.engine.createEntity();
@@ -209,7 +207,7 @@ describe("render interpolation on real wasm", () => {
       handle.engine.hooks.hook("engine:render", (alpha: number) => {
         renders += 1;
         if (renders < 2) return;
-        const pair = handle.engine.frame.transforms2D;
+        const pair = transformPairOf(handle.engine);
         if (pair === null) return;
         const ok = readInterpolatedTransform2D(pair, slot, alpha, out);
         afterDestroy.push({ ok, x: ok ? out.x : Number.NaN });
@@ -239,7 +237,7 @@ describe("render interpolation on real wasm", () => {
       await handle.engine.use(Actor._plugin);
       Actor._plugin.spawn();
       await handle.advance(1, 1 / 60);
-      expect(handle.engine.frame.transforms2D).toBeNull();
+      expect(transformPairOf(handle.engine)).toBeNull();
       expect(seen).toEqual([{ alpha: 1, world: 0, raw: 0 }]);
     } finally {
       await handle.dispose();
@@ -275,10 +273,10 @@ describe("render interpolation on real wasm", () => {
     const engine = handle.engine;
     try {
       await engine.startExternal();
-      const pair = engine.frame.transforms2D;
+      const pair = transformPairOf(engine);
       expect(pair).not.toBeNull();
       await handle.dispose();
-      expect(engine.frame.transforms2D).toBeNull();
+      expect(transformPairOf(engine)).toBeNull();
       let caught: unknown;
       try {
         if (pair !== null) pair.current[0] = 0;
@@ -292,46 +290,32 @@ describe("render interpolation on real wasm", () => {
   });
 
   it("transformPairOf returns the published pair at physicsHz 60 and null after stop", async () => {
-    const pairOf = transformPairOf();
     const handle = await createRealEngine({ variant: "light", maxEntities: 32, physicsHz: 60 });
     const engine = handle.engine;
     try {
       await engine.startExternal();
-      const pair = pairOf(engine);
+      const pair = transformPairOf(engine);
       expect(pair).not.toBeNull();
       expect(pair === null ? 0 : pair.current.length).toBe(32 * 8);
       await handle.dispose();
-      expect(pairOf(engine)).toBeNull();
+      expect(transformPairOf(engine)).toBeNull();
     } finally {
       await handle.dispose();
     }
   });
 
   it("transformPairOf stays null at physicsHz 0 even with a tracked ref", async () => {
-    const pairOf = transformPairOf();
     const handle = await createRealEngine({ variant: "light", maxEntities: 32, physicsHz: 0 });
     try {
       const id = handle.engine.createEntity();
       handle.bridge.engine().add_entity_transform(entityIndex(id), 0, 0, 0, 1, 1);
-      handle.engine.inject("transform:2d").track(id);
+      const reader = handle.engine.inject("transform:2d");
+      const ref = reader.track(id);
       await handle.advance(3, 1 / 60);
-      expect(pairOf(handle.engine)).toBeNull();
+      expect(reader.read(ref, { x: 0, y: 0, rotation: 0, scaleX: 1, scaleY: 1 })).toBe(true);
+      expect(transformPairOf(handle.engine)).toBeNull();
     } finally {
       await handle.dispose();
     }
   });
 });
-
-/** The accessor, typed. A missing export fails here, on an assertion. */
-function transformPairOf(): (engine: GwenEngine) => TransformPair2D | null {
-  const found = Reflect.get(internal, "transformPairOf");
-  expect(typeof found).toBe("function");
-  return (engine) => {
-    const pair: unknown = Reflect.apply(found, undefined, [engine]);
-    return isPair(pair) ? pair : null;
-  };
-}
-
-function isPair(value: unknown): value is TransformPair2D {
-  return typeof value === "object" && value !== null && "current" in value;
-}

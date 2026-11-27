@@ -113,5 +113,3 @@ export type { WasmBridge, CoreVariant } from "./engine/wasm-bridge";
 
 export type { MemoryRegion } from "./hooks/wasm/shared-memory";
 export { FLAG_TELEPORT } from "./hooks/wasm/shared-memory";
-export { readInterpolatedTransform2D } from "./engine/transform-pair";
-export type { InterpolatedTransform2D, TransformPair2D } from "./engine/transform-pair";

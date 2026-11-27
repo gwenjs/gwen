@@ -447,6 +447,14 @@ export interface EngineFrame {
   readonly steps: number;
   /** `true` only while `engine:render` handlers run. */
   readonly rendering: boolean;
+}
+
+/**
+ * Internal read-only view of the loop-owned frame (adds `transforms2D`).
+ * Not part of the public {@link EngineFrame}.
+ * @internal
+ */
+export interface EngineFrameInternal extends EngineFrame {
   /**
    * History views. `null` when `physicsHz` is 0, before the fixed seed,
    * and after `stop()`.
@@ -599,7 +607,7 @@ export interface GwenEngine extends GwenEngineBase {
 
   /**
    * Display-frame state. One object for the life of the engine.
-   * `transforms2D` is `null` until a fixed-step seed installs the history views.
+   * Read a render pose through the `transform:2d` service.
    */
   readonly frame: EngineFrame;
 

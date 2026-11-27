@@ -74,3 +74,6 @@ export { GwenScope } from "./context/scope";
 
 export { hotCompareComponent, hotReplaceSystem } from "./hmr";
 export type { GwenHotKind, GwenHotReloadReason, GwenHotReport } from "./hmr";
+
+export { readInterpolatedTransform2D, transformPairOf } from "./engine/transform-pair";
+export type { InterpolatedTransform2D, TransformPair2D } from "./engine/transform-pair";

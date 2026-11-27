@@ -222,7 +222,7 @@ export const PlayerActor = defineActor(PlayerPrefab, (props: { x: number; y: num
 
 ::: info World reads during render
 Outside `onRender`, `world` matches `worldRaw`. A write in `onUpdate` is published on the next step, because the history commit runs before `engine:update`.
-During `onRender`, when `physicsHz > 0` and `engine.frame.transforms2D` is set, `world.x`, `world.y`, and `world.rotation` follow `engine:render(alpha)`. `worldRaw` stays the raw cache. `scaleX` and `scaleY` stay `1`.
+During `onRender`, when `physicsHz > 0`, `world.x`, `world.y`, and `world.rotation` follow `engine:render(alpha)`. `worldRaw` stays the raw cache. `scaleX` and `scaleY` stay `1`.
 `destroyEntity` does not clear that history slot. Drop the entity on `entity:destroy`.
 :::
 

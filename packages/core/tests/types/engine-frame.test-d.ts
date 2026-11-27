@@ -15,7 +15,10 @@ type ReadonlyKey<T, K extends keyof T> = IfEquals<
 type FrameWritesRejected = ReadonlyKey<GwenEngine["frame"], "alpha"> &
   ReadonlyKey<GwenEngine["frame"], "fixedStep"> &
   ReadonlyKey<GwenEngine["frame"], "steps"> &
-  ReadonlyKey<GwenEngine["frame"], "rendering"> &
-  ReadonlyKey<GwenEngine["frame"], "transforms2D">;
+  ReadonlyKey<GwenEngine["frame"], "rendering">;
 
 expectTypeOf<FrameWritesRejected>().toEqualTypeOf<true>();
+
+expectTypeOf<keyof GwenEngine["frame"]>().toEqualTypeOf<
+  "alpha" | "fixedStep" | "steps" | "rendering"
+>();

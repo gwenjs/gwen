@@ -87,7 +87,6 @@ const SURFACE: Record<EntryName, Classification> = {
       setupGwen: "async engine bootstrap, the setup counterpart of createEngine",
       unpackEntityId: "pure helper, inverse of createEntityId",
       consoleLogProvider: "factory of the default log provider, not a composable",
-      readInterpolatedTransform2D: "pure read of a transform pair, used by renderers",
     },
   },
   system: {

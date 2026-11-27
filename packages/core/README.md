@@ -267,9 +267,9 @@ log.error("oops");
 
 ### `.`
 
-Values: `ActorErrorCodes`, `CoreErrorCodes`, `EngineMemory`, `FLAG_TELEPORT`, `GwenActorError`, `GwenComponentLimitError`, `GwenConfigError`, `GwenContextError`, `GwenEngineStateError`, `GwenHookNameError`, `GwenLogger`, `GwenPluginDependencyError`, `GwenPluginExtensionApiError`, `GwenPluginNotFoundError`, `GwenPluginOptionsError`, `GwenPluginProvideError`, `GwenPluginShapeError`, `GwenScenePreloadError`, `GwenSceneRouterError`, `GwenTransformRefError`, `GwenWasmAbiError`, `GwenWasmError`, `GwenWasmMismatchError`, `GwenWasmPanicError`, `Types`, `consoleLogProvider`, `createEngine`, `createEngineLocal`, `createEntityId`, `createErrorBus`, `createLogger`, `defineComponent`, `defineHooks`, `emit`, `onCleanup`, `readInterpolatedTransform2D`, `setupGwen`, `unpackEntityId`, `useEngine`, `useHook`, `withAsyncContext`, `withCleanup`
+Values: `ActorErrorCodes`, `CoreErrorCodes`, `EngineMemory`, `FLAG_TELEPORT`, `GwenActorError`, `GwenComponentLimitError`, `GwenConfigError`, `GwenContextError`, `GwenEngineStateError`, `GwenHookNameError`, `GwenLogger`, `GwenPluginDependencyError`, `GwenPluginExtensionApiError`, `GwenPluginNotFoundError`, `GwenPluginOptionsError`, `GwenPluginProvideError`, `GwenPluginShapeError`, `GwenScenePreloadError`, `GwenSceneRouterError`, `GwenTransformRefError`, `GwenWasmAbiError`, `GwenWasmError`, `GwenWasmMismatchError`, `GwenWasmPanicError`, `Types`, `consoleLogProvider`, `createEngine`, `createEngineLocal`, `createEntityId`, `createErrorBus`, `createLogger`, `defineComponent`, `defineHooks`, `emit`, `onCleanup`, `setupGwen`, `unpackEntityId`, `useEngine`, `useHook`, `withAsyncContext`, `withCleanup`
 
-Types: `Color`, `ComponentAccessor`, `ComponentBody`, `ComponentDefinition`, `ComponentSchema`, `ComponentType`, `CoreVariant`, `CoreWasmErrorCode`, `CreateLoggerOptions`, `EngineCapacity`, `EngineConfig`, `EngineErrorBus`, `EngineErrorPayload`, `EngineFrame`, `EngineFramePhaseMs`, `EngineLocal`, `EngineStateChangePayload`, `EngineStats`, `EntityId`, `GwenDisposable`, `GwenEngine`, `GwenEngineOptions`, `GwenEngineState`, `GwenEngineStateChangeReason`, `GwenEngineStateMethod`, `GwenExtensionApiMismatch`, `GwenHookable`, `GwenPlugin`, `GwenPluginNotFoundErrorOptions`, `GwenProvides`, `GwenRuntimeHooks`, `GwenWasmMismatchReason`, `GwenWasmModules`, `HookHandlerMap`, `IGwenLogger`, `InferComponent`, `InferHooks`, `InferSchemaType`, `InterpolatedTransform2D`, `MemoryRegion`, `MemoryView`, `MemoryViewArray`, `MemoryViewDescriptor`, `MemoryViewType`, `PlacementBridge`, `PluginErrorContext`, `SchemaLayout`, `SchemaType`, `TransformPair2D`, `TransformRefInvalidReason`, `Vector2D`, `WasmBridge`, `WasmChannelOptions`, `WasmMemoryOptions`, `WasmMemoryRegion`, `WasmModuleHandle`, `WasmModuleOptions`, `WasmRegionView`, `WasmRingBuffer`
+Types: `Color`, `ComponentAccessor`, `ComponentBody`, `ComponentDefinition`, `ComponentSchema`, `ComponentType`, `CoreVariant`, `CoreWasmErrorCode`, `CreateLoggerOptions`, `EngineCapacity`, `EngineConfig`, `EngineErrorBus`, `EngineErrorPayload`, `EngineFrame`, `EngineFramePhaseMs`, `EngineLocal`, `EngineStateChangePayload`, `EngineStats`, `EntityId`, `GwenDisposable`, `GwenEngine`, `GwenEngineOptions`, `GwenEngineState`, `GwenEngineStateChangeReason`, `GwenEngineStateMethod`, `GwenExtensionApiMismatch`, `GwenHookable`, `GwenPlugin`, `GwenPluginNotFoundErrorOptions`, `GwenProvides`, `GwenRuntimeHooks`, `GwenWasmMismatchReason`, `GwenWasmModules`, `HookHandlerMap`, `IGwenLogger`, `InferComponent`, `InferHooks`, `InferSchemaType`, `MemoryRegion`, `MemoryView`, `MemoryViewArray`, `MemoryViewDescriptor`, `MemoryViewType`, `PlacementBridge`, `PluginErrorContext`, `SchemaLayout`, `SchemaType`, `TransformRefInvalidReason`, `Vector2D`, `WasmBridge`, `WasmChannelOptions`, `WasmMemoryOptions`, `WasmMemoryRegion`, `WasmModuleHandle`, `WasmModuleOptions`, `WasmRegionView`, `WasmRingBuffer`
 
 `EngineMemory` — Per-engine views over gwen-core linear memory.
 
@@ -289,8 +289,6 @@ Types: `Color`, `ComponentAccessor`, `ComponentBody`, `ComponentDefinition`, `Co
 
 `createEngineLocal` — Returns an `EngineLocal<T>` from `init` and an optional `dispose`.
 
-`readInterpolatedTransform2D` — Writes the interpolated 2D sample for a slot into `out`.
-
 `CoreWasmErrorCode` — Codes a core WASM export puts on the thrown `Error`; panic is not in this set.
 
 `EngineFrame` — Interpolation state for the display frame currently running.
@@ -301,8 +299,6 @@ Types: `Color`, `ComponentAccessor`, `ComponentBody`, `ComponentDefinition`, `Co
 
 `GwenWasmModules` — Augmentable registry of loaded WASM module names to their export types.
 
-`InterpolatedTransform2D` — Caller-owned sample whose fields the helper writes.
-
 `MemoryView` — Named view with `array`, `epoch`, and `dispose()`.
 
 `MemoryViewArray` — Typed array or `DataView` for one `MemoryViewType`.
@@ -310,8 +306,6 @@ Types: `Color`, `ComponentAccessor`, `ComponentBody`, `ComponentDefinition`, `Co
 `MemoryViewDescriptor` — Name, view type, and functions that return the pointer and the length.
 
 `MemoryViewType` — `WasmMemoryRegion["type"]` or `"dataview"`.
-
-`TransformPair2D` — The last two committed 2D history buffers.
 
 `TransformRefInvalidReason` — `dead-entity`, `foreign-engine` or `engine-stopped`.
 
@@ -383,9 +377,9 @@ Types: `CreateRealEngineOptions`, `RealEngineHandle`
 
 no semver guarantee — framework packages and generated code only
 
-Values: `EASING_MAP`, `FLAGS_OFFSET`, `FLAG_HAS_TRANSFORM`, `GwenScope`, `MAX_SAB_BYTES`, `SENTINEL`, `SceneEnginePlugin`, `SharedMemoryManager`, `StringPool`, `StringPoolManager`, `stringPoolFor`, `TRANSFORM3D_STRIDE`, `TRANSFORM_OFFSETS`, `TRANSFORM_STRIDE`, `Transform3D`, `TweenManager`, `TweenPlugin`, `TweenPool`, `WasmBridgeImpl`, `_getActorContext`, `_getActorEntityId`, `asFullEngine`, `buildTransformImports`, `createDisposable`, `createGwenHooks`, `detectCoreVariant`, `engineContext`, `entityIndex`, `executeAsync`, `getTweenManager`, `getWasmBridge`, `hotCompareComponent`, `hotReplaceSystem`, `invalidateWasmModule`, `autoProvider`, `isolatedProvider`, `poisonWasmBridge`, `readTransform3DPosition`, `readTransform3DRotation`, `readTransform3DScale`, `reportRejectedHook`, `runScenePreload`, `sharedProvider`, `toGwenWasmError`, `writeTransform3DPosition`, `writeTransform3DRotation`, `writeTransform3DScale`
+Values: `EASING_MAP`, `FLAGS_OFFSET`, `FLAG_HAS_TRANSFORM`, `GwenScope`, `MAX_SAB_BYTES`, `SENTINEL`, `SceneEnginePlugin`, `SharedMemoryManager`, `StringPool`, `StringPoolManager`, `stringPoolFor`, `TRANSFORM3D_STRIDE`, `TRANSFORM_OFFSETS`, `TRANSFORM_STRIDE`, `Transform3D`, `TweenManager`, `TweenPlugin`, `TweenPool`, `WasmBridgeImpl`, `_getActorContext`, `_getActorEntityId`, `asFullEngine`, `buildTransformImports`, `createDisposable`, `createGwenHooks`, `detectCoreVariant`, `engineContext`, `entityIndex`, `executeAsync`, `getTweenManager`, `getWasmBridge`, `hotCompareComponent`, `hotReplaceSystem`, `invalidateWasmModule`, `autoProvider`, `isolatedProvider`, `poisonWasmBridge`, `readInterpolatedTransform2D`, `readTransform3DPosition`, `readTransform3DRotation`, `readTransform3DScale`, `reportRejectedHook`, `runScenePreload`, `sharedProvider`, `toGwenWasmError`, `transformPairOf`, `writeTransform3DPosition`, `writeTransform3DRotation`, `writeTransform3DScale`
 
-Types: `GwenCoreGlueFactoryModule`, `GwenCoreGlueInstance`, `GwenCoreWasm`, `GwenHotKind`, `GwenHotReloadReason`, `GwenHotReport`, `GwenTransformImports`, `InitWasmOptions`, `TweenPluginOptions`, `TweenPoolPolicy`, `TweenSlot`, `WasmEngine`, `WasmEnginePhysics2D`, `WasmEnginePhysics3D`, `WasmEntityId`, `WasmInstanceMode`, `WasmInstanceProvider`
+Types: `GwenCoreGlueFactoryModule`, `GwenCoreGlueInstance`, `GwenCoreWasm`, `GwenHotKind`, `GwenHotReloadReason`, `GwenHotReport`, `GwenTransformImports`, `InitWasmOptions`, `InterpolatedTransform2D`, `TransformPair2D`, `TweenPluginOptions`, `TweenPoolPolicy`, `TweenSlot`, `WasmEngine`, `WasmEnginePhysics2D`, `WasmEnginePhysics3D`, `WasmEntityId`, `WasmInstanceMode`, `WasmInstanceProvider`
 
 `GwenCoreGlueFactoryModule` — Creates one glue instance through `createGlue`.
 
@@ -412,6 +406,14 @@ Types: `GwenCoreGlueFactoryModule`, `GwenCoreGlueInstance`, `GwenCoreWasm`, `Gwe
 `sharedProvider` — Keeps one glue and one memory per compiled module for the whole process.
 
 `toGwenWasmError` — Maps an export failure onto a typed error.
+
+`readInterpolatedTransform2D` — Writes the interpolated 2D sample for a slot into `out`.
+
+`transformPairOf` — The history pair an engine published, or `null` when none is published.
+
+`InterpolatedTransform2D` — Caller-owned sample whose fields the helper writes.
+
+`TransformPair2D` — The last two committed 2D history buffers.
 
 ### `./wasm/light`
 
