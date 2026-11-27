@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { createEngine } from "../../src/node";
 import { defineSystem, onUpdate } from "@gwenjs/core/system";
+import { transformPairOf } from "../../src/internal";
 import { activateTestWasm } from "../helpers/activate-test-wasm";
 
 /**
@@ -12,14 +13,12 @@ function frameOf(engine: object): {
   steps: number | undefined;
   rendering: boolean | undefined;
   fixedStep: boolean | undefined;
-  transforms2D: unknown;
 } {
   const empty = {
     alpha: undefined,
     steps: undefined,
     rendering: undefined,
     fixedStep: undefined,
-    transforms2D: undefined,
   };
   if (!("frame" in engine)) return empty;
   const frame = engine.frame;
@@ -31,7 +30,6 @@ function frameOf(engine: object): {
       "rendering" in frame && typeof frame.rendering === "boolean" ? frame.rendering : undefined,
     fixedStep:
       "fixedStep" in frame && typeof frame.fixedStep === "boolean" ? frame.fixedStep : undefined,
-    transforms2D: "transforms2D" in frame ? frame.transforms2D : undefined,
   };
 }
 
@@ -238,7 +236,7 @@ describe("fixed-timestep loop (physicsHz)", () => {
     expect(renderingDuring).toBe(true);
     expect(frameOf(engine).rendering).toBe(false);
     expect(frameOf(engine).steps).toBe(0);
-    expect(frameOf(engine).transforms2D).toBe(null);
+    expect(transformPairOf(engine)).toBe(null);
 
     await harness.tick(10 + 1000 / 60);
     expect(steps).toBe(1);
@@ -368,7 +366,7 @@ describe("fixed-timestep loop (physicsHz)", () => {
     expect(renders).toHaveLength(1);
     expect(renders[0]).toBe(0);
     expect(frameOf(engine).fixedStep).toBe(true);
-    expect(frameOf(engine).transforms2D).toBe(null);
+    expect(transformPairOf(engine)).toBe(null);
 
     await engine.stop();
   });
@@ -399,7 +397,7 @@ describe("fixed-timestep loop (physicsHz)", () => {
     expect(renders).toEqual([1]);
     expect(frameOf(engine).steps).toBe(1);
     expect(frameOf(engine).fixedStep).toBe(false);
-    expect(frameOf(engine).transforms2D).toBe(null);
+    expect(transformPairOf(engine)).toBe(null);
 
     await engine.stop();
   });

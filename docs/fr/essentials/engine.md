@@ -262,7 +262,7 @@ Le pattern accumulateur :
 
 Avec `physicsHz > 0`, chaque pas fixe enregistre un échantillon d'historique 2D après `update_transforms` et avant `engine:update`. `engine.frame` est le même objet pendant toute la vie du moteur.
 
-`engine.frame.alpha` est la valeur passée au dernier `engine:render`. Elle vaut `1` quand `physicsHz` est `0`, et la fraction de pas restante sinon. `engine.frame.rendering` est vrai seulement pendant ces handlers. `engine.frame.transforms2D` est la paire d'historique, ou `null` quand `physicsHz` est `0`, avant la première paire du pas fixe, et après `stop()`.
+`engine.frame.alpha` est la valeur passée au dernier `engine:render`. Elle vaut `1` quand `physicsHz` est `0`, et la fraction de pas restante sinon. `engine.frame.rendering` est vrai seulement pendant ces handlers.
 
 Un renderer lit la pose de rendu d'une entité depuis le service `transform:2d`, que fournit tout moteur core. Appelez `track` une fois, au spawn ou au début du suivi, et gardez la ref. `read` écrit dans un échantillon qui vous appartient et n'alloue rien : déclarez `out` une fois.
 
@@ -289,7 +289,7 @@ L'échantillon enregistré sur un pas n'inclut pas les écritures `engine:update
 
 `createEntity()` alloue une entité wasm. `destroyEntity` appelle `delete_entity`, qui retire le nœud de transform, et émet `entity:destroy`. Le commit suivant ignore cet enregistrement mort, donc le slot renvoie false. Libérez la ref d'une entité détruite, ou laissez `entity:destroy` l'invalider.
 
-`physicsHz === 0` n'alloue aucun tampon d'historique avant le premier `track`. Ensuite, chaque frame enregistre l'historique juste après `update_transforms`, et les tampons existent dès la frame suivante : une ref renvoie false jusque-là. `alpha` reste `1`, `transforms2D` reste `null`, et `read` est égal à `worldRaw` dans `engine:render`. Un jeu qui ne suit aucune ref ne paie rien.
+`physicsHz === 0` n'alloue aucun tampon d'historique avant le premier `track`. Ensuite, chaque frame enregistre l'historique juste après `update_transforms`, et les tampons existent dès la frame suivante : une ref renvoie false jusque-là. `alpha` reste `1`, et `read` est égal à `worldRaw` dans `engine:render`. Un jeu qui ne suit aucune ref ne paie rien.
 
 ### Transformations 3D
 

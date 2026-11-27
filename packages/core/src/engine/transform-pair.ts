@@ -1,6 +1,7 @@
 import { wrapAngle } from "@gwenjs/math";
 
 import { FLAG_HAS_TRANSFORM, FLAG_TELEPORT } from "../hooks/wasm/shared-memory.js";
+import type { EngineFrame, EngineFrameInternal, GwenEngine } from "./engine-types.js";
 
 /** Caller-owned sample. The helper writes these fields and allocates nothing. */
 export interface InterpolatedTransform2D {
@@ -155,4 +156,18 @@ export function readRenderPose2D(
   out.scaleX = prevSx + (curSx - prevSx) * factor;
   out.scaleY = prevSy + (curSy - prevSy) * factor;
   return true;
+}
+
+function hasHistory(frame: EngineFrame): frame is EngineFrameInternal {
+  return "transforms2D" in frame;
+}
+
+/**
+ * The history pair `engine` published, for framework code and tests. `null` at `physicsHz: 0`,
+ * before the fixed seed and after `stop()`. Game and plugin code reads `transform:2d` instead.
+ * @internal
+ */
+export function transformPairOf(engine: Pick<GwenEngine, "frame">): TransformPair2D | null {
+  const frame = engine.frame;
+  return hasHistory(frame) ? frame.transforms2D : null;
 }

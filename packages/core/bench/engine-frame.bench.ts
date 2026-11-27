@@ -8,8 +8,8 @@
  */
 import { bench } from "vitest";
 
-import { defineComponent, readInterpolatedTransform2D, Types } from "../src/index.js";
-import { entityIndex } from "../src/internal.js";
+import { defineComponent, Types } from "../src/index.js";
+import { entityIndex, readInterpolatedTransform2D, transformPairOf } from "../src/internal.js";
 import { createEngine } from "../src/node.js";
 import { defineSystem, onUpdate, useQuery } from "../src/system/index.js";
 import { createRealEngine } from "../src/testing/create-real-engine.js";
@@ -88,7 +88,7 @@ export async function measureInterpolatedFrame(): Promise<{ idle: number; read: 
     await handle.advance(120, 1 / 120);
     const idle = performance.now() - idleStart;
     engine.hooks.hook("engine:render", (alpha: number) => {
-      const pair = engine.frame.transforms2D;
+      const pair = transformPairOf(engine);
       if (pair === null) return;
       for (let slot = 0; slot < 1000; slot += 1) {
         if (readInterpolatedTransform2D(pair, slot, alpha, out)) sink = out.x;

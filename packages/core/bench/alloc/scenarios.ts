@@ -1,5 +1,5 @@
 import type { TransformRef2D, TransformRef3D } from "@gwenjs/schema";
-import { readInterpolatedTransform2D } from "../../src/engine/transform-pair";
+import { readInterpolatedTransform2D, transformPairOf } from "../../src/engine/transform-pair";
 import { defineActor, useEntityId } from "../../src/actor/runtime/define-actor";
 import { definePrefab } from "../../src/actor/runtime/define-prefab";
 import { defineActorPool } from "../../src/actor/runtime/pool/define-actor-pool";
@@ -307,7 +307,7 @@ export function createScenario(path: AllocPathName, options?: ScenarioOptions): 
           }
           const out = { x: 0, y: 0, rotation: 0, scaleX: 1, scaleY: 1 };
           handle.engine.hooks.hook("engine:render", (alpha: number) => {
-            const pair = handle.engine.frame.transforms2D;
+            const pair = transformPairOf(handle.engine);
             if (pair === null) return;
             for (let slot = 0; slot < entities; slot += 1) {
               if (readInterpolatedTransform2D(pair, slot, alpha, out)) sink = out.x;

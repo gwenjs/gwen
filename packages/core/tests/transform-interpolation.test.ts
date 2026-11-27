@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 
+import { FLAG_TELEPORT } from "../src/index.js";
 import {
-  FLAG_TELEPORT,
   readInterpolatedTransform2D,
+  transformPairOf,
   type InterpolatedTransform2D,
   type TransformPair2D,
-} from "../src/index.js";
+} from "../src/internal.js";
 import { FLAG_HAS_TRANSFORM } from "../src/hooks/wasm/shared-memory.js";
 
 const SLOT_BYTES = 32;
@@ -141,5 +142,28 @@ describe("readInterpolatedTransform2D", () => {
     expect(high.x).toBe(10);
     expect(low.x).toBe(0);
     expect(nan.x).toBe(10);
+  });
+});
+
+describe("transformPairOf", () => {
+  it("returns null for a plain frame and the pair when the frame carries it", () => {
+    expect(
+      transformPairOf({ frame: { alpha: 1, fixedStep: false, steps: 0, rendering: false } }),
+    ).toBe(null);
+
+    const pair: TransformPair2D = {
+      previous: new Float32Array(8),
+      current: new Float32Array(8),
+      previousFlags: new Uint32Array(8),
+      currentFlags: new Uint32Array(8),
+    };
+    const frame = {
+      alpha: 1,
+      fixedStep: false,
+      steps: 0,
+      rendering: false,
+      transforms2D: pair,
+    };
+    expect(transformPairOf({ frame })).toBe(pair);
   });
 });
