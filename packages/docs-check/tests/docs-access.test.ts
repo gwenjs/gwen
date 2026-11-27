@@ -18,8 +18,15 @@ const packageRoot = path.join(repoRoot, "packages/docs-check");
 const virtualRoot = "/virtual/gwen-docs-page";
 const guideSources = new SourceCache();
 
+const INCLUDE = /^<<< @\/\.\.\/(\S+?)\{ts\}$/gm;
+
+/** The page text, with each `<<<` include of an example file replaced by a ts fence of that file. */
 function pageText(file: string): string {
-  return readFileSync(path.join(repoRoot, file), "utf8");
+  const page = readFileSync(path.join(repoRoot, file), "utf8");
+  return page.replace(INCLUDE, (_line, example: string) => {
+    const code = readFileSync(path.join(repoRoot, example), "utf8");
+    return `\`\`\`ts\n${code}\`\`\``;
+  });
 }
 
 const INDEXED = [
