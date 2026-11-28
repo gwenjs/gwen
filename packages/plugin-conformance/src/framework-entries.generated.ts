@@ -741,6 +741,7 @@ export const FRAMEWORK_ENTRIES: Readonly<Record<string, readonly string[]>> = {
     "GwenModuleDefinition",
     "GwenModuleOptions",
     "GwenPlugin",
+    "GwenPluginHot",
     "GwenPluginName",
     "GwenPluginRegistry",
     "GwenPluginRequirement",
