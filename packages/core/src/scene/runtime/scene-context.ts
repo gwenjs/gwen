@@ -21,6 +21,7 @@ import { readMember } from "./read-member";
 import { SCENE_REGISTRAR_KEY } from "./scene-registrar";
 import type { SceneRegistrar } from "./scene-registrar";
 import { GwenScope } from "../../context/scope.js";
+import { rememberSceneScope } from "../../hmr/scene-installs.js";
 
 // ─── Internal context type ────────────────────────────────────────────────────
 
@@ -54,7 +55,7 @@ function _getActiveSceneContext(): SceneSetupContext | null {
  * Restores any previous context on completion (supports nested calls).
  * @internal
  */
-export function _withSceneContext(factory: () => void): SceneSetupContext {
+export function _withSceneContext(factory: () => void, owner?: object): SceneSetupContext {
   const ctx: SceneSetupContext = { systems: [], handles: [], onPreloadCbs: [] };
 
   // Build an idempotent registrar and expose it via engine.provide() so that
@@ -77,6 +78,10 @@ export function _withSceneContext(factory: () => void): SceneSetupContext {
 
   // Phase 4: Create a GwenScope for the scene factory
   const sceneScope = engine ? new GwenScope(engine, { type: "scene" }) : null;
+  // Dev only: a swap disposes this scope. A production build stores nothing.
+  if (__GWEN_DEV__) {
+    if (owner !== undefined && sceneScope !== null) rememberSceneScope(owner, sceneScope);
+  }
 
   _sceneCtx.run(ctx, () => {
     if (sceneScope) {

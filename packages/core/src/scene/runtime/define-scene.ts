@@ -28,9 +28,9 @@
 
 import type { GwenSceneName, ScenePreloadEvent } from "@gwenjs/schema";
 import { _withSceneContext } from "./scene-context";
-import type { GwenPlugin, GwenEngine } from "../../engine/engine-types";
+import type { GwenPlugin } from "../../engine/engine-types";
 import { engineContext } from "../../engine/context";
-import { popEngine, pushEngine } from "../../engine/engine-local";
+import { rememberSceneEngine } from "../../hmr/scene-installs.js";
 import type { SystemHandle } from "./system-handle";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -105,10 +105,11 @@ export interface SceneFactory<N extends GwenSceneName = GwenSceneName> {
  * The factory result is **cached** — the function is only executed once
  * regardless of how many times the returned `SceneFactory` is called.
  *
- * Lifecycle wiring (decoupled from router): when an engine context is active at
- * factory call time, `onEnter` / `onExit` / `onPreload` are wired to `scene:enter` /
- * `scene:beforeLeave` / `scene:preload` engine hooks with full async engine-context
- * propagation.
+ * Lifecycle wiring (decoupled from router): when `SceneEnginePlugin` is installed
+ * and an engine context is active, `onEnter` / `onExit` / `onPreload` are wired
+ * through `SceneHookRegistry` to `scene:enter` / `scene:beforeLeave` /
+ * `scene:preload`, with async engine-context propagation.
+ * A scene used without that plugin registers no hook.
  * Calling the factory without an engine context (e.g. in tests that access
  * `SceneDefinition.onEnter` directly) still works — the callbacks remain
  * accessible on the returned definition.
@@ -133,86 +134,11 @@ export function defineScene<const N extends GwenSceneName>(
 ): SceneFactory<N> {
   // The SceneDefinition is engine-independent — factory runs once.
   let _def: SceneDefinition<N> | null = null;
-  // Hook registration is per-engine — tracked so each engine gets its own listeners.
-  const _registeredEngines = new WeakSet<GwenEngine>();
-
-  /**
-   * @deprecated Fallback without SceneEnginePlugin. Will be removed in v2.0.
-   *
-   * Direct hook registration bypassing SceneHookRegistry.
-   * Caller must handle deduplication via _registeredEngines.
-   */
-  function _registerHooksDirect(engine: GwenEngine, def: SceneDefinition<N>): void {
-    if (def.onEnter) {
-      const enterCb = def.onEnter;
-      engine.hooks.hook("scene:enter", async (sceneName, params) => {
-        if (sceneName !== name) return;
-        const previous = pushEngine(engine);
-        try {
-          await enterCb(params);
-        } finally {
-          popEngine(engine, previous);
-        }
-      });
-    }
-
-    if (def.onExit) {
-      const exitCb = def.onExit;
-      engine.hooks.hook("scene:beforeLeave", async (sceneName) => {
-        if (sceneName !== name) return;
-        const previous = pushEngine(engine);
-        try {
-          await exitCb();
-        } finally {
-          popEngine(engine, previous);
-        }
-      });
-    }
-
-    if (def.onTransitionExit) {
-      const leaveCb = def.onTransitionExit;
-      engine.hooks.hook("scene:transition:leave", async (payload) => {
-        if (payload.from !== name) return;
-        const previous = pushEngine(engine);
-        try {
-          await leaveCb(payload);
-        } finally {
-          popEngine(engine, previous);
-        }
-      });
-    }
-
-    if (def.onTransitionEnter) {
-      const enterCb = def.onTransitionEnter;
-      engine.hooks.hook("scene:transition:enter", async (payload) => {
-        if (payload.to !== name) return;
-        const previous = pushEngine(engine);
-        try {
-          await enterCb(payload);
-        } finally {
-          popEngine(engine, previous);
-        }
-      });
-    }
-
-    if (def.onPreload) {
-      const cbs = def.onPreload;
-      engine.hooks.hook("scene:preload", async (event: ScenePreloadEvent) => {
-        if (event.to !== name) return;
-        const previous = pushEngine(engine);
-        try {
-          await Promise.all(cbs.map(async (cb) => cb(event)));
-        } finally {
-          popEngine(engine, previous);
-        }
-      });
-    }
-  }
 
   const call = (_registry: SceneRegistry): SceneDefinition<N> => {
     // Run factory only once — SceneDefinition is engine-independent.
     if (!_def) {
-      const ctx = _withSceneContext(factory);
+      const ctx = _withSceneContext(factory, call);
       _def = {
         name,
         systems: ctx.systems,
@@ -229,19 +155,13 @@ export function defineScene<const N extends GwenSceneName>(
       };
     }
 
-    // Wire lifecycle hooks for the current engine (if any). Each engine gets
-    // its own hook registrations so module-level scene definitions work correctly
-    // across multiple engine instances in tests.
+    // Each engine has its own registry, so each one receives the hooks.
+    // Without SceneEnginePlugin there is no registry and no hook is registered.
     const engine = engineContext.tryUse();
-    if (engine && !_registeredEngines.has(engine)) {
-      _registeredEngines.add(engine);
+    if (engine) {
       const hookRegistry = engine.tryInject("scene:hook-registry");
-      if (hookRegistry) {
-        hookRegistry.hookScene(engine, _def);
-      } else {
-        // Fallback for tests without SceneEnginePlugin — direct registration (untracked).
-        _registerHooksDirect(engine, _def);
-      }
+      if (hookRegistry) hookRegistry.hookScene(engine, _def);
+      if (__GWEN_DEV__) rememberSceneEngine(call, engine);
     }
 
     return _def;

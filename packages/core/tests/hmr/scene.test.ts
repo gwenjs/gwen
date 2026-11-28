@@ -145,7 +145,8 @@ describe.runIf(__GWEN_DEV__)("hotReplaceScene", () => {
     expect(report).toEqual({ status: "applied", kind: "scene", name: "Game", count: 1 });
     await engine.hooks.callHook("scene:enter", "Game");
     expect(handle.active).toBe(false);
-    expect(engine.getStats().plugins).toBe(plugins);
+    // pluginNames() returns a fresh array on each call, so identity cannot hold.
+    expect(engine.getStats().plugins).toEqual(plugins);
     expect(log).toEqual([]);
   });
 
@@ -171,7 +172,12 @@ describe.runIf(__GWEN_DEV__)("hotReplaceScene", () => {
     expect(report).toEqual({ status: "applied", kind: "scene", name: "Level", count: 1 });
     await engine.advance(0.016);
 
-    expect(engine.getStats().plugins).toBe(before);
+    // One system leaves and one arrives, so the name list changes and the count does not.
+    // pluginNames() also returns a fresh array, so this cannot be the same object as `before`.
+    const plugins = engine.getStats().plugins;
+    expect(plugins).toHaveLength(before.length);
+    expect(plugins).toContain("Added");
+    expect(plugins).not.toContain("Gone");
     expect(log).toEqual([]);
     await engine.hooks.callHook("scene:enter", "Level");
     await engine.advance(0.016);
@@ -281,13 +287,18 @@ describe.runIf(__GWEN_DEV__)("hotReplaceScene", () => {
     const second = make("new");
     await install(engine, first.Arena);
     const id = first.Unit._plugin.spawn();
+    const listeners = engine.getStats().hookListeners;
 
     const report = await hotReplaceScene(first.Arena, second.Arena);
 
     expect(report).toEqual({ status: "applied", kind: "scene", name: "Arena", count: 1 });
+    // hotReplaceActor makes both definitions share one instance map, so the new
+    // leave hook despawns the old id too. The listener count is what shows the
+    // old scope hook was removed: the new useActor hook replaces it one for one.
+    expect(engine.getStats().hookListeners).toBe(listeners);
     const nextId = second.Unit._plugin.spawn();
     await engine.hooks.callHook("scene:beforeLeave", "Arena");
-    expect(first.Unit._instances.has(id)).toBe(true);
+    expect(first.Unit._instances.has(id)).toBe(false);
     expect(second.Unit._instances.has(nextId)).toBe(false);
   });
 

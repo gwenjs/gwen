@@ -59,6 +59,7 @@ import { createEngineLocal, popEngine, pushEngine } from "../../engine/engine-lo
 import { ContextSlot } from "../../engine/context-slot";
 import { GwenScope } from "../../context/scope.js";
 import { HOT_ACTOR, type HotActorControl, type RespawnResult } from "../../hmr/actor-installs.js";
+import { HOT_ACTOR_OWNER } from "../../hmr/scene-installs.js";
 import { targetFromScopeMeta } from "../../engine/error-isolation.js";
 
 // ─── Module-level actor context ───────────────────────────────────────────────
@@ -814,6 +815,7 @@ export function defineActor<Props, PublicAPI>(
 
   // Dev only: what a hot swap needs. A production build builds none of it.
   if (__GWEN_DEV__) {
+    Object.defineProperty(_plugin, HOT_ACTOR_OWNER, { value: definition });
     /** Run the current body again on a live instance. The entity and its components stay. */
     const respawn = (engine: GwenEngine, instance: ActorInstance<PublicAPI>): RespawnResult => {
       const { entityId } = instance;

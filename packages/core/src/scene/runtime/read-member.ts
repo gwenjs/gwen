@@ -9,7 +9,7 @@
  *
  * @internal
  */
-export function readMember(target: unknown, key: string): unknown {
+export function readMember(target: unknown, key: string | symbol): unknown {
   if (target === undefined || typeof target === "object" || typeof target === "function") {
     return Reflect.apply(Reflect.get, Reflect, [target, key]);
   }

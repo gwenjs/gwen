@@ -31,6 +31,7 @@
  */
 
 import type { GwenPlugin } from "../../engine/engine-types";
+import { factoryOf, HOT_FACTORY } from "../../hmr/scene-installs.js";
 import type { DiscoverablePlugin } from "../../system/runtime/define-system";
 import { readMember } from "./read-member";
 
@@ -194,6 +195,12 @@ export function createSystemHandle(inner: GwenPlugin): {
         }
       : {}),
   };
+
+  // Dev only: the scene diff reads the factory off the wrapper the scene stores.
+  if (__GWEN_DEV__) {
+    const linked = factoryOf(inner);
+    if (linked !== undefined) Object.defineProperty(plugin, HOT_FACTORY, { value: linked });
+  }
 
   return { plugin, handle };
 }
