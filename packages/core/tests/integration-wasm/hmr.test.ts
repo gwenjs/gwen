@@ -213,16 +213,28 @@ describe.runIf(__GWEN_DEV__)("hot swaps start clean (real WASM)", () => {
     const handle = await createRealEngine({ variant: "light", maxEntities: 64 });
     try {
       const setups: number[] = [];
-      const localPlugin = (generation: number): GwenPlugin =>
-        definePlugin({ provides: noServices }, () => ({
+      const id = marker(handle.engine);
+      const localPlugin = (generation: number): GwenPlugin => {
+        const Plug = defineComponent({
+          name: `P783Plug${generation}`,
+          schema: { v: Types.f32 },
+        });
+        let owned: ReturnType<GwenEngine["createEntity"]> | undefined;
+        return definePlugin({ provides: noServices }, () => ({
           name: "Local",
           setup(host: GwenEngineBase) {
             setups.push(generation);
             host.hooks.hook("engine:tick", () => {});
+            owned = handle.engine.createEntity();
+            handle.engine.addComponent(owned, Plug, { v: 7 });
+            handle.engine.addComponent(id, Marker, { v: 7 });
+          },
+          teardown() {
+            if (owned !== undefined) handle.engine.destroyEntity(owned);
           },
         }))();
+      };
       await handle.engine.use(localPlugin(0));
-      const id = marker(handle.engine);
       await proveClean(
         handle.engine,
         id,
@@ -236,12 +248,12 @@ describe.runIf(__GWEN_DEV__)("hot swaps start clean (real WASM)", () => {
 
   it("a view re-created by name after a swap does not throw CORE:MEMORY_VIEW_INVALID", async () => {
     const handle = await createRealEngine({ variant: "light", maxEntities: 64 });
+    const notes: string[] = [];
+    const off = handle.engine.errors.on((event) => {
+      notes.push(event.code);
+    });
     try {
       const views: Array<{ dispose(): void }> = [];
-      const notes: string[] = [];
-      handle.engine.errors.on((event) => {
-        notes.push(event.code);
-      });
       const withView = (): GwenPlugin =>
         definePlugin({ provides: noServices }, () => ({
           name: "Viewer",
@@ -268,6 +280,7 @@ describe.runIf(__GWEN_DEV__)("hot swaps start clean (real WASM)", () => {
       expect(notes.filter((code) => code === "CORE:MEMORY_VIEW_INVALID")).toEqual([]);
       expect(handle.engine.getStats().plugins).toEqual(["Viewer"]);
     } finally {
+      off();
       await handle.dispose();
     }
   });
