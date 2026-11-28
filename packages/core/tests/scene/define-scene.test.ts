@@ -11,6 +11,7 @@ import {
 } from "../../src/scene/runtime/scene-context";
 import { GwenContextError } from "../../src/engine/context";
 import { createEngine } from "../../src/node.js";
+import { SceneEnginePlugin } from "../../src/scene/engine-plugin";
 import { definePrefab } from "../../src/actor/runtime/define-prefab";
 import { defineActor } from "../../src/actor/runtime/define-actor";
 import { useActor } from "../../src/actor/runtime/use-actor";
@@ -142,6 +143,7 @@ describe("defineScene composable API", () => {
       });
     });
     const engine = await createEngine();
+    await engine.use(SceneEnginePlugin());
     try {
       engine.run(() => {
         MyScene(REGISTRY);
@@ -179,6 +181,7 @@ describe("defineScene composable API", () => {
 
   it("useActor can register actor plugins through engine-backed scene context", async () => {
     const engine = await createEngine();
+    await engine.use(SceneEnginePlugin());
     const prefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }]);
     const Actor = defineActor(prefab, () => ({}));
     const systems: GwenPlugin[] = [];

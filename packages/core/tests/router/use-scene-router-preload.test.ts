@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { GwenErrorPayload } from "@gwenjs/schema";
 import { createEngine } from "../../src/node.js";
+import { SceneEnginePlugin } from "../../src/scene/engine-plugin.js";
 import type { GwenEngine } from "../../src/engine/engine-types.js";
 import { useEngine } from "../../src/engine/context.js";
 import { GwenScenePreloadError } from "../../src/scene/scene-preload-error.js";
@@ -47,6 +48,7 @@ describe("useSceneRouter preload", () => {
 
   async function loadEngine(): Promise<GwenEngine> {
     const engine = await createEngine();
+    await engine.use(SceneEnginePlugin());
     engines.push(engine);
     await engine.startExternal();
     return engine;

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createEngine } from "../../src/node";
+import { SceneEnginePlugin } from "../../src/scene/engine-plugin";
 import { engineContext } from "../../src/internal";
 import { defineScene } from "../../src/scene/runtime/define-scene";
 import { onEnter, onExit } from "../../src/scene/runtime/scene-context";
@@ -22,6 +23,7 @@ describe("direct onEnter call — engine context set and unset", () => {
     });
 
     const engine = await createEngine({ maxEntities: 100 });
+    await engine.use(SceneEnginePlugin());
     const def = (
       SceneA as unknown as (r: { register: () => void }) => { onEnter?: () => Promise<void> }
     )({ register: () => {} });
@@ -44,6 +46,7 @@ describe("direct onEnter call — engine context set and unset", () => {
     });
 
     const engine = await createEngine({ maxEntities: 100 });
+    await engine.use(SceneEnginePlugin());
     const def = (
       SceneA as unknown as (r: { register: () => void }) => { onEnter?: () => Promise<void> }
     )({ register: () => {} });
@@ -78,6 +81,7 @@ describe("useSceneRouter creation does not activate the initial scene", () => {
     });
 
     const engine = await createEngine({ maxEntities: 100 });
+    await engine.use(SceneEnginePlugin());
     engineContext.set(engine, true);
     try {
       useSceneRouter(Router);
@@ -111,6 +115,7 @@ describe("async onEnter — engine context propagation", () => {
     });
 
     const engine = await createEngine({ maxEntities: 100 });
+    await engine.use(SceneEnginePlugin());
     // Scene enter and exit hooks keep this engine current across await.
     // engine.run only has to cover the synchronous router registration.
     await engine.run(async () => {
@@ -143,6 +148,7 @@ describe("async onEnter — engine context propagation", () => {
     });
 
     const engine = await createEngine({ maxEntities: 100 });
+    await engine.use(SceneEnginePlugin());
     await engine.run(async () => {
       await useSceneRouter(Router).send("GO");
     });
@@ -172,6 +178,7 @@ describe("async onEnter — engine context propagation", () => {
     });
 
     const engine = await createEngine({ maxEntities: 100 });
+    await engine.use(SceneEnginePlugin());
     await engine.run(async () => {
       await useSceneRouter(Router).send("GO");
     });
@@ -196,6 +203,7 @@ describe("async onEnter — engine context propagation", () => {
     });
 
     const engine = await createEngine({ maxEntities: 100 });
+    await engine.use(SceneEnginePlugin());
     await engine.run(async () => {
       await useSceneRouter(Router).send("GO");
     });
@@ -231,6 +239,7 @@ describe("async onEnter — engine context propagation", () => {
     });
 
     const engine = await createEngine({ maxEntities: 100 });
+    await engine.use(SceneEnginePlugin());
     await engine.run(async () => {
       const nav = useSceneRouter(Router);
       await nav.send("TO_B");

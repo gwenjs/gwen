@@ -108,6 +108,9 @@ export class SceneHookRegistry {
     }
   }
 
+  /** Drops the handlers registered for one scene. Inert until they are tracked per name. */
+  unhookScene(_name: string): void {}
+
   /** Removes all registered hook handlers. Called by engine.disposables on cleanup. */
   dispose(): void {
     for (const off of this._cleanups) off();

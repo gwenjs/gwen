@@ -82,6 +82,8 @@ const SENTINELS = [
   // Symbol descriptions held only by packages/core/src/hmr/actor-installs.ts and layout-installs.ts.
   "gwen.hot.actor",
   "gwen.hot.layout",
+  // Symbol description of the scene hot record.
+  "gwen.hot.scene",
   // The stored-props field of an actor instance, written by define-actor.ts under __GWEN_DEV__.
   "_props",
 ];
@@ -156,6 +158,7 @@ new PluginRegistry(undefined);
 
 function writeFixture(dir: string, shapeError = true): void {
   mkdirSync(join(dir, "src", "layouts"), { recursive: true });
+  mkdirSync(join(dir, "src", "scenes"), { recursive: true });
   const hintText = `${STAND_IN_TEXTS.join(" ")} __GWEN_DEV__ import.meta.env`;
   // Published dist does not export this class, so the node_modules build omits it.
   const shapeName = shapeError ? ", GwenPluginShapeError, GwenPluginExtensionApiError" : "";
@@ -176,6 +179,7 @@ function writeFixture(dir: string, shapeError = true): void {
 import { defineActor, PoolExhaustedError, useChildren } from "@gwenjs/core/actor";
 import { Physics3DPlugin } from "@gwenjs/physics3d";
 ${moduleImport}import "./layouts/level.ts";
+import "./scenes/menu.ts";
 import "./router.ts";
 
 console.log(createEngine, useChildren, Physics3DPlugin, GwenActorError, GwenContextError, GwenWasmAbiError, PoolExhaustedError, defineActor);
@@ -201,6 +205,10 @@ console.log(devHints());
   writeFileSync(
     join(dir, "src", "layouts", "level.ts"),
     `import { defineLayout } from "@gwenjs/core/actor";\nexport const Level1 = defineLayout(() => {});\n`,
+  );
+  writeFileSync(
+    join(dir, "src", "scenes", "menu.ts"),
+    `import { defineScene } from "@gwenjs/core/scene";\nexport const Menu = defineScene("menu", () => {});\n`,
   );
   writeFileSync(
     join(dir, "src", "router.ts"),
