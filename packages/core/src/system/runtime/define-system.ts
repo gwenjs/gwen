@@ -47,6 +47,7 @@ import {
   type RetiredSystem,
   type SystemInstall,
 } from "../../hmr/installs.js";
+import { HOT_FACTORY } from "../../hmr/scene-installs.js";
 import { GwenScope } from "../../context/scope.js";
 import { dropTiming, timingFor } from "../../introspection/timing-store.js";
 import { releaseChunkQuery, type Query } from "../../engine/chunk-query.js";
@@ -453,7 +454,10 @@ export function defineSystem<Args extends unknown[]>(
       // Dispatch goes through engine.hooks → scope → registered handlers.
     };
 
-    if (control !== null) Object.defineProperty(plugin, HOT_CONTROL, { value: control });
+    if (control !== null) {
+      Object.defineProperty(plugin, HOT_CONTROL, { value: control });
+      Object.defineProperty(plugin, HOT_FACTORY, { value: factory });
+    }
     return plugin;
   };
   // Hot swaps and dev tooling read the factory name.
