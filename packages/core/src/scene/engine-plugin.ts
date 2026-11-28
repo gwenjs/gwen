@@ -136,12 +136,11 @@ export class SceneHookRegistry {
 }
 
 /**
- * Dev-only set of scene names whose `scene:enter` ran and whose `scene:beforeLeave`
- * has not. A production bundle drops both helpers: nothing in the example graph calls them.
+ * Dev-only map from a registry to the scene names whose `scene:enter` ran and
+ * whose `scene:beforeLeave` has not. The first dev note creates it, inside
+ * `if (__GWEN_DEV__)`. A production bundle never builds the map.
  */
-const devEntered: WeakMap<SceneHookRegistry, Set<string>> | null = __GWEN_DEV__
-  ? new WeakMap()
-  : null;
+let devEntered: WeakMap<SceneHookRegistry, Set<string>> | undefined;
 
 /** Record that `name` is the entered scene (`present`) or that it just left. */
 export function devNoteScenePresence(
@@ -149,20 +148,29 @@ export function devNoteScenePresence(
   name: string,
   present: boolean,
 ): void {
-  if (!__GWEN_DEV__ || devEntered === null) return;
-  let names = devEntered.get(registry);
-  if (names === undefined) {
-    names = new Set();
-    devEntered.set(registry, names);
+  if (__GWEN_DEV__) {
+    let map = devEntered;
+    if (map === undefined) {
+      map = new WeakMap();
+      devEntered = map;
+    }
+    let names = map.get(registry);
+    if (names === undefined) {
+      names = new Set();
+      map.set(registry, names);
+    }
+    if (present) names.add(name);
+    else names.delete(name);
   }
-  if (present) names.add(name);
-  else names.delete(name);
 }
 
 /** True when a dev build saw `scene:enter` for `name` and no later leave. */
 export function sceneIsEntered(registry: SceneHookRegistry, name: string): boolean {
-  if (!__GWEN_DEV__ || devEntered === null) return false;
-  return devEntered.get(registry)?.has(name) === true;
+  if (__GWEN_DEV__) {
+    const names = devEntered?.get(registry);
+    if (names !== undefined) return names.has(name);
+  }
+  return false;
 }
 
 // ── Plugin factory ────────────────────────────────────────────────────────────
