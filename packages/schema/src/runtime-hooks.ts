@@ -7,7 +7,7 @@ import type { ViewportRegion } from "./renderer.js";
 import type { GwenSceneName } from "./scene-names.js";
 
 /** Why a service value was stored or removed. */
-export type ServiceChangeReason = "install" | "unuse" | "stop" | "overwrite";
+export type ServiceChangeReason = "install" | "unuse" | "stop" | "overwrite" | "hot-replace";
 
 /** One service change. `value` on `service:removed` is the value that was removed. */
 export type ServiceChangeEvent = {

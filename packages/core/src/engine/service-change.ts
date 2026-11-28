@@ -2,6 +2,7 @@ import type { ServiceChangeEvent, ServiceChangeReason } from "@gwenjs/schema";
 import { CoreErrorCodes } from "./engine-errors.js";
 import { isThenable } from "./error-isolation.js";
 import { popEngine, pushEngine } from "./engine-local.js";
+import { hotServiceReason } from "../hmr/plugin-swap.js";
 import type { ServiceWriteResult } from "./service-container.js";
 import type { GwenEngine } from "./engine-types.js";
 
@@ -75,7 +76,7 @@ export function emitServiceChange(engine: GwenEngine, notice: ServiceChangeNotic
     key: notice.key,
     value: notice.value,
     owner: notice.owner,
-    reason: notice.reason,
+    reason: __GWEN_DEV__ ? hotServiceReason(engine, notice.owner, notice.reason) : notice.reason,
   };
   const event = fields as ServiceChangeEvent; // boundary: the notice carries one member of the event union, selected by its hook
   if (notice.hook === "service:removed") {
