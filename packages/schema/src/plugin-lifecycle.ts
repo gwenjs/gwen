@@ -18,7 +18,7 @@ export const GWEN_PLUGIN_LIFECYCLE_HOOKS = Object.freeze(hooks);
 export type ForbiddenPluginKey = keyof typeof GWEN_PLUGIN_LIFECYCLE_HOOKS;
 
 /** Own keys a plugin object may declare. */
-export const GWEN_PLUGIN_KEYS = Object.freeze([
+export const GWEN_PLUGIN_KEYS = /* @__PURE__ */ Object.freeze([
   "name",
   "setup",
   "teardown",
@@ -27,4 +27,5 @@ export const GWEN_PLUGIN_KEYS = Object.freeze([
   "provides",
   "validateOptions",
   "extensionApi",
+  "hot",
 ] as const);

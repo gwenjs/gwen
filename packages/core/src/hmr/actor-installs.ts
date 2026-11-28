@@ -41,6 +41,8 @@ export interface HotActorControl<Props, PublicAPI> {
   retarget(body: ActorBody<Props, PublicAPI>): void;
   /** Run the current body again on one live instance, keeping its entity. */
   respawn(engine: GwenEngine, id: EntityId): RespawnResult;
+  /** Retire one live instance now. The returned function builds it again. */
+  retire(engine: GwenEngine, id: EntityId): () => RespawnResult;
   /** Call `drop` after each swap of this definition. Returns the unsubscribe function. */
   listen(drop: () => void): () => void;
   /** Call every listener. */

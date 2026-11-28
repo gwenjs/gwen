@@ -57,6 +57,8 @@ export interface SystemInstall<Args extends unknown[]> {
   readonly control: HotControl;
   /** Control of the first plugin of the chain: the one the engine and the handle hold. */
   readonly root: HotControl;
+  /** A new plugin from the factory this install came from, built with the same arguments. */
+  again(): DiscoverablePlugin;
 }
 
 /** Every install of one `defineSystem` factory. */
@@ -107,6 +109,8 @@ export interface SystemInstallInfo {
   readonly name: string;
   /** Live scope, or null when the install was recorded without one. */
   readonly scope: ScopedHookable | null;
+  /** The swap record of this install. Undefined when the install was recorded without one. */
+  readonly install?: SystemInstall<unknown[]>;
 }
 
 /** Installed systems of one engine, by scope id. Released by `stop()`. */

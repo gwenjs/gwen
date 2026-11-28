@@ -17,7 +17,8 @@ export type GwenHotKind = "system" | "actor" | "scene" | "layout" | "component" 
  * - `component-layout-changed`: the component name or its field layout differs.
  * - `scene-set-changed`: the set of scenes differs.
  * - `router-changed`: the scene router differs.
- * - `plugin-in-use`: another plugin still depends on the plugin being replaced.
+ * - `plugin-in-use`: another plugin still depends on the plugin being replaced, or a scene
+ *   or another plugin read one of its services.
  */
 export type GwenHotReloadReason =
   | "engine-not-running"
@@ -30,8 +31,9 @@ export type GwenHotReloadReason =
  * Outcome of one hot replacement.
  *
  * `applied` carries the number of installs that now run the new definition. Zero means nothing
- * was installed, so nothing changed. `reload` asks the caller to reload the page and says why;
- * `detail` names the first difference when there is one.
+ * was installed, so nothing changed. Its `detail`, when set, is `hot state not restored`.
+ * `reload` asks the caller to reload the page and says why. Its `detail` names the first
+ * difference when there is one.
  */
 export type GwenHotReport =
   | {
@@ -39,6 +41,7 @@ export type GwenHotReport =
       readonly kind: GwenHotKind;
       readonly name: string;
       readonly count: number;
+      readonly detail?: string;
     }
   | {
       readonly status: "reload";

@@ -67,10 +67,10 @@ export type PluginKeyError<K extends PropertyKey> = K extends ForbiddenPluginKey
   ? `"${K}" is never called by the engine. In setup(), use engine.hooks.hook("${(typeof GWEN_PLUGIN_LIFECYCLE_HOOKS)[K]}", …)`
   : K extends "provides" | "validateOptions" | "extensionApi"
     ? `"${K}" is set by definePlugin's first argument`
-    : `"${K & string}" is not a GwenPlugin key (allowed: name, setup, teardown, onError, requires)`;
+    : `"${K & string}" is not a GwenPlugin key (allowed: name, setup, teardown, onError, requires, hot)`;
 
 /** Keys a plugin author writes in the object the factory returns. */
-type AuthorPluginKey = "name" | "setup" | "teardown" | "onError" | "requires";
+type AuthorPluginKey = "name" | "setup" | "teardown" | "onError" | "requires" | "hot";
 
 /**
  * `TPlugin` with every key outside the author keys replaced by {@link PluginKeyError}.

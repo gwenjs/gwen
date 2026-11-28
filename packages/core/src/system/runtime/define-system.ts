@@ -48,6 +48,7 @@ import {
   type SystemInstall,
 } from "../../hmr/installs.js";
 import { HOT_FACTORY } from "../../hmr/scene-installs.js";
+import { noteServiceReader } from "../../hmr/service-readers.js";
 import { GwenScope } from "../../context/scope.js";
 import { dropTiming, timingFor } from "../../introspection/timing-store.js";
 import { releaseChunkQuery, type Query } from "../../engine/chunk-query.js";
@@ -311,10 +312,19 @@ export function defineSystem<Args extends unknown[]>(
       const id = _gwenScope?.meta.id;
       const engine = useEngine();
       if (id === undefined || control === null || record === null) return;
-      _install = { id, engine, args, control, root: _root ?? control };
+      _install = {
+        id,
+        engine,
+        args,
+        control,
+        root: _root ?? control,
+        again: () => factory(...args),
+      };
       record.installs.add(_install);
       if (!engine.disposables.closed) {
-        systemInstalls.get(engine).set(id, { id, name: pluginName, scope: _scope });
+        systemInstalls
+          .get(engine)
+          .set(id, { id, name: pluginName, scope: _scope, install: _install });
         if (__GWEN_DEV__) {
           if (_scope !== null) _scope._timing = timingFor(engine, id);
         }
@@ -592,6 +602,7 @@ export function useQuery<const C extends readonly ComponentDef[]>(
  *
  */
 export function useService<K extends keyof GwenProvides>(key: K): GwenProvides[K] {
+  if (__GWEN_DEV__) noteServiceReader(key);
   return useEngine("useService").inject(key);
 }
 
