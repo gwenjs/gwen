@@ -13,6 +13,7 @@ import { readMember } from "../scene/runtime/read-member.js";
 import type { GwenScope } from "../context/scope.js";
 import type { GwenEngine, GwenPlugin } from "../engine/engine-types.js";
 import type { SceneFactory } from "../scene/runtime/define-scene.js";
+import type { SystemHandle } from "../scene/runtime/system-handle.js";
 import type { DiscoverablePlugin } from "../system/runtime/define-system.js";
 
 /** Key of the {@link SceneRecord} on a `defineScene` factory. */
@@ -20,6 +21,9 @@ export const HOT_SCENE: unique symbol = Symbol("gwen.hot.scene");
 
 /** Key of the `defineSystem` factory on the plugin it produced and on the scene wrapper. */
 export const HOT_FACTORY: unique symbol = Symbol("gwen.hot.factory");
+
+/** Key of the `SystemHandle` on the wrapper `createSystemHandle` built. */
+export const HOT_HANDLE: unique symbol = Symbol("gwen.hot.handle");
 
 /** Key of the actor definition on the plugin `defineActor` produced. */
 export const HOT_ACTOR_OWNER: unique symbol = Symbol("gwen.hot.actor-owner");
@@ -97,6 +101,20 @@ export function rememberSceneEngine(factory: object, engine: GwenEngine): void {
 export function factoryOf(plugin: GwenPlugin): SceneSystemFactory | undefined {
   const value = readMember(plugin, HOT_FACTORY);
   return isSceneSystemFactory(value) ? value : undefined;
+}
+
+function isSystemHandle(value: unknown): value is SystemHandle {
+  if (typeof value !== "object" || value === null) return false;
+  return (
+    typeof Reflect.get(value, "pause") === "function" &&
+    typeof Reflect.get(value, "_scenePause") === "function"
+  );
+}
+
+/** Handle `createSystemHandle` stored on its wrapper. Undefined for any other plugin. */
+export function handleOf(plugin: GwenPlugin): SystemHandle | undefined {
+  const value = readMember(plugin, HOT_HANDLE);
+  return isSystemHandle(value) ? value : undefined;
 }
 
 /** Actor definition that owns `plugin`. Undefined for a system or a dependency. */
