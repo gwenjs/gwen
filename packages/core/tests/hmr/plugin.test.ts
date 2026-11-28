@@ -17,6 +17,7 @@ declare module "@gwenjs/schema" {
 }
 
 const engines: GwenEngine[] = [];
+const stopWatching: Array<() => void> = [];
 const noServices: readonly GwenPluginServiceKey[] = [];
 
 async function boot(): Promise<GwenEngine> {
@@ -26,6 +27,7 @@ async function boot(): Promise<GwenEngine> {
 }
 
 afterEach(async () => {
+  for (const stop of stopWatching.splice(0)) stop();
   for (const engine of engines.splice(0)) await engine.stop();
 });
 
@@ -35,9 +37,10 @@ function provider(
   log: string[],
   tag: string,
   teardown?: () => Promise<void>,
+  name = "Local",
 ): GwenPlugin {
   return definePlugin({ provides: ["p783:svc"] }, () => ({
-    name: "Local",
+    name,
     setup(host: GwenEngineBase) {
       log.push(`${tag} setup`);
       host.provide("p783:svc", { n });
@@ -85,9 +88,24 @@ interface BusNote {
 }
 
 function watchErrors(engine: GwenEngine, notes: BusNote[]): void {
-  engine.errors.on((event) => {
-    notes.push({ code: event.code, phase: event.context?.["phase"] });
-  });
+  stopWatching.push(
+    engine.errors.on((event) => {
+      notes.push({ code: event.code, phase: event.context?.["phase"] });
+    }),
+  );
+}
+
+/** A plugin with no service. Setup and teardown append `name` to `log`. */
+function plain(name: string, log: string[]): GwenPlugin {
+  return definePlugin({ provides: noServices }, () => ({
+    name,
+    setup() {
+      log.push(`${name} setup`);
+    },
+    teardown() {
+      log.push(`${name} teardown`);
+    },
+  }))();
 }
 
 const applied = (name: string, count: number): GwenHotReport => ({
@@ -434,5 +452,133 @@ describe.runIf(__GWEN_DEV__)("hotReplacePlugin", () => {
     expect(engine.inject("p783:svc")).toEqual({ n: 2 });
     expect(engine.getStats().plugins).toEqual(["Local"]);
     expect(notes).toEqual([{ code: "CORE:PLUGIN_RUNTIME_ERROR", phase: "teardown" }]);
+  });
+
+  it("a stop() during the old teardown reports reload engine-not-running and emits no error", async () => {
+    const engine = await boot();
+    const log: string[] = [];
+    const notes: BusNote[] = [];
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await engine.use(provider(1, log, "old", () => gate));
+    watchErrors(engine, notes);
+    const swap = hotReplacePlugin(engine, "Local", provider(2, log, "new"));
+    let stopping: Promise<void> | undefined;
+    try {
+      for (let i = 0; i < 20 && !log.includes("old teardown start"); i += 1) {
+        await Promise.resolve();
+      }
+      stopping = engine.stop();
+      for (let i = 0; i < 20 && engine.state !== "stopping"; i += 1) await Promise.resolve();
+      release();
+      const report = await swap;
+      expect(report).toEqual({
+        status: "reload",
+        kind: "plugin",
+        name: "Local",
+        reason: "engine-not-running",
+      });
+      expect(notes.filter((note) => note.code === "CORE:PLUGIN_RUNTIME_ERROR")).toEqual([]);
+    } finally {
+      release();
+      await swap.catch(() => undefined);
+      await stopping?.catch(() => undefined);
+    }
+  });
+
+  it("a rename to Local2 reports the old name, a soft consumer sees hot-replace, and another engine keeps unuse", async () => {
+    const blocked = await boot();
+    const blockedLog: string[] = [];
+    await blocked.use(provider(1, blockedLog, "old"));
+    await blocked.use(consumer("Layered", { plugins: ["Local"] }));
+
+    const blockedReport = await hotReplacePlugin(
+      blocked,
+      "Local",
+      provider(2, blockedLog, "next", undefined, "Local2"),
+    );
+
+    expect(blockedReport).toEqual({
+      status: "reload",
+      kind: "plugin",
+      name: "Local",
+      reason: "plugin-in-use",
+      detail: "Layered",
+    });
+    expect(blocked.getStats().plugins).toEqual(["Local", "Layered"]);
+
+    const left = await boot();
+    const right = await boot();
+    const log: string[] = [];
+    const leftEvents: string[] = [];
+    const rightEvents: string[] = [];
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await left.use(provider(1, log, "old", () => gate));
+    await left.use(
+      consumer("Soft", { optional: ["p783:svc"] }, (host) => {
+        host.hooks.hook("service:removed", (e) => {
+          leftEvents.push(`removed:${e.reason}`);
+        });
+        host.hooks.hook("service:provided", (e) => {
+          leftEvents.push(`provided:${e.reason}`);
+        });
+      }),
+    );
+    await right.use(provider(1, log, "right"));
+    await right.use(
+      consumer("SoftRight", { optional: ["p783:svc"] }, (host) => {
+        host.hooks.hook("service:removed", (e) => {
+          rightEvents.push(`removed:${e.reason}`);
+        });
+      }),
+    );
+    const swap = hotReplacePlugin(left, "Local", provider(2, log, "new", undefined, "Local2"));
+    try {
+      for (let i = 0; i < 20 && !log.includes("old teardown start"); i += 1) {
+        await Promise.resolve();
+      }
+      await right.unuse("Local");
+      release();
+      const report = await swap;
+
+      expect(report).toEqual(applied("Local", 1));
+      expect(left.getStats().plugins).toEqual(["Soft", "Local2"]);
+      expect(leftEvents).toEqual(["removed:hot-replace", "provided:hot-replace"]);
+      expect(rightEvents).toEqual(["removed:unuse"]);
+    } finally {
+      release();
+      await swap.catch(() => undefined);
+    }
+  });
+
+  it("a swap onto an already installed name counts 0 and leaves that plugin untouched", async () => {
+    const engine = await boot();
+    const log: string[] = [];
+    await engine.use(plain("Local", log));
+    await engine.use(plain("Other", log));
+    log.length = 0;
+
+    const report = await hotReplacePlugin(engine, "Local", plain("Other", log));
+
+    expect(report).toEqual(applied("Local", 0));
+    expect(log).toEqual(["Local teardown"]);
+    expect(engine.getStats().plugins).toEqual(["Other"]);
+  });
+
+  it("a throwing setup when nothing was installed reports applied count 0", async () => {
+    const engine = await boot();
+    const notes: BusNote[] = [];
+    watchErrors(engine, notes);
+
+    const report = await hotReplacePlugin(engine, "Local", throwingSetup());
+
+    expect(report).toEqual(applied("Local", 0));
+    expect(notes).toEqual([{ code: "CORE:PLUGIN_SETUP_ERROR", phase: "setup" }]);
+    expect(engine.getStats().plugins).toEqual([]);
   });
 });
