@@ -3,6 +3,7 @@ import { defineActor } from "../../src/actor/runtime/define-actor";
 import { definePrefab } from "../../src/actor/runtime/define-prefab";
 import { useActor } from "../../src/actor/runtime/use-actor";
 import type { GwenEngine } from "../../src/engine/engine-types.js";
+import { useHook } from "../../src/hooks/use-hook";
 import { hotReplaceScene, registerSceneHandles, type GwenHotReport } from "../../src/internal.js";
 import { createEngine } from "../../src/node.js";
 import { SceneEnginePlugin } from "../../src/scene/engine-plugin";
@@ -274,12 +275,16 @@ describe.runIf(__GWEN_DEV__)("hotReplaceScene", () => {
 
   it("the old scene scope is disposed: its useActor despawn hook is gone and the new one runs", async () => {
     const engine = await boot();
+    const leaveLog: string[] = [];
     const Hp = defineComponent({ name: "ScopeHp", schema: { hp: Types.f32 } });
     const HpPrefab = definePrefab([{ def: Hp, defaults: { hp: 1 } }]);
     const make = (tag: string) => {
       const Unit = defineActor("ScopeUnit", HpPrefab, () => ({ tag }));
       const Arena = defineScene("Arena", () => {
         useActor(Unit);
+        useHook("scene:beforeLeave", () => {
+          leaveLog.push(tag);
+        });
       });
       return { Unit, Arena };
     };
@@ -292,14 +297,14 @@ describe.runIf(__GWEN_DEV__)("hotReplaceScene", () => {
     const report = await hotReplaceScene(first.Arena, second.Arena);
 
     expect(report).toEqual({ status: "applied", kind: "scene", name: "Arena", count: 1 });
-    // hotReplaceActor makes both definitions share one instance map, so the new
-    // leave hook despawns the old id too. The listener count is what shows the
-    // old scope hook was removed: the new useActor hook replaces it one for one.
+    // hotReplaceActor shares one instance map, so either leave hook clears both ids.
+    // The listener count stays one for one. Only the new scope's hook pushes "new".
     expect(engine.getStats().hookListeners).toBe(listeners);
     const nextId = second.Unit._plugin.spawn();
     await engine.hooks.callHook("scene:beforeLeave", "Arena");
     expect(first.Unit._instances.has(id)).toBe(false);
     expect(second.Unit._instances.has(nextId)).toBe(false);
+    expect(leaveLog).toEqual(["new"]);
   });
 
   it("two engines are both swapped", async () => {
@@ -525,6 +530,41 @@ describe.runIf(__GWEN_DEV__)("hotReplaceScene", () => {
       reason: "plugin-in-use",
       detail: "gone",
     });
+  });
+
+  it("a plain plugin before a defineSystem system keeps both handles paused and resumed after a swap", async () => {
+    const engine = await boot();
+    const log: string[] = [];
+    const plain = { name: "Plain", setup() {} };
+    const Tick = ticker("Tick", "tick", log);
+    const handles: SystemHandle[] = [];
+    const Game = defineScene("Game", () => {
+      handles.push(useSystem(plain));
+      handles.push(useSystem(Tick()));
+    });
+    const Game2 = defineScene("Game", () => {
+      useSystem(plain);
+      useSystem(Tick());
+    });
+    await install(engine, Game);
+
+    const report = await hotReplaceScene(Game, Game2);
+
+    expect(report).toEqual({ status: "applied", kind: "scene", name: "Game", count: 1 });
+    await engine.hooks.callHook("scene:enter", "Game");
+    const afterEnter = handles.map((handle) => handle.active);
+    log.length = 0;
+    await engine.advance(0.016);
+    const whileEntered = [...log];
+    log.length = 0;
+    await engine.hooks.callHook("scene:beforeLeave", "Game");
+    const afterLeave = handles.map((handle) => handle.active);
+    await engine.advance(0.016);
+
+    expect(afterEnter).toEqual([true, true]);
+    expect(whileEntered).toEqual(["tick"]);
+    expect(afterLeave).toEqual([false, false]);
+    expect(log).toEqual([]);
   });
 });
 
