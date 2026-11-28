@@ -11,6 +11,7 @@ import type { GwenEngine } from "./engine-types";
 import { engineContext, useEngine } from "./context";
 import { createDisposable } from "../disposable";
 import { CoreErrorCodes } from "./engine-errors";
+import { noteEngineLocal } from "../hmr/engine-local-count";
 
 /** Brand on {@link GwenEngineImpl}. The hooks proxy forwards it. */
 export const gwenEngineSelf = Symbol.for("@gwenjs/engine");
@@ -109,10 +110,12 @@ export function createEngineLocal<T>(
           dispose?.(current.value, real);
         } finally {
           map.delete(real);
+          if (__GWEN_DEV__) noteEngineLocal(real, -1);
         }
       }),
     );
     map.set(real, { value });
+    if (__GWEN_DEV__) noteEngineLocal(real, 1);
     return value;
   }
 
