@@ -364,6 +364,25 @@ export interface GwenPluginRequirement {
  * )
  * ```
  */
+
+/**
+ * State a plugin hands to the plugin that replaces it on a hot swap.
+ *
+ * `save` runs before the old plugin tears down. `restore` runs after the new
+ * plugin's `setup` and receives the value `save` returned, by reference.
+ * A plugin with no `hot` starts fresh.
+ */
+export interface GwenPluginHot {
+  /** Read the state the next version of this plugin should receive. */
+  save(): unknown;
+
+  /**
+   * Write the state the previous version saved.
+   * @param state - The value `save` returned. Not cloned.
+   */
+  restore(state: unknown): void;
+}
+
 export interface GwenPlugin {
   /** Unique plugin identifier. Used for deduplication and lookup. */
   name: string;
@@ -430,4 +449,10 @@ export interface GwenPlugin {
    * `engine.use()` reads it when another plugin names this base as an object.
    */
   readonly extensionApi?: GwenExtensionApi;
+
+  /**
+   * State handed from the replaced plugin to this one.
+   * Absent means this plugin starts with fresh state.
+   */
+  readonly hot?: GwenPluginHot;
 }

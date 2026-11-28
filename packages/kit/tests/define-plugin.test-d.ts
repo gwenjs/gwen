@@ -129,7 +129,25 @@ describe("definePlugin", () => {
     >().toEqualTypeOf<`"onRender" is never called by the engine. In setup(), use engine.hooks.hook("engine:render", …)`>();
     expectTypeOf<
       PluginKeyError<"version">
-    >().toEqualTypeOf<`"version" is not a GwenPlugin key (allowed: name, setup, teardown, onError, requires)`>();
+    >().toEqualTypeOf<`"version" is not a GwenPlugin key (allowed: name, setup, teardown, onError, requires, hot)`>();
+  });
+
+  it("definePlugin accepts hot save and restore", () => {
+    const plugin = definePlugin(() => ({
+      name: "Local",
+      setup() {},
+      hot: {
+        save: () => 1,
+        restore: (_state: unknown) => {},
+      },
+    }));
+    expectTypeOf(plugin().name).toEqualTypeOf<string>();
+    definePlugin(() => ({
+      name: "Bad",
+      setup() {},
+      // @ts-expect-error hot.save must be a function
+      hot: { save: 1, restore: (_state: unknown) => {} },
+    }));
   });
 
   it("PluginKeyError names definePlugin's first argument for provides and validateOptions", () => {

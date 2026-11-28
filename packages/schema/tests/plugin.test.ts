@@ -199,6 +199,7 @@ describe("GwenPlugin (structural)", () => {
       "provides",
       "validateOptions",
       "extensionApi",
+      "hot",
     ]);
     expect(Object.isFrozen(schema.GWEN_PLUGIN_KEYS)).toBe(true);
   });

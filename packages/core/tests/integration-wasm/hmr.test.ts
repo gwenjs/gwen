@@ -21,13 +21,19 @@ import { defineScene } from "../../src/scene/runtime/define-scene.js";
 import { useSystem } from "../../src/scene/runtime/scene-context.js";
 import { SceneEnginePlugin } from "../../src/scene/engine-plugin.js";
 import { defineComponent, Types } from "../../src/schema.js";
-import { defineSystem, onUpdate } from "../../src/system/runtime/define-system.js";
+import { defineSystem, onUpdate, useService } from "../../src/system/runtime/define-system.js";
 import { createRealEngine } from "./harness.js";
 
 const Marker = defineComponent({ name: "P783WasmMarker", schema: { v: Types.f32 } });
 const Hp = defineComponent({ name: "P783WasmHp", schema: { hp: Types.f32 } });
 const Prefab = definePrefab([{ def: Hp, defaults: { hp: 1 } }]);
 const noServices: readonly GwenPluginServiceKey[] = [];
+
+declare module "@gwenjs/schema" {
+  interface GwenProvides {
+    "p783:wasm-svc": { readonly n: number };
+  }
+}
 
 interface Snapshot {
   readonly entities: number;
@@ -241,6 +247,40 @@ describe.runIf(__GWEN_DEV__)("hot swaps start clean (real WASM)", () => {
         (n) => hotReplacePlugin(handle.engine, "Local", localPlugin(n)),
         () => setups.at(-1),
       );
+    } finally {
+      await handle.dispose();
+    }
+  });
+
+  it("after 50 plugin swaps with hot state and a service reader the counts equal the baseline and the state and the reader follow", async () => {
+    const handle = await createRealEngine({ variant: "light", maxEntities: 64 });
+    try {
+      const id = marker(handle.engine);
+      const restored: unknown[] = [];
+      const seen: number[] = [];
+      const Reader = defineSystem("P783Reader", () => {
+        const svc = useService("p783:wasm-svc");
+        onUpdate(() => {
+          seen.push(svc.n);
+        });
+      });
+      const localPlugin = (generation: number): GwenPlugin => ({
+        name: "Local",
+        provides: ["p783:wasm-svc"],
+        setup(host: GwenEngineBase) {
+          host.provide("p783:wasm-svc", { n: generation });
+        },
+        hot: { save: () => generation, restore: (state) => restored.push(state) },
+      });
+      await handle.engine.use(localPlugin(0));
+      await handle.engine.use(Reader());
+      await proveClean(
+        handle.engine,
+        id,
+        (n) => hotReplacePlugin(handle.engine, "Local", localPlugin(n)),
+        () => seen.at(-1),
+      );
+      expect(restored).toEqual(Array.from({ length: 50 }, (_, i) => i));
     } finally {
       await handle.dispose();
     }

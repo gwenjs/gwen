@@ -46,6 +46,7 @@ export type {
   GwenExtensionService,
   GwenPluginServiceKey,
   GwenPluginRequirement,
+  GwenPluginHot,
   GwenPluginRequires,
   GwenProvides,
   GwenServiceKey,

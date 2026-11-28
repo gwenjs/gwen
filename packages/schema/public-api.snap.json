@@ -88,6 +88,7 @@
       "GwenModuleDefinition",
       "GwenModuleOptions",
       "GwenPlugin",
+      "GwenPluginHot",
       "GwenPluginName",
       "GwenPluginRegistry",
       "GwenPluginRequirement",
