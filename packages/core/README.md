@@ -377,7 +377,7 @@ Types: `CreateRealEngineOptions`, `RealEngineHandle`
 
 no semver guarantee — framework packages and generated code only
 
-Values: `EASING_MAP`, `FLAGS_OFFSET`, `FLAG_HAS_TRANSFORM`, `GwenScope`, `MAX_SAB_BYTES`, `SENTINEL`, `SceneEnginePlugin`, `SharedMemoryManager`, `StringPool`, `StringPoolManager`, `stringPoolFor`, `TRANSFORM3D_STRIDE`, `TRANSFORM_OFFSETS`, `TRANSFORM_STRIDE`, `Transform3D`, `TweenManager`, `TweenPlugin`, `TweenPool`, `WasmBridgeImpl`, `_getActorContext`, `_getActorEntityId`, `asFullEngine`, `buildTransformImports`, `createDisposable`, `createGwenHooks`, `detectCoreVariant`, `engineContext`, `entityIndex`, `executeAsync`, `getTweenManager`, `getWasmBridge`, `hotCompareComponent`, `hotReplaceActor`, `hotReplaceLayout`, `hotReplaceSystem`, `invalidateWasmModule`, `autoProvider`, `isolatedProvider`, `poisonWasmBridge`, `readInterpolatedTransform2D`, `readTransform3DPosition`, `readTransform3DRotation`, `readTransform3DScale`, `reportRejectedHook`, `runScenePreload`, `sharedProvider`, `toGwenWasmError`, `transformPairOf`, `writeTransform3DPosition`, `writeTransform3DRotation`, `writeTransform3DScale`
+Values: `EASING_MAP`, `FLAGS_OFFSET`, `FLAG_HAS_TRANSFORM`, `GwenScope`, `MAX_SAB_BYTES`, `SENTINEL`, `SceneEnginePlugin`, `SharedMemoryManager`, `StringPool`, `StringPoolManager`, `stringPoolFor`, `TRANSFORM3D_STRIDE`, `TRANSFORM_OFFSETS`, `TRANSFORM_STRIDE`, `Transform3D`, `TweenManager`, `TweenPlugin`, `TweenPool`, `WasmBridgeImpl`, `_getActorContext`, `_getActorEntityId`, `asFullEngine`, `buildTransformImports`, `createDisposable`, `createGwenHooks`, `detectCoreVariant`, `engineContext`, `entityIndex`, `executeAsync`, `getTweenManager`, `getWasmBridge`, `hotCompareComponent`, `hotReplaceActor`, `hotReplaceLayout`, `hotReplaceScene`, `hotReplaceSystem`, `invalidateWasmModule`, `autoProvider`, `isolatedProvider`, `poisonWasmBridge`, `readInterpolatedTransform2D`, `readTransform3DPosition`, `readTransform3DRotation`, `readTransform3DScale`, `registerSceneHandles`, `reportRejectedHook`, `runScenePreload`, `sharedProvider`, `toGwenWasmError`, `transformPairOf`, `writeTransform3DPosition`, `writeTransform3DRotation`, `writeTransform3DScale`
 
 Types: `GwenCoreGlueFactoryModule`, `GwenCoreGlueInstance`, `GwenCoreWasm`, `GwenHotKind`, `GwenHotReloadReason`, `GwenHotReport`, `GwenTransformImports`, `InitWasmOptions`, `InterpolatedTransform2D`, `TransformPair2D`, `TweenPluginOptions`, `TweenPoolPolicy`, `TweenSlot`, `WasmEngine`, `WasmEnginePhysics2D`, `WasmEnginePhysics3D`, `WasmEntityId`, `WasmInstanceMode`, `WasmInstanceProvider`
 
@@ -398,6 +398,10 @@ Types: `GwenCoreGlueFactoryModule`, `GwenCoreGlueInstance`, `GwenCoreWasm`, `Gwe
 `hotReplaceActor` — Dev only: respawns every live instance of an actor with a new factory on every engine that installed it, keeping each entity id and component values, and reports `reload` when an engine is not `idle` or `running`.
 
 `hotReplaceLayout` — Dev only: disposes and loads again every loaded `useLayout` handle of a layout with its new factory, and reports `reload` when an engine is not `idle` or `running`.
+
+`hotReplaceScene` — Dev only: swaps a scene in place on every engine that installed it, and reports `reload` when the scene name differs or an engine is not `idle` or `running`.
+
+`registerSceneHandles` — Records the system handles of one scene on an engine so pause and resume follow that scene.
 
 `hotReplaceSystem` — Dev only: swaps the body of a system in place on every engine that installed it, and reports `reload` when an engine is not `idle` or `running`.
 

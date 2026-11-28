@@ -5,3 +5,5 @@ export { hotReplaceSystem } from "./hot-replace-system.js";
 export { hotCompareComponent } from "./hot-compare-component.js";
 export { hotReplaceActor } from "./hot-replace-actor.js";
 export { hotReplaceLayout } from "./hot-replace-layout.js";
+export { hotReplaceScene } from "./hot-replace-scene.js";
+export { registerSceneHandles } from "./scene-handles.js";

@@ -7,7 +7,7 @@ import { GwenScenePreloadError } from "../../src/scene/scene-preload-error.js";
 import { runScenePreload } from "../../src/scene/run-scene-preload.js";
 import { SceneEnginePlugin } from "../../src/scene/engine-plugin.js";
 import { defineScene } from "../../src/scene/runtime/define-scene.js";
-import { onPreload } from "../../src/scene/runtime/scene-context.js";
+import { onEnter, onPreload } from "../../src/scene/runtime/scene-context.js";
 
 const REGISTRY = { register: () => {} };
 
@@ -140,27 +140,19 @@ describe("onPreload scene:preload", () => {
     expect(started).toEqual(["b"]);
   });
 
-  it("without SceneEnginePlugin the direct fallback runs onPreload", async () => {
+  it("without SceneEnginePlugin a scene registers no hook", async () => {
     const engine = await loadEngine();
-    let runs = 0;
-    let other = 0;
-    const Scene = defineScene("FallbackPreload", () => {
-      onPreload(() => {
-        runs += 1;
-      });
-    });
-    const Other = defineScene("FallbackOther", () => {
-      onPreload(() => {
-        other += 1;
+    const log: string[] = [];
+    const Menu = defineScene("Bare", () => {
+      onEnter(() => {
+        log.push("enter");
       });
     });
     engine.run(() => {
-      Scene(REGISTRY);
-      Other(REGISTRY);
+      Menu(REGISTRY);
     });
-    await runScenePreload(engine, null, "FallbackPreload");
-    expect(runs).toBe(1);
-    expect(other).toBe(0);
+    await engine.hooks.callHook("scene:enter", "Bare");
+    expect(log).toEqual([]);
   });
 
   it("two engines run a shared scene definition once each", async () => {

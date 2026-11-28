@@ -2,6 +2,7 @@ import { stubComponent } from "../helpers/stub-component";
 import { describe, it, expect, vi } from "vitest";
 import * as core from "../../src/index.js";
 import { createEngine } from "../../src/node.js";
+import { SceneEnginePlugin } from "../../src/scene/engine-plugin";
 import { defineScene, type SceneFactory } from "../../src/scene/runtime/define-scene";
 import { definePrefab } from "../../src/actor/runtime/define-prefab";
 import { defineActor } from "../../src/actor/runtime/define-actor";
@@ -42,6 +43,7 @@ const Position = stubComponent("Position");
 describe("useSceneRouter()", () => {
   it("starts in the initial state", async () => {
     const engine = await createEngine();
+    await engine.use(SceneEnginePlugin());
     await engine.run(async () => {
       const nav = useSceneRouter(AppRouter);
       expect(nav.current).toBe("menu");
@@ -62,6 +64,7 @@ describe("useSceneRouter()", () => {
       },
     });
     const engine = await createEngine();
+    await engine.use(SceneEnginePlugin());
     const hooks: string[] = [];
     engine.hooks.hook("scene:enter", (name: string) => {
       hooks.push(name);
@@ -79,6 +82,7 @@ describe("useSceneRouter()", () => {
 
   it("send() transitions to new state", async () => {
     const engine = await createEngine();
+    await engine.use(SceneEnginePlugin());
     await engine.run(async () => {
       const nav = useSceneRouter(AppRouter);
       await nav.send("PLAY");
@@ -91,6 +95,7 @@ describe("useSceneRouter()", () => {
     onExitMenu.mockClear();
     onEnterGame.mockClear();
     const engine = await createEngine();
+    await engine.use(SceneEnginePlugin());
     await engine.run(async () => {
       const nav = useSceneRouter(AppRouter);
       await nav.send("PLAY");
@@ -113,6 +118,7 @@ describe("useSceneRouter()", () => {
       },
     });
     const engine = await createEngine();
+    await engine.use(SceneEnginePlugin());
     await engine.run(async () => {
       const nav = useSceneRouter(router);
       await nav.send("GO", { level: 2, score: 999 });
@@ -122,6 +128,7 @@ describe("useSceneRouter()", () => {
 
   it("send() with invalid event is silently ignored", async () => {
     const engine = await createEngine();
+    await engine.use(SceneEnginePlugin());
     await engine.run(async () => {
       const nav = useSceneRouter(AppRouter);
       await expect(nav.send("WIN" as any)).resolves.toBeUndefined();
@@ -131,6 +138,7 @@ describe("useSceneRouter()", () => {
 
   it("can() returns true only for valid transitions in current state", async () => {
     const engine = await createEngine();
+    await engine.use(SceneEnginePlugin());
     await engine.run(async () => {
       const nav = useSceneRouter(AppRouter);
       expect(nav.can("PLAY")).toBe(true);
@@ -140,6 +148,7 @@ describe("useSceneRouter()", () => {
 
   it("onTransition() callback is called on state change", async () => {
     const engine = await createEngine();
+    await engine.use(SceneEnginePlugin());
     const transitions: [string, string][] = [];
     await engine.run(async () => {
       const nav = useSceneRouter(AppRouter);
@@ -151,6 +160,7 @@ describe("useSceneRouter()", () => {
 
   it("overlay: true pushes scene on stack, RESUME pops back", async () => {
     const engine = await createEngine();
+    await engine.use(SceneEnginePlugin());
     await engine.run(async () => {
       const nav = useSceneRouter(AppRouter);
       await nav.send("PLAY");
@@ -181,6 +191,7 @@ describe("useSceneRouter()", () => {
     });
 
     const engine = await createEngine();
+    await engine.use(SceneEnginePlugin());
     await engine.run(async () => {
       const nav = useSceneRouter(router);
       // Creation does not enter the underlying scene. Overlay dismiss must not either.
@@ -195,6 +206,7 @@ describe("useSceneRouter()", () => {
 
   it("params are stored and accessible after send()", async () => {
     const engine = await createEngine();
+    await engine.use(SceneEnginePlugin());
     await engine.run(async () => {
       const nav = useSceneRouter(AppRouter);
       await nav.send("PLAY", { debug: true });
@@ -222,6 +234,7 @@ describe("useSceneRouter()", () => {
     });
 
     const engine = await createEngine();
+    await engine.use(SceneEnginePlugin());
     const usages: Promise<unknown>[] = [];
     engine.run(() => {
       for (const sceneFactory of [Menu, Game]) {
@@ -253,6 +266,7 @@ describe("useSceneRouter()", () => {
       },
     });
     const engine = await createEngine();
+    await engine.use(SceneEnginePlugin());
     await engine.run(async () => {
       const nav = useSceneRouter(router);
       await nav.send("GO");
@@ -275,6 +289,7 @@ describe("useSceneRouter()", () => {
       },
     });
     const engine = await createEngine();
+    await engine.use(SceneEnginePlugin());
     await engine.run(async () => {
       const nav = useSceneRouter(router);
       await nav.send("GO");
@@ -300,8 +315,10 @@ describe("useSceneRouter()", () => {
     let engineB: Awaited<ReturnType<typeof createEngine>> | undefined;
     try {
       engineA = await createEngine();
+      await engineA.use(SceneEnginePlugin());
       try {
         engineB = await createEngine();
+        await engineB.use(SceneEnginePlugin());
         const leaveA: { from: string; to: string }[] = [];
         const enterA: { from: string; to: string }[] = [];
         const leaveB: { from: string; to: string }[] = [];
@@ -355,6 +372,7 @@ describe("useSceneRouter()", () => {
 describe("useSceneRouter — engine:stop cleanup", () => {
   it("clears onTransition listeners when the engine stops", async () => {
     const engine = await createEngine();
+    await engine.use(SceneEnginePlugin());
     const A = defineScene("CleanupA", () => {});
     const B = defineScene("CleanupB", () => {});
     const SimpleRouter = defineSceneRouter({
@@ -399,6 +417,7 @@ describe("useSceneRouter — hand-built definition with numeric route keys", () 
       },
     };
     const engine = await createEngine();
+    await engine.use(SceneEnginePlugin());
     try {
       let nav: { current: unknown; send(event: string): Promise<void> } | undefined;
       engine.run(() => {
@@ -419,6 +438,7 @@ describe("useSceneRouter — hand-built definition with numeric route keys", () 
       options: { initial: 9, routes: { 1: { scene: One, on: {} } } },
     };
     const engine = await createEngine();
+    await engine.use(SceneEnginePlugin());
     try {
       let thrown: unknown;
       engine.run(() => {
@@ -447,6 +467,7 @@ describe("useSceneRouter — hand-built definition with no initial route", () =>
       options: { initial, routes: { home: { scene: One, on: {} } } },
     };
     const engine = await createEngine();
+    await engine.use(SceneEnginePlugin());
     try {
       let thrown: unknown;
       engine.run(() => {
@@ -475,6 +496,7 @@ describe("useSceneRouter — hand-built definition, base behaviour kept", () => 
     leaves: string[],
   ): Promise<void> {
     const engine = await createEngine();
+    await engine.use(SceneEnginePlugin());
     try {
       engine.hooks.hook("scene:transition:leave", ({ from }) => {
         leaves.push(from);
