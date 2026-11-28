@@ -301,6 +301,7 @@
       "hotCompareComponent",
       "hotReplaceActor",
       "hotReplaceLayout",
+      "hotReplacePlugin",
       "hotReplaceScene",
       "hotReplaceSystem",
       "invalidateWasmModule",

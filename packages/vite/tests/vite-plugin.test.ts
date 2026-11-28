@@ -495,7 +495,7 @@ describe("generateEntryModule — bootstrap correctness", () => {
 
   it("with scenes: awaits scene:enter for mainScene once, before start, with no direct onEnter", () => {
     const code = entryModule(true);
-    const hookIdx = code.indexOf("engine.hooks.hook('scene:enter'");
+    const hookIdx = code.indexOf("registerSceneHandles(engine, scene.name,");
     const call = 'if (mainScene) await engine.hooks.callHook("scene:enter", mainScene, undefined);';
     const callIdx = code.indexOf(call);
     const startIdx = code.indexOf("await engine.start()");
@@ -509,6 +509,33 @@ describe("generateEntryModule — bootstrap correctness", () => {
     expect(code).not.toContain("mainSceneFactory");
   });
 
+  it("the entry registers scene handles through core and has no _sceneHandleMap local", () => {
+    const code = entryModule(true);
+    expect(code).toMatch(
+      /import \{[^}]*\bregisterSceneHandles\b[^}]*\} from "@gwenjs\/core\/internal";/,
+    );
+    expect(code).toContain("registerSceneHandles(engine, scene.name,");
+    expect(code).not.toContain("_sceneHandleMap");
+    expect(code).not.toContain("engine.hooks.hook('scene:enter'");
+    expect(code).not.toContain("engine.hooks.hook('scene:beforeLeave'");
+  });
+
+  it("the entry pauses the systems of every scene except the main one after installing them", () => {
+    const code = entryModule(true);
+    const install = code.indexOf("for (const _s of _sceneSystems) await engine.use(_s);");
+    const pause = code.indexOf("for (const _h of _sceneInactive) _h._scenePause();");
+    const collect = code.indexOf("if (scene.name !== mainScene) _sceneInactive.push(");
+    expect(collect).toBeGreaterThan(0);
+    expect(install).toBeGreaterThan(collect);
+    expect(pause).toBeGreaterThan(install);
+  });
+
+  it("without scenes: no registerSceneHandles import or call", () => {
+    const code = entryModule(false);
+    expect(code).not.toContain("registerSceneHandles");
+    expect(entryModule(true)).toContain("registerSceneHandles");
+  });
+
   it("with scenes: imports runScenePreload from @gwenjs/core/internal and awaits it for mainScene before scene:enter and start()", () => {
     const code = entryModule(true);
     expect(code).toMatch(
@@ -519,7 +546,7 @@ describe("generateEntryModule — bootstrap correctness", () => {
     const importEnd = code.indexOf("engine.run(");
     const tryIdx = code.indexOf("try {");
     const registerIdx = code.indexOf("registerScenes(", importEnd);
-    const resumeIdx = code.indexOf("engine.hooks.hook('scene:enter'");
+    const resumeIdx = code.indexOf("registerSceneHandles(engine, scene.name,");
     const callIdx = code.indexOf(call);
     const enterIdx = code.indexOf('engine.hooks.callHook("scene:enter"');
     const startIdx = code.indexOf("await engine.start()");
