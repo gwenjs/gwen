@@ -399,7 +399,7 @@ Types: `GwenCoreGlueFactoryModule`, `GwenCoreGlueInstance`, `GwenCoreWasm`, `Gwe
 
 `hotReplaceLayout` — Dev only: disposes and loads again every loaded `useLayout` handle of a layout with its new factory, and reports `reload` when an engine is not `idle` or `running`.
 
-`hotReplaceScene` — Dev only: swaps a scene in place on every engine that installed it, and reports `reload` when the scene name differs or an engine is not `idle` or `running`.
+`hotReplaceScene` — Dev only: swaps a scene in place on every engine that installed it, and reports `reload` when the scene name differs, an engine is not `idle` or `running`, or a removed plugin is still required (`plugin-in-use`).
 
 `registerSceneHandles` — Records the system handles of one scene on an engine so pause and resume follow that scene.
 

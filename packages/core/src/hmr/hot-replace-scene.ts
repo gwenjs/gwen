@@ -1,7 +1,7 @@
 /**
  * @file Swap a scene in place on every engine that installed it.
  *
- * Dev only. A production build applies with count 0 because no scene records a install.
+ * Dev only. A production build applies with count 0 because no scene records an install.
  * A scene that declares systems or actors is single-engine: the factory runs once, on the
  * first engine, and the scope and plugin objects belong to that run.
  *
@@ -18,6 +18,7 @@ import { registerSceneHandles } from "./scene-handles.js";
 import {
   actorOwnerOf,
   factoryOf,
+  handleOf,
   sceneRecordOf,
   type SceneSystemFactory,
 } from "./scene-installs.js";
@@ -34,11 +35,20 @@ const emptyRegistry: SceneRegistry = {
   register() {},
 };
 
-interface SystemSlot {
+interface PlainSlot {
+  readonly plugin: GwenPlugin;
+  readonly handle: SystemHandle;
+  readonly kind: "plain";
+}
+
+interface FactorySlot {
   readonly plugin: GwenPlugin;
   readonly factory: SceneSystemFactory;
   readonly handle: SystemHandle;
+  readonly kind: "factory";
 }
+
+type SystemSlot = PlainSlot | FactorySlot;
 
 interface ActorSlot {
   readonly plugin: GwenPlugin;
@@ -64,14 +74,15 @@ function isPluginInUse(error: unknown): error is GwenPluginDependencyError {
 
 function systemSlots(def: SceneDefinition): SystemSlot[] {
   const slots: SystemSlot[] = [];
-  let handleAt = 0;
   for (const plugin of def.systems) {
-    const factory = factoryOf(plugin);
-    if (factory === undefined) continue;
-    const handle = def.handles[handleAt];
-    handleAt += 1;
+    const handle = handleOf(plugin);
     if (handle === undefined) continue;
-    slots.push({ plugin, factory, handle });
+    const factory = factoryOf(plugin);
+    if (factory === undefined) {
+      slots.push({ plugin, handle, kind: "plain" });
+      continue;
+    }
+    slots.push({ plugin, factory, handle, kind: "factory" });
   }
   return slots;
 }
@@ -174,6 +185,11 @@ async function diffScene(
       handles.push(slot.handle);
       continue;
     }
+    if (slot.kind === "plain" || prevSlot.kind === "plain") {
+      if (slot.kind === "factory") dropUnused(slot.plugin);
+      handles.push(prevSlot.handle);
+      continue;
+    }
     dropUnused(slot.plugin);
     if (prevSlot.factory === slot.factory) {
       handles.push(prevSlot.handle);
@@ -212,6 +228,8 @@ async function diffScene(
  * The active scene is not re-entered. Its entities stay. Hooks and the scene scope are
  * replaced, systems are diffed by name, and an inline actor with an installed name is
  * swapped through `hotReplaceActor`. `count` is the number of engines swapped.
+ * A handle that the new factory run captured from useSystem is not the installed one:
+ * it keeps no control of the installed system until the next page reload.
  *
  * A renamed scene reloads with `scene-set-changed`. A throwing `next` keeps `prev`
  * and emits `CORE:PLUGIN_RUNTIME_ERROR`. A scene nothing installed, and a production
