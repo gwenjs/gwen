@@ -76,6 +76,7 @@ export {
   hotCompareComponent,
   hotReplaceActor,
   hotReplaceLayout,
+  hotReplacePlugin,
   hotReplaceScene,
   hotReplaceSystem,
   registerSceneHandles,

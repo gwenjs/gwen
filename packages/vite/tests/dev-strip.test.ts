@@ -84,6 +84,8 @@ const SENTINELS = [
   "gwen.hot.layout",
   // Symbol description of the scene hot record.
   "gwen.hot.scene",
+  // Service change reason written only under __GWEN_DEV__ by hmr/plugin-swap.ts.
+  "hot-replace",
   // The stored-props field of an actor instance, written by define-actor.ts under __GWEN_DEV__.
   "_props",
 ];
