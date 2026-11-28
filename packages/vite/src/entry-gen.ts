@@ -144,7 +144,7 @@ export function generateEntryModule(
   lines.push(
     'import { createEngine } from "@gwenjs/core";',
     hasScenesDir
-      ? 'import { WasmBridgeImpl, runScenePreload } from "@gwenjs/core/internal";'
+      ? 'import { WasmBridgeImpl, runScenePreload, registerSceneHandles } from "@gwenjs/core/internal";'
       : 'import { WasmBridgeImpl } from "@gwenjs/core/internal";',
     'import { RenderHostPlugin, ScreenPlugin } from "@gwenjs/app";',
     `import * as __gwenGlue from ${JSON.stringify(`@gwenjs/core/wasm/${variant}${profile === "dev" ? "-dev" : ""}/factory`)};`,
@@ -197,17 +197,12 @@ export function generateEntryModule(
     bootstrapLines.push(
       "",
       "  const _sceneSystems = new Set();",
-      "  const _sceneHandleMap = new Map();",
-      "  engine.run(() => registerScenes({ register(scene) { _sceneHandleMap.set(scene.name, scene.handles ?? []); for (const _s of scene.systems ?? []) _sceneSystems.add(_s); } }));",
+      "  const _sceneInactive = [];",
+      "  engine.run(() => registerScenes({ register(scene) { const _hs = scene.handles ?? []; registerSceneHandles(engine, scene.name, _hs); if (scene.name !== mainScene) _sceneInactive.push(..._hs); for (const _s of scene.systems ?? []) _sceneSystems.add(_s); } }));",
       "  for (const _s of _sceneSystems) await engine.use(_s);",
       "",
-      "  // Pause systems of every scene except the initial one.",
-      "  // scene:enter / scene:beforeLeave resume and pause them during transitions.",
-      "  for (const [_sName, _sHandles] of _sceneHandleMap.entries()) {",
-      "    if (_sName !== mainScene) for (const _h of _sHandles) _h._scenePause();",
-      "  }",
-      "  engine.hooks.hook('scene:enter', (_name) => { for (const _h of _sceneHandleMap.get(_name) ?? []) _h._sceneResume(); });",
-      "  engine.hooks.hook('scene:beforeLeave', (_name) => { for (const _h of _sceneHandleMap.get(_name) ?? []) _h._scenePause(); });",
+      "  // Pause systems of every scene except the initial one. Core resumes and pauses them during transitions.",
+      "  for (const _h of _sceneInactive) _h._scenePause();",
       "",
       "  if (mainScene) await runScenePreload(engine, null, mainScene);",
       '  if (mainScene) await engine.hooks.callHook("scene:enter", mainScene, undefined);',
