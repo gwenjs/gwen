@@ -464,8 +464,11 @@ export class PluginRegistry {
     }
   }
 
-  /** Installed plugins, in install order, that still require `name` or one of its services. */
-  private _dependentsOf(name: string): string[] {
+  /**
+   * Installed plugins, in install order, that still require `name` or one of its services.
+   * @internal Read by the dev-only plugin host of `hmr/plugin-host.ts`.
+   */
+  _dependentsOf(name: string): string[] {
     const owned = this._owned.get(name);
     const dependents: string[] = [];
     for (const plugin of this._plugins) {

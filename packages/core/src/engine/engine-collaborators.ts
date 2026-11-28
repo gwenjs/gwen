@@ -41,6 +41,7 @@ import {
   trackCoreHookListeners,
 } from "./hook-dispatch.js";
 import { systemInstalls } from "../hmr/installs.js";
+import { rememberPluginHost } from "../hmr/plugin-host.js";
 import { createIntrospection } from "../introspection/provider.js";
 import { entityRows } from "../introspection/rows.js";
 import { peekTiming } from "../introspection/timing-store.js";
@@ -273,6 +274,14 @@ export abstract class EngineCollaborators {
           },
         }),
       );
+      rememberPluginHost(engine, {
+        named: (name) => this._pluginRegistry.pluginNamed(name),
+        dependents: (name) => this._pluginRegistry._dependentsOf(name),
+        ownedKeys: (name) =>
+          this._serviceContainer
+            .keys()
+            .filter((key) => this._pluginRegistry.ownerOfService(key) === name),
+      });
     }
     this._policy.attach();
     this._rememberInternals(engine);

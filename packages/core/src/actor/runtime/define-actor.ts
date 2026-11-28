@@ -816,8 +816,14 @@ export function defineActor<Props, PublicAPI>(
   // Dev only: what a hot swap needs. A production build builds none of it.
   if (__GWEN_DEV__) {
     Object.defineProperty(_plugin, HOT_ACTOR_OWNER, { value: definition });
-    /** Run the current body again on a live instance. The entity and its components stay. */
-    const respawn = (engine: GwenEngine, instance: ActorInstance<PublicAPI>): RespawnResult => {
+    /**
+     * Retire a live instance: despawn its children, run `onDestroy`, drop its scope.
+     * The entity and its components stay. The returned function builds the instance again.
+     */
+    const retire = (
+      engine: GwenEngine,
+      instance: ActorInstance<PublicAPI>,
+    ): (() => RespawnResult) => {
       const { entityId } = instance;
       const dormant = instance._scope.paused;
       const previous = _actorScopes.get(instance);
@@ -848,42 +854,54 @@ export function defineActor<Props, PublicAPI>(
         instance._release = [];
         instance._reset = [];
         instance.api = undefined;
-        instance._scope = new ScopedHookable(engine.hooks);
-        if (dormant) instance._scope.pause();
-        // A component the prefab gained is added; one it lost, or one already there, is left as is.
-        for (const entry of prefab.components) {
-          if (!engine.hasComponent(entityId, entry.def)) {
-            engine.addComponent(entityId, entry.def, entry.defaults);
-          }
-        }
-        const meta: { type: "actor"; name: string; entityId: EntityId; id?: string } = {
-          type: "actor",
-          name: pluginName,
-          entityId,
-        };
-        if (previous !== undefined) meta.id = previous.meta.id;
-        const actorScope = new GwenScope(engine, meta, null, instance._scope);
-        _actorScopes.set(instance, actorScope);
-        try {
-          _actorCtx.run({ entityId, instance, engine }, () => {
-            actorScope.run(() => {
-              instance.api = (factory as (props?: Props) => PublicAPI)(instance._props as Props); // boundary: the stored props are the ones spawn or acquire passed to this definition
-            });
-          });
-          // A dormant instance was started when it was spawned.
-          if (!dormant) {
-            for (let i = 0; i < instance._start.length; i++) uncheckedAt(instance._start, i)();
-          }
-          instance._start = [];
-        } catch (error) {
-          actorScope.dispose();
-          return { ok: false, error, target: targetFromScopeMeta(actorScope.meta) };
-        }
-        return { ok: true };
       } finally {
         popEngine(engine, previousEngine);
       }
+      return () => {
+        // Despawn during the swap drops this instance. Building it again would leave its hooks.
+        if (_buckets.get(engine)?.get(entityId) !== instance) return { ok: true };
+        const rebuildEngine = pushEngine(engine);
+        try {
+          instance._scope = new ScopedHookable(engine.hooks);
+          if (dormant) instance._scope.pause();
+          // A component the prefab gained is added; one it lost, or one already there, is left as is.
+          for (const entry of prefab.components) {
+            if (!engine.hasComponent(entityId, entry.def)) {
+              engine.addComponent(entityId, entry.def, entry.defaults);
+            }
+          }
+          const meta: { type: "actor"; name: string; entityId: EntityId; id?: string } = {
+            type: "actor",
+            name: pluginName,
+            entityId,
+          };
+          if (previous !== undefined) meta.id = previous.meta.id;
+          const actorScope = new GwenScope(engine, meta, null, instance._scope);
+          _actorScopes.set(instance, actorScope);
+          try {
+            _actorCtx.run({ entityId, instance, engine }, () => {
+              actorScope.run(() => {
+                instance.api = (factory as (props?: Props) => PublicAPI)(instance._props as Props); // boundary: the stored props are the ones spawn or acquire passed to this definition
+              });
+            });
+            // A dormant instance was started when it was spawned.
+            if (!dormant) {
+              for (let i = 0; i < instance._start.length; i++) uncheckedAt(instance._start, i)();
+            }
+            instance._start = [];
+          } catch (error) {
+            actorScope.dispose();
+            return { ok: false, error, target: targetFromScopeMeta(actorScope.meta) };
+          }
+          return { ok: true };
+        } finally {
+          popEngine(engine, rebuildEngine);
+        }
+      };
     };
+    /** Run the current body again on a live instance. The entity and its components stay. */
+    const respawn = (engine: GwenEngine, instance: ActorInstance<PublicAPI>): RespawnResult =>
+      retire(engine, instance)();
 
     const swapListeners = new Set<() => void>();
     // Unsubscribe closes over `cell`. `rehome` points it at the root set, so the drop still works.
@@ -901,6 +919,10 @@ export function defineActor<Props, PublicAPI>(
       respawn(engine, id) {
         const instance = _buckets.get(engine)?.get(id);
         return instance === undefined ? { ok: true } : respawn(engine, instance);
+      },
+      retire(engine, id) {
+        const instance = _buckets.get(engine)?.get(id);
+        return instance === undefined ? () => ({ ok: true }) : retire(engine, instance);
       },
       listen(drop) {
         cell.set.add(drop);

@@ -3,7 +3,7 @@ import type { GwenEngine } from "../engine/engine-types.js";
 import { isolateTarget } from "../engine/error-isolation.js";
 import type { DiscoverablePlugin } from "../system/runtime/define-system";
 import { isLive, settle } from "./frame.js";
-import { controlOf, recordOf, type SystemInstall } from "./installs.js";
+import { controlOf, recordOf, type RetiredSystem, type SystemInstall } from "./installs.js";
 import type { GwenHotReport } from "./types.js";
 
 function applied(name: string, count: number): GwenHotReport {
@@ -11,18 +11,17 @@ function applied(name: string, count: number): GwenHotReport {
 }
 
 /**
- * Run `next`'s body in place of the old body of one install.
+ * Run the body of `replacement` in place of the retired body of one install.
  * @returns true when the new setup ran to the end.
  */
-function swapInstall<Args extends unknown[]>(
+export function rebuildInstall<Args extends unknown[]>(
   install: SystemInstall<Args>,
-  next: (...args: Args) => DiscoverablePlugin,
+  retired: RetiredSystem,
+  replacement: DiscoverablePlugin,
   name: string,
 ): boolean {
-  const replacement = next(...install.args);
   const control = controlOf(replacement);
   if (control === undefined) return false;
-  const retired = install.control.retire();
   const { engine } = install;
   const result = engine.run(() => control.rebuild(retired, install.root));
   install.root.redirect(replacement);
@@ -40,6 +39,20 @@ function swapInstall<Args extends unknown[]>(
     context: { phase: "setup" },
   });
   return false;
+}
+
+/**
+ * Run `next`'s body in place of the old body of one install.
+ * @returns true when the new setup ran to the end.
+ */
+function swapInstall<Args extends unknown[]>(
+  install: SystemInstall<Args>,
+  next: (...args: Args) => DiscoverablePlugin,
+  name: string,
+): boolean {
+  const replacement = next(...install.args);
+  if (controlOf(replacement) === undefined) return false;
+  return rebuildInstall(install, install.control.retire(), replacement, name);
 }
 
 /**

@@ -1,12 +1,32 @@
 import type { ActorDefinition } from "../actor/runtime/types.js";
 import { CoreErrorCodes } from "../engine/engine-errors.js";
+import type { GwenEngine } from "../engine/engine-types.js";
 import { isolateTarget } from "../engine/error-isolation.js";
 import { isLive, settle } from "./frame.js";
-import { actorControlOf, type HotActorControl } from "./actor-installs.js";
+import { actorControlOf, type HotActorControl, type RespawnResult } from "./actor-installs.js";
 import type { GwenHotReport } from "./types.js";
 
 function applied(name: string, count: number): GwenHotReport {
   return { status: "applied", kind: "actor", name, count };
+}
+
+/** Isolate the instance whose factory or `onStart` threw and publish `CORE:PLUGIN_RUNTIME_ERROR`. */
+export function reportRespawnFailure(
+  engine: GwenEngine,
+  name: string,
+  result: Extract<RespawnResult, { readonly ok: false }>,
+): void {
+  isolateTarget(engine, result.target);
+  const detail = result.error instanceof Error ? result.error.message : String(result.error);
+  engine.errors.emit({
+    level: "error",
+    code: CoreErrorCodes.PLUGIN_RUNTIME_ERROR,
+    message: `[${name}] factory or onStart threw: ${detail}`,
+    source: name,
+    error: result.error,
+    target: result.target,
+    context: { phase: "setup" },
+  });
 }
 
 /**
@@ -90,17 +110,7 @@ export async function hotReplaceActor<Props, PublicAPI>(
         count++;
         continue;
       }
-      isolateTarget(engine, result.target);
-      const detail = result.error instanceof Error ? result.error.message : String(result.error);
-      engine.errors.emit({
-        level: "error",
-        code: CoreErrorCodes.PLUGIN_RUNTIME_ERROR,
-        message: `[${name}] factory or onStart threw: ${detail}`,
-        source: name,
-        error: result.error,
-        target: result.target,
-        context: { phase: "setup" },
-      });
+      reportRespawnFailure(engine, name, result);
     }
   }
   // A `useActor` handle cached the methods of the old public API: it reads the new one now.

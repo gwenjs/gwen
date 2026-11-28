@@ -399,7 +399,7 @@ Types: `GwenCoreGlueFactoryModule`, `GwenCoreGlueInstance`, `GwenCoreWasm`, `Gwe
 
 `hotReplaceLayout` — Dev only: disposes and loads again every loaded `useLayout` handle of a layout with its new factory, and reports `reload` when an engine is not `idle` or `running`.
 
-`hotReplacePlugin` — Dev only: swaps a local plugin in place: tears the previous one down, installs the new one last, and reports `reload` when another plugin still requires it (`plugin-in-use`) or the engine is not `idle` or `running`.
+`hotReplacePlugin` — Dev only: swaps a local plugin in place: saves `hot` state, retires the system and actor readers of its services, tears the previous plugin down, installs the next one, restores that state, then builds those readers again. Reports `reload` when the engine is not `idle` or `running`, or with `plugin-in-use` when another plugin still requires it or a scene or plugin still reads its service. An applied swap can set `detail` to `hot state not restored`.
 
 `hotReplaceScene` — Dev only: swaps a scene in place on every engine that installed it, and reports `reload` when the scene name differs, an engine is not `idle` or `running`, or a removed plugin is still required (`plugin-in-use`).
 
