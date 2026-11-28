@@ -3,7 +3,11 @@ import type { GwenEngine } from "../engine/engine-types.js";
 import type { SystemHandle } from "../scene/runtime/system-handle.js";
 import { devNoteScenePresence } from "../scene/engine-plugin.js";
 
-/** Scene name to the handles of its systems, one map per engine. Dev swaps read it. */
+/**
+ * Per-engine registry of scene handles, filled only in dev. In production the handlers
+ * of `registerSceneHandles` close over `handles` and the map stays empty (a production
+ * test pins it). In dev `current()` reads it for pause and resume.
+ */
 export const sceneHandles = createEngineLocal<Map<string, SystemHandle[]>>(() => new Map());
 
 /**
