@@ -33,14 +33,14 @@ function isPluginInUse(error: unknown): error is GwenPluginDependencyError {
 
 /**
  * A throwing `setup` already published `CORE:PLUGIN_SETUP_ERROR` (`reportSetupError`).
- * A rejection before `setup` publishes nothing: this emits one runtime error for it.
+ * Any other rejection of `use` publishes nothing: this emits one runtime error for it.
  */
 function reportRejectedSetup(engine: GwenEngine, name: string, error: unknown): void {
   const detail = error instanceof Error ? error.message : String(error);
   engine.errors.emit({
     level: "error",
     code: CoreErrorCodes.PLUGIN_RUNTIME_ERROR,
-    message: `[${name}] rejected before setup: ${detail}`,
+    message: `[${name}] install rejected: ${detail}`,
     source: name,
     error,
     context: { phase: "setup" },
@@ -50,8 +50,11 @@ function reportRejectedSetup(engine: GwenEngine, name: string, error: unknown): 
 /**
  * Tear `prevName` down, then install `next` last on `engine`.
  *
- * `count` is 1 when `next` is installed, including when `prevName` was absent.
- * A failed `use(next)` after a successful `unuse` reports `applied` with `count` 0.
+ * `count` is 1 when this call installs `next`, including when `prevName` was absent.
+ * A failed `use(next)` reports `applied` with `count` 0.
+ * When `next.name` is already installed after the teardown, that plugin is left
+ * as it is, nothing is emitted, and `count` is 0. `prevName` is still removed
+ * when it was installed.
  * @returns The swap report. `name` is `prevName`.
  */
 export async function hotReplacePlugin(
@@ -60,9 +63,9 @@ export async function hotReplacePlugin(
   next: GwenPlugin,
 ): Promise<GwenHotReport> {
   if (!isLive(engine)) return reload(prevName, "engine-not-running");
-  const installed = engine.getStats().plugins.includes(prevName);
   if (!(await settle(engine))) return reload(prevName, "engine-not-running");
-  const done = markSwap(engine, prevName);
+  const installed = engine.getStats().plugins.includes(prevName);
+  const done = markSwap(engine, [prevName, next.name]);
   let setupReported = false;
   const stopWatch = engine.errors.on((event) => {
     if (event.code === CoreErrorCodes.PLUGIN_SETUP_ERROR) setupReported = true;
@@ -78,6 +81,8 @@ export async function hotReplacePlugin(
         throw error;
       }
     }
+    if (!isLive(engine)) return reload(prevName, "engine-not-running");
+    if (engine.getStats().plugins.includes(next.name)) return applied(prevName, 0);
     try {
       await engine.use(next);
     } catch (error: unknown) {

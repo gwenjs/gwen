@@ -1,8 +1,8 @@
 /**
  * @file Which plugin an engine is swapping right now. Dev only.
  *
- * `hotReplacePlugin` marks the plugin name for the length of the swap.
- * `emitServiceChange` reads the mark so that plugin's notices use `hot-replace`.
+ * `hotReplacePlugin` marks both plugin names for the length of the swap.
+ * `emitServiceChange` reads the mark so those plugins' notices use `hot-replace`.
  *
  * @module
  */
@@ -10,18 +10,18 @@
 import type { ServiceChangeReason } from "@gwenjs/schema";
 import type { GwenEngine } from "../engine/engine-types.js";
 
-const swapping = new WeakMap<GwenEngine, string>();
+const swapping = new WeakMap<GwenEngine, Set<string>>();
 
-/** Remember `name` until the returned function runs. */
-export function markSwap(engine: GwenEngine, name: string): () => void {
-  swapping.set(engine, name);
+/** Remember every name until the returned function runs. */
+export function markSwap(engine: GwenEngine, names: readonly string[]): () => void {
+  swapping.set(engine, new Set(names));
   return () => {
     swapping.delete(engine);
   };
 }
 
 /**
- * `hot-replace` while `owner` is the plugin `markSwap` recorded, otherwise `reason`.
+ * `hot-replace` while `owner` is a name `markSwap` recorded, otherwise `reason`.
  * A notice with no owner keeps its reason.
  */
 export function hotServiceReason(
@@ -29,5 +29,6 @@ export function hotServiceReason(
   owner: string | undefined,
   reason: ServiceChangeReason,
 ): ServiceChangeReason {
-  return owner !== undefined && swapping.get(engine) === owner ? "hot-replace" : reason;
+  const marked = swapping.get(engine);
+  return owner !== undefined && marked !== undefined && marked.has(owner) ? "hot-replace" : reason;
 }
